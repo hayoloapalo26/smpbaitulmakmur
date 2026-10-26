@@ -17,7 +17,16 @@ class AbsensiManual extends Page
 
     public static function canAccess(): bool
     {
-        return auth()->user()->hasAnyRole(['guru_piket', 'tata_usaha', 'waka_kesiswaan', 'kepala_sekolah', 'superadmin']);
+        $user = auth()->user();
+        if (!$user) {
+            return false;
+        }
+
+        $isPiketToday = \App\Models\DutySchedule::where('teacher_id', $user->id)
+            ->whereDate('tanggal', \Carbon\Carbon::today())
+            ->exists();
+
+        return $isPiketToday || $user->hasAnyRole(['guru_piket', 'tata_usaha', 'waka_kesiswaan', 'kepala_sekolah', 'superadmin']);
     }
 
     protected static ?string $navigationIcon    = 'heroicon-o-clipboard-document-check';

@@ -10,28 +10,34 @@ class DutySchedulePolicy
 {
     public function viewAny(User $user): bool
     {
-        if ($user->hasRole('kepala_sekolah')) return true;
-        return $user->hasRole(['waka_kesiswaan', 'kepala_sekolah', 'guru_mapel', 'guru_alquran', 'wali_kelas']);
+        if ($user->hasRole('kepala_sekolah') || $user->hasRole('superadmin')) return true;
+        return $user->hasRole([
+            'waka_kesiswaan', 'kepala_sekolah', 'guru_mapel', 'guru_alquran', 
+            'wali_kelas', 'guru_kelas', 'bk', 'guru_piket', 'tata_usaha'
+        ]);
     }
 
     public function view(User $user, DutySchedule $model): bool
     {
-        if ($user->hasRole('kepala_sekolah')) return true;
-        return $user->hasRole(['waka_kesiswaan', 'kepala_sekolah', 'guru_mapel', 'guru_alquran', 'wali_kelas']);
+        if ($user->hasRole('kepala_sekolah') || $user->hasRole('superadmin')) return true;
+        return $user->hasRole([
+            'waka_kesiswaan', 'kepala_sekolah', 'guru_mapel', 'guru_alquran', 
+            'wali_kelas', 'guru_kelas', 'bk', 'guru_piket', 'tata_usaha'
+        ]);
     }
 
     public function create(User $user): bool
     {
-        return $user->hasRole(['waka_kesiswaan']);
+        return $user->hasRole(['waka_kesiswaan', 'superadmin']);
     }
 
     public function update(User $user, DutySchedule $model): bool
     {
-        return $user->hasRole(['waka_kesiswaan']);
+        return $user->hasRole(['waka_kesiswaan', 'superadmin']);
     }
 
     public function delete(User $user, DutySchedule $model): bool
     {
-        return $user->hasRole(['waka_kesiswaan']);
+        return $user->hasRole(['waka_kesiswaan', 'superadmin']);
     }
 }

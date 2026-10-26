@@ -140,6 +140,30 @@ class User extends Authenticatable implements FilamentUser, HasAvatar
     }
 
     /**
+     * Cek apakah user bertugas sebagai guru piket pada tanggal tertentu (default: hari ini).
+     */
+    public function isPiketOnDate($date = null): bool
+    {
+        if (method_exists($this, 'hasRole') && $this->hasRole('guru_piket')) {
+            return true;
+        }
+
+        $targetDate = $date ? \Carbon\Carbon::parse($date)->toDateString() : \Carbon\Carbon::today()->toDateString();
+
+        return \App\Models\DutySchedule::where('teacher_id', $this->id)
+            ->whereDate('tanggal', $targetDate)
+            ->exists();
+    }
+
+    /**
+     * Cek apakah user bertugas sebagai guru piket hari ini.
+     */
+    public function isPiketToday(): bool
+    {
+        return $this->isPiketOnDate();
+    }
+
+    /**
      * Mendapatkan daftar opsi Guru Pengganti (Inval) dengan 'Guru Piket' selalu di posisi teratas.
      * Hanya opsi tunggal 'Guru Piket' (tanpa nama guru) agar tidak terhitung jam inval.
      * Guru pengganti lainnya adalah daftar guru asli yang akan mendapatkan jam inval sesuai JP.

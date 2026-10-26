@@ -80,7 +80,7 @@ class PresensiIzinSiswaResource extends Resource
             $query->where('institution_id', $user->institution_id);
         }
 
-        if ($user->hasAnyRole(['kepala_sekolah', 'waka_kesiswaan', 'tata_usaha', 'guru_piket', 'superadmin'])) {
+        if ($user->hasAnyRole(['kepala_sekolah', 'waka_kesiswaan', 'tata_usaha', 'guru_piket', 'superadmin']) || $user->isPiketToday()) {
             return $query;
         }
 
@@ -97,7 +97,7 @@ class PresensiIzinSiswaResource extends Resource
     public static function form(Form $form): Form
     {
         $user = Auth::user();
-        $isWaliKelasOnly = $user->hasAnyRole(['wali_kelas', 'guru_kelas']) && !$user->hasAnyRole(['superadmin', 'kepala_sekolah', 'waka_kesiswaan', 'tata_usaha', 'guru_piket']);
+        $isWaliKelasOnly = $user->hasAnyRole(['wali_kelas', 'guru_kelas']) && !$user->hasAnyRole(['superadmin', 'kepala_sekolah', 'waka_kesiswaan', 'tata_usaha', 'guru_piket']) && !$user->isPiketToday();
 
         $studentIds = [];
         if ($isWaliKelasOnly) {

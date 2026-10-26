@@ -2,45 +2,58 @@
 
 namespace App\Policies;
 
+use App\Models\DutySchedule;
 use App\Models\DutySwapRequest;
 use App\Models\User;
 use Illuminate\Auth\Access\Response;
 
 class DutySwapRequestPolicy
 {
-    private function isPiketOrWaka(User $user): bool
+    private function isAuthorized(User $user): bool
     {
-        if ($user->hasRole(['waka_kesiswaan'])) return true;
-        // Check if user is piket today
-        return \App\Models\DutySchedule::where('teacher_id', $user->id)
-            ->whereDate('tanggal', \Carbon\Carbon::today())
-            ->exists();
+        if ($user->hasRole(['waka_kesiswaan', 'kepala_sekolah', 'superadmin'])) {
+            return true;
+        }
+
+        return $user->hasAnyRole([
+            'guru_mapel', 'guru_alquran', 'wali_kelas', 'guru_kelas', 'bk', 'guru_piket', 'tata_usaha'
+        ]) || DutySchedule::where('teacher_id', $user->id)->exists();
     }
 
     public function viewAny(User $user): bool
     {
-        if ($user->hasRole('kepala_sekolah')) return true;
-        return $this->isPiketOrWaka($user);
+        return $this->isAuthorized($user);
     }
 
     public function view(User $user, DutySwapRequest $model): bool
     {
-        if ($user->hasRole('kepala_sekolah')) return true;
-        return $this->isPiketOrWaka($user);
+        if ($user->hasRole(['waka_kesiswaan', 'kepala_sekolah', 'superadmin'])) {
+            return true;
+        }
+
+        return $model->requester_id === $user->id || $model->substitute_teacher_id === $user->id;
     }
 
     public function create(User $user): bool
     {
-        return $this->isPiketOrWaka($user);
+        return $this->isAuthorized($user);
     }
 
     public function update(User $user, DutySwapRequest $model): bool
     {
-        return $this->isPiketOrWaka($user);
+        if ($user->hasRole(['waka_kesiswaan', 'superadmin'])) {
+            return true;
+        }
+
+        return $model->requester_id === $user->id || $model->substitute_teacher_id === $user->id;
     }
 
     public function delete(User $user, DutySwapRequest $model): bool
     {
-        return $this->isPiketOrWaka($user);
+        if ($user->hasRole(['waka_kesiswaan', 'superadmin'])) {
+            return true;
+        }
+
+        return $model->requester_id === $user->id && $model->status === 'diajukan';
     }
 }

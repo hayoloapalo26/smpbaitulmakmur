@@ -20,7 +20,7 @@ class DutySwapRequestResource extends Resource
 
     public static function canAccess(): bool
     {
-        return auth()->user()->hasAnyRole(['waka_kurikulum', 'guru_piket', 'guru_mapel', 'guru_alquran', 'wali_kelas', 'guru_kelas', 'bk', 'superadmin']);
+        return auth()->user()->hasAnyRole(['waka_kesiswaan', 'kepala_sekolah', 'superadmin', 'guru_piket', 'guru_mapel', 'guru_alquran', 'wali_kelas', 'guru_kelas', 'bk', 'tata_usaha']);
     }
 
     protected static ?string $model = DutySwapRequest::class;
@@ -32,7 +32,7 @@ class DutySwapRequestResource extends Resource
     {
         $query = parent::getEloquentQuery();
         $user = Auth::user();
-        if ($user->hasRole('waka_kurikulum')) {
+        if ($user && $user->hasAnyRole(['waka_kesiswaan', 'kepala_sekolah', 'superadmin'])) {
             return $query;
         }
         // Show requests made by me OR where I am the substitute
@@ -83,7 +83,7 @@ class DutySwapRequestResource extends Resource
                     ->icon('heroicon-o-check')
                     ->color('success')
                     ->requiresConfirmation()
-                    ->visible(fn ($record) => $record->status === 'diajukan' && $record->substitute_teacher_id === Auth::id())
+                    ->visible(fn ($record) => $record->status === 'diajukan' && ($record->substitute_teacher_id === Auth::id() || Auth::user()->hasAnyRole(['waka_kesiswaan', 'superadmin'])))
                     ->action(function ($record) {
                         $record->update(['status' => 'disetujui']);
                         
@@ -107,7 +107,7 @@ class DutySwapRequestResource extends Resource
                     ->icon('heroicon-o-x-mark')
                     ->color('danger')
                     ->requiresConfirmation()
-                    ->visible(fn ($record) => $record->status === 'diajukan' && $record->substitute_teacher_id === Auth::id())
+                    ->visible(fn ($record) => $record->status === 'diajukan' && ($record->substitute_teacher_id === Auth::id() || Auth::user()->hasAnyRole(['waka_kesiswaan', 'superadmin'])))
                     ->action(fn ($record) => $record->update(['status' => 'ditolak'])),
             ]);
     }
