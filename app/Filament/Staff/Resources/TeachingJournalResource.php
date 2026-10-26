@@ -152,8 +152,18 @@ class TeachingJournalResource extends Resource
                                     ->get();
 
                                 // Jadwal di mana guru ini ditugaskan sebagai Guru Pengganti (Inval) pada tanggal tersebut
+                                $isPiketDuty = \App\Models\DutySchedule::where('teacher_id', $teacherId)->whereDate('tanggal', $tanggal)->exists()
+                                    || auth()->user()?->hasRole('guru_piket');
+
+                                $guruPiketIds = \App\Models\User::withoutGlobalScopes()
+                                    ->where(fn ($q) => $q->where('name', 'Guru Piket')->orWhereHas('roles', fn ($r) => $r->where('name', 'guru_piket')))
+                                    ->pluck('id')
+                                    ->toArray();
+
+                                $targetSubstituteIds = array_unique(array_merge([$teacherId], $isPiketDuty ? $guruPiketIds : []));
+
                                 $substituteScheduleIds = \App\Models\TeacherAttendance::withoutGlobalScopes()
-                                    ->where('substitute_teacher_id', $teacherId)
+                                    ->whereIn('substitute_teacher_id', $targetSubstituteIds)
                                     ->whereDate('tanggal', $tanggal)
                                     ->whereNotNull('schedule_id')
                                     ->pluck('schedule_id')

@@ -43,11 +43,18 @@ class TeachingJournal extends Model
         });
 
         static::saved(function (TeachingJournal $journal) {
-            // Cek apakah jurnal ini diisi oleh guru pengganti
+            // Cek apakah jurnal ini diisi oleh guru pengganti atau guru piket
+            $guruPiketIds = User::withoutGlobalScopes()
+                ->where(fn ($q) => $q->where('name', 'Guru Piket')->orWhereHas('roles', fn ($r) => $r->where('name', 'guru_piket')))
+                ->pluck('id')
+                ->toArray();
+
+            $matchingSubIds = array_unique(array_merge([$journal->teacher_id], $guruPiketIds));
+
             $leaveAttendance = TeacherAttendance::withoutGlobalScopes()
                 ->where('schedule_id', $journal->schedule_id)
                 ->whereDate('tanggal', $journal->tanggal)
-                ->where('substitute_teacher_id', $journal->teacher_id)
+                ->whereIn('substitute_teacher_id', $matchingSubIds)
                 ->first();
 
             if ($leaveAttendance) {

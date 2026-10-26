@@ -207,6 +207,8 @@ class TeacherLeaveRequestResource extends Resource
 
                         Forms\Components\Select::make('substitute_teacher_id')
                             ->relationship('substituteTeacher', 'name', modifyQueryUsing: function (Builder $query, Forms\Get $get) {
+                                \App\Models\User::ensureGuruPiketUser();
+
                                 $user = Auth::user();
                                 if ($user->institution_id && !$user->hasRole('superadmin')) {
                                     $query->where(function ($q) use ($user) {
@@ -215,12 +217,41 @@ class TeacherLeaveRequestResource extends Resource
                                           ->orWhereNull('institution_id');
                                     });
                                 }
-                                $query->whereHas('roles', fn ($q) => $q->whereIn('name', ['guru_mapel', 'guru_alquran', 'wali_kelas', 'guru_kelas', 'waka_kurikulum']));
+                                $query->where(function ($q) {
+                                    $q->whereHas('roles', fn ($r) => $r->whereIn('name', [
+                                        'guru_mapel',
+                                        'guru_alquran',
+                                        'wali_kelas',
+                                        'guru_kelas',
+                                        'waka_kurikulum',
+                                        'guru_piket',
+                                    ]))
+                                    ->orWhere('name', 'Guru Piket')
+                                    ->orWhere('username', 'gurupiket');
+                                });
                                 if ($get('teacher_id')) {
                                     $query->where('id', '!=', $get('teacher_id'));
                                 }
+                                $query->orderByRaw("CASE WHEN name = 'Guru Piket' THEN 0 WHEN name LIKE '%Piket%' THEN 1 ELSE 2 END, name ASC");
                             })
                             ->label('Guru Pengganti (Inval)')
+                            ->placeholder('Pilih Guru Pengganti atau Guru Piket...')
+                            ->helperText(function (Forms\Get $get) {
+                                $tanggal = $get('tanggal_mulai') ?: now()->toDateString();
+                                $dutyTeachers = \App\Models\DutySchedule::whereDate('tanggal', $tanggal)
+                                    ->with('teacher')
+                                    ->get()
+                                    ->pluck('teacher.name')
+                                    ->filter()
+                                    ->toArray();
+
+                                if (!empty($dutyTeachers)) {
+                                    $piketNames = implode(', ', $dutyTeachers);
+                                    return "💡 Petugas Piket tanggal {$tanggal}: {$piketNames}. Jika tidak menemukan guru pengganti, silakan pilih opsi 'Guru Piket'.";
+                                }
+
+                                return "💡 Jika tidak menemukan guru pengganti yang bersedia, Anda atau Waka Kurikulum dapat memilih opsi 'Guru Piket'.";
+                            })
                             ->searchable()
                             ->preload(),
 
@@ -292,7 +323,7 @@ class TeacherLeaveRequestResource extends Resource
                             ->placeholder('Tidak ada guru pengganti')
                             ->icon('heroicon-o-user-plus')
                             ->badge()
-                            ->color('info'),
+                            ->color(fn ($state) => str_contains(strtolower($state ?? ''), 'piket') ? 'warning' : 'info'),
                     ])->columns(2),
 
                 Infolists\Components\Section::make('Rincian Guru & Waktu Izin')
@@ -379,6 +410,8 @@ class TeacherLeaveRequestResource extends Resource
                 Tables\Columns\TextColumn::make('substituteTeacher.name')
                     ->label('Guru Pengganti')
                     ->placeholder('-')
+                    ->badge()
+                    ->color(fn ($state) => str_contains(strtolower($state ?? ''), 'piket') ? 'warning' : 'gray')
                     ->searchable(),
                 Tables\Columns\TextColumn::make('alasan')
                     ->label('Alasan')
@@ -426,6 +459,8 @@ class TeacherLeaveRequestResource extends Resource
                     ->form([
                         Forms\Components\Select::make('substitute_teacher_id')
                             ->relationship('substituteTeacher', 'name', modifyQueryUsing: function (Builder $query, $record) {
+                                \App\Models\User::ensureGuruPiketUser();
+
                                 $user = Auth::user();
                                 if ($user->institution_id && !$user->hasRole('superadmin')) {
                                     $query->where(function ($q) use ($user) {
@@ -434,12 +469,41 @@ class TeacherLeaveRequestResource extends Resource
                                           ->orWhereNull('institution_id');
                                     });
                                 }
-                                $query->whereHas('roles', fn ($q) => $q->whereIn('name', ['guru_mapel', 'guru_alquran', 'wali_kelas', 'guru_kelas', 'waka_kurikulum']));
+                                $query->where(function ($q) {
+                                    $q->whereHas('roles', fn ($r) => $r->whereIn('name', [
+                                        'guru_mapel',
+                                        'guru_alquran',
+                                        'wali_kelas',
+                                        'guru_kelas',
+                                        'waka_kurikulum',
+                                        'guru_piket',
+                                    ]))
+                                    ->orWhere('name', 'Guru Piket')
+                                    ->orWhere('username', 'gurupiket');
+                                });
                                 if ($record?->teacher_id) {
                                     $query->where('id', '!=', $record->teacher_id);
                                 }
+                                $query->orderByRaw("CASE WHEN name = 'Guru Piket' THEN 0 WHEN name LIKE '%Piket%' THEN 1 ELSE 2 END, name ASC");
                             })
                             ->label('Pilih Guru Pengganti (Inval)')
+                            ->placeholder('Pilih Guru Pengganti atau Guru Piket...')
+                            ->helperText(function ($record) {
+                                $tanggal = $record?->tanggal_mulai ? \Carbon\Carbon::parse($record->tanggal_mulai)->toDateString() : now()->toDateString();
+                                $dutyTeachers = \App\Models\DutySchedule::whereDate('tanggal', $tanggal)
+                                    ->with('teacher')
+                                    ->get()
+                                    ->pluck('teacher.name')
+                                    ->filter()
+                                    ->toArray();
+
+                                if (!empty($dutyTeachers)) {
+                                    $piketNames = implode(', ', $dutyTeachers);
+                                    return "💡 Guru Piket bertugas tanggal {$tanggal}: {$piketNames}. Jika tidak ada guru pengganti, Anda dapat memilih 'Guru Piket'.";
+                                }
+
+                                return "💡 Jika tidak ada guru pengganti, Waka Kurikulum dapat memilih opsi 'Guru Piket'.";
+                            })
                             ->searchable()
                             ->preload()
                             ->default(fn ($record) => $record->substitute_teacher_id),

@@ -90,4 +90,54 @@ class User extends Authenticatable implements FilamentUser, HasAvatar
     {
         return $this->hasMany(TeacherCertificate::class, 'teacher_id');
     }
+
+    /**
+     * Memastikan user akun khusus "Guru Piket" tersedia di sistem.
+     */
+    public static function ensureGuruPiketUser(?int $institutionId = 2): ?self
+    {
+        try {
+            $user = static::withoutGlobalScopes()
+                ->where('name', 'Guru Piket')
+                ->orWhere('username', 'gurupiket')
+                ->first();
+
+            if (!$user) {
+                $user = static::withoutGlobalScopes()
+                    ->where('email', 'gurusiti@smp.com')
+                    ->first();
+
+                $instId = $institutionId;
+                if ($instId && !\App\Models\Institution::where('id', $instId)->exists()) {
+                    $instId = \App\Models\Institution::first()?->id;
+                }
+
+                if ($user) {
+                    $user->update([
+                        'name' => 'Guru Piket',
+                        'username' => 'gurupiket',
+                        'email' => 'gurupiket@smp.com',
+                    ]);
+                } else {
+                    $user = static::withoutGlobalScopes()->create([
+                        'name' => 'Guru Piket',
+                        'username' => 'gurupiket',
+                        'email' => 'gurupiket@smp.com',
+                        'password' => \Illuminate\Support\Facades\Hash::make('password123'),
+                        'institution_id' => $instId,
+                        'is_active' => true,
+                    ]);
+                }
+            }
+
+            if ($user && method_exists($user, 'hasRole') && !$user->hasRole('guru_piket')) {
+                $role = \Spatie\Permission\Models\Role::firstOrCreate(['name' => 'guru_piket', 'guard_name' => 'web']);
+                $user->assignRole($role);
+            }
+
+            return $user;
+        } catch (\Throwable $e) {
+            return static::withoutGlobalScopes()->where('name', 'Guru Piket')->first();
+        }
+    }
 }

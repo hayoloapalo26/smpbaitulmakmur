@@ -54,7 +54,7 @@ class InstitutionUserSeeder extends Seeder
         $waka = $this->createUser('Waka Kurikulum SMP', 'waka@smp.com', 'waka_kurikulum', 2, $defaultPassword);
         $guru1 = $this->createUser('Guru Budi (Kelas)', 'gurubudi@smp.com', 'guru_kelas', 2, $defaultPassword);
         $guru1->assignRole(['wali_kelas', 'guru_alquran', 'bk', 'tata_usaha', 'sarpras', 'humas']);
-        $guru2 = $this->createUser('Guru Siti (Piket)', 'gurusiti@smp.com', 'guru_piket', 2, $defaultPassword);
+        $guru2 = $this->createUser('Guru Piket', 'gurupiket@smp.com', 'guru_piket', 2, $defaultPassword);
         $guru3 = $this->createUser('Guru Anton (Mapel)', 'guruanton@smp.com', 'guru_mapel', 2, $defaultPassword);
 
         // Create a classroom first

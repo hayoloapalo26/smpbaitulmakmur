@@ -160,15 +160,37 @@ class TeacherAttendanceResource extends Resource
                 Forms\Components\Select::make('substitute_teacher_id')
                     ->label('Guru Pengganti (Inval)')
                     ->relationship('substituteTeacher', 'name', modifyQueryUsing: function (Builder $query, Forms\Get $get) {
-                        $query->whereHas('roles', fn ($q) => $q->whereIn('name', ['guru_mapel', 'guru_alquran', 'wali_kelas', 'guru_kelas', 'waka_kurikulum']));
+                        \App\Models\User::ensureGuruPiketUser();
+
+                        $user = Auth::user();
+                        if ($user->institution_id && !$user->hasRole('superadmin')) {
+                            $query->where(function ($q) use ($user) {
+                                $q->where('institution_id', $user->institution_id)
+                                  ->orWhere('institution_id', 1)
+                                  ->orWhereNull('institution_id');
+                            });
+                        }
+                        $query->where(function ($q) {
+                            $q->whereHas('roles', fn ($r) => $r->whereIn('name', [
+                                'guru_mapel',
+                                'guru_alquran',
+                                'wali_kelas',
+                                'guru_kelas',
+                                'waka_kurikulum',
+                                'guru_piket',
+                            ]))
+                            ->orWhere('name', 'Guru Piket')
+                            ->orWhere('username', 'gurupiket');
+                        });
                         if ($get('teacher_id')) {
                             $query->where('id', '!=', $get('teacher_id'));
                         }
+                        $query->orderByRaw("CASE WHEN name = 'Guru Piket' THEN 0 WHEN name LIKE '%Piket%' THEN 1 ELSE 2 END, name ASC");
                     })
                     ->searchable()
                     ->preload()
-                    ->placeholder('Pilih guru pengganti jika ada...')
-                    ->helperText('Pilih guru yang ditugaskan masuk ke kelas menggantikan guru yang berhalangan.'),
+                    ->placeholder('Pilih guru pengganti atau Guru Piket...')
+                    ->helperText('Pilih guru pengganti atau opsi Guru Piket jika tidak menemukan guru pengganti.'),
 
                 Forms\Components\Textarea::make('keterangan')
                     ->label('Alasan / Catatan Izin')
@@ -320,7 +342,7 @@ class TeacherAttendanceResource extends Resource
                 Tables\Columns\TextColumn::make('substituteTeacher.name')
                     ->label('Guru Pengganti (Inval)')
                     ->badge()
-                    ->color(fn ($state) => $state ? 'info' : 'gray')
+                    ->color(fn ($state) => str_contains(strtolower($state ?? ''), 'piket') ? 'warning' : ($state ? 'info' : 'gray'))
                     ->icon('heroicon-m-user-plus')
                     ->placeholder('-')
                     ->searchable(),
@@ -367,12 +389,16 @@ class TeacherAttendanceResource extends Resource
                     ->options(fn () => \App\Models\User::withoutGlobalScopes()
                         ->where(function ($q) {
                             $q->whereHas('roles', fn ($r) => $r->whereIn('name', ['guru_mapel', 'guru_alquran', 'wali_kelas', 'guru_kelas', 'waka_kurikulum', 'guru_piket']))
+                              ->orWhere('name', 'Guru Piket')
                               ->orWhereHas('schedules')
                               ->orWhereHas('teacherAttendances');
                         })
-                        ->where('email', 'not like', '%@smp.com')
+                        ->where(function ($q) {
+                            $q->where('email', 'not like', '%@smp.com')
+                              ->orWhere('name', 'Guru Piket');
+                        })
                         ->whereNotIn('id', [1, 2, 3, 25, 30, 31, 32])
-                        ->orderBy('name')
+                        ->orderByRaw("CASE WHEN name = 'Guru Piket' THEN 0 WHEN name LIKE '%Piket%' THEN 1 ELSE 2 END, name ASC")
                         ->pluck('name', 'id')
                         ->toArray()
                     ),
