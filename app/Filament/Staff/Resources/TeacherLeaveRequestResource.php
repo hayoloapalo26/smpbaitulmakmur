@@ -210,22 +210,7 @@ class TeacherLeaveRequestResource extends Resource
                             ->options(fn (Forms\Get $get) => \App\Models\User::getSubstituteTeacherOptions($get('teacher_id') ?: Auth::id()))
                             ->searchable()
                             ->placeholder('Pilih Guru Pengganti atau Guru Piket...')
-                            ->helperText(function (Forms\Get $get) {
-                                $tanggal = $get('tanggal_mulai') ?: now()->toDateString();
-                                $dutyTeachers = \App\Models\DutySchedule::whereDate('tanggal', $tanggal)
-                                    ->with('teacher')
-                                    ->get()
-                                    ->pluck('teacher.name')
-                                    ->filter()
-                                    ->toArray();
-
-                                if (!empty($dutyTeachers)) {
-                                    $piketNames = implode(', ', $dutyTeachers);
-                                    return "💡 Petugas Piket tanggal {$tanggal}: {$piketNames}. Jika tidak menemukan guru pengganti, silakan pilih opsi 'Guru Piket'.";
-                                }
-
-                                return "💡 Jika tidak menemukan guru pengganti yang bersedia, Anda atau Waka Kurikulum dapat memilih opsi 'Guru Piket'.";
-                            }),
+                            ->helperText('Pilih guru pengganti jika ada guru tertentu yang menggantikan (akan mendapatkan jam inval), atau pilih opsi "Guru Piket" jika kelas di-inval oleh guru piket (guru piket tidak mendapatkan jam inval).'),
 
                         Forms\Components\Textarea::make('alasan')
                             ->label('Alasan Izin')
@@ -434,22 +419,7 @@ class TeacherLeaveRequestResource extends Resource
                             ->options(fn ($record) => \App\Models\User::getSubstituteTeacherOptions($record?->teacher_id))
                             ->searchable()
                             ->placeholder('Pilih Guru Pengganti atau Guru Piket...')
-                            ->helperText(function ($record) {
-                                $tanggal = $record?->tanggal_mulai ? \Carbon\Carbon::parse($record->tanggal_mulai)->toDateString() : now()->toDateString();
-                                $dutyTeachers = \App\Models\DutySchedule::whereDate('tanggal', $tanggal)
-                                    ->with('teacher')
-                                    ->get()
-                                    ->pluck('teacher.name')
-                                    ->filter()
-                                    ->toArray();
-
-                                if (!empty($dutyTeachers)) {
-                                    $piketNames = implode(', ', $dutyTeachers);
-                                    return "💡 Guru Piket bertugas tanggal {$tanggal}: {$piketNames}. Jika tidak ada guru pengganti, Anda dapat memilih 'Guru Piket'.";
-                                }
-
-                                return "💡 Jika tidak ada guru pengganti, Waka Kurikulum dapat memilih opsi 'Guru Piket'.";
-                            })
+                            ->helperText('Pilih guru pengganti yang akan mendapatkan jam inval sesuai jumlah JP, atau pilih opsi "Guru Piket" jika kelas di-inval oleh guru piket (guru piket tidak mendapatkan jam inval).')
                             ->default(fn ($record) => $record?->substitute_teacher_id),
                     ])
                     ->action(function ($record, array $data) {

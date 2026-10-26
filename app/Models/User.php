@@ -97,41 +97,17 @@ class User extends Authenticatable implements FilamentUser, HasAvatar
     public static function ensureGuruPiketUser(?int $institutionId = 2): ?self
     {
         try {
-            // 1. Cek berdasarkan nama "Guru Piket" atau username "gurupiket"
+            // 1. Cek berdasarkan username khusus gurupiket atau email gurupiket@smp.com
             $user = static::withoutGlobalScopes()
-                ->where('name', 'Guru Piket')
-                ->orWhere('username', 'gurupiket')
+                ->where('username', 'gurupiket')
+                ->orWhere('email', 'gurupiket@smp.com')
+                ->orWhere(function ($q) {
+                    $q->where('name', 'Guru Piket')
+                      ->where('email', 'like', '%@smp.com');
+                })
                 ->first();
 
-            // 2. Cek berdasarkan role guru_piket jika belum ada nama "Guru Piket"
-            if (!$user) {
-                $user = static::withoutGlobalScopes()
-                    ->whereHas('roles', fn ($q) => $q->where('name', 'guru_piket'))
-                    ->first();
-
-                if ($user) {
-                    $user->update([
-                        'name' => 'Guru Piket',
-                    ]);
-                }
-            }
-
-            // 3. Cek user dummy lama gurusiti@smp.com
-            if (!$user) {
-                $user = static::withoutGlobalScopes()
-                    ->where('email', 'gurusiti@smp.com')
-                    ->first();
-
-                if ($user) {
-                    $user->update([
-                        'name' => 'Guru Piket',
-                        'username' => 'gurupiket',
-                        'email' => 'gurupiket@smp.com',
-                    ]);
-                }
-            }
-
-            // 4. Jika belum ada sama sekali, buat baru
+            // 2. Jika belum ada, buat user virtual khusus "Guru Piket" (jangan pernah rename guru asli)
             if (!$user) {
                 $instId = $institutionId;
                 if ($instId && !\App\Models\Institution::where('id', $instId)->exists()) {
@@ -148,7 +124,7 @@ class User extends Authenticatable implements FilamentUser, HasAvatar
                 ]);
             }
 
-            // 5. Pastikan role guru_piket terpasang
+            // 3. Pastikan role guru_piket terpasang
             if ($user && method_exists($user, 'hasRole') && !$user->hasRole('guru_piket')) {
                 $role = \Spatie\Permission\Models\Role::firstOrCreate(['name' => 'guru_piket', 'guard_name' => 'web']);
                 $user->assignRole($role);
@@ -157,15 +133,16 @@ class User extends Authenticatable implements FilamentUser, HasAvatar
             return $user;
         } catch (\Throwable $e) {
             return static::withoutGlobalScopes()
-                ->where('name', 'Guru Piket')
-                ->orWhere('username', 'gurupiket')
-                ->orWhereHas('roles', fn ($q) => $q->where('name', 'guru_piket'))
+                ->where('username', 'gurupiket')
+                ->orWhere('name', 'Guru Piket')
                 ->first();
         }
     }
 
     /**
      * Mendapatkan daftar opsi Guru Pengganti (Inval) dengan 'Guru Piket' selalu di posisi teratas.
+     * Hanya opsi tunggal 'Guru Piket' (tanpa nama guru) agar tidak terhitung jam inval.
+     * Guru pengganti lainnya adalah daftar guru asli yang akan mendapatkan jam inval sesuai JP.
      *
      * @param int|null $excludedTeacherId ID guru yang sedang izin (agar tidak memilih dirinya sendiri)
      * @param User|null $currentUser User yang sedang login untuk filter institusi
@@ -186,11 +163,12 @@ class User extends Authenticatable implements FilamentUser, HasAvatar
                     'wali_kelas',
                     'guru_kelas',
                     'waka_kurikulum',
-                    'guru_piket',
                 ]))
-                ->orWhere('name', 'like', '%Guru Piket%')
-                ->orWhere('username', 'gurupiket');
-            });
+                ->orWhereHas('schedules');
+            })
+            ->where('name', '!=', 'Guru Piket')
+            ->where('username', '!=', 'gurupiket')
+            ->where('email', 'not like', '%@smp.com');
 
         if ($user && $user->institution_id && !$user->hasRole('superadmin')) {
             $query->where(function ($q) use ($user) {
@@ -208,21 +186,17 @@ class User extends Authenticatable implements FilamentUser, HasAvatar
 
         $options = [];
 
-        // 1. Opsi GURU PIKET selalu berada paling atas
+        // 1. Opsi GURU PIKET selalu berada paling atas (Hanya 'Guru Piket', tanpa nama guru)
         if ($piketId && $piketId != $excludedTeacherId) {
             $options[$piketId] = 'Guru Piket';
         }
 
-        // 2. Daftar guru-guru lainnya
+        // 2. Daftar guru-guru pengganti (riil) yang mendapatkan jam inval sesuai JP
         foreach ($teachers as $t) {
             if ($piketId && $t->id == $piketId) {
                 continue;
             }
-            if (str_contains(strtolower($t->name), 'piket')) {
-                $options[$t->id] = 'Guru Piket (' . $t->name . ')';
-            } else {
-                $options[$t->id] = $t->name;
-            }
+            $options[$t->id] = $t->name;
         }
 
         return $options;

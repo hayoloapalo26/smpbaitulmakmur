@@ -162,7 +162,7 @@ class TeacherAttendanceResource extends Resource
                     ->options(fn (Forms\Get $get) => \App\Models\User::getSubstituteTeacherOptions($get('teacher_id')))
                     ->searchable()
                     ->placeholder('Pilih guru pengganti atau Guru Piket...')
-                    ->helperText('Pilih guru pengganti atau opsi Guru Piket jika tidak menemukan guru pengganti.'),
+                    ->helperText('Pilih guru pengganti yang menggantikan kelas (akan mendapatkan jam inval), atau pilih "Guru Piket" jika digantikan oleh guru piket (guru piket tidak mendapatkan jam inval).'),
 
                 Forms\Components\Textarea::make('keterangan')
                     ->label('Alasan / Catatan Izin')

@@ -199,4 +199,74 @@ class TeacherLeaveRequestGuruPiketTest extends TestCase
         // Pastikan guru lain ada di opsi
         $this->assertArrayHasKey($teacherB->id, $options);
     }
+
+    public function test_teacher_gets_inval_hours_and_guru_piket_does_not_get_inval_hours()
+    {
+        $guruPiket = User::ensureGuruPiketUser($this->institution->id);
+
+        $guruIzin = User::create([
+            'name' => 'Guru Izin',
+            'email' => 'izin@smp.com',
+            'password' => bcrypt('password123'),
+            'institution_id' => $this->institution->id,
+        ]);
+        $guruIzin->assignRole('guru_mapel');
+
+        $guruPengganti = User::create([
+            'name' => 'Guru Pengganti',
+            'email' => 'pengganti@smp.com',
+            'password' => bcrypt('password123'),
+            'institution_id' => $this->institution->id,
+        ]);
+        $guruPengganti->assignRole('guru_mapel');
+
+        $classroom = Classroom::firstOrCreate(['name' => '7A'], ['institution_id' => $this->institution->id]);
+        $subject = Subject::firstOrCreate(['name' => 'Matematika'], ['institution_id' => $this->institution->id]);
+
+        $hari = Schedule::getIndonesianDayName(now());
+
+        // Buat 3 JP jadwal mengajar untuk guru izin
+        $sched1 = Schedule::create(['teacher_id' => $guruIzin->id, 'classroom_id' => $classroom->id, 'subject_id' => $subject->id, 'hari' => $hari, 'jam_ke' => 1]);
+        $sched2 = Schedule::create(['teacher_id' => $guruIzin->id, 'classroom_id' => $classroom->id, 'subject_id' => $subject->id, 'hari' => $hari, 'jam_ke' => 2]);
+        $sched3 = Schedule::create(['teacher_id' => $guruIzin->id, 'classroom_id' => $classroom->id, 'subject_id' => $subject->id, 'hari' => $hari, 'jam_ke' => 3]);
+
+        // Kasus 1: Digantikan oleh Guru Pengganti Riil (3 JP)
+        $leave = TeacherLeaveRequest::create([
+            'teacher_id' => $guruIzin->id,
+            'institution_id' => $this->institution->id,
+            'tipe_izin' => 'harian',
+            'tanggal_mulai' => now()->toDateString(),
+            'tanggal_selesai' => now()->toDateString(),
+            'alasan' => 'Sakit',
+            'substitute_teacher_id' => $guruPengganti->id,
+            'status' => 'disetujui_wakakur',
+        ]);
+        $leave->syncToAttendance();
+
+        // Hitung jam inval guru pengganti riil: harus 3 JP
+        $invalCount = TeacherAttendance::where('substitute_teacher_id', $guruPengganti->id)->count();
+        $this->assertEquals(3, $invalCount, 'Guru pengganti riil harus mendapatkan 3 JP sesuai jam izin guru yang digantikan');
+
+        // Kasus 2: Digantikan oleh "Guru Piket"
+        $leave->update([
+            'substitute_teacher_id' => $guruPiket->id,
+        ]);
+        $leave->syncToAttendance();
+
+        // Hitung jam inval guru pengganti riil: sekarang menjadi 0 karena digantikan Guru Piket
+        $invalCountReal = TeacherAttendance::where('substitute_teacher_id', $guruPengganti->id)->count();
+        $this->assertEquals(0, $invalCountReal);
+
+        // Guru Piket tidak dihitung dalam laporan kinerja guru riil
+        $isPiketInRealTeachers = User::withoutGlobalScopes()
+            ->where(function ($q) {
+                $q->whereHas('roles', fn ($r) => $r->whereIn('name', ['guru_mapel', 'guru_alquran', 'wali_kelas', 'guru_kelas', 'waka_kurikulum']))
+                  ->orWhereHas('schedules');
+            })
+            ->where('name', '!=', 'Guru Piket')
+            ->where('username', '!=', 'gurupiket')
+            ->where('id', $guruPiket->id)
+            ->exists();
+        $this->assertFalse($isPiketInRealTeachers, 'Guru Piket tidak boleh masuk dalam daftar guru penerima jam inval');
+    }
 }
