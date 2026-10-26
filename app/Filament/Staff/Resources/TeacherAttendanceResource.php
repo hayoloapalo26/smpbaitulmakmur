@@ -317,6 +317,7 @@ class TeacherAttendanceResource extends Resource
                     ->color(fn ($state) => str_contains(strtolower($state ?? ''), 'piket') ? 'warning' : ($state ? 'info' : 'gray'))
                     ->icon('heroicon-m-user-plus')
                     ->placeholder('-')
+                    ->description(fn ($record) => $record->substituteTeacher ? (str_contains(strtolower($record->substituteTeacher->name), 'piket') ? 'Inval Guru Piket (Tanpa Jam Inval)' : 'Inval (+1 JP)') : null)
                     ->searchable(),
                 Tables\Columns\TextColumn::make('keterangan')
                     ->label('Alasan / Keterangan')
@@ -346,10 +347,12 @@ class TeacherAttendanceResource extends Resource
                     ->label('Guru Utama')
                     ->options(fn () => \App\Models\User::withoutGlobalScopes()
                         ->where(function ($q) {
-                            $q->whereHas('roles', fn ($r) => $r->whereIn('name', ['guru_mapel', 'guru_alquran', 'wali_kelas', 'guru_kelas', 'waka_kurikulum', 'guru_piket']))
-                              ->orWhereHas('schedules')
-                              ->orWhereHas('teacherAttendances');
+                            $q->whereHas('roles', fn ($r) => $r->whereIn('name', ['guru_mapel', 'guru_alquran', 'wali_kelas', 'guru_kelas', 'waka_kurikulum']))
+                              ->orWhereHas('schedules');
                         })
+                        ->where('name', 'not like', '%piket%')
+                        ->where('username', 'not like', '%piket%')
+                        ->where('email', 'not like', '%piket%')
                         ->where('email', 'not like', '%@smp.com')
                         ->whereNotIn('id', [1, 2, 3, 25, 30, 31, 32])
                         ->orderBy('name')
@@ -357,23 +360,8 @@ class TeacherAttendanceResource extends Resource
                         ->toArray()
                     ),
                 Tables\Filters\SelectFilter::make('substitute_teacher_id')
-                    ->label('Guru Pengganti')
-                    ->options(fn () => \App\Models\User::withoutGlobalScopes()
-                        ->where(function ($q) {
-                            $q->whereHas('roles', fn ($r) => $r->whereIn('name', ['guru_mapel', 'guru_alquran', 'wali_kelas', 'guru_kelas', 'waka_kurikulum', 'guru_piket']))
-                              ->orWhere('name', 'Guru Piket')
-                              ->orWhereHas('schedules')
-                              ->orWhereHas('teacherAttendances');
-                        })
-                        ->where(function ($q) {
-                            $q->where('email', 'not like', '%@smp.com')
-                              ->orWhere('name', 'Guru Piket');
-                        })
-                        ->whereNotIn('id', [1, 2, 3, 25, 30, 31, 32])
-                        ->orderByRaw("CASE WHEN name = 'Guru Piket' THEN 0 WHEN name LIKE '%Piket%' THEN 1 ELSE 2 END, name ASC")
-                        ->pluck('name', 'id')
-                        ->toArray()
-                    ),
+                    ->label('Guru Pengganti (Inval)')
+                    ->options(fn () => \App\Models\User::getSubstituteTeacherOptions()),
                 Tables\Filters\SelectFilter::make('status')
                     ->options([
                         'hadir' => 'Hadir',

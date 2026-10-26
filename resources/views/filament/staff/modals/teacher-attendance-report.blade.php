@@ -29,13 +29,15 @@
         $cursor->addDay();
     }
 
-    // Ambil guru riil (tanpa dummy @smp.com)
+    // Ambil guru riil (tanpa dummy @smp.com dan tanpa akun Guru Piket)
     $teachers = \App\Models\User::withoutGlobalScopes()
         ->where(function ($q) {
-            $q->whereHas('roles', fn ($r) => $r->whereIn('name', ['guru_mapel', 'guru_alquran', 'wali_kelas', 'guru_kelas', 'waka_kurikulum', 'guru_piket']))
-              ->orWhereHas('schedules')
-              ->orWhereHas('teacherAttendances');
+            $q->whereHas('roles', fn ($r) => $r->whereIn('name', ['guru_mapel', 'guru_alquran', 'wali_kelas', 'guru_kelas', 'waka_kurikulum']))
+              ->orWhereHas('schedules');
         })
+        ->where('name', 'not like', '%piket%')
+        ->where('username', 'not like', '%piket%')
+        ->where('email', 'not like', '%piket%')
         ->where('email', 'not like', '%@smp.com')
         ->whereNotIn('id', [1, 2, 3, 25, 30, 31, 32])
         ->orderBy('name')
@@ -56,6 +58,9 @@
     ];
 
     foreach ($teachers as $t) {
+        if (str_contains(strtolower($t->name), 'piket') || str_contains(strtolower($t->username ?? ''), 'piket') || str_contains(strtolower($t->email ?? ''), 'piket')) {
+            continue;
+        }
         $schedules = \App\Models\Schedule::withoutGlobalScopes()->where('teacher_id', $t->id)->get();
         $weeklyJP = $schedules->count();
 

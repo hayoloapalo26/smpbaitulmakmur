@@ -55,13 +55,15 @@ class TeacherMonthlyWorkloadWidget extends Widget
             $cursor->addDay();
         }
 
-        // Ambil guru riil (kecuali akun dummy @smp.com dan role non-guru)
+        // Ambil guru riil (tanpa akun dummy, role non-guru, dan akun Guru Piket)
         $teachers = User::withoutGlobalScopes()
             ->where(function ($q) {
-                $q->whereHas('roles', fn ($r) => $r->whereIn('name', ['guru_mapel', 'guru_alquran', 'wali_kelas', 'guru_kelas', 'waka_kurikulum', 'guru_piket']))
-                  ->orWhereHas('schedules')
-                  ->orWhereHas('teacherAttendances');
+                $q->whereHas('roles', fn ($r) => $r->whereIn('name', ['guru_mapel', 'guru_alquran', 'wali_kelas', 'guru_kelas', 'waka_kurikulum']))
+                  ->orWhereHas('schedules');
             })
+            ->where('name', 'not like', '%piket%')
+            ->where('username', 'not like', '%piket%')
+            ->where('email', 'not like', '%piket%')
             ->where('email', 'not like', '%@smp.com')
             ->whereNotIn('id', [1, 2, 3, 25, 30, 31, 32])
             ->orderBy('name')
@@ -82,6 +84,10 @@ class TeacherMonthlyWorkloadWidget extends Widget
         ];
 
         foreach ($teachers as $t) {
+            // Abaikan akun piket jika masih tersaring
+            if (str_contains(strtolower($t->name), 'piket') || str_contains(strtolower($t->username ?? ''), 'piket') || str_contains(strtolower($t->email ?? ''), 'piket')) {
+                continue;
+            }
             // 1. Beban mingguan
             $schedules = Schedule::withoutGlobalScopes()->where('teacher_id', $t->id)->get();
             $weeklyJP = $schedules->count();
