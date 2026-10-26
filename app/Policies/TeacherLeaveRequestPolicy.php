@@ -1,0 +1,86 @@
+<?php
+
+namespace App\Policies;
+
+use App\Models\TeacherLeaveRequest;
+use App\Models\User;
+use Illuminate\Auth\Access\Response;
+
+class TeacherLeaveRequestPolicy
+{
+    /**
+     * Determine whether the user can view any models.
+     */
+    public function viewAny($user): bool
+    {
+        return $user->hasRole(['waka_kurikulum', 'kepala_sekolah', 'guru_mapel', 'guru_alquran', 'wali_kelas', 'tata_usaha', 'superadmin']);
+    }
+
+    /**
+     * Determine whether the user can view the model.
+     */
+    public function view($user, $model): bool
+    {
+        return $user->hasRole(['waka_kurikulum', 'kepala_sekolah', 'guru_mapel', 'guru_alquran', 'wali_kelas', 'tata_usaha', 'superadmin']);
+    }
+
+    /**
+     * Determine whether the user can create models.
+     */
+    public function create($user): bool
+    {
+        if ($user->hasRole('kepala_sekolah')) {
+            return false;
+        }
+
+        return $user->hasRole(['waka_kurikulum', 'guru_mapel', 'guru_alquran', 'wali_kelas', 'tata_usaha', 'superadmin']);
+    }
+
+    /**
+     * Determine whether the user can update the model.
+     */
+    public function update($user, $model): bool
+    {
+        if ($user->hasRole('kepala_sekolah')) {
+            return false;
+        }
+
+        return $user->hasRole(['waka_kurikulum', 'guru_mapel', 'guru_alquran', 'wali_kelas', 'tata_usaha', 'superadmin']);
+    }
+
+    /**
+     * Determine whether the user can delete the model.
+     */
+    public function delete($user, $model): bool
+    {
+        if ($user->hasRole('kepala_sekolah')) {
+            return false;
+        }
+
+        return $user->hasRole(['waka_kurikulum', 'guru_mapel', 'guru_alquran', 'wali_kelas', 'superadmin']);
+    }
+
+    /**
+     * Determine whether the user can restore the model.
+     */
+    public function restore($user, $model): bool
+    {
+        if ($user->hasRole('kepala_sekolah')) {
+            return false;
+        }
+
+        return $user->hasRole(['waka_kurikulum', 'guru_mapel', 'guru_alquran', 'wali_kelas', 'superadmin']);
+    }
+
+    /**
+     * Determine whether the user can permanently delete the model.
+     */
+    public function forceDelete($user, $model): bool
+    {
+        if ($user->hasRole('kepala_sekolah')) {
+            return false;
+        }
+
+        return $user->hasRole(['waka_kurikulum', 'guru_mapel', 'guru_alquran', 'wali_kelas', 'superadmin']);
+    }
+}
