@@ -97,20 +97,30 @@ class User extends Authenticatable implements FilamentUser, HasAvatar
     public static function ensureGuruPiketUser(?int $institutionId = 2): ?self
     {
         try {
+            // 1. Cek berdasarkan nama "Guru Piket" atau username "gurupiket"
             $user = static::withoutGlobalScopes()
                 ->where('name', 'Guru Piket')
                 ->orWhere('username', 'gurupiket')
                 ->first();
 
+            // 2. Cek berdasarkan role guru_piket jika belum ada nama "Guru Piket"
+            if (!$user) {
+                $user = static::withoutGlobalScopes()
+                    ->whereHas('roles', fn ($q) => $q->where('name', 'guru_piket'))
+                    ->first();
+
+                if ($user) {
+                    $user->update([
+                        'name' => 'Guru Piket',
+                    ]);
+                }
+            }
+
+            // 3. Cek user dummy lama gurusiti@smp.com
             if (!$user) {
                 $user = static::withoutGlobalScopes()
                     ->where('email', 'gurusiti@smp.com')
                     ->first();
-
-                $instId = $institutionId;
-                if ($instId && !\App\Models\Institution::where('id', $instId)->exists()) {
-                    $instId = \App\Models\Institution::first()?->id;
-                }
 
                 if ($user) {
                     $user->update([
@@ -118,18 +128,27 @@ class User extends Authenticatable implements FilamentUser, HasAvatar
                         'username' => 'gurupiket',
                         'email' => 'gurupiket@smp.com',
                     ]);
-                } else {
-                    $user = static::withoutGlobalScopes()->create([
-                        'name' => 'Guru Piket',
-                        'username' => 'gurupiket',
-                        'email' => 'gurupiket@smp.com',
-                        'password' => \Illuminate\Support\Facades\Hash::make('password123'),
-                        'institution_id' => $instId,
-                        'is_active' => true,
-                    ]);
                 }
             }
 
+            // 4. Jika belum ada sama sekali, buat baru
+            if (!$user) {
+                $instId = $institutionId;
+                if ($instId && !\App\Models\Institution::where('id', $instId)->exists()) {
+                    $instId = \App\Models\Institution::first()?->id;
+                }
+
+                $user = static::withoutGlobalScopes()->create([
+                    'name' => 'Guru Piket',
+                    'username' => 'gurupiket',
+                    'email' => 'gurupiket@smp.com',
+                    'password' => \Illuminate\Support\Facades\Hash::make('password123'),
+                    'institution_id' => $instId,
+                    'is_active' => true,
+                ]);
+            }
+
+            // 5. Pastikan role guru_piket terpasang
             if ($user && method_exists($user, 'hasRole') && !$user->hasRole('guru_piket')) {
                 $role = \Spatie\Permission\Models\Role::firstOrCreate(['name' => 'guru_piket', 'guard_name' => 'web']);
                 $user->assignRole($role);
@@ -137,7 +156,75 @@ class User extends Authenticatable implements FilamentUser, HasAvatar
 
             return $user;
         } catch (\Throwable $e) {
-            return static::withoutGlobalScopes()->where('name', 'Guru Piket')->first();
+            return static::withoutGlobalScopes()
+                ->where('name', 'Guru Piket')
+                ->orWhere('username', 'gurupiket')
+                ->orWhereHas('roles', fn ($q) => $q->where('name', 'guru_piket'))
+                ->first();
         }
+    }
+
+    /**
+     * Mendapatkan daftar opsi Guru Pengganti (Inval) dengan 'Guru Piket' selalu di posisi teratas.
+     *
+     * @param int|null $excludedTeacherId ID guru yang sedang izin (agar tidak memilih dirinya sendiri)
+     * @param User|null $currentUser User yang sedang login untuk filter institusi
+     * @return array<int, string>
+     */
+    public static function getSubstituteTeacherOptions(?int $excludedTeacherId = null, ?self $currentUser = null): array
+    {
+        $piketUser = static::ensureGuruPiketUser();
+        $piketId = $piketUser?->id;
+
+        $user = $currentUser ?: \Illuminate\Support\Facades\Auth::user();
+
+        $query = static::withoutGlobalScopes()
+            ->where(function ($q) {
+                $q->whereHas('roles', fn ($r) => $r->whereIn('name', [
+                    'guru_mapel',
+                    'guru_alquran',
+                    'wali_kelas',
+                    'guru_kelas',
+                    'waka_kurikulum',
+                    'guru_piket',
+                ]))
+                ->orWhere('name', 'like', '%Guru Piket%')
+                ->orWhere('username', 'gurupiket');
+            });
+
+        if ($user && $user->institution_id && !$user->hasRole('superadmin')) {
+            $query->where(function ($q) use ($user) {
+                $q->where('institution_id', $user->institution_id)
+                  ->orWhere('institution_id', 1)
+                  ->orWhereNull('institution_id');
+            });
+        }
+
+        if ($excludedTeacherId) {
+            $query->where('id', '!=', $excludedTeacherId);
+        }
+
+        $teachers = $query->orderBy('name')->get();
+
+        $options = [];
+
+        // 1. Opsi GURU PIKET selalu berada paling atas
+        if ($piketId && $piketId != $excludedTeacherId) {
+            $options[$piketId] = 'Guru Piket';
+        }
+
+        // 2. Daftar guru-guru lainnya
+        foreach ($teachers as $t) {
+            if ($piketId && $t->id == $piketId) {
+                continue;
+            }
+            if (str_contains(strtolower($t->name), 'piket')) {
+                $options[$t->id] = 'Guru Piket (' . $t->name . ')';
+            } else {
+                $options[$t->id] = $t->name;
+            }
+        }
+
+        return $options;
     }
 }

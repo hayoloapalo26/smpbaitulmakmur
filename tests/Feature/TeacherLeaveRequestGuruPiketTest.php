@@ -164,4 +164,39 @@ class TeacherLeaveRequestGuruPiketTest extends TestCase
         $this->assertTrue($results->contains('id', $guruPiket->id));
         $this->assertTrue($results->contains('id', $teacher2->id));
     }
+
+    public function test_get_substitute_teacher_options_puts_guru_piket_at_first_index()
+    {
+        $guruPiket = User::ensureGuruPiketUser($this->institution->id);
+
+        $teacherA = User::create([
+            'name' => 'Ahmad Dahlan',
+            'email' => 'ahmad.d@smp.com',
+            'password' => bcrypt('password123'),
+            'institution_id' => $this->institution->id,
+        ]);
+        $teacherA->assignRole('guru_mapel');
+
+        $teacherB = User::create([
+            'name' => 'Zainuddin MZ',
+            'email' => 'zainuddin@smp.com',
+            'password' => bcrypt('password123'),
+            'institution_id' => $this->institution->id,
+        ]);
+        $teacherB->assignRole('guru_mapel');
+
+        $options = User::getSubstituteTeacherOptions(excludedTeacherId: $teacherA->id);
+
+        $this->assertNotEmpty($options);
+        // Pastikan key pertama adalah ID Guru Piket
+        $firstKey = array_key_first($options);
+        $this->assertEquals($guruPiket->id, $firstKey);
+        $this->assertEquals('Guru Piket', $options[$firstKey]);
+
+        // Pastikan guru yang izin tidak ada di opsi
+        $this->assertArrayNotHasKey($teacherA->id, $options);
+
+        // Pastikan guru lain ada di opsi
+        $this->assertArrayHasKey($teacherB->id, $options);
+    }
 }

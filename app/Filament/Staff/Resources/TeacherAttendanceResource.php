@@ -159,36 +159,8 @@ class TeacherAttendanceResource extends Resource
 
                 Forms\Components\Select::make('substitute_teacher_id')
                     ->label('Guru Pengganti (Inval)')
-                    ->relationship('substituteTeacher', 'name', modifyQueryUsing: function (Builder $query, Forms\Get $get) {
-                        \App\Models\User::ensureGuruPiketUser();
-
-                        $user = Auth::user();
-                        if ($user->institution_id && !$user->hasRole('superadmin')) {
-                            $query->where(function ($q) use ($user) {
-                                $q->where('institution_id', $user->institution_id)
-                                  ->orWhere('institution_id', 1)
-                                  ->orWhereNull('institution_id');
-                            });
-                        }
-                        $query->where(function ($q) {
-                            $q->whereHas('roles', fn ($r) => $r->whereIn('name', [
-                                'guru_mapel',
-                                'guru_alquran',
-                                'wali_kelas',
-                                'guru_kelas',
-                                'waka_kurikulum',
-                                'guru_piket',
-                            ]))
-                            ->orWhere('name', 'Guru Piket')
-                            ->orWhere('username', 'gurupiket');
-                        });
-                        if ($get('teacher_id')) {
-                            $query->where('id', '!=', $get('teacher_id'));
-                        }
-                        $query->orderByRaw("CASE WHEN name = 'Guru Piket' THEN 0 WHEN name LIKE '%Piket%' THEN 1 ELSE 2 END, name ASC");
-                    })
+                    ->options(fn (Forms\Get $get) => \App\Models\User::getSubstituteTeacherOptions($get('teacher_id')))
                     ->searchable()
-                    ->preload()
                     ->placeholder('Pilih guru pengganti atau Guru Piket...')
                     ->helperText('Pilih guru pengganti atau opsi Guru Piket jika tidak menemukan guru pengganti.'),
 

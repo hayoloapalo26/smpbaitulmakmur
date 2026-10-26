@@ -206,35 +206,9 @@ class TeacherLeaveRequestResource extends Resource
                             ->columnSpanFull(),
 
                         Forms\Components\Select::make('substitute_teacher_id')
-                            ->relationship('substituteTeacher', 'name', modifyQueryUsing: function (Builder $query, Forms\Get $get) {
-                                \App\Models\User::ensureGuruPiketUser();
-
-                                $user = Auth::user();
-                                if ($user->institution_id && !$user->hasRole('superadmin')) {
-                                    $query->where(function ($q) use ($user) {
-                                        $q->where('institution_id', $user->institution_id)
-                                          ->orWhere('institution_id', 1)
-                                          ->orWhereNull('institution_id');
-                                    });
-                                }
-                                $query->where(function ($q) {
-                                    $q->whereHas('roles', fn ($r) => $r->whereIn('name', [
-                                        'guru_mapel',
-                                        'guru_alquran',
-                                        'wali_kelas',
-                                        'guru_kelas',
-                                        'waka_kurikulum',
-                                        'guru_piket',
-                                    ]))
-                                    ->orWhere('name', 'Guru Piket')
-                                    ->orWhere('username', 'gurupiket');
-                                });
-                                if ($get('teacher_id')) {
-                                    $query->where('id', '!=', $get('teacher_id'));
-                                }
-                                $query->orderByRaw("CASE WHEN name = 'Guru Piket' THEN 0 WHEN name LIKE '%Piket%' THEN 1 ELSE 2 END, name ASC");
-                            })
                             ->label('Guru Pengganti (Inval)')
+                            ->options(fn (Forms\Get $get) => \App\Models\User::getSubstituteTeacherOptions($get('teacher_id') ?: Auth::id()))
+                            ->searchable()
                             ->placeholder('Pilih Guru Pengganti atau Guru Piket...')
                             ->helperText(function (Forms\Get $get) {
                                 $tanggal = $get('tanggal_mulai') ?: now()->toDateString();
@@ -251,9 +225,7 @@ class TeacherLeaveRequestResource extends Resource
                                 }
 
                                 return "💡 Jika tidak menemukan guru pengganti yang bersedia, Anda atau Waka Kurikulum dapat memilih opsi 'Guru Piket'.";
-                            })
-                            ->searchable()
-                            ->preload(),
+                            }),
 
                         Forms\Components\Textarea::make('alasan')
                             ->label('Alasan Izin')
@@ -458,35 +430,9 @@ class TeacherLeaveRequestResource extends Resource
                     ->visible(fn ($record) => Auth::user()->hasAnyRole(['waka_kurikulum', 'superadmin']) && $record->status === 'diajukan')
                     ->form([
                         Forms\Components\Select::make('substitute_teacher_id')
-                            ->relationship('substituteTeacher', 'name', modifyQueryUsing: function (Builder $query, $record) {
-                                \App\Models\User::ensureGuruPiketUser();
-
-                                $user = Auth::user();
-                                if ($user->institution_id && !$user->hasRole('superadmin')) {
-                                    $query->where(function ($q) use ($user) {
-                                        $q->where('institution_id', $user->institution_id)
-                                          ->orWhere('institution_id', 1)
-                                          ->orWhereNull('institution_id');
-                                    });
-                                }
-                                $query->where(function ($q) {
-                                    $q->whereHas('roles', fn ($r) => $r->whereIn('name', [
-                                        'guru_mapel',
-                                        'guru_alquran',
-                                        'wali_kelas',
-                                        'guru_kelas',
-                                        'waka_kurikulum',
-                                        'guru_piket',
-                                    ]))
-                                    ->orWhere('name', 'Guru Piket')
-                                    ->orWhere('username', 'gurupiket');
-                                });
-                                if ($record?->teacher_id) {
-                                    $query->where('id', '!=', $record->teacher_id);
-                                }
-                                $query->orderByRaw("CASE WHEN name = 'Guru Piket' THEN 0 WHEN name LIKE '%Piket%' THEN 1 ELSE 2 END, name ASC");
-                            })
                             ->label('Pilih Guru Pengganti (Inval)')
+                            ->options(fn ($record) => \App\Models\User::getSubstituteTeacherOptions($record?->teacher_id))
+                            ->searchable()
                             ->placeholder('Pilih Guru Pengganti atau Guru Piket...')
                             ->helperText(function ($record) {
                                 $tanggal = $record?->tanggal_mulai ? \Carbon\Carbon::parse($record->tanggal_mulai)->toDateString() : now()->toDateString();
@@ -504,9 +450,7 @@ class TeacherLeaveRequestResource extends Resource
 
                                 return "💡 Jika tidak ada guru pengganti, Waka Kurikulum dapat memilih opsi 'Guru Piket'.";
                             })
-                            ->searchable()
-                            ->preload()
-                            ->default(fn ($record) => $record->substitute_teacher_id),
+                            ->default(fn ($record) => $record?->substitute_teacher_id),
                     ])
                     ->action(function ($record, array $data) {
                         $record->update([
