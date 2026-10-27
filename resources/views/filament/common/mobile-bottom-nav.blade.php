@@ -107,6 +107,53 @@
                 <span class="text-[10px] tracking-tight mt-0.5 truncate">Jadwal</span>
             </a>
 
+        @elseif($user->hasRole('guru_alquran'))
+            {{-- ====== MODE KHUSUS GURU AL-QUR'AN ====== --}}
+            {{-- 1. Dasbor Guru Al-Qur'an --}}
+            <a href="{{ route('filament.staff.pages.dashboard') }}" 
+               class="flex flex-col items-center justify-center flex-1 py-1 px-1 transition-all group active:scale-90 {{ $currentRoute === 'filament.staff.pages.dashboard' ? 'text-emerald-600 dark:text-emerald-400 font-bold' : 'text-gray-500 dark:text-gray-400' }}">
+                <div class="p-1 rounded-xl transition-all {{ $currentRoute === 'filament.staff.pages.dashboard' ? 'bg-emerald-50 dark:bg-emerald-950/60' : '' }}">
+                    <x-filament::icon icon="heroicon-o-home" class="w-5 h-5 {{ $currentRoute === 'filament.staff.pages.dashboard' ? 'text-emerald-600' : '' }}" />
+                </div>
+                <span class="text-[10px] tracking-tight mt-0.5 truncate">Dasbor</span>
+            </a>
+
+            {{-- 2. Capaian Hafalan Quran --}}
+            <a href="{{ route('filament.staff.resources.quran-achievements.index') }}" 
+               class="flex flex-col items-center justify-center flex-1 py-1 px-1 transition-all group active:scale-90 {{ str_contains($currentRoute, 'quran-achievements') ? 'text-emerald-600 dark:text-emerald-400 font-bold' : 'text-gray-500 dark:text-gray-400' }}">
+                <div class="p-1 rounded-xl transition-all {{ str_contains($currentRoute, 'quran-achievements') ? 'bg-emerald-50 dark:bg-emerald-950/60' : '' }}">
+                    <x-filament::icon icon="heroicon-o-book-open" class="w-5 h-5 {{ str_contains($currentRoute, 'quran-achievements') ? 'text-emerald-600' : '' }}" />
+                </div>
+                <span class="text-[10px] tracking-tight mt-0.5 truncate">Capaian</span>
+            </a>
+
+            {{-- 3. Center Elevated: Setoran Quran --}}
+            <a href="{{ route('filament.staff.resources.quran-achievements.index') }}" 
+               class="flex flex-col items-center justify-center -mt-5 relative z-10 group active:scale-90 transition-transform">
+                <div class="w-13 h-13 rounded-full flex items-center justify-center shadow-lg bg-gradient-to-tr from-emerald-600 to-teal-500 text-white ring-4 ring-white dark:ring-gray-900 shadow-emerald-500/30">
+                    <x-filament::icon icon="heroicon-o-pencil-square" class="w-7 h-7" />
+                </div>
+                <span class="text-[10px] font-bold tracking-tight mt-1 text-gray-800 dark:text-gray-200 truncate">Setoran</span>
+            </a>
+
+            {{-- 4. Skor Mutu / Tahsin --}}
+            <a href="{{ route('filament.staff.resources.reading-quality-scores.index') }}" 
+               class="flex flex-col items-center justify-center flex-1 py-1 px-1 transition-all group active:scale-90 {{ str_contains($currentRoute, 'reading-quality-scores') ? 'text-emerald-600 dark:text-emerald-400 font-bold' : 'text-gray-500 dark:text-gray-400' }}">
+                <div class="p-1 rounded-xl transition-all {{ str_contains($currentRoute, 'reading-quality-scores') ? 'bg-emerald-50 dark:bg-emerald-950/60' : '' }}">
+                    <x-filament::icon icon="heroicon-o-star" class="w-5 h-5 {{ str_contains($currentRoute, 'reading-quality-scores') ? 'text-emerald-600' : '' }}" />
+                </div>
+                <span class="text-[10px] tracking-tight mt-0.5 truncate">Mutu Baca</span>
+            </a>
+
+            {{-- 5. Ranking Tahfidz --}}
+            <a href="{{ route('filament.staff.pages.tahfidz-ranking') }}" 
+               class="flex flex-col items-center justify-center flex-1 py-1 px-1 transition-all group active:scale-90 {{ str_contains($currentRoute, 'tahfidz-ranking') ? 'text-amber-600 dark:text-amber-400 font-bold' : 'text-gray-500 dark:text-gray-400' }}">
+                <div class="p-1 rounded-xl transition-all {{ str_contains($currentRoute, 'tahfidz-ranking') ? 'bg-amber-50 dark:bg-amber-950/60' : '' }}">
+                    <x-filament::icon icon="heroicon-o-trophy" class="w-5 h-5 {{ str_contains($currentRoute, 'tahfidz-ranking') ? 'text-amber-600' : '' }}" />
+                </div>
+                <span class="text-[10px] tracking-tight mt-0.5 truncate">Ranking</span>
+            </a>
+
         @else
             {{-- ====== MODE GURU & STAFF HARIAN ====== --}}
             {{-- 1. Dasbor Utama --}}

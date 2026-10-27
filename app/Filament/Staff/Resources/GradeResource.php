@@ -26,12 +26,12 @@ class GradeResource extends Resource
             return false;
         }
 
-        return $user->hasAnyRole(['guru_mapel']);
+        return $user->hasAnyRole(['guru_mapel', 'guru_alquran']);
     }
 
     public static function canAccess(): bool
     {
-        return auth()->user()->hasAnyRole(['guru_mapel', 'guru_kelas', 'wali_kelas', 'waka_kurikulum', 'kepala_sekolah', 'superadmin']);
+        return auth()->user()->hasAnyRole(['guru_mapel', 'guru_alquran', 'guru_kelas', 'wali_kelas', 'waka_kurikulum', 'kepala_sekolah', 'superadmin']);
     }
 
     protected static ?string $model = Grade::class;

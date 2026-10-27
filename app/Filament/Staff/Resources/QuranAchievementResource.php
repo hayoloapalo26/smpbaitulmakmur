@@ -19,18 +19,27 @@ class QuranAchievementResource extends Resource
 {
     public static function shouldRegisterNavigation(): bool
     {
-        return auth()->user()?->hasAnyRole(['guru_alquran', 'superadmin']) ?? false;
+        return auth()->user()?->hasAnyRole(['guru_alquran', 'waka_kurikulum', 'kepala_sekolah', 'superadmin']) ?? false;
     }
 
     public static function canAccess(): bool
     {
-        return auth()->user()->hasAnyRole(['guru_alquran', 'waka_kurikulum', 'superadmin']);
+        return auth()->user()->hasAnyRole(['guru_alquran', 'waka_kurikulum', 'kepala_sekolah', 'superadmin']);
     }
 
     protected static ?string $model = QuranAchievement::class;
     protected static ?string $navigationIcon = 'heroicon-o-book-open';
     protected static ?string $navigationGroup = 'Kesiswaan & Karakter';
     protected static ?string $modelLabel = 'Capaian Quran';
+    protected static ?int $navigationSort = 1;
+
+    public static function getNavigationGroup(): ?string
+    {
+        if (auth()->user()?->hasRole('guru_alquran')) {
+            return 'Fitur Guru Al-Qur\'an';
+        }
+        return 'Kesiswaan & Karakter';
+    }
 
         public static function getSurahs(): array
     {
@@ -65,20 +74,18 @@ class QuranAchievementResource extends Resource
     {
         $query = parent::getEloquentQuery();
         $user = Auth::user();
-        if ($user->hasRole('waka_kurikulum')) {
+        if ($user->hasAnyRole(['waka_kurikulum', 'kepala_sekolah', 'superadmin'])) {
             return $query;
         }
         return $query->where('teacher_id', $user->id);
     }
-
-    
 
     public static function form(Form $form): Form
     {
         $user = Auth::user();
         $studentIds = [];
 
-        if (!$user->hasRole('waka_kurikulum')) {
+        if (!$user->hasAnyRole(['waka_kurikulum', 'superadmin', 'kepala_sekolah'])) {
             $studentIds = TeacherSubjectClass::where('teacher_id', $user->id)
                 ->join('students', 'students.classroom_id', '=', 'teacher_subject_classes.classroom_id')
                 ->pluck('students.id')
@@ -95,8 +102,17 @@ class QuranAchievementResource extends Resource
                 Forms\Components\Select::make('student_id')
                     ->label('Siswa')
                     ->options(function () use ($user, $studentIds) {
-                        if ($user->hasRole('waka_kurikulum')) return Student::pluck('name', 'id');
-                        return Student::whereIn('id', $studentIds)->pluck('name', 'id');
+                        if ($user->hasAnyRole(['waka_kurikulum', 'superadmin', 'kepala_sekolah'])) {
+                            return Student::when($user->institution_id && !$user->hasRole('superadmin'), fn ($q) => $q->where('institution_id', $user->institution_id))
+                                ->orderBy('name')
+                                ->pluck('name', 'id');
+                        }
+                        if (!empty($studentIds)) {
+                            return Student::whereIn('id', $studentIds)->orderBy('name')->pluck('name', 'id');
+                        }
+                        return Student::when($user->institution_id, fn ($q) => $q->where('institution_id', $user->institution_id))
+                            ->orderBy('name')
+                            ->pluck('name', 'id');
                     })
                     ->searchable()
                     ->live() // so we can react and show history
