@@ -55,6 +55,21 @@ class ManageTeachingJournals extends ManageRecords
                     $schedule = isset($data['schedule_id']) ? Schedule::find($data['schedule_id']) : null;
                     $jamKe = $schedule ? $schedule->jam_ke : ($data['jam_ke'] ?? null);
 
+                    $isAdminOrWaka = auth()->user()?->hasAnyRole(['waka_kurikulum', 'superadmin']);
+
+                    // Cek batas waktu pengisian 24 jam
+                    if (!$isAdminOrWaka && TeachingJournal::isPastDeadline($tanggal, $jamKe)) {
+                        $deadline = TeachingJournal::getJournalDeadline($tanggal, $jamKe)->translatedFormat('d M Y, H:i');
+                        \Filament\Notifications\Notification::make()
+                            ->title('Pengisian Jurnal Ditolak (Kedaluwarsa)')
+                            ->body("Batas waktu pengisian jurnal mengajar telah berakhir (maksimal 24 jam setelah jadwal mengajar selesai: {$deadline} WIB). Anda tidak dapat lagi menginputkan jurnal ini.")
+                            ->danger()
+                            ->persistent()
+                            ->send();
+
+                        $action->halt();
+                    }
+
                     if (\App\Models\TeacherLeaveRequest::isTeacherOnLeave($teacherId, $tanggal, $jamKe)) {
                         $leave = \App\Models\TeacherLeaveRequest::getActiveLeaveFor($teacherId, $tanggal, $jamKe);
                         \Filament\Notifications\Notification::make()

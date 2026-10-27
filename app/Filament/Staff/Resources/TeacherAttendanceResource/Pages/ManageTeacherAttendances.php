@@ -74,9 +74,9 @@ class ManageTeacherAttendances extends ManageRecords
             'semua' => Tab::make('Semua Presensi & Izin')
                 ->icon('heroicon-m-list-bullet'),
 
-            'hadir' => Tab::make('Hadir Mengajar')
+            'hadir' => Tab::make('Masuk Mengajar')
                 ->icon('heroicon-m-check-circle')
-                ->modifyQueryUsing(fn (Builder $query) => $query->where('status', 'hadir')),
+                ->modifyQueryUsing(fn (Builder $query) => $query->whereIn('status', ['masuk', 'hadir'])),
 
             'izin_sakit' => Tab::make('Izin & Sakit')
                 ->icon('heroicon-m-calendar-days')

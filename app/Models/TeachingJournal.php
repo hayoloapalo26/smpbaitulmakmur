@@ -17,6 +17,20 @@ class TeachingJournal extends Model
 
     protected static function booted()
     {
+        static::creating(function (TeachingJournal $journal) {
+            $user = auth()->user();
+            $isAdmin = $user && $user->hasAnyRole(['waka_kurikulum', 'superadmin']);
+
+            if (!$isAdmin && $journal->tanggal) {
+                if (static::isPastDeadline($journal->tanggal, $journal->jam_ke)) {
+                    $deadline = static::getJournalDeadline($journal->tanggal, $journal->jam_ke)->translatedFormat('d M Y, H:i');
+                    throw \Illuminate\Validation\ValidationException::withMessages([
+                        'schedule_id' => "Batas waktu pengisian jurnal mengajar telah berakhir (maksimal 24 jam setelah jadwal mengajar selesai: {$deadline} WIB). Anda tidak dapat lagi menginputkan jurnal ini.",
+                    ]);
+                }
+            }
+        });
+
         static::saving(function (TeachingJournal $journal) {
             if ($journal->schedule_id) {
                 $schedule = Schedule::withoutGlobalScopes()->find($journal->schedule_id);
@@ -25,7 +39,11 @@ class TeachingJournal extends Model
                     $journal->subject_id = $journal->subject_id ?: $schedule->subject_id;
                     $journal->jam_ke = $journal->jam_ke ?: $schedule->jam_ke;
                     $journal->teacher_id = $journal->teacher_id ?: $schedule->teacher_id;
-                    $journal->institution_id = $journal->institution_id ?: $schedule->institution_id;
+                    if (\Illuminate\Support\Facades\Schema::hasColumn('teaching_journals', 'institution_id')) {
+                        $journal->institution_id = $journal->institution_id ?: $schedule->institution_id;
+                    } else {
+                        unset($journal->institution_id);
+                    }
                 }
             } elseif ($journal->teacher_id && $journal->tanggal && $journal->jam_ke) {
                 $hari = Schedule::getIndonesianDayName($journal->tanggal);
@@ -87,7 +105,7 @@ class TeachingJournal extends Model
             }
 
             $payload = [
-                'institution_id' => $journal->institution_id,
+                'institution_id' => $journal->schedule?->institution_id ?? $journal->classroom?->institution_id ?? $journal->teacher?->institution_id,
                 'teacher_id' => $journal->teacher_id,
                 'schedule_id' => $journal->schedule_id,
                 'teaching_journal_id' => $journal->id,
@@ -95,8 +113,8 @@ class TeachingJournal extends Model
                 'subject_id' => $journal->subject_id,
                 'jam_ke' => $journal->jam_ke,
                 'tanggal' => $journal->tanggal,
-                'status' => 'hadir',
-                'keterangan' => $leaveAttendance ? 'Hadir mengajar sebagai Guru Pengganti (Inval)' : ($existing?->keterangan),
+                'status' => 'masuk',
+                'keterangan' => $leaveAttendance ? 'Masuk mengajar sebagai Guru Pengganti (Inval)' : ($existing?->keterangan ?? 'Masuk mengajar sesuai Jurnal Mengajar'),
             ];
 
             if ($existing) {
@@ -146,5 +164,30 @@ class TeachingJournal extends Model
     public function subjectAttendances()
     {
         return $this->hasMany(SubjectAttendance::class, 'teaching_journal_id');
+    }
+
+    public static function getJournalDeadline(string|\Carbon\Carbon $tanggal, int|string|null $jamKe = null): \Carbon\Carbon
+    {
+        $dateStr = \Carbon\Carbon::parse($tanggal)->format('Y-m-d');
+        $endTimeStr = '15:00:00';
+
+        if ($jamKe !== null && $jamKe !== '') {
+            $slotTime = Schedule::getJamTime($jamKe);
+            if ($slotTime && str_contains($slotTime, '-')) {
+                $parts = explode('-', $slotTime);
+                $endPart = trim(end($parts));
+                $endNormalized = str_replace('.', ':', $endPart);
+                if (strlen($endNormalized) === 5) {
+                    $endTimeStr = $endNormalized . ':00';
+                }
+            }
+        }
+
+        return \Carbon\Carbon::parse("{$dateStr} {$endTimeStr}")->addHours(24);
+    }
+
+    public static function isPastDeadline(string|\Carbon\Carbon $tanggal, int|string|null $jamKe = null): bool
+    {
+        return now()->isAfter(static::getJournalDeadline($tanggal, $jamKe));
     }
 }

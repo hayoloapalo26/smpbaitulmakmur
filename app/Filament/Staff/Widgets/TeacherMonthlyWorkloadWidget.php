@@ -105,7 +105,7 @@ class TeacherMonthlyWorkloadWidget extends Widget
                 ->whereMonth('tanggal', $month)
                 ->get();
 
-            $hadirJP = $attendances->where('status', 'hadir')->count();
+            $hadirJP = $attendances->whereIn('status', ['masuk', 'hadir'])->count();
             $izinJP = $attendances->where('status', 'izin')->count();
             $sakitJP = $attendances->where('status', 'sakit')->count();
             $alpaJP = $attendances->where('status', 'alpa')->count();

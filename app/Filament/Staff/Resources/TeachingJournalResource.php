@@ -31,7 +31,14 @@ class TeachingJournalResource extends Resource
 
     public static function canEdit(\Illuminate\Database\Eloquent\Model $record): bool
     {
-        return ! (auth()->user()?->hasRole('kepala_sekolah') ?? false);
+        $user = auth()->user();
+        if (!$user || $user->hasRole('kepala_sekolah')) {
+            return false;
+        }
+        if ($user->hasAnyRole(['waka_kurikulum', 'superadmin'])) {
+            return true;
+        }
+        return ! TeachingJournal::isPastDeadline($record->tanggal, $record->jam_ke);
     }
 
     public static function canDelete(\Illuminate\Database\Eloquent\Model $record): bool
@@ -95,7 +102,7 @@ class TeachingJournalResource extends Resource
         return $form
             ->schema([
                 Forms\Components\Section::make('Jadwal & Jam Mengajar (Otomatis Mencatat Presensi Guru)')
-                    ->description('Pilih tanggal dan jam mengajar sesuai Jadwal Pelajaran yang telah diatur oleh Waka Kurikulum. Input jurnal ini otomatis menjadi bukti Presensi Kehadiran Anda pada jam pelajaran tersebut.')
+                    ->description('Pilih tanggal dan jam mengajar sesuai Jadwal Pelajaran yang telah diatur oleh Waka Kurikulum. Input jurnal ini otomatis mencatat Presensi Kehadiran Guru (Status Masuk) pada jam pelajaran tersebut. Batas pengisian jurnal adalah 24 jam setelah jadwal pelajaran berakhir.')
                     ->schema([
                         Forms\Components\Select::make('teacher_id')
                             ->label('Guru Pengajar')
@@ -126,7 +133,17 @@ class TeachingJournalResource extends Resource
                         Forms\Components\DatePicker::make('tanggal')
                             ->label('Tanggal Mengajar')
                             ->default(Carbon::today()->format('Y-m-d'))
-                            ->helperText(fn (Forms\Get $get) => 'Hari: ' . Schedule::getIndonesianDayName($get('tanggal') ?: Carbon::today()))
+                            ->minDate(fn () => $isAdminOrWaka ? null : now()->subHours(24)->startOfDay())
+                            ->maxDate(now()->toDateString())
+                            ->helperText(function (Forms\Get $get) use ($isAdminOrWaka) {
+                                $tanggal = $get('tanggal') ?: Carbon::today();
+                                $hari = Schedule::getIndonesianDayName($tanggal);
+                                $info = 'Hari: ' . $hari;
+                                if (!$isAdminOrWaka) {
+                                    $info .= ' • ⏰ Batas pengisian: Maksimal 24 jam setelah jam pelajaran berakhir.';
+                                }
+                                return $info;
+                            })
                             ->live()
                             ->afterStateUpdated(function (Forms\Set $set) {
                                 $set('schedule_id', null);
@@ -140,7 +157,7 @@ class TeachingJournalResource extends Resource
 
                         Forms\Components\Select::make('schedule_id')
                             ->label('Pilih Jadwal Mengajar (Sesuai Hari & Jam Ke-)')
-                            ->options(function (Forms\Get $get, ?TeachingJournal $record) {
+                            ->options(function (Forms\Get $get, ?TeachingJournal $record) use ($isAdminOrWaka) {
                                 $teacherId = $get('teacher_id') ?: Auth::id();
                                 $tanggal = $get('tanggal') ?: Carbon::today()->format('Y-m-d');
                                 $hari = Schedule::getIndonesianDayName($tanggal);
@@ -201,13 +218,18 @@ class TeachingJournalResource extends Resource
                                         $statusText = " 🔄 [TUGAS INVAL / PENGGANTI dari {$s->teacher?->name}]" . $statusText;
                                     }
 
+                                    // Cek apakah telah kedaluwarsa (> 24 jam)
+                                    if (!$isAdminOrWaka && TeachingJournal::isPastDeadline($tanggal, $s->jam_ke)) {
+                                        $statusText = ' ⏰ [Kedaluwarsa (>24 Jam)]';
+                                    }
+
                                     $jamText = \App\Models\Schedule::getJamLabelWithTime($s->jam_ke);
                                     $options[$s->id] = "{$jamText} | Kelas {$s->classroom?->name} — {$s->subject?->name}{$statusText}";
                                 }
 
                                 return $options;
                             })
-                            ->disableOptionWhen(function (string $value, Forms\Get $get, ?TeachingJournal $record) {
+                            ->disableOptionWhen(function (string $value, Forms\Get $get, ?TeachingJournal $record) use ($isAdminOrWaka) {
                                 $teacherId = $get('teacher_id') ?: Auth::id();
                                 $tanggal = $get('tanggal') ?: Carbon::today()->format('Y-m-d');
                                 $schedule = Schedule::find($value);
@@ -221,20 +243,36 @@ class TeachingJournalResource extends Resource
                                 }
 
                                 // 2. Kunci opsi jika sudah diisi sebelumnya
-                                return TeachingJournal::where('schedule_id', $schedule->id)
+                                if (TeachingJournal::where('schedule_id', $schedule->id)
                                     ->whereDate('tanggal', $tanggal)
                                     ->when($record, fn ($q) => $q->where('id', '!=', $record->id))
-                                    ->exists();
+                                    ->exists()) {
+                                    return true;
+                                }
+
+                                // 3. Kunci opsi jika telah melewati batas waktu 24 jam
+                                if (!$isAdminOrWaka && TeachingJournal::isPastDeadline($tanggal, $schedule->jam_ke)) {
+                                    return true;
+                                }
+
+                                return false;
                             })
                             ->rules([
-                                function (Forms\Get $get) {
-                                    return function (string $attribute, $value, \Closure $fail) use ($get) {
+                                function (Forms\Get $get) use ($isAdminOrWaka) {
+                                    return function (string $attribute, $value, \Closure $fail) use ($get, $isAdminOrWaka) {
                                         $teacherId = $get('teacher_id') ?: Auth::id();
                                         $tanggal = $get('tanggal') ?: Carbon::today()->format('Y-m-d');
                                         $schedule = Schedule::find($value);
-                                        if ($schedule && $schedule->teacher_id == $teacherId && \App\Models\TeacherLeaveRequest::isTeacherOnLeave($teacherId, $tanggal, $schedule->jam_ke)) {
+                                        if (!$schedule) return;
+
+                                        if ($schedule->teacher_id == $teacherId && \App\Models\TeacherLeaveRequest::isTeacherOnLeave($teacherId, $tanggal, $schedule->jam_ke)) {
                                             $leave = \App\Models\TeacherLeaveRequest::getActiveLeaveFor($teacherId, $tanggal, $schedule->jam_ke);
                                             $fail("Tidak dapat mengisi jurnal mengajar! Anda tercatat memiliki perizinan yang telah disetujui (ACC) pada tanggal {$tanggal} (" . ($leave?->waktu_izin_label ?? "Jam Ke-{$schedule->jam_ke}") . ").");
+                                        }
+
+                                        if (!$isAdminOrWaka && TeachingJournal::isPastDeadline($tanggal, $schedule->jam_ke)) {
+                                            $deadline = TeachingJournal::getJournalDeadline($tanggal, $schedule->jam_ke)->translatedFormat('d M Y, H:i');
+                                            $fail("Tidak dapat mengisi jurnal mengajar! Batas pengisian telah terlampaui (maksimal 24 jam setelah jadwal pelajaran selesai: {$deadline} WIB).");
                                         }
                                     };
                                 }

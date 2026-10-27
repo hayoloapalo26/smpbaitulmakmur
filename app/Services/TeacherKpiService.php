@@ -72,7 +72,7 @@ class TeacherKpiService
             ->whereBetween('tanggal', [$queryDateStart->toDateString(), $queryDateEnd->toDateString()]);
 
         $totalAttRecords = (clone $attendanceQuery)->count();
-        $hadirAttRecords = (clone $attendanceQuery)->where('status', 'hadir')->count();
+        $hadirAttRecords = (clone $attendanceQuery)->whereIn('status', ['masuk', 'hadir'])->count();
 
         $hadirCount = max($journalsCount, $hadirAttRecords);
 

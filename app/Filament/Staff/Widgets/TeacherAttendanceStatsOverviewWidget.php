@@ -22,7 +22,7 @@ class TeacherAttendanceStatsOverviewWidget extends BaseWidget
             });
         }
 
-        $totalHadir = (clone $query)->where('status', 'hadir')->count();
+        $totalHadir = (clone $query)->whereIn('status', ['masuk', 'hadir'])->count();
         $totalIzin = (clone $query)->where('status', 'izin')->count();
         $totalSakit = (clone $query)->where('status', 'sakit')->count();
         $totalAlpa = (clone $query)->where('status', 'alpa')->count();
@@ -33,7 +33,7 @@ class TeacherAttendanceStatsOverviewWidget extends BaseWidget
         $persenHadir = $totalSesi > 0 ? round(($totalHadir / $totalSesi) * 100, 1) : 0;
 
         return [
-            Stat::make('Total Jam Hadir Mengajar', "{$totalHadir} JP / Sesi")
+            Stat::make('Total Jam Masuk Mengajar', "{$totalHadir} JP / Sesi")
                 ->description('Jam tatap muka guru di kelas')
                 ->descriptionIcon('heroicon-m-check-circle')
                 ->color('success'),

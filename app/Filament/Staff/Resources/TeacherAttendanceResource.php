@@ -147,13 +147,14 @@ class TeacherAttendanceResource extends Resource
                 Forms\Components\Select::make('status')
                     ->label('Status Kehadiran / Presensi')
                     ->options([
-                        'hadir' => 'Hadir Mengajar',
+                        'masuk' => 'Masuk Mengajar',
+                        'hadir' => 'Masuk / Hadir Mengajar',
                         'izin' => 'Izin',
                         'sakit' => 'Sakit',
                         'alpa' => 'Alpa (Tanpa Keterangan)',
                         'dinas_luar' => 'Dinas Luar / Tugas',
                     ])
-                    ->default('izin')
+                    ->default('masuk')
                     ->required()
                     ->live(),
 
@@ -205,14 +206,14 @@ class TeacherAttendanceResource extends Resource
                             ->label('Status Kehadiran')
                             ->badge()
                             ->color(fn ($state) => match ($state) {
-                                'hadir' => 'success',
+                                'masuk', 'hadir' => 'success',
                                 'izin' => 'warning',
                                 'sakit', 'alpa' => 'danger',
                                 'dinas_luar' => 'info',
                                 default => 'gray',
                             })
                             ->formatStateUsing(fn ($state, TeacherAttendance $record) => match ($state) {
-                                'hadir' => $record->teaching_journal_id ? 'Hadir (Sesuai Jurnal Mengajar)' : 'Hadir',
+                                'masuk', 'hadir' => $record->teaching_journal_id ? 'Masuk (Jurnal Mengajar)' : 'Masuk',
                                 'izin' => 'Izin',
                                 'sakit' => 'Sakit',
                                 'alpa' => 'Alpa',
@@ -297,7 +298,7 @@ class TeacherAttendanceResource extends Resource
                     ->label('Status')
                     ->badge()
                     ->formatStateUsing(fn ($state, TeacherAttendance $record) => match ($state) {
-                        'hadir' => $record->teaching_journal_id ? 'Hadir (Jurnal)' : 'Hadir',
+                        'masuk', 'hadir' => $record->teaching_journal_id ? 'Masuk (Jurnal)' : 'Masuk',
                         'izin' => 'Izin',
                         'sakit' => 'Sakit',
                         'alpa' => 'Alpa',
@@ -305,7 +306,7 @@ class TeacherAttendanceResource extends Resource
                         default => ucfirst($state),
                     })
                     ->color(fn ($state) => match ($state) {
-                        'hadir' => 'success',
+                        'masuk', 'hadir' => 'success',
                         'izin' => 'warning',
                         'sakit', 'alpa' => 'danger',
                         'dinas_luar' => 'info',
@@ -364,12 +365,21 @@ class TeacherAttendanceResource extends Resource
                     ->options(fn () => \App\Models\User::getSubstituteTeacherOptions()),
                 Tables\Filters\SelectFilter::make('status')
                     ->options([
-                        'hadir' => 'Hadir',
+                        'masuk' => 'Masuk',
                         'izin' => 'Izin',
                         'sakit' => 'Sakit',
                         'alpa' => 'Alpa',
                         'dinas_luar' => 'Dinas Luar',
-                    ]),
+                    ])
+                    ->query(function (Builder $query, array $data) {
+                        if (!empty($data['value'])) {
+                            if ($data['value'] === 'masuk') {
+                                $query->whereIn('status', ['masuk', 'hadir']);
+                            } else {
+                                $query->where('status', $data['value']);
+                            }
+                        }
+                    }),
                 Tables\Filters\SelectFilter::make('bulan')
                     ->label('Periode Bulan')
                     ->options([
