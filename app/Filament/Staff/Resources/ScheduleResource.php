@@ -55,53 +55,67 @@ class ScheduleResource extends Resource
     {
         return $form
             ->schema([
-                Forms\Components\Select::make('hari')
-                    ->label('Hari')
-                    ->options([
-                        'Senin' => 'Senin',
-                        'Selasa' => 'Selasa',
-                        'Rabu' => 'Rabu',
-                        'Kamis' => 'Kamis',
-                        'Jumat' => 'Jumat',
-                        'Sabtu' => 'Sabtu',
-                    ])
-                    ->required(),
-                Forms\Components\Select::make('jam_ke')
-                    ->label('Jam Pelajaran Ke- & Waktu Mengajar')
-                    ->options(\App\Models\Schedule::getJamOptions())
-                    ->searchable()
-                    ->required(),
-                Forms\Components\Select::make('classroom_id')
-                    ->label('Kelas')
-                    ->relationship('classroom', 'name')
-                    ->searchable()
-                    ->preload()
-                    ->required(),
-                Forms\Components\Select::make('subject_id')
-                    ->label('Mata Pelajaran')
-                    ->relationship('subject', 'name')
-                    ->searchable()
-                    ->preload()
-                    ->required(),
-                Forms\Components\Select::make('teacher_id')
-                    ->label('Guru Pengajar')
-                    ->relationship('teacher', 'name', modifyQueryUsing: function (Builder $query) {
-                        $user = Auth::user();
-                        if ($user && $user->institution_id && !$user->hasRole('superadmin')) {
-                            $query->where(function ($q) use ($user) {
-                                $q->where('institution_id', $user->institution_id)
-                                  ->orWhereNull('institution_id')
-                                  ->orWhere('institution_id', 1);
-                            });
-                        }
-                        $query->whereHas('roles', function ($q) {
-                            $q->whereIn('name', ['guru_mapel', 'guru_alquran', 'wali_kelas']);
-                        });
-                    })
-                    ->searchable()
-                    ->preload()
-                    ->required()
-                    ->columnSpanFull(),
+                Forms\Components\Section::make('Informasi Kelas & Mata Pelajaran')
+                    ->description('Tentukan rombongan belajar kelas, mata pelajaran, dan guru pengampu.')
+                    ->schema([
+                        Forms\Components\Select::make('classroom_id')
+                            ->label('Kelas')
+                            ->relationship('classroom', 'name')
+                            ->searchable()
+                            ->preload()
+                            ->required(),
+                        Forms\Components\Select::make('subject_id')
+                            ->label('Mata Pelajaran')
+                            ->relationship('subject', 'name')
+                            ->searchable()
+                            ->preload()
+                            ->required(),
+                        Forms\Components\Select::make('teacher_id')
+                            ->label('Guru Pengajar')
+                            ->relationship('teacher', 'name', modifyQueryUsing: function (Builder $query) {
+                                $user = Auth::user();
+                                if ($user && $user->institution_id && !$user->hasRole('superadmin')) {
+                                    $query->where(function ($q) use ($user) {
+                                        $q->where('institution_id', $user->institution_id)
+                                          ->orWhereNull('institution_id')
+                                          ->orWhere('institution_id', 1);
+                                    });
+                                }
+                                $query->whereHas('roles', function ($q) {
+                                    $q->whereIn('name', ['guru_mapel', 'guru_alquran', 'wali_kelas']);
+                                });
+                            })
+                            ->searchable()
+                            ->preload()
+                            ->required()
+                            ->columnSpanFull(),
+                    ])->columns(2),
+
+                Forms\Components\Section::make('Waktu Mengajar (Multiple Choice)')
+                    ->description('Pilih hari dan jam pelajaran. Anda dapat memilih satu atau beberapa hari dan jam pelajaran sekaligus.')
+                    ->schema([
+                        Forms\Components\CheckboxList::make('hari')
+                            ->label('Pilih Hari Mengajar (Multiple Choice)')
+                            ->options([
+                                'Senin' => 'Senin',
+                                'Selasa' => 'Selasa',
+                                'Rabu' => 'Rabu',
+                                'Kamis' => 'Kamis',
+                                'Jumat' => 'Jumat',
+                                'Sabtu' => 'Sabtu',
+                            ])
+                            ->columns(3)
+                            ->required()
+                            ->helperText('Centang satu atau beberapa hari mengajar untuk mata pelajaran ini.'),
+
+                        Forms\Components\CheckboxList::make('jam_ke')
+                            ->label('Pilih Jam Pelajaran & Waktu (Multiple Choice)')
+                            ->options(\App\Models\Schedule::getJamOptions())
+                            ->columns(2)
+                            ->bulkToggleable()
+                            ->required()
+                            ->helperText('Centang satu atau beberapa jam pelajaran sekaligus (misal jam ke-1 dan ke-2).'),
+                    ]),
             ]);
     }
 
@@ -157,7 +171,52 @@ class ScheduleResource extends Resource
             ])
             ->actions([
                 Tables\Actions\EditAction::make()
-                    ->visible(fn () => Auth::user()->hasAnyRole(['waka_kurikulum', 'superadmin'])),
+                    ->modalWidth('3xl')
+                    ->visible(fn () => Auth::user()->hasAnyRole(['waka_kurikulum', 'superadmin']))
+                    ->mutateRecordDataUsing(function (array $data): array {
+                        if (!empty($data['hari']) && !is_array($data['hari'])) {
+                            $data['hari'] = [$data['hari']];
+                        }
+                        if (isset($data['jam_ke']) && !is_array($data['jam_ke'])) {
+                            $data['jam_ke'] = [(int) $data['jam_ke']];
+                        }
+                        return $data;
+                    })
+                    ->using(function (\App\Models\Schedule $record, array $data): \App\Models\Schedule {
+                        $days = is_array($data['hari']) ? $data['hari'] : [$data['hari']];
+                        $jams = is_array($data['jam_ke']) ? $data['jam_ke'] : [$data['jam_ke']];
+
+                        $firstDay = array_shift($days);
+                        $firstJam = array_shift($jams);
+
+                        $record->update([
+                            'classroom_id' => $data['classroom_id'],
+                            'subject_id' => $data['subject_id'],
+                            'teacher_id' => $data['teacher_id'],
+                            'hari' => $firstDay ?? $record->hari,
+                            'jam_ke' => $firstJam !== null ? (int) $firstJam : $record->jam_ke,
+                        ]);
+
+                        // Jika memilih hari/jam tambahan saat edit
+                        $allDays = array_merge([$firstDay], $days);
+                        $allJams = array_merge([$firstJam], $jams);
+                        foreach ($allDays as $d) {
+                            foreach ($allJams as $j) {
+                                if ($d == $firstDay && $j == $firstJam) continue;
+                                \App\Models\Schedule::firstOrCreate([
+                                    'classroom_id' => $data['classroom_id'],
+                                    'subject_id' => $data['subject_id'],
+                                    'teacher_id' => $data['teacher_id'],
+                                    'hari' => $d,
+                                    'jam_ke' => (int) $j,
+                                ], [
+                                    'institution_id' => $record->institution_id,
+                                ]);
+                            }
+                        }
+
+                        return $record;
+                    }),
                 Tables\Actions\DeleteAction::make()
                     ->visible(fn () => Auth::user()->hasAnyRole(['waka_kurikulum', 'superadmin'])),
             ]);
