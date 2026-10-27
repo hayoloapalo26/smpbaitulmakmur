@@ -201,64 +201,122 @@
         @php
             $canAccessRanking = \App\Filament\Staff\Pages\TeacherPerformanceDashboard::canAccess();
         @endphp
-        <div class="grid grid-cols-1 {{ $canAccessRanking ? 'md:grid-cols-3' : 'md:grid-cols-2' }} gap-6">
-            {{-- Widget Good News --}}
-            <div class="bg-gradient-to-br from-emerald-500 to-green-600 rounded-3xl p-6 shadow-md border border-green-400/50 text-white flex flex-col hover:shadow-xl hover:-translate-y-1 transition-all">
-                <div class="flex items-center gap-3 mb-4">
-                    <div class="w-12 h-12 rounded-2xl bg-white/20 flex items-center justify-center shrink-0 border border-white/20">
-                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+        <div x-data="{ activeNews: null }" class="space-y-4">
+            <div class="grid grid-cols-1 {{ $canAccessRanking ? 'md:grid-cols-3' : 'md:grid-cols-2' }} gap-4">
+                {{-- Compact Button Good News --}}
+                <button type="button"
+                        @click="activeNews = (activeNews === 'good' ? null : 'good')"
+                        class="w-full bg-gradient-to-r from-emerald-500 to-green-600 rounded-2xl p-4 shadow-sm hover:shadow-md border border-green-400/50 text-white flex items-center justify-between transition-all group cursor-pointer hover:-translate-y-0.5"
+                        :class="activeNews === 'good' ? 'ring-2 ring-emerald-300 ring-offset-2 dark:ring-offset-gray-900 shadow-md' : ''">
+                    <div class="flex items-center gap-3">
+                        <div class="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center shrink-0 border border-white/20">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                        </div>
+                        <div class="text-left">
+                            <span class="text-base font-black tracking-wide drop-shadow-sm block">Good News</span>
+                            <span class="text-[11px] text-green-100 font-medium" x-text="activeNews === 'good' ? 'Klik untuk menutup rangkuman' : 'Klik untuk melihat rangkuman'"></span>
+                        </div>
                     </div>
-                    <h3 class="text-lg font-black tracking-wide drop-shadow-sm">Ringkasan Good News</h3>
-                </div>
-                <div class="text-sm leading-relaxed text-green-50 font-medium max-w-none [&>ul]:list-disc [&>ul]:ml-4 [&>p]:mb-3 last:[&>p]:mb-0">
-                    {!! str()->markdown($this->goodNews) !!}
-                </div>
-            </div>
-
-            {{-- Widget Bad News --}}
-            <div class="bg-gradient-to-br from-rose-500 to-red-600 rounded-3xl p-6 shadow-md border border-red-400/50 text-white flex flex-col hover:shadow-xl hover:-translate-y-1 transition-all">
-                <div class="flex items-center gap-3 mb-4">
-                    <div class="w-12 h-12 rounded-2xl bg-white/20 flex items-center justify-center shrink-0 border border-white/20">
-                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                    <div class="flex items-center gap-1.5 text-xs font-bold bg-white/20 group-hover:bg-white/30 px-3 py-1.5 rounded-xl transition-colors">
+                        <span x-text="activeNews === 'good' ? 'Tutup' : 'Lihat'"></span>
+                        <svg class="w-4 h-4 transform transition-transform duration-200" :class="activeNews === 'good' ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"></path></svg>
                     </div>
-                    <h3 class="text-lg font-black tracking-wide drop-shadow-sm">Ringkasan Bad News</h3>
-                </div>
-                <div class="text-sm leading-relaxed text-red-50 font-medium max-w-none [&>ul]:list-disc [&>ul]:ml-4 [&>p]:mb-3 last:[&>p]:mb-0">
-                    {!! str()->markdown($this->badNews) !!}
-                </div>
-            </div>
+                </button>
 
-            @if($canAccessRanking)
-            {{-- Widget Highlight Peringkat 1 --}}
-            <a href="{{ \App\Filament\Staff\Pages\TeacherPerformanceDashboard::getUrl() }}" class="block bg-gradient-to-r from-yellow-400 to-yellow-500 rounded-3xl p-6 shadow-md border border-yellow-300 flex items-center gap-5 relative overflow-hidden group hover:shadow-xl hover:-translate-y-1 transition-all cursor-pointer">
-                <div class="absolute -right-6 -top-6 opacity-20 group-hover:scale-110 transition-transform duration-500">
-                    <svg class="w-32 h-32 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M5 16L3 5L8.5 10L12 4L15.5 10L21 5L19 16H5M19 19C19 19.55 18.55 20 18 20H6C5.45 20 5 19.55 5 19V18H19V19Z"/></svg>
-                </div>
-                
+                {{-- Compact Button Bad News --}}
+                <button type="button"
+                        @click="activeNews = (activeNews === 'bad' ? null : 'bad')"
+                        class="w-full bg-gradient-to-r from-rose-500 to-red-600 rounded-2xl p-4 shadow-sm hover:shadow-md border border-red-400/50 text-white flex items-center justify-between transition-all group cursor-pointer hover:-translate-y-0.5"
+                        :class="activeNews === 'bad' ? 'ring-2 ring-rose-300 ring-offset-2 dark:ring-offset-gray-900 shadow-md' : ''">
+                    <div class="flex items-center gap-3">
+                        <div class="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center shrink-0 border border-white/20">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                        </div>
+                        <div class="text-left">
+                            <span class="text-base font-black tracking-wide drop-shadow-sm block">Bad News</span>
+                            <span class="text-[11px] text-red-100 font-medium" x-text="activeNews === 'bad' ? 'Klik untuk menutup rangkuman' : 'Klik untuk melihat rangkuman'"></span>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-1.5 text-xs font-bold bg-white/20 group-hover:bg-white/30 px-3 py-1.5 rounded-xl transition-colors">
+                        <span x-text="activeNews === 'bad' ? 'Tutup' : 'Lihat'"></span>
+                        <svg class="w-4 h-4 transform transition-transform duration-200" :class="activeNews === 'bad' ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"></path></svg>
+                    </div>
+                </button>
+
+                @if($canAccessRanking)
+                {{-- Widget Highlight Peringkat 1 --}}
                 @php
                     $top = collect($this->topTeachers)->first();
                 @endphp
-                
-                @if($top)
-                <div class="w-16 h-16 rounded-full bg-white/20 border-2 border-white flex items-center justify-center shrink-0 shadow-inner z-10">
-                    <span class="text-xl font-black text-white">{{ substr($top->teacher->name, 0, 2) }}</span>
-                </div>
-                <div class="z-10">
-                    <div class="flex items-center gap-2 mb-1">
-                        <span class="bg-yellow-800 text-yellow-100 text-[10px] font-black uppercase px-2 py-0.5 rounded">Peringkat 1</span>
-                        <span class="text-xs font-bold text-yellow-900">Kinerja Guru</span>
+                <a href="{{ \App\Filament\Staff\Pages\TeacherPerformanceDashboard::getUrl() }}" class="w-full bg-gradient-to-r from-yellow-400 to-amber-500 rounded-2xl p-4 shadow-sm hover:shadow-md border border-yellow-300 flex items-center justify-between group hover:-translate-y-0.5 transition-all cursor-pointer">
+                    <div class="flex items-center gap-3 min-w-0">
+                        <div class="w-9 h-9 rounded-xl bg-white/30 flex items-center justify-center shrink-0 border border-white/40">
+                            <span class="text-base">👑</span>
+                        </div>
+                        <div class="min-w-0 text-left">
+                            <div class="flex items-center gap-1.5">
+                                <span class="text-[10px] font-black uppercase text-yellow-900 tracking-wider">Top 1 Kinerja Guru</span>
+                            </div>
+                            <h4 class="text-sm font-black text-yellow-950 truncate leading-tight">
+                                {{ $top ? $top->teacher->name : 'Belum Ada Data' }}
+                            </h4>
+                        </div>
                     </div>
-                    <h3 class="text-lg font-black text-yellow-900 leading-tight line-clamp-1">{{ $top->teacher->name }}</h3>
-                    <p class="text-sm font-bold text-yellow-800 mt-0.5">{{ $top->tugas_selesai }} Tugas Tuntas ({{ $top->persentase }}%)</p>
-                </div>
-                @else
-                <div class="z-10">
-                    <p class="text-sm font-bold text-yellow-900 mb-1">Peringkat Kinerja Guru</p>
-                    <h3 class="text-lg font-black text-yellow-900">Belum Ada Data</h3>
-                </div>
+                    <div class="flex items-center gap-1 text-xs font-bold text-yellow-950 bg-white/30 group-hover:bg-white/50 px-3 py-1.5 rounded-xl shrink-0 transition-colors">
+                        <span>Detail</span>
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7"></path></svg>
+                    </div>
+                </a>
                 @endif
-            </a>
-            @endif
+            </div>
+
+            {{-- PANEL PENJELASAN GOOD NEWS (Muncul saat diklik) --}}
+            <div x-show="activeNews === 'good'" x-collapse x-cloak>
+                <div class="bg-gradient-to-br from-emerald-500 to-green-600 rounded-3xl p-6 shadow-xl border border-green-400/50 text-white relative">
+                    <div class="flex items-center justify-between mb-4 pb-3 border-b border-white/20">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-2xl bg-white/20 flex items-center justify-center shrink-0 border border-white/20">
+                                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                            </div>
+                            <div>
+                                <h3 class="text-lg font-black tracking-wide drop-shadow-sm">Ringkasan & Penjelasan Good News</h3>
+                                <p class="text-xs text-green-100 font-medium">Kabar baik, pencapaian positif, dan tren performa sekolah</p>
+                            </div>
+                        </div>
+                        <button type="button" @click="activeNews = null" class="px-3 py-1.5 rounded-xl bg-white/20 hover:bg-white/30 text-white text-xs font-bold transition-colors flex items-center gap-1.5 cursor-pointer">
+                            <span>Tutup</span>
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"></path></svg>
+                        </button>
+                    </div>
+                    <div class="text-sm leading-relaxed text-green-50 font-medium max-w-none [&>ul]:list-disc [&>ul]:ml-4 [&>p]:mb-3 last:[&>p]:mb-0">
+                        {!! str()->markdown($this->goodNews) !!}
+                    </div>
+                </div>
+            </div>
+
+            {{-- PANEL PENJELASAN BAD NEWS (Muncul saat diklik) --}}
+            <div x-show="activeNews === 'bad'" x-collapse x-cloak>
+                <div class="bg-gradient-to-br from-rose-500 to-red-600 rounded-3xl p-6 shadow-xl border border-red-400/50 text-white relative">
+                    <div class="flex items-center justify-between mb-4 pb-3 border-b border-white/20">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-2xl bg-white/20 flex items-center justify-center shrink-0 border border-white/20">
+                                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                            </div>
+                            <div>
+                                <h3 class="text-lg font-black tracking-wide drop-shadow-sm">Ringkasan & Penjelasan Bad News</h3>
+                                <p class="text-xs text-red-100 font-medium">Perhatian khusus, kendala operasional, dan hal yang butuh tindak lanjut</p>
+                            </div>
+                        </div>
+                        <button type="button" @click="activeNews = null" class="px-3 py-1.5 rounded-xl bg-white/20 hover:bg-white/30 text-white text-xs font-bold transition-colors flex items-center gap-1.5 cursor-pointer">
+                            <span>Tutup</span>
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"></path></svg>
+                        </button>
+                    </div>
+                    <div class="text-sm leading-relaxed text-red-50 font-medium max-w-none [&>ul]:list-disc [&>ul]:ml-4 [&>p]:mb-3 last:[&>p]:mb-0">
+                        {!! str()->markdown($this->badNews) !!}
+                    </div>
+                </div>
+            </div>
         </div>
 
         {{-- 2. GRID KARTU PER PILAR DENGAN GRAFIK BERWARNA --}}
