@@ -91,8 +91,8 @@ class ScheduleResource extends Resource
                             ->columnSpanFull(),
                     ])->columns(2),
 
-                Forms\Components\Section::make('Waktu Mengajar (Multiple Choice)')
-                    ->description('Pilih hari dan jam pelajaran. Anda dapat memilih satu atau beberapa hari dan jam pelajaran sekaligus.')
+                Forms\Components\Section::make('Waktu Mengajar (Per 1 JP - Multiple Choice)')
+                    ->description('Setiap opsi mewakili alokasi 1 Jam Pelajaran (1 JP). Guru dapat mengajar 1 JP, 2 JP, atau 3 JP dengan mencentang jam ke berapa saja yang diampu.')
                     ->schema([
                         Forms\Components\CheckboxList::make('hari')
                             ->label('Pilih Hari Mengajar (Multiple Choice)')
@@ -109,12 +109,26 @@ class ScheduleResource extends Resource
                             ->helperText('Centang satu atau beberapa hari mengajar untuk mata pelajaran ini.'),
 
                         Forms\Components\CheckboxList::make('jam_ke')
-                            ->label('Pilih Jam Pelajaran & Waktu (Multiple Choice)')
-                            ->options(\App\Models\Schedule::getJamOptions())
+                            ->label('Pilih Jam Mengajar (Per 1 JP - Multiple Choice)')
+                            ->options(function () {
+                                $options = [];
+                                foreach (\App\Models\Schedule::getJamSlots() as $jam => $slot) {
+                                    $options[$jam] = "{$slot['label']} (1 JP · {$slot['time']})";
+                                }
+                                return $options;
+                            })
                             ->columns(2)
                             ->bulkToggleable()
+                            ->live()
                             ->required()
-                            ->helperText('Centang satu atau beberapa jam pelajaran sekaligus (misal jam ke-1 dan ke-2).'),
+                            ->helperText(function (Forms\Get $get) {
+                                $selected = $get('jam_ke');
+                                $count = is_array($selected) ? count($selected) : 0;
+                                if ($count > 0) {
+                                    return "✓ Terpilih: {$count} JP (Jam Pelajaran). Sistem otomatis mencatat {$count} jam mengajar untuk guru ini.";
+                                }
+                                return 'Setiap opsi bernilai 1 JP. Centang jam ke berapa saja guru tersebut mengajar (misal 1 JP centang 1 pilihan, 2 JP centang 2 pilihan, atau 3 JP centang 3 pilihan).';
+                            }),
                     ]),
             ]);
     }
@@ -133,6 +147,7 @@ class ScheduleResource extends Resource
                     ->badge()
                     ->color('primary')
                     ->formatStateUsing(fn ($state) => \App\Models\Schedule::getJamLabelWithTime($state))
+                    ->description('Beban: 1 JP')
                     ->sortable(),
                 Tables\Columns\TextColumn::make('classroom.name')
                     ->label('Kelas')

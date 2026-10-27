@@ -55,7 +55,7 @@ class ManageSchedules extends ManageRecords
                     $total = count($created);
                     Notification::make()
                         ->title('Jadwal Pelajaran Berhasil Disimpan')
-                        ->body("{$total} slot jadwal pelajaran berhasil ditambahkan.")
+                        ->body("Total {$total} JP (Jam Pelajaran) berhasil dijadwalkan untuk guru bersangkutan.")
                         ->success()
                         ->send();
 

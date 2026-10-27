@@ -165,4 +165,41 @@ class ScheduleMultipleChoiceInputTest extends TestCase
             'jam_ke' => 2,
         ]);
     }
+
+    public function test_can_schedule_single_jp_and_triple_jp_independently(): void
+    {
+        $this->actingAs($this->wakaKurikulum);
+
+        // 1. Kasus Guru mengajar hanya 1 JP (misal jam ke-4)
+        $singleJp = Schedule::firstOrCreate([
+            'classroom_id' => $this->classroom->id,
+            'subject_id' => $this->subject->id,
+            'teacher_id' => $this->teacher->id,
+            'hari' => 'Selasa',
+            'jam_ke' => 4,
+        ], [
+            'institution_id' => $this->institution->id,
+        ]);
+
+        $this->assertDatabaseHas('schedules', [
+            'hari' => 'Selasa',
+            'jam_ke' => 4,
+        ]);
+
+        // 2. Kasus Guru mengajar 3 JP sekaligus (misal jam ke-5, 6, 7)
+        $threeJpSlots = [5, 6, 7];
+        foreach ($threeJpSlots as $slot) {
+            Schedule::firstOrCreate([
+                'classroom_id' => $this->classroom->id,
+                'subject_id' => $this->subject->id,
+                'teacher_id' => $this->teacher->id,
+                'hari' => 'Rabu',
+                'jam_ke' => $slot,
+            ], [
+                'institution_id' => $this->institution->id,
+            ]);
+        }
+
+        $this->assertEquals(3, Schedule::where('hari', 'Rabu')->whereIn('jam_ke', [5, 6, 7])->count());
+    }
 }
