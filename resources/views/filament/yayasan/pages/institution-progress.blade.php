@@ -118,7 +118,7 @@
             </a>
 
             {{-- Widget Highlight Peringkat 1 --}}
-            <div class="block bg-gradient-to-r from-yellow-400 to-yellow-500 rounded-3xl p-6 shadow-md border border-yellow-300 flex items-center gap-5 relative overflow-hidden group hover:shadow-xl hover:-translate-y-1 transition-all cursor-pointer">
+            <a href="{{ \App\Filament\Yayasan\Pages\TeacherPerformanceDashboard::getUrl(['institution_id' => $this->institution->id]) }}" class="block bg-gradient-to-r from-yellow-400 to-yellow-500 rounded-3xl p-6 shadow-md border border-yellow-300 flex items-center gap-5 relative overflow-hidden group hover:shadow-xl hover:-translate-y-1 transition-all cursor-pointer">
                 <div class="absolute -right-6 -top-6 opacity-20 group-hover:scale-110 transition-transform duration-500">
                     <svg class="w-32 h-32 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M5 16L3 5L8.5 10L12 4L15.5 10L21 5L19 16H5M19 19C19 19.55 18.55 20 18 20H6C5.45 20 5 19.55 5 19V18H19V19Z"/></svg>
                 </div>
@@ -145,7 +145,7 @@
                     <h3 class="text-lg font-black text-yellow-900">Belum Ada Data</h3>
                 </div>
                 @endif
-            </div>
+            </a>
         </div>
 
         {{-- 2. GRID KARTU PER PILAR DENGAN GRAFIK BERWARNA --}}
@@ -297,5 +297,6 @@
         
     </div>
 </x-filament-panels::page>
+
 
 

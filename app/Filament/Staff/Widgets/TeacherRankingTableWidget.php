@@ -17,6 +17,18 @@ use Filament\Forms\Components\Select;
 
 class TeacherRankingTableWidget extends BaseWidget
 {
+    public static function canView(): bool
+    {
+        return auth()->user()?->hasAnyRole([
+            'superadmin',
+            'kepala_sekolah',
+            'ketua_yayasan',
+            'pembina_yayasan',
+            'sekretaris_yayasan',
+            'tim_pengembang_penjamin_mutu_yayasan',
+        ]) ?? false;
+    }
+
     protected static ?int $sort = 5;
     protected int | string | array $columnSpan = 'full';
     

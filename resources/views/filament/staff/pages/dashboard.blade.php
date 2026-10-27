@@ -198,7 +198,10 @@
         @endif
 
         {{-- WIDGETS STATISTIK (Good News, Bad News, Top Guru) --}}
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        @php
+            $canAccessRanking = \App\Filament\Staff\Pages\TeacherPerformanceDashboard::canAccess();
+        @endphp
+        <div class="grid grid-cols-1 {{ $canAccessRanking ? 'md:grid-cols-3' : 'md:grid-cols-2' }} gap-6">
             {{-- Widget Good News --}}
             <div class="bg-gradient-to-br from-emerald-500 to-green-600 rounded-3xl p-6 shadow-md border border-green-400/50 text-white flex flex-col hover:shadow-xl hover:-translate-y-1 transition-all">
                 <div class="flex items-center gap-3 mb-4">
@@ -225,7 +228,8 @@
                 </div>
             </div>
 
-            {{-- Widget Highlight Peringkat 1 --}}{{-- Widget Highlight Peringkat 1 --}}{{-- Widget Highlight Peringkat 1 --}}
+            @if($canAccessRanking)
+            {{-- Widget Highlight Peringkat 1 --}}
             <a href="{{ \App\Filament\Staff\Pages\TeacherPerformanceDashboard::getUrl() }}" class="block bg-gradient-to-r from-yellow-400 to-yellow-500 rounded-3xl p-6 shadow-md border border-yellow-300 flex items-center gap-5 relative overflow-hidden group hover:shadow-xl hover:-translate-y-1 transition-all cursor-pointer">
                 <div class="absolute -right-6 -top-6 opacity-20 group-hover:scale-110 transition-transform duration-500">
                     <svg class="w-32 h-32 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M5 16L3 5L8.5 10L12 4L15.5 10L21 5L19 16H5M19 19C19 19.55 18.55 20 18 20H6C5.45 20 5 19.55 5 19V18H19V19Z"/></svg>
@@ -254,6 +258,7 @@
                 </div>
                 @endif
             </a>
+            @endif
         </div>
 
         {{-- 2. GRID KARTU PER PILAR DENGAN GRAFIK BERWARNA --}}

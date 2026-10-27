@@ -303,8 +303,9 @@ class Dashboard extends BaseDashboard
             $summary .= "Mohon alokasikan perhatian ekstra pada **Pilar {$tertinggal['order']} ({$tertinggal['name']})** yang masih di angka {$tertinggal['percentage']}%. ";
         }
 
-        // 2. Kinerja Guru Note
-        if ($topTeachers->count() > 0) {
+        // 2. Kinerja Guru Note (Khusus KS & Yayasan)
+        $canAccessRanking = \App\Filament\Staff\Pages\TeacherPerformanceDashboard::canAccess();
+        if ($canAccessRanking && $topTeachers->count() > 0) {
             $first = $topTeachers->first();
             $summary .= "\n\n👉 **Kinerja Guru (Bulan Ini):** Apresiasi tertinggi diberikan kepada **{$first->teacher->name}** yang memimpin dengan penyelesaian {$first->tugas_selesai} tugas ({$first->persentase}% tuntas). Tingkat kedisiplinan guru dalam menyelesaikan *To-Do List* sudah menunjukkan tren yang positif!";
         }
@@ -367,7 +368,7 @@ class Dashboard extends BaseDashboard
             $news .= "🏆 **Pilar Unggulan:** Pilar {$terbaik['order']} ({$terbaik['name']}) memimpin dengan ketercapaian {$terbaik['percentage']}%.\n\n";
         }
         
-        if ($topTeachers) {
+        if (\App\Filament\Staff\Pages\TeacherPerformanceDashboard::canAccess() && $topTeachers) {
             $news .= "🌟 **Apresiasi Guru:** {$topTeachers->teacher->name} memimpin kinerja bulan ini dengan {$topTeachers->persentase}% penyelesaian tugas!";
         }
 

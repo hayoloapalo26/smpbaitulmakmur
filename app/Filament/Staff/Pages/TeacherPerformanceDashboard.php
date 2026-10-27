@@ -12,7 +12,19 @@ class TeacherPerformanceDashboard extends Page
 {
     public static function canAccess(): bool
     {
-        return auth()->user()->hasAnyRole(['kepala_sekolah', 'superadmin', 'waka_kurikulum']);
+        return auth()->user()?->hasAnyRole([
+            'superadmin',
+            'kepala_sekolah',
+            'ketua_yayasan',
+            'pembina_yayasan',
+            'sekretaris_yayasan',
+            'tim_pengembang_penjamin_mutu_yayasan',
+        ]) ?? false;
+    }
+
+    public static function shouldRegisterNavigation(): bool
+    {
+        return static::canAccess();
     }
 
     protected function getFooterWidgets(): array
