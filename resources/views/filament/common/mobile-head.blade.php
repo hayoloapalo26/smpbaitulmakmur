@@ -134,3 +134,18 @@
         }
     }
 </style>
+
+<script>
+    document.addEventListener('livewire:init', () => {
+        if (typeof Livewire !== 'undefined') {
+            Livewire.hook('request', ({ fail }) => {
+                fail(({ status, preventDefault }) => {
+                    if (status === 419) {
+                        preventDefault();
+                        window.location.reload();
+                    }
+                });
+            });
+        }
+    });
+</script>

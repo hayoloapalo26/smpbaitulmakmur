@@ -18,7 +18,7 @@ return [
     |
     */
 
-    'driver' => env('SESSION_DRIVER', 'database'),
+    'driver' => env('SESSION_DRIVER', 'file'),
 
     /*
     |--------------------------------------------------------------------------
@@ -60,7 +60,13 @@ return [
     |
     */
 
-    'files' => storage_path('framework/sessions'),
+    'files' => (function () {
+        $path = storage_path('framework/sessions');
+        if (!is_dir($path)) {
+            @mkdir($path, 0775, true);
+        }
+        return $path;
+    })(),
 
     /*
     |--------------------------------------------------------------------------
@@ -156,7 +162,7 @@ return [
     |
     */
 
-    'domain' => env('SESSION_DOMAIN'),
+    'domain' => (env('SESSION_DOMAIN') && !in_array(strtolower((string) env('SESSION_DOMAIN')), ['null', 'localhost', 'none', 'false'])) ? env('SESSION_DOMAIN') : null,
 
     /*
     |--------------------------------------------------------------------------
@@ -169,7 +175,7 @@ return [
     |
     */
 
-    'secure' => env('SESSION_SECURE_COOKIE'),
+    'secure' => env('SESSION_SECURE_COOKIE', false),
 
     /*
     |--------------------------------------------------------------------------
