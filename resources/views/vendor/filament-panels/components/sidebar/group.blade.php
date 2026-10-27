@@ -9,18 +9,67 @@
 ])
 
 @php
-    $sidebarCollapsible = $sidebarCollapsible && filament()->isSidebarCollapsibleOnDesktop();
+    $sidebarCollapsible = $sidebarCollapsible && (filament()?->isSidebarCollapsibleOnDesktop() ?? false);
     $hasDropdown = filled($label) && filled($icon) && $sidebarCollapsible;
     $isKepsek = auth()->check() && auth()->user()->hasRole('kepala_sekolah');
+
+    // Identifikasi Kategori Tupoksi Sidebar Group
+    $labelLower = strtolower(trim((string) $label));
+    $tupoksiType = null;
+    $tupoksiBadge = null;
+
+    if (filled($label)) {
+        // 1. Fitur Umum & Informasi
+        if (
+            str_contains($labelLower, 'menu utama') ||
+            str_contains($labelLower, 'pengumuman') ||
+            str_contains($labelLower, 'informasi') ||
+            str_contains($labelLower, 'visi &') ||
+            str_contains($labelLower, 'visi,') ||
+            str_contains($labelLower, 'visi misi') ||
+            str_contains($labelLower, 'visi-misi') ||
+            str_contains($labelLower, 'data induk') ||
+            str_contains($labelLower, 'pengaturan')
+        ) {
+            $tupoksiType = 'umum';
+            $tupoksiBadge = 'UMUM / INFO';
+        }
+        // 2. Tugas Guru
+        elseif (
+            str_contains($labelLower, 'akademik') ||
+            str_contains($labelLower, 'pembelajaran') ||
+            str_contains($labelLower, 'penilaian') ||
+            str_contains($labelLower, 'kompetensi') ||
+            str_contains($labelLower, 'tahfidz') ||
+            str_contains($labelLower, 'tahsin') ||
+            str_contains($labelLower, 'guru') ||
+            str_contains($labelLower, 'wali kelas') ||
+            str_contains($labelLower, 'kewajiban') ||
+            str_contains($labelLower, 'manajemen tugas') ||
+            str_contains($labelLower, 'piket')
+        ) {
+            $tupoksiType = 'guru';
+            $tupoksiBadge = 'TUGAS GURU';
+        }
+        // 3. Tugas Jabatan (Struktural, Waka, Kepsek, Kesiswaan, Sarpras, Humas, TU, Lintas Divisi, dll.)
+        else {
+            $tupoksiType = 'jabatan';
+            $tupoksiBadge = 'TUGAS JABATAN';
+        }
+    }
 @endphp
 
 <li
     x-data="{ label: @js($subNavigation ? "sub_navigation_{$label}" : $label) }"
     data-group-label="{{ $subNavigation ? "sub_navigation_{$label}" : $label }}"
+    @if ($tupoksiType)
+        data-tupoksi="{{ $tupoksiType }}"
+    @endif
     {{
         $attributes->class([
             'fi-sidebar-group flex flex-col gap-y-1',
             'fi-active' => $active,
+            "fi-sidebar-group-tupoksi-{$tupoksiType}" => (bool) $tupoksiType,
         ])
     }}
 >
@@ -48,9 +97,12 @@
             @endif
 
             <span
-                class="fi-sidebar-group-label flex-1 text-sm font-medium leading-6 text-gray-500 dark:text-gray-400"
+                class="fi-sidebar-group-label flex-1 text-sm font-medium leading-6"
             >
-                {{ $label }}
+                <span class="fi-sidebar-group-label-text">{{ $label }}</span>
+                @if ($tupoksiBadge)
+                    <span class="tupoksi-badge tupoksi-badge-{{ $tupoksiType }}">{{ $tupoksiBadge }}</span>
+                @endif
             </span>
 
             @if ($collapsible)

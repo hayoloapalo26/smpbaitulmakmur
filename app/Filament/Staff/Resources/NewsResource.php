@@ -19,8 +19,8 @@ class NewsResource extends Resource
     protected static ?string $navigationIcon = 'heroicon-o-megaphone';
     protected static ?string $navigationLabel = 'Pengumuman';
     protected static ?string $pluralModelLabel = 'Pengumuman Yayasan';
-    protected static ?string $navigationGroup = 'Manajemen Sekolah';
-    protected static ?int $navigationSort = 13;
+    protected static ?string $navigationGroup = 'Pengumuman & Informasi';
+    protected static ?int $navigationSort = 1;
 
     public static function canCreate(): bool
     {

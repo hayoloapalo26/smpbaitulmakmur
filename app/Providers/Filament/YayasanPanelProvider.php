@@ -92,15 +92,126 @@ class YayasanPanelProvider extends PanelProvider
                             color: #f97316 !important;
                         }
                         
-                        /* Group Header Styling */
+                        /* --- TUPOKSI SUB-JUDUL SIDEBAR (GURU, JABATAN, UMUM & INFORMASI) --- */
+                        
+                        /* Group Header Layout */
                         aside.fi-sidebar .fi-sidebar-group-label {
-                            border-bottom: 1px dashed rgba(156, 163, 175, 0.4);
-                            padding-bottom: 6px;
-                            margin-bottom: 6px;
-                            color: #f97316 !important;
-                            font-weight: 700;
-                            letter-spacing: 0.5px;
+                            display: flex !important;
+                            align-items: center !important;
+                            justify-content: space-between !important;
+                            width: 100% !important;
+                            padding-top: 5px !important;
+                            padding-bottom: 6px !important;
+                            margin-bottom: 6px !important;
+                            font-weight: 700 !important;
+                            font-size: 0.72rem !important;
+                            letter-spacing: 0.6px !important;
                             text-transform: uppercase !important;
+                            transition: all 0.2s ease;
+                        }
+
+                        aside.fi-sidebar .fi-sidebar-group-label .fi-sidebar-group-label-text {
+                            flex: 1;
+                            overflow: hidden;
+                            text-overflow: ellipsis;
+                            white-space: nowrap;
+                        }
+
+                        /* Mini Pill Badge */
+                        .tupoksi-badge {
+                            display: inline-flex !important;
+                            align-items: center !important;
+                            justify-content: center !important;
+                            font-size: 8.5px !important;
+                            line-height: 1 !important;
+                            padding: 2.5px 6px !important;
+                            border-radius: 9999px !important;
+                            font-weight: 800 !important;
+                            letter-spacing: 0.4px !important;
+                            text-transform: uppercase !important;
+                            white-space: nowrap !important;
+                            margin-left: 6px !important;
+                            flex-shrink: 0 !important;
+                        }
+
+                        /* 1. TUGAS GURU (EMERALD GREEN / HIJAU EDUKASI) */
+                        aside.fi-sidebar .fi-sidebar-group[data-tupoksi="guru"] .fi-sidebar-group-label,
+                        aside.fi-sidebar .fi-sidebar-group-tupoksi-guru .fi-sidebar-group-label {
+                            color: #059669 !important;
+                            border-left: 3.5px solid #10b981 !important;
+                            padding-left: 8px !important;
+                            border-bottom: 1.5px dashed rgba(16, 185, 129, 0.4) !important;
+                        }
+                        .dark aside.fi-sidebar .fi-sidebar-group[data-tupoksi="guru"] .fi-sidebar-group-label,
+                        .dark aside.fi-sidebar .fi-sidebar-group-tupoksi-guru .fi-sidebar-group-label {
+                            color: #34d399 !important;
+                            border-left: 3.5px solid #34d399 !important;
+                            border-bottom: 1.5px dashed rgba(52, 211, 153, 0.4) !important;
+                        }
+                        .tupoksi-badge-guru {
+                            background: #ecfdf5 !important;
+                            color: #047857 !important;
+                            border: 1px solid #a7f3d0 !important;
+                        }
+                        .dark .tupoksi-badge-guru {
+                            background: rgba(16, 185, 129, 0.18) !important;
+                            color: #6ee7b7 !important;
+                            border: 1px solid rgba(52, 211, 153, 0.4) !important;
+                        }
+
+                        /* 2. TUGAS JABATAN (INDIGO ROYAL / UNGU STRUKTURAL) */
+                        aside.fi-sidebar .fi-sidebar-group[data-tupoksi="jabatan"] .fi-sidebar-group-label,
+                        aside.fi-sidebar .fi-sidebar-group-tupoksi-jabatan .fi-sidebar-group-label {
+                            color: #4f46e5 !important;
+                            border-left: 3.5px solid #6366f1 !important;
+                            padding-left: 8px !important;
+                            border-bottom: 1.5px dashed rgba(99, 102, 241, 0.4) !important;
+                        }
+                        .dark aside.fi-sidebar .fi-sidebar-group[data-tupoksi="jabatan"] .fi-sidebar-group-label,
+                        .dark aside.fi-sidebar .fi-sidebar-group-tupoksi-jabatan .fi-sidebar-group-label {
+                            color: #818cf8 !important;
+                            border-left: 3.5px solid #818cf8 !important;
+                            border-bottom: 1.5px dashed rgba(129, 140, 248, 0.4) !important;
+                        }
+                        .tupoksi-badge-jabatan {
+                            background: #eef2ff !important;
+                            color: #4338ca !important;
+                            border: 1px solid #c7d2fe !important;
+                        }
+                        .dark .tupoksi-badge-jabatan {
+                            background: rgba(99, 102, 241, 0.18) !important;
+                            color: #a5b4fc !important;
+                            border: 1px solid rgba(129, 140, 248, 0.4) !important;
+                        }
+
+                        /* 3. FITUR UMUM & INFORMASI (SKY BLUE / CYAN INFORMASI) */
+                        aside.fi-sidebar .fi-sidebar-group[data-tupoksi="umum"] .fi-sidebar-group-label,
+                        aside.fi-sidebar .fi-sidebar-group-tupoksi-umum .fi-sidebar-group-label {
+                            color: #0284c7 !important;
+                            border-left: 3.5px solid #0ea5e9 !important;
+                            padding-left: 8px !important;
+                            border-bottom: 1.5px dashed rgba(14, 165, 233, 0.4) !important;
+                        }
+                        .dark aside.fi-sidebar .fi-sidebar-group[data-tupoksi="umum"] .fi-sidebar-group-label,
+                        .dark aside.fi-sidebar .fi-sidebar-group-tupoksi-umum .fi-sidebar-group-label {
+                            color: #38bdf8 !important;
+                            border-left: 3.5px solid #38bdf8 !important;
+                            border-bottom: 1.5px dashed rgba(56, 189, 248, 0.4) !important;
+                        }
+                        .tupoksi-badge-umum {
+                            background: #f0f9ff !important;
+                            color: #0369a1 !important;
+                            border: 1px solid #bae6fd !important;
+                        }
+                        .dark .tupoksi-badge-umum {
+                            background: rgba(14, 165, 233, 0.18) !important;
+                            color: #7dd3fc !important;
+                            border: 1px solid rgba(56, 189, 248, 0.4) !important;
+                        }
+
+                        /* Hover Micro-Interactions */
+                        aside.fi-sidebar .fi-sidebar-group:hover .fi-sidebar-group-label {
+                            border-bottom-style: solid !important;
                         }
                     </style>
                 ')
