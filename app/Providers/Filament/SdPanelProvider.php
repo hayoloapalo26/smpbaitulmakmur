@@ -51,7 +51,7 @@ class SdPanelProvider extends PanelProvider
                 PanelsRenderHook::HEAD_END,
                 fn (): string => Blade::render('
                     <style>
-                        /* --- CUSTOM AESTHETIC SIDEBAR FOR KB/TK --- */
+                        /* --- CUSTOM AESTHETIC SIDEBAR FOR SD --- */
                         
                         /* Sidebar container subtle styling */
                         aside.fi-sidebar {
@@ -108,6 +108,7 @@ class SdPanelProvider extends PanelProvider
             ->renderHook(
                 PanelsRenderHook::HEAD_END,
                 fn (): string => Blade::render('
+                    @include("filament.common.mobile-head")
                     <script src="https://cdn.tailwindcss.com"></script>
                     <script>
                         tailwind.config = {
@@ -153,6 +154,10 @@ class SdPanelProvider extends PanelProvider
             ->authMiddleware([
                 Authenticate::class,
                 \App\Http\Middleware\RedirectPortalUsers::class,
-            ]);
+            ])
+            ->renderHook(
+                PanelsRenderHook::BODY_END,
+                fn (): string => Blade::render('@include("filament.common.mobile-bottom-nav")')
+            );
     }
 }

@@ -39,7 +39,12 @@ class CustomLogin extends BaseLogin
             ->required()
             ->autocomplete()
             ->autofocus()
-            ->extraInputAttributes(['tabindex' => 1]);
+            ->extraInputAttributes([
+                'tabindex' => 1,
+                'autocapitalize' => 'none',
+                'autocorrect' => 'off',
+                'spellcheck' => 'false',
+            ]);
     }
 
     /**

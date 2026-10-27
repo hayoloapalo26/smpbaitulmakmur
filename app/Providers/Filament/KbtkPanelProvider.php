@@ -108,6 +108,7 @@ class KbtkPanelProvider extends PanelProvider
             ->renderHook(
                 PanelsRenderHook::HEAD_END,
                 fn (): string => Blade::render('
+                    @include("filament.common.mobile-head")
                     <script src="https://cdn.tailwindcss.com"></script>
                     <script>
                         tailwind.config = {
@@ -153,6 +154,10 @@ class KbtkPanelProvider extends PanelProvider
             ->authMiddleware([
                 Authenticate::class,
                 \App\Http\Middleware\RedirectPortalUsers::class,
-            ]);
+            ])
+            ->renderHook(
+                PanelsRenderHook::BODY_END,
+                fn (): string => Blade::render('@include("filament.common.mobile-bottom-nav")')
+            );
     }
 }

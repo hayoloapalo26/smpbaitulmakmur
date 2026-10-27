@@ -38,8 +38,9 @@
             {{-- Days Header --}}
             <div class="grid grid-cols-7 bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
                 @foreach(['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'] as $day)
-                    <div class="py-3 text-center text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                        {{ $day }}
+                    <div class="py-2 sm:py-3 text-center text-[10px] sm:text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                        <span class="sm:hidden">{{ substr($day, 0, 3) }}</span>
+                        <span class="hidden sm:inline">{{ $day }}</span>
                     </div>
                 @endforeach
             </div>
@@ -47,16 +48,16 @@
             {{-- Dates Grid --}}
             <div class="grid grid-cols-7 gap-px bg-gray-200 dark:bg-gray-700">
                 @foreach($data['calendar'] as $cell)
-                    <div class="min-h-[100px] bg-white dark:bg-gray-900 p-2 relative flex flex-col {{ $cell['date'] === null ? 'opacity-30' : '' }} {{ $cell['is_today'] ? 'ring-2 ring-inset ring-[#FF8200] bg-orange-50/20 dark:bg-orange-900/10' : '' }}">
+                    <div class="min-h-[60px] sm:min-h-[100px] bg-white dark:bg-gray-900 p-1 sm:p-2 relative flex flex-col {{ $cell['date'] === null ? 'opacity-30' : '' }} {{ $cell['is_today'] ? 'ring-2 ring-inset ring-[#FF8200] bg-orange-50/20 dark:bg-orange-900/10' : '' }}">
                         
                         @if($cell['date'])
-                            <span class="text-sm font-semibold {{ $cell['is_today'] ? 'text-[#FF8200]' : 'text-gray-700 dark:text-gray-300' }} mb-2">
+                            <span class="text-xs sm:text-sm font-semibold {{ $cell['is_today'] ? 'text-[#FF8200] font-black' : 'text-gray-700 dark:text-gray-300' }} mb-1 sm:mb-2">
                                 {{ $cell['date'] }}
                             </span>
 
                             @if($cell['jp'] > 0)
-                                <div class="mt-auto inline-flex items-center justify-center bg-[#7D1B13] text-white text-xs font-bold px-2 py-1.5 rounded shadow-sm w-full">
-                                    <span class="mr-1">🎯</span> {{ $cell['jp'] }} JP
+                                <div class="mt-auto inline-flex items-center justify-center bg-[#7D1B13] text-white text-[10px] sm:text-xs font-bold px-1 sm:px-2 py-0.5 sm:py-1.5 rounded shadow-sm w-full">
+                                    <span class="mr-0.5 sm:mr-1">🎯</span> {{ $cell['jp'] }}<span class="hidden sm:inline">&nbsp;JP</span>
                                 </div>
                             @endif
                         @endif

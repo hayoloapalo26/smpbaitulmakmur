@@ -151,6 +151,7 @@ class StaffPanelProvider extends PanelProvider
             ->renderHook(
                 PanelsRenderHook::HEAD_END,
                 fn (): string => Blade::render('
+                    @include("filament.common.mobile-head")
                     <script src="https://cdn.tailwindcss.com"></script>
                     <script>
                         tailwind.config = {
@@ -167,12 +168,6 @@ class StaffPanelProvider extends PanelProvider
                         });
                     </script>
                     <style>
-                        /* Sleek Custom Scrollbar */
-                        ::-webkit-scrollbar { width: 6px; height: 6px; }
-                        ::-webkit-scrollbar-track { background: #FCFBF8; } /* WARM WHITE */
-                        ::-webkit-scrollbar-thumb { background: rgba(255, 130, 0, 0.4); border-radius: 10px; } /* SUNSET ORANGE */
-                        ::-webkit-scrollbar-thumb:hover { background: rgba(216, 67, 21, 0.7); } /* DARK ORANGE */
-
                         /* Glassmorphism Topbar Styling */
                         .fi-topbar {
                             background: rgba(252, 251, 248, 0.85) !important; /* WARM WHITE */
@@ -204,6 +199,10 @@ class StaffPanelProvider extends PanelProvider
                         }
                     </style>
                 ')
+            )
+            ->renderHook(
+                PanelsRenderHook::BODY_END,
+                fn (): string => Blade::render('@include("filament.common.mobile-bottom-nav")')
             );
     }
 }

@@ -1,4 +1,4 @@
-<div class="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8 space-y-8">
+<div class="max-w-7xl mx-auto py-4 sm:py-8 px-2.5 sm:px-6 lg:px-8 space-y-6 sm:space-y-8">
     
     <!-- Hero / Welcome Section -->
     <div class="bg-gradient-to-r from-emerald-600 to-teal-500 rounded-2xl shadow-xl overflow-hidden relative">
@@ -6,11 +6,11 @@
         <div class="absolute top-0 right-0 -mt-4 -mr-4 w-32 h-32 bg-white opacity-10 rounded-full blur-2xl"></div>
         <div class="absolute bottom-0 left-10 -mb-4 w-24 h-24 bg-white opacity-10 rounded-full blur-xl"></div>
         
-        <div class="p-8 sm:p-10 relative z-10 flex flex-col md:flex-row items-center justify-between gap-6">
+        <div class="p-5 sm:p-10 relative z-10 flex flex-col md:flex-row items-center justify-between gap-6">
             <div class="text-center md:text-left text-white">
-                <p class="text-emerald-100 font-medium mb-1 tracking-wide uppercase text-sm">Dashboard Siswa</p>
-                <h2 class="text-3xl font-extrabold tracking-tight">Selamat datang, {{ $student->name }}!</h2>
-                <p class="mt-2 text-emerald-50 max-w-xl">Pantau perkembangan karakter, progres tahfidz, dan tugas harianmu di sini.</p>
+                <p class="text-emerald-100 font-medium mb-1 tracking-wide uppercase text-xs sm:text-sm">Dashboard Siswa</p>
+                <h2 class="text-2xl sm:text-3xl font-extrabold tracking-tight">Selamat datang, {{ $student->name }}!</h2>
+                <p class="mt-2 text-emerald-50 max-w-xl text-xs sm:text-sm">Pantau perkembangan karakter, progres tahfidz, dan tugas harianmu di sini.</p>
             </div>
             
             <div class="bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl p-6 text-center shadow-inner min-w-[200px]">

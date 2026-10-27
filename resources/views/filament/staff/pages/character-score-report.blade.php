@@ -30,12 +30,12 @@
 
         <!-- Tabel Rekapitulasi Karakter -->
         <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
-            <div class="p-4 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center bg-gray-50/50 dark:bg-gray-700/30">
+            <div class="p-4 border-b border-gray-100 dark:border-gray-700 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-gray-50/50 dark:bg-gray-700/30">
                 <div>
                     <h3 class="font-bold text-gray-800 dark:text-gray-100">Rekapitulasi Karakter Siswa</h3>
                     <p class="text-xs text-gray-500">Dihimpun dari penilaian guru kelas, guru piket, dan catatan checklist orang tua.</p>
                 </div>
-                <div class="flex space-x-2 text-xs">
+                <div class="flex flex-wrap gap-1.5 text-xs">
                     <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-emerald-100 text-emerald-800">
                         👨‍🏫 Guru Kelas
                     </span>

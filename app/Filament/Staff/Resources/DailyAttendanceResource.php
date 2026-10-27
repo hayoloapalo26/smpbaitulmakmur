@@ -144,13 +144,14 @@ class DailyAttendanceResource extends Resource
                     ->label('Nama Siswa')
                     ->searchable()
                     ->sortable()
-                    ->weight('bold'),
+                    ->weight('bold')
+                    ->description(fn (DailyAttendance $record): string => $record->student?->classroom?->name ? 'Kelas ' . $record->student->classroom->name : ''),
 
                 Tables\Columns\TextColumn::make('student.classroom.name')
                     ->label('Kelas')
                     ->badge()
                     ->color('info')
-                    ->sortable(),
+                    ->toggleable(isToggledHiddenByDefault: true),
 
                 Tables\Columns\TextColumn::make('waktu_kedatangan')
                     ->label('Jam Masuk')

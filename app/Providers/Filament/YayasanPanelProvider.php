@@ -119,6 +119,7 @@ class YayasanPanelProvider extends PanelProvider
             ->renderHook(
                 PanelsRenderHook::HEAD_END,
                 fn (): string => Blade::render('
+                    @include("filament.common.mobile-head")
                     <script src="https://cdn.tailwindcss.com"></script>
                     <script>
                         tailwind.config = {
@@ -166,6 +167,10 @@ class YayasanPanelProvider extends PanelProvider
                         }
                     </style>
                 ')
+            )
+            ->renderHook(
+                PanelsRenderHook::BODY_END,
+                fn (): string => Blade::render('@include("filament.common.mobile-bottom-nav")')
             )
             ->authMiddleware([
                 Authenticate::class,

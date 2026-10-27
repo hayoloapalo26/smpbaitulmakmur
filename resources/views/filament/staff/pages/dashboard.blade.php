@@ -12,7 +12,7 @@
 
     @if($this->upcomingSupervisions->count() > 0)
         <div class="mb-6 rounded-2xl border border-amber-300 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-700 p-5 shadow-sm">
-            <div class="flex items-start justify-between gap-4">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div class="flex items-start gap-3">
                     <div class="p-2.5 rounded-xl bg-amber-500 text-white shrink-0 mt-0.5">
                         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
@@ -37,7 +37,7 @@
                         </div>
                     </div>
                 </div>
-                <a href="{{ \App\Filament\Staff\Resources\PengajuanSupervisiResource::getUrl() }}" class="shrink-0 px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold shadow-sm transition-colors">
+                <a href="{{ \App\Filament\Staff\Resources\PengajuanSupervisiResource::getUrl() }}" class="self-start sm:self-center shrink-0 px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold shadow-sm transition-colors">
                     Lihat Detail &rarr;
                 </a>
             </div>

@@ -31,8 +31,8 @@
             </div>
         </div>
 
-        <!-- Navigation Tabs -->
-        <div class="flex border-b border-gray-200 dark:border-gray-700 space-x-4">
+        <!-- Navigation Tabs (Touch Friendly & Horizontally Scrollable on Mobile) -->
+        <div class="flex border-b border-gray-200 dark:border-gray-700 space-x-2 sm:space-x-4 overflow-x-auto pb-1 select-none">
             <button 
                 wire:click="setTab('mapel')" 
                 class="py-3 px-4 font-semibold text-sm border-b-2 transition-colors flex items-center space-x-2 {{ $activeTab === 'mapel' ? 'border-amber-500 text-amber-600 dark:text-amber-400' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300' }}">

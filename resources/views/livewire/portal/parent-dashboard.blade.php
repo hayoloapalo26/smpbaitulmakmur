@@ -1,4 +1,4 @@
-<div class="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8 space-y-8">
+<div class="max-w-7xl mx-auto py-4 sm:py-8 px-2.5 sm:px-6 lg:px-8 space-y-6 sm:space-y-8">
 
     <!-- Header / Student Selector -->
     <div class="bg-white p-6 shadow-sm sm:rounded-2xl border border-gray-100 flex flex-col sm:flex-row items-center justify-between gap-4">
@@ -50,14 +50,14 @@
     @endif
 
     <!-- Active Student Hero -->
-    <div class="bg-gradient-to-r from-teal-600 to-emerald-500 rounded-2xl shadow-xl overflow-hidden relative p-8 sm:p-10 text-white flex flex-col md:flex-row items-center justify-between gap-6">
+    <div class="bg-gradient-to-r from-teal-600 to-emerald-500 rounded-2xl shadow-xl overflow-hidden relative p-5 sm:p-10 text-white flex flex-col md:flex-row items-center justify-between gap-6">
         <div class="absolute top-0 right-0 -mt-4 -mr-4 w-32 h-32 bg-white opacity-10 rounded-full blur-2xl"></div>
         <div class="absolute bottom-0 left-10 -mb-4 w-24 h-24 bg-white opacity-10 rounded-full blur-xl"></div>
         
         <div class="relative z-10 text-center md:text-left">
-            <p class="text-teal-100 font-medium mb-1 tracking-wide uppercase text-sm">Sedang Memantau</p>
-            <h2 class="text-3xl font-extrabold tracking-tight">{{ $activeStudent->name }}</h2>
-            <p class="mt-2 text-teal-50 max-w-xl">Mari bekerja sama membentuk kebiasaan baik anak di rumah.</p>
+            <p class="text-teal-100 font-medium mb-1 tracking-wide uppercase text-xs sm:text-sm">Sedang Memantau</p>
+            <h2 class="text-2xl sm:text-3xl font-extrabold tracking-tight">{{ $activeStudent->name }}</h2>
+            <p class="mt-2 text-teal-50 max-w-xl text-xs sm:text-sm">Mari bekerja sama membentuk kebiasaan baik anak di rumah.</p>
         </div>
     </div>
 
