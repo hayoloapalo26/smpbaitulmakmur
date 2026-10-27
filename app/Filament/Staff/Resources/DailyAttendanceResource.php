@@ -20,11 +20,21 @@ class DailyAttendanceResource extends Resource
     public static function canAccess(): bool
     {
         $user = auth()->user();
-        if (!$user) return false;
+        if (!$user) {
+            return false;
+        }
 
-        return $user->hasAnyRole([
-            'guru_piket', 'waka_kesiswaan', 'kepala_sekolah', 'wali_kelas', 'tata_usaha', 'superadmin'
-        ]) || $user->isPiketToday();
+        if ($user->hasAnyRole(['waka_kesiswaan', 'kepala_sekolah', 'superadmin', 'guru_piket'])) {
+            return true;
+        }
+
+        // Untuk guru: HANYA jika guru yang bersangkutan terjadwal piket HARI INI
+        return $user->isPiketToday();
+    }
+
+    public static function shouldRegisterNavigation(): bool
+    {
+        return static::canAccess();
     }
 
     protected static ?string $model = DailyAttendance::class;

@@ -220,8 +220,8 @@ class TeacherLeaveRequestGuruPiketTest extends TestCase
         ]);
         $guruPengganti->assignRole('guru_mapel');
 
-        $classroom = Classroom::firstOrCreate(['name' => '7A'], ['institution_id' => $this->institution->id]);
-        $subject = Subject::firstOrCreate(['name' => 'Matematika'], ['institution_id' => $this->institution->id]);
+        $classroom = Classroom::firstOrCreate(['name' => '7A'], ['institution_id' => $this->institution->id, 'tingkat' => 7]);
+        $subject = Subject::firstOrCreate(['name' => 'Matematika'], ['institution_id' => $this->institution->id, 'kode' => 'MTK']);
 
         $hari = Schedule::getIndonesianDayName(now());
 

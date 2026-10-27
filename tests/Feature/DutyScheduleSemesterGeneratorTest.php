@@ -258,6 +258,36 @@ class DutyScheduleSemesterGeneratorTest extends TestCase
         $this->assertTrue(\App\Filament\Staff\Resources\DutySwapRequestResource::canAccess());
     }
 
+    public function test_teacher_not_on_duty_today_cannot_access_or_see_piket_features()
+    {
+        // Guru Dua TIDAK dijadwalkan piket hari ini
+        $this->actingAs($this->guru2);
+
+        $this->assertFalse($this->guru2->isPiketToday());
+
+        // Navigasi & Akses harus bernilai FALSE untuk Guru Dua
+        $this->assertFalse(\App\Filament\Staff\Pages\PiketDashboard::canAccess());
+        $this->assertFalse(\App\Filament\Staff\Pages\PiketDashboard::shouldRegisterNavigation());
+
+        $this->assertFalse(\App\Filament\Staff\Pages\AbsensiManual::canAccess());
+        $this->assertFalse(\App\Filament\Staff\Pages\AbsensiManual::shouldRegisterNavigation());
+
+        $this->assertFalse(\App\Filament\Staff\Pages\ScannerPresensi::canAccess());
+        $this->assertFalse(\App\Filament\Staff\Pages\ScannerPresensi::shouldRegisterNavigation());
+
+        $this->assertFalse(\App\Filament\Staff\Resources\DailyAttendanceResource::canAccess());
+        $this->assertFalse(\App\Filament\Staff\Resources\DailyAttendanceResource::shouldRegisterNavigation());
+
+        $this->assertFalse(\App\Filament\Staff\Resources\AttributeViolationResource::canAccess());
+        $this->assertFalse(\App\Filament\Staff\Resources\AttributeViolationResource::shouldRegisterNavigation());
+
+        $this->assertFalse(\App\Filament\Staff\Resources\PrayerAttendanceResource::canAccess());
+        $this->assertFalse(\App\Filament\Staff\Resources\PrayerAttendanceResource::shouldRegisterNavigation());
+
+        // Namun Master Jadwal tetap bisa dilihat agar guru tahu kapan hari tugasnya
+        $this->assertTrue(\App\Filament\Staff\Resources\DutyScheduleResource::canAccess());
+    }
+
     public function test_attribute_violation_observer_creates_character_score_log_safely()
     {
         $classroom = \App\Models\Classroom::create([

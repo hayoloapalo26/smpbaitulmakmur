@@ -189,10 +189,19 @@ class User extends Authenticatable implements FilamentUser, HasAvatar
                     'waka_kurikulum',
                 ]))
                 ->orWhereHas('schedules');
+            });
+
+        if ($piketId) {
+            $query->where('id', '!=', $piketId);
+        }
+
+        $query->where('name', '!=', 'Guru Piket')
+            ->where(function ($q) {
+                $q->whereNull('username')->orWhere('username', '!=', 'gurupiket');
             })
-            ->where('name', '!=', 'Guru Piket')
-            ->where('username', '!=', 'gurupiket')
-            ->where('email', 'not like', '%@smp.com');
+            ->where(function ($q) {
+                $q->whereNull('email')->orWhere('email', '!=', 'gurupiket@smp.com');
+            });
 
         if ($user && $user->institution_id && !$user->hasRole('superadmin')) {
             $query->where(function ($q) use ($user) {
