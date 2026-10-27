@@ -84,6 +84,7 @@ class ProgramSarprasResource extends Resource
                                 'Bulanan' => 'Bulanan',
                                 'Semesteran' => 'Semesteran',
                                 'Tahunan' => 'Tahunan',
+                                'Insidentil' => 'Insidentil',
                             ])
                             ->required(),
                             
@@ -191,6 +192,16 @@ class ProgramSarprasResource extends Resource
                     ->color('primary'),
                 Tables\Columns\TextColumn::make('tipe_pelaksanaan')
                     ->label('Tipe')
+                    ->badge()
+                    ->color(fn (?string $state): string => match ($state) {
+                        'Insidentil' => 'warning',
+                        'Harian' => 'info',
+                        'Mingguan' => 'primary',
+                        'Bulanan' => 'success',
+                        'Semesteran' => 'gray',
+                        'Tahunan' => 'gray',
+                        default => 'gray',
+                    })
                     ->sortable(),
                 Tables\Columns\TextColumn::make('sifat')
                     ->label('Sifat')
@@ -242,6 +253,7 @@ class ProgramSarprasResource extends Resource
                         'Bulanan' => 'Bulanan',
                         'Semesteran' => 'Semesteran',
                         'Tahunan' => 'Tahunan',
+                        'Insidentil' => 'Insidentil',
                     ]),
             ])
             ->actions([
