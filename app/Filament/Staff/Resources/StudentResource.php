@@ -652,15 +652,36 @@ class StudentResource extends Resource
                     ->modalDescription(fn (Student $record) => "Catat prestasi untuk siswa {$record->name} (" . ($record->classroom?->name ?? 'Tanpa Kelas') . "). Data otomatis tersimpan untuk lembaga ini.")
                     ->modalIcon('heroicon-o-trophy')
                     ->form([
+                        Forms\Components\Radio::make('lingkup')
+                            ->label('Lingkup Prestasi')
+                            ->options([
+                                'individual' => 'Individual (Perorangan Siswa)',
+                                'kelas' => 'Prestasi Kelas (Satu Rombel / Kelompok)',
+                            ])
+                            ->default('individual')
+                            ->inline()
+                            ->live(),
+
                         Forms\Components\Select::make('kategori')
                             ->label('Kategori Prestasi')
                             ->options([
-                                'akademik' => 'Akademik (Sains, Matematika, Lomba Mata Pelajaran, Riset/KIR, dll)',
-                                'non_akademik' => 'Non-Akademik (Seni, Olahraga, Pidato/Storytelling, Pramuka, dll)',
-                                'religius' => 'Religius (Tahfidz, Tahsin, MTQ/MHQ, Da\'i/Ceramah, Kaligrafi, Keagamaan, dll)',
+                                'non_akademik' => 'Prestasi Non-Akademik (Seni, Olahraga, Pramuka, dll)',
+                                'prestasi_kelas' => 'Prestasi Kelas (Religius, Karakter, Adab)',
+                                'akademik' => 'Prestasi Akademik (Sains, Matematika, Lomba Mapel, KIR, dll)',
                             ])
-                            ->default('religius')
-                            ->required(),
+                            ->default('non_akademik')
+                            ->required()
+                            ->live(),
+
+                        Forms\Components\Select::make('sub_kategori')
+                            ->label('Sub-Kategori Prestasi Kelas')
+                            ->options([
+                                'religius' => 'Prestasi Religius (Tahfidz, Sholat Berjamaah, Doa, dll)',
+                                'karakter' => 'Prestasi Karakter (Disiplin, Gotong Royong, Kejujuran)',
+                                'adab' => 'Prestasi Adab (Sopan Santun, Adab Guru & Teman, Kebersihan)',
+                            ])
+                            ->visible(fn (\Filament\Forms\Get $get) => $get('kategori') === 'prestasi_kelas')
+                            ->required(fn (\Filament\Forms\Get $get) => $get('kategori') === 'prestasi_kelas'),
 
                         Forms\Components\Select::make('tingkat')
                             ->label('Tingkat Prestasi')
@@ -679,6 +700,22 @@ class StudentResource extends Resource
                             ->label('Nama Prestasi / Juara')
                             ->placeholder('Contoh: Juara 1 Lomba MTQ Tingkat Kota')
                             ->required()
+                            ->maxLength(255),
+
+                        Forms\Components\Select::make('jenis_reward')
+                            ->label('Reward Kesiswaan')
+                            ->options([
+                                'reward_religi' => 'Reward Religi (Mushaf Al-Qur\'an, Ziarah/Umroh, dll)',
+                                'reward_akademik' => 'Reward Akademik (Beasiswa SPP, Piagam Juara, dll)',
+                                'tanpa_reward' => 'Tanpa Reward Khusus',
+                            ])
+                            ->default('tanpa_reward')
+                            ->live(),
+
+                        Forms\Components\TextInput::make('reward_detail')
+                            ->label('Bentuk / Rincian Reward')
+                            ->placeholder('Contoh: Mushaf Al-Qur\'an + Sertifikat')
+                            ->visible(fn (\Filament\Forms\Get $get) => in_array($get('jenis_reward'), ['reward_religi', 'reward_akademik']))
                             ->maxLength(255),
 
                         Forms\Components\DatePicker::make('tanggal')
@@ -702,8 +739,13 @@ class StudentResource extends Resource
                     ->action(function (Student $record, array $data) {
                         \App\Models\StudentAchievement::create([
                             'student_id' => $record->id,
+                            'classroom_id' => $record->classroom_id,
                             'institution_id' => $record->institution_id ?? auth()->user()->institution_id,
+                            'lingkup' => $data['lingkup'] ?? 'individual',
                             'kategori' => $data['kategori'],
+                            'sub_kategori' => $data['sub_kategori'] ?? null,
+                            'jenis_reward' => $data['jenis_reward'] ?? 'tanpa_reward',
+                            'reward_detail' => $data['reward_detail'] ?? null,
                             'nama_prestasi' => $data['nama_prestasi'],
                             'tingkat' => $data['tingkat'],
                             'tanggal' => $data['tanggal'],

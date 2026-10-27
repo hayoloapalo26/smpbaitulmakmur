@@ -897,19 +897,31 @@
                                                 <tr class="hover:bg-gray-50/60 dark:hover:bg-gray-700/30">
                                                     <td class="px-4 py-3 text-center text-gray-400">{{ $idx + 1 }}</td>
                                                     <td class="px-4 py-3">
-                                                        <div class="font-extrabold text-gray-900 dark:text-white text-xs">
-                                                            {{ $ach->nama_prestasi }}
+                                                        <div class="font-extrabold text-gray-900 dark:text-white text-xs flex items-center gap-1.5 flex-wrap">
+                                                            <span>{{ $ach->nama_prestasi }}</span>
+                                                            @if($ach->lingkup === 'kelas')
+                                                                <span class="px-1.5 py-0.5 rounded text-[9px] font-bold bg-purple-100 text-purple-700 dark:bg-purple-900/50 dark:text-purple-300">Prestasi Kelas</span>
+                                                            @endif
+                                                            @if($ach->jenis_reward === 'reward_religi')
+                                                                <span class="px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300">🎁 Reward Religi</span>
+                                                            @elseif($ach->jenis_reward === 'reward_akademik')
+                                                                <span class="px-1.5 py-0.5 rounded text-[9px] font-bold bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300">🏆 Reward Akademik</span>
+                                                            @endif
                                                         </div>
+                                                        @if($ach->reward_detail)
+                                                            <div class="text-[10px] text-emerald-600 dark:text-emerald-400 mt-0.5">Reward: {{ $ach->reward_detail }}</div>
+                                                        @endif
                                                     </td>
                                                     <td class="px-4 py-3 text-center">
                                                         @php
                                                             $badgeClass = match($ach->kategori) {
                                                                 'akademik' => 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300',
-                                                                'religius' => 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300',
+                                                                'prestasi_kelas', 'religius' => 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300',
                                                                 default => 'bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300',
                                                             };
                                                             $labelKat = match($ach->kategori) {
                                                                 'akademik' => 'Akademik',
+                                                                'prestasi_kelas' => 'Kelas (' . ($ach->sub_kategori_label ?? 'Umum') . ')',
                                                                 'religius' => 'Religius',
                                                                 default => 'Non-Akademik',
                                                             };
@@ -1060,7 +1072,12 @@
                                 <tr>
                                     <td class="border border-black px-2 py-1 text-center">{{ $idx + 1 }}</td>
                                     <td class="border border-black px-2 py-1 font-bold">{{ $p->nama_prestasi }}</td>
-                                    <td class="border border-black px-2 py-1 text-center font-bold">{{ match($p->kategori) { 'akademik' => 'Akademik', 'religius' => 'Religius', default => 'Non-Akademik' } }}</td>
+                                    <td class="border border-black px-2 py-1 text-center font-bold">
+                                        {{ $p->kategori_label }}{{ $p->sub_kategori ? ' (' . ($p->sub_kategori_label ?? $p->sub_kategori) . ')' : '' }}
+                                        @if($p->jenis_reward && $p->jenis_reward !== 'tanpa_reward')
+                                            <div class="text-[9px] text-emerald-700 font-normal">[{{ $p->reward_label }}]</div>
+                                        @endif
+                                    </td>
                                     <td class="border border-black px-2 py-1 text-center">{{ $p->tingkat }}</td>
                                     <td class="border border-black px-2 py-1 text-center">{{ \Carbon\Carbon::parse($p->tanggal)->format('d/m/Y') }}</td>
                                 </tr>

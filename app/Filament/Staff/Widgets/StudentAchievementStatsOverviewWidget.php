@@ -17,34 +17,52 @@ class StudentAchievementStatsOverviewWidget extends BaseWidget
         }
 
         $totalPrestasi = (clone $baseQuery)->count();
-        $akademik = (clone $baseQuery)->where('kategori', 'akademik')->count();
-        $religius = (clone $baseQuery)->where('kategori', 'religius')->count();
-        $nonAkademik = (clone $baseQuery)->where('kategori', 'non_akademik')->count();
+        $individualCount = (clone $baseQuery)->where(function ($q) {
+            $q->where('lingkup', 'individual')->orWhereNull('lingkup');
+        })->count();
+        $kelasCount = (clone $baseQuery)->where('lingkup', 'kelas')->count();
 
-        $akademikPct = $totalPrestasi > 0 ? round(($akademik / $totalPrestasi) * 100) : 0;
-        $religiusPct = $totalPrestasi > 0 ? round(($religius / $totalPrestasi) * 100) : 0;
+        $nonAkademik = (clone $baseQuery)->where('kategori', 'non_akademik')->count();
+        $prestasiKelas = (clone $baseQuery)->where('kategori', 'prestasi_kelas')->count();
+        $akademik = (clone $baseQuery)->where('kategori', 'akademik')->count();
+
+        $religiusKelas = (clone $baseQuery)->where('kategori', 'prestasi_kelas')->where('sub_kategori', 'religius')->count();
+        $karakterKelas = (clone $baseQuery)->where('kategori', 'prestasi_kelas')->where('sub_kategori', 'karakter')->count();
+        $adabKelas = (clone $baseQuery)->where('kategori', 'prestasi_kelas')->where('sub_kategori', 'adab')->count();
+
+        $rewardReligi = (clone $baseQuery)->where('jenis_reward', 'reward_religi')->count();
+        $rewardAkademik = (clone $baseQuery)->where('jenis_reward', 'reward_akademik')->count();
+        $totalReward = $rewardReligi + $rewardAkademik;
+
         $nonAkademikPct = $totalPrestasi > 0 ? round(($nonAkademik / $totalPrestasi) * 100) : 0;
+        $akademikPct = $totalPrestasi > 0 ? round(($akademik / $totalPrestasi) * 100) : 0;
+        $prestasiKelasPct = $totalPrestasi > 0 ? round(($prestasiKelas / $totalPrestasi) * 100) : 0;
 
         return [
-            Stat::make('Total Prestasi Siswa', $totalPrestasi)
-                ->description('Prestasi tercatat di lembaga ini')
+            Stat::make('Total Prestasi', $totalPrestasi)
+                ->description("{$individualCount} Individual · {$kelasCount} Rombel Kelas")
                 ->descriptionIcon('heroicon-m-trophy')
                 ->color('primary'),
 
+            Stat::make('Prestasi Non-Akademik', "{$nonAkademik} ({$nonAkademikPct}%)")
+                ->description('Seni, Olahraga, Pramuka, Bakat Minat')
+                ->descriptionIcon('heroicon-m-fire')
+                ->color('warning'),
+
+            Stat::make('Prestasi Kelas', "{$prestasiKelas} ({$prestasiKelasPct}%)")
+                ->description("Religius: {$religiusKelas} · Karakter: {$karakterKelas} · Adab: {$adabKelas}")
+                ->descriptionIcon('heroicon-m-user-group')
+                ->color('success'),
+
             Stat::make('Prestasi Akademik', "{$akademik} ({$akademikPct}%)")
-                ->description('Sains, Matematika, Mapel, KIR')
+                ->description('Sains, Matematika, Mapel, Riset/KIR')
                 ->descriptionIcon('heroicon-m-academic-cap')
                 ->color('info'),
 
-            Stat::make('Prestasi Religius', "{$religius} ({$religiusPct}%)")
-                ->description('Tahfidz, Tahsin, MTQ/MHQ, Keagamaan')
-                ->descriptionIcon('heroicon-m-sparkles')
-                ->color('success'),
-
-            Stat::make('Prestasi Non-Akademik', "{$nonAkademik} ({$nonAkademikPct}%)")
-                ->description('Seni, Olahraga, Pidato, Pramuka')
-                ->descriptionIcon('heroicon-m-fire')
-                ->color('warning'),
+            Stat::make('Reward Kesiswaan', "{$totalReward} Diberikan")
+                ->description("{$rewardReligi} Reward Religi · {$rewardAkademik} Reward Akademik")
+                ->descriptionIcon('heroicon-m-gift')
+                ->color('emerald'),
         ];
     }
 }

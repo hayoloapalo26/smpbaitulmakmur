@@ -212,15 +212,21 @@ class KetercapaianProfilLulusan extends Page
             $qualityAvg = $student->readingQualityScores->avg('scale_score') ?? 0;
             $tahfidzScore = round($qualityAvg > 0 ? $qualityAvg : min(95, 70 + ($ziyadahCount * 5)), 1);
 
-            // 3. Aspek Prestasi (Inputan Waka Kesiswaan: Akademik, Religius, Non-Akademik)
+            // 3. Aspek Prestasi (Inputan Waka Kesiswaan: Non-Akademik, Prestasi Kelas (Religius, Karakter, Adab), Akademik, Reward)
             $achieveList = $student->studentAchievements;
-            $totalAchievements = $achieveList->count();
-            $akademikAchievements = $achieveList->where('kategori', 'akademik')->count();
-            $religiusAchievements = $achieveList->where('kategori', 'religius')->count();
-            $nonAkademikAchievements = $achieveList->where('kategori', 'non_akademik')->count();
+            $classAchieveList = $student->classroom_id
+                ? StudentAchievement::where('classroom_id', $student->classroom_id)->whereNull('student_id')->get()
+                : collect();
+            $allAchieve = $achieveList->concat($classAchieveList);
+
+            $totalAchievements = $allAchieve->count();
+            $akademikAchievements = $allAchieve->filter(fn ($a) => $a->kategori === 'akademik')->count();
+            $religiusAchievements = $allAchieve->filter(fn ($a) => $a->kategori === 'religius' || ($a->kategori === 'prestasi_kelas' && $a->sub_kategori === 'religius') || $a->jenis_reward === 'reward_religi')->count();
+            $karakterAdabAchievements = $allAchieve->filter(fn ($a) => $a->kategori === 'prestasi_kelas' && in_array($a->sub_kategori, ['karakter', 'adab']))->count();
+            $nonAkademikAchievements = $allAchieve->filter(fn ($a) => $a->kategori === 'non_akademik')->count();
 
             // Poin prestasi: Dasar 70 jika belum ada prestasi, ditambah bobot per prestasi
-            $prestasiScore = min(100, 70 + ($akademikAchievements * 12) + ($religiusAchievements * 12) + ($nonAkademikAchievements * 10));
+            $prestasiScore = min(100, 70 + ($akademikAchievements * 12) + ($religiusAchievements * 12) + ($karakterAdabAchievements * 10) + ($nonAkademikAchievements * 10));
 
             // Skor Komposit Ketercapaian Profil Lulusan
             // Bobot: Akademik (40%) + Tahfidz (35%) + Prestasi Waka (25%)
@@ -454,13 +460,19 @@ class KetercapaianProfilLulusan extends Page
         // ASPEK 3: INPUTAN PRESTASI DARI WAKA KESISWAAN
         // ----------------------------------------------------
         $studentAchievements = StudentAchievement::where('student_id', $student->id)
-            ->with('inputBy')
+            ->orWhere(function ($q) use ($student) {
+                if ($student->classroom_id) {
+                    $q->where('classroom_id', $student->classroom_id)->whereNull('student_id');
+                }
+            })
+            ->with(['inputBy', 'classroom'])
             ->orderByDesc('tanggal')
             ->get();
 
-        $prestasiAkademik = $studentAchievements->where('kategori', 'akademik')->values();
-        $prestasiReligius = $studentAchievements->where('kategori', 'religius')->values();
-        $prestasiNonAkademik = $studentAchievements->where('kategori', 'non_akademik')->values();
+        $prestasiAkademik = $studentAchievements->filter(fn ($a) => $a->kategori === 'akademik')->values();
+        $prestasiReligius = $studentAchievements->filter(fn ($a) => $a->kategori === 'religius' || ($a->kategori === 'prestasi_kelas' && $a->sub_kategori === 'religius') || $a->jenis_reward === 'reward_religi')->values();
+        $prestasiKelasKarakterAdab = $studentAchievements->filter(fn ($a) => $a->kategori === 'prestasi_kelas' && in_array($a->sub_kategori, ['karakter', 'adab']))->values();
+        $prestasiNonAkademik = $studentAchievements->filter(fn ($a) => $a->kategori === 'non_akademik')->values();
 
         $prestasiTingkatTertinggi = '-';
         if ($studentAchievements->isNotEmpty()) {
@@ -473,8 +485,8 @@ class KetercapaianProfilLulusan extends Page
             }
         }
 
-        // Poin Aspek Prestasi (Bobot: Akademik & Religius bernilai tinggi, Non-Akademik melengkapi)
-        $prestasiPoint = min(100, 70 + ($prestasiAkademik->count() * 15) + ($prestasiReligius->count() * 15) + ($prestasiNonAkademik->count() * 10));
+        // Poin Aspek Prestasi (Bobot: Akademik & Religius bernilai tinggi, Karakter/Adab & Non-Akademik melengkapi)
+        $prestasiPoint = min(100, 70 + ($prestasiAkademik->count() * 15) + ($prestasiReligius->count() * 15) + ($prestasiKelasKarakterAdab->count() * 12) + ($prestasiNonAkademik->count() * 10));
 
         // ----------------------------------------------------
         // SINTESIS AKHIR KETERCAPAIAN PROFIL LULUSAN
@@ -537,7 +549,9 @@ class KetercapaianProfilLulusan extends Page
                 'total_count'          => $studentAchievements->count(),
                 'akademik_count'       => $prestasiAkademik->count(),
                 'religius_count'       => $prestasiReligius->count(),
-                'non_akademik_count'   => $prestasiNonAkademik->count(),
+                'non_akademik_count'   => $prestasiNonAkademik->count() + $prestasiKelasKarakterAdab->count(),
+                'kelas_count'          => $studentAchievements->filter(fn ($a) => $a->lingkup === 'kelas')->count(),
+                'reward_count'         => $studentAchievements->filter(fn ($a) => in_array($a->jenis_reward, ['reward_religi', 'reward_akademik']))->count(),
                 'tingkat_tertinggi'    => $prestasiTingkatTertinggi,
                 'score'                => $prestasiPoint,
                 'list'                 => $studentAchievements,
