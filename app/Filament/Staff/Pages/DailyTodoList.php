@@ -130,6 +130,10 @@ class DailyTodoList extends Page implements HasForms, HasTable
     {
         $user = Auth::user();
         $roles = $user->roles->pluck('name')->toArray();
+        // Sertakan tugas guru_piket jika user bertugas piket hari ini
+        if ($user->isPiketToday() && !in_array('guru_piket', $roles)) {
+            $roles[] = 'guru_piket';
+        }
         // Sinkronisasi alias wali_kelas <-> guru_kelas
         if (in_array('wali_kelas', $roles) && !in_array('guru_kelas', $roles)) {
             $roles[] = 'guru_kelas';

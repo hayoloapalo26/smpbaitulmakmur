@@ -13,7 +13,14 @@ class CharacterScoreReport extends Page
 {
     public static function canAccess(): bool
     {
-        return Auth::user()->hasAnyRole(['wali_kelas', 'guru_kelas', 'waka_kesiswaan', 'kepala_sekolah', 'superadmin']);
+        $user = Auth::user();
+        if (!$user) {
+            return false;
+        }
+
+        return $user->hasAnyRole([
+            'guru_piket', 'wali_kelas', 'guru_kelas', 'waka_kesiswaan', 'kepala_sekolah', 'superadmin'
+        ]) || $user->isPiketToday();
     }
 
     protected static ?string $navigationIcon = 'heroicon-o-chart-bar';

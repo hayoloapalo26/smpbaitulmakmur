@@ -16,17 +16,20 @@ use Illuminate\Support\Facades\Auth;
 
 class DutySwapRequestResource extends Resource
 {
-    protected static bool $shouldRegisterNavigation = false;
-
     public static function canAccess(): bool
     {
-        return auth()->user()->hasAnyRole(['waka_kesiswaan', 'kepala_sekolah', 'superadmin', 'guru_piket', 'guru_mapel', 'guru_alquran', 'wali_kelas', 'guru_kelas', 'bk', 'tata_usaha']);
+        return auth()->user()?->hasAnyRole([
+            'waka_kesiswaan', 'kepala_sekolah', 'superadmin', 'guru_piket', 
+            'guru_mapel', 'guru_alquran', 'wali_kelas', 'guru_kelas', 'bk', 'tata_usaha'
+        ]) ?? false;
     }
 
     protected static ?string $model = DutySwapRequest::class;
     protected static ?string $navigationIcon = 'heroicon-o-arrows-right-left';
     protected static ?string $navigationGroup = 'Kesiswaan & Karakter';
+    protected static ?string $navigationLabel = 'Tukar Jadwal Piket';
     protected static ?string $modelLabel = 'Tukar Jadwal Piket';
+    protected static ?int $navigationSort = 3;
 
     public static function getEloquentQuery(): Builder
     {

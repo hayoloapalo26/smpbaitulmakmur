@@ -16,7 +16,14 @@ class PrayerAttendanceResource extends Resource
 {
     public static function canAccess(): bool
     {
-        return auth()->user()->hasAnyRole(['waka_kesiswaan', 'kepala_sekolah', 'superadmin']);
+        $user = auth()->user();
+        if (!$user) {
+            return false;
+        }
+
+        return $user->hasAnyRole([
+            'guru_piket', 'waka_kesiswaan', 'kepala_sekolah', 'superadmin'
+        ]) || $user->isPiketToday();
     }
 
     protected static ?string $model = PrayerAttendance::class;

@@ -13,8 +13,6 @@ use Filament\Notifications\Notification;
 
 class AbsensiManual extends Page
 {
-    protected static bool $shouldRegisterNavigation = false;
-
     public static function canAccess(): bool
     {
         $user = auth()->user();
@@ -22,19 +20,22 @@ class AbsensiManual extends Page
             return false;
         }
 
-        $isPiketToday = \App\Models\DutySchedule::where('teacher_id', $user->id)
-            ->whereDate('tanggal', \Carbon\Carbon::today())
-            ->exists();
+        $isPiketToday = $user->isPiketToday();
 
         return $isPiketToday || $user->hasAnyRole(['guru_piket', 'tata_usaha', 'waka_kesiswaan', 'kepala_sekolah', 'superadmin']);
     }
 
+    public static function shouldRegisterNavigation(): bool
+    {
+        return static::canAccess();
+    }
+
     protected static ?string $navigationIcon    = 'heroicon-o-clipboard-document-check';
     protected static ?string $navigationGroup   = 'Kesiswaan & Karakter';
-    protected static ?string $navigationLabel   = 'Input Absensi Manual';
+    protected static ?string $navigationLabel   = 'Input Presensi Manual';
     protected static ?string $title             = 'Input Presensi Kolektif Per Kelas';
     protected static string  $view              = 'filament.staff.pages.absensi-manual';
-    protected static ?int    $navigationSort    = 1;
+    protected static ?int    $navigationSort    = 4;
 
     // Filter state
     public string $selectedDate;

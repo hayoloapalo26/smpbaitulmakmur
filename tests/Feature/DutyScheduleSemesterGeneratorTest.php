@@ -238,4 +238,55 @@ class DutyScheduleSemesterGeneratorTest extends TestCase
         $this->assertTrue($this->guru1->isPiketToday());
         $this->assertFalse($this->guru2->isPiketToday());
     }
+
+    public function test_piket_dashboard_and_related_pages_accessible_by_piket_teacher()
+    {
+        $today = Carbon::today()->toDateString();
+
+        DutySchedule::create([
+            'teacher_id' => $this->guru1->id,
+            'tanggal' => $today,
+        ]);
+
+        $this->actingAs($this->guru1);
+
+        $this->assertTrue(\App\Filament\Staff\Pages\PiketDashboard::canAccess());
+        $this->assertTrue(\App\Filament\Staff\Pages\AbsensiManual::canAccess());
+        $this->assertTrue(\App\Filament\Staff\Pages\ScannerPresensi::canAccess());
+        $this->assertTrue(\App\Filament\Staff\Resources\DailyAttendanceResource::canAccess());
+        $this->assertTrue(\App\Filament\Staff\Resources\AttributeViolationResource::canAccess());
+        $this->assertTrue(\App\Filament\Staff\Resources\DutySwapRequestResource::canAccess());
+    }
+
+    public function test_attribute_violation_observer_creates_character_score_log_safely()
+    {
+        $classroom = \App\Models\Classroom::create([
+            'name' => 'VII-A',
+            'tingkat' => 7,
+            'institution_id' => $this->institution->id,
+        ]);
+
+        $student = \App\Models\Student::create([
+            'name' => 'Ahmad Siswa',
+            'nis' => '12345',
+            'classroom_id' => $classroom->id,
+            'tanggal_lahir' => '2010-01-01',
+            'jenis_kelamin' => 'L',
+            'institution_id' => $this->institution->id,
+        ]);
+
+        $violation = \App\Models\AttributeViolation::create([
+            'student_id' => $student->id,
+            'teacher_id' => $this->guru1->id,
+            'tanggal' => Carbon::today()->toDateString(),
+            'attribute_type' => ['Dasi', 'Topi'],
+            'jenis_pelanggaran' => 'Upacara bendera',
+        ]);
+
+        $this->assertDatabaseHas('character_score_logs', [
+            'student_id' => $student->id,
+            'source' => 'guru_piket',
+            'point_change' => -1,
+        ]);
+    }
 }

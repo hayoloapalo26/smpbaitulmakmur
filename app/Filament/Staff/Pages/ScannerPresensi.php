@@ -11,15 +11,28 @@ use Illuminate\Support\Facades\Auth;
 
 class ScannerPresensi extends Page
 {
-public static function canAccess(): bool
+    public static function canAccess(): bool
     {
-        return auth()->user()->hasAnyRole(['tata_usaha', 'superadmin']);
+        $user = auth()->user();
+        if (!$user) {
+            return false;
+        }
+
+        return $user->hasAnyRole([
+            'guru_piket', 'tata_usaha', 'waka_kesiswaan', 'kepala_sekolah', 'superadmin'
+        ]) || $user->isPiketToday();
+    }
+
+    public static function shouldRegisterNavigation(): bool
+    {
+        return static::canAccess();
     }
 
     protected static ?string $navigationIcon = 'heroicon-o-qr-code';
     protected static ?string $navigationGroup = 'Kesiswaan & Karakter';
-    protected static ?string $navigationLabel = 'Scan Presensi';
+    protected static ?string $navigationLabel = 'Scan Presensi Siswa';
     protected static ?string $title = 'Scanner Presensi Siswa';
+    protected static ?int $navigationSort = 5;
     protected static string $view = 'filament.staff.pages.scanner-presensi';
 
     public $nis = '';
