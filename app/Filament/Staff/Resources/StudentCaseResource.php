@@ -549,7 +549,11 @@ class StudentCaseResource extends Resource
                         Notification::make()->title('✅ Kasus berhasil ditutup')->success()->send();
                     }),
             ])
-            ->bulkActions([]);
+            ->bulkActions([
+                Tables\Actions\BulkActionGroup::make([
+                    Tables\Actions\DeleteBulkAction::make(),
+                ]),
+            ]);
     }
 
     public static function getPages(): array

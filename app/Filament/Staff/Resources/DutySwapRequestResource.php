@@ -112,6 +112,11 @@ class DutySwapRequestResource extends Resource
                     ->requiresConfirmation()
                     ->visible(fn ($record) => $record->status === 'diajukan' && ($record->substitute_teacher_id === Auth::id() || Auth::user()->hasAnyRole(['waka_kesiswaan', 'superadmin'])))
                     ->action(fn ($record) => $record->update(['status' => 'ditolak'])),
+            ])
+            ->bulkActions([
+                Tables\Actions\BulkActionGroup::make([
+                    Tables\Actions\DeleteBulkAction::make(),
+                ]),
             ]);
     }
 

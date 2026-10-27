@@ -610,6 +610,11 @@ class TeachingJournalResource extends Resource
                             $action->halt();
                         }
                     }),
+            ])
+            ->bulkActions([
+                Tables\Actions\BulkActionGroup::make([
+                    Tables\Actions\DeleteBulkAction::make(),
+                ]),
             ]);
     }
 

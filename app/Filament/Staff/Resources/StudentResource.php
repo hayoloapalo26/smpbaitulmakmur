@@ -787,6 +787,7 @@ class StudentResource extends Resource
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
+                    Tables\Actions\DeleteBulkAction::make(),
                     Tables\Actions\BulkAction::make('jadikan_alumni_massal')
                         ->label('Jadikan Alumni & Masukkan ke Tracer Study')
                         ->icon('heroicon-o-academic-cap')

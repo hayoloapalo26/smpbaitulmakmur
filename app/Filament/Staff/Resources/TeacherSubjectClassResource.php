@@ -85,7 +85,12 @@ class TeacherSubjectClassResource extends Resource
                 Tables\Columns\TextColumn::make('subject.name')->searchable()->sortable()->label('Mata Pelajaran'),
                 Tables\Columns\TextColumn::make('classroom.name')->searchable()->sortable()->label('Kelas / Rombel'),
             ])
-            ->actions([Tables\Actions\EditAction::make(), Tables\Actions\DeleteAction::make()]);
+            ->actions([Tables\Actions\EditAction::make(), Tables\Actions\DeleteAction::make()])
+            ->bulkActions([
+                Tables\Actions\BulkActionGroup::make([
+                    Tables\Actions\DeleteBulkAction::make(),
+                ]),
+            ]);
     }
 
     public static function getPages(): array

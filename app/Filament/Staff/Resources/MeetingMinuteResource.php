@@ -106,6 +106,11 @@ public static function canAccess(): bool
                             'catatan_ks' => $data['catatan_ks'],
                         ]);
                     })
+            ])
+            ->bulkActions([
+                Tables\Actions\BulkActionGroup::make([
+                    Tables\Actions\DeleteBulkAction::make(),
+                ]),
             ]);
     }
 

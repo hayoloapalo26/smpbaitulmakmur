@@ -168,6 +168,11 @@ class SopResource extends Resource
                             'keterangan_ks' => $data['catatan'],
                         ]);
                     }),
+            ])
+            ->bulkActions([
+                Tables\Actions\BulkActionGroup::make([
+                    Tables\Actions\DeleteBulkAction::make(),
+                ]),
             ]);
     }
 

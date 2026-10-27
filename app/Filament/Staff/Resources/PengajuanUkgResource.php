@@ -106,6 +106,12 @@ class PengajuanUkgResource extends Resource
                     ->visible(fn (TeacherCompetencyTest $record) => $record->score !== null || $record->nilai_akhir !== null),
 
                 Tables\Actions\ViewAction::make(),
+            ])
+            ->bulkActions([
+                Tables\Actions\BulkActionGroup::make([
+                    Tables\Actions\DeleteBulkAction::make()
+                        ->visible(fn () => Auth::user()->hasAnyRole(['superadmin', 'kepala_sekolah'])),
+                ]),
             ]);
     }
 

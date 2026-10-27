@@ -160,6 +160,11 @@ class UserResource extends Resource
                         \Filament\Notifications\Notification::make()->title('Password Berhasil Direset')->success()->send();
                     }),
                 Tables\Actions\EditAction::make(),
+            ])
+            ->bulkActions([
+                Tables\Actions\BulkActionGroup::make([
+                    Tables\Actions\DeleteBulkAction::make(),
+                ]),
             ]);
     }
 

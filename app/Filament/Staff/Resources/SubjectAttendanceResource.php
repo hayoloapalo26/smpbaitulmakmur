@@ -44,7 +44,12 @@ class SubjectAttendanceResource extends Resource
                 Tables\Columns\TextColumn::make('student.name')->searchable()->label('Siswa'),
                 Tables\Columns\TextColumn::make('status'),
             ])
-            ->actions([Tables\Actions\EditAction::make(), Tables\Actions\DeleteAction::make()]);
+            ->actions([Tables\Actions\EditAction::make(), Tables\Actions\DeleteAction::make()])
+            ->bulkActions([
+                Tables\Actions\BulkActionGroup::make([
+                    Tables\Actions\DeleteBulkAction::make(),
+                ]),
+            ]);
     }
 
     public static function getPages(): array

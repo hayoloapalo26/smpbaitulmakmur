@@ -46,7 +46,12 @@ public static function canAccess(): bool
                 Tables\Columns\TextColumn::make('kategori')->searchable(),
                 Tables\Columns\TextColumn::make('judul')->searchable(),
             ])
-            ->actions([Tables\Actions\EditAction::make(), Tables\Actions\DeleteAction::make()]);
+            ->actions([Tables\Actions\EditAction::make(), Tables\Actions\DeleteAction::make()])
+            ->bulkActions([
+                Tables\Actions\BulkActionGroup::make([
+                    Tables\Actions\DeleteBulkAction::make(),
+                ]),
+            ]);
     }
 
     public static function getPages(): array

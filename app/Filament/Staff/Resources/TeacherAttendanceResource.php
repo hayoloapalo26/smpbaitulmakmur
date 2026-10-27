@@ -425,6 +425,12 @@ class TeacherAttendanceResource extends Resource
                 Tables\Actions\DeleteAction::make()
                     ->label('Hapus')
                     ->visible(fn () => Auth::user()?->hasRole('superadmin') ?? false),
+            ])
+            ->bulkActions([
+                Tables\Actions\BulkActionGroup::make([
+                    Tables\Actions\DeleteBulkAction::make()
+                        ->visible(fn () => Auth::user()?->hasRole('superadmin') ?? false),
+                ]),
             ]);
     }
 

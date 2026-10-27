@@ -290,6 +290,11 @@ class TeacherCertificateResource extends Resource
 
                 Tables\Actions\DeleteAction::make()
                     ->visible(fn ($record) => $record->teacher_id === Auth::id() || Auth::user()?->hasRole('superadmin')),
+            ])
+            ->bulkActions([
+                Tables\Actions\BulkActionGroup::make([
+                    Tables\Actions\DeleteBulkAction::make(),
+                ]),
             ]);
     }
 

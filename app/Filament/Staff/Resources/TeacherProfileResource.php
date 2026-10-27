@@ -322,6 +322,7 @@ class TeacherProfileResource extends Resource
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
+                    Tables\Actions\DeleteBulkAction::make(),
                     Tables\Actions\BulkAction::make('buat_akun_massal_guru')
                         ->label('Buat Akun Guru Massal')
                         ->icon('heroicon-m-user-plus')

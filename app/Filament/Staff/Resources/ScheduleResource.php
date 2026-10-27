@@ -234,6 +234,12 @@ class ScheduleResource extends Resource
                     }),
                 Tables\Actions\DeleteAction::make()
                     ->visible(fn () => Auth::user()->hasAnyRole(['waka_kurikulum', 'superadmin'])),
+            ])
+            ->bulkActions([
+                Tables\Actions\BulkActionGroup::make([
+                    Tables\Actions\DeleteBulkAction::make()
+                        ->visible(fn () => Auth::user()->hasAnyRole(['waka_kurikulum', 'superadmin'])),
+                ]),
             ]);
     }
 

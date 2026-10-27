@@ -129,6 +129,11 @@ class TeachingMaterialResource extends Resource
                             'kepsek_note' => $data['kepsek_note'],
                         ]);
                     }),
+            ])
+            ->bulkActions([
+                Tables\Actions\BulkActionGroup::make([
+                    Tables\Actions\DeleteBulkAction::make(),
+                ]),
             ]);
     }
 

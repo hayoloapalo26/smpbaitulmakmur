@@ -46,7 +46,12 @@ class TeacherSupervisionResource extends Resource
                 Tables\Columns\TextColumn::make('teacher.name')->searchable()->label('Guru'),
                 Tables\Columns\TextColumn::make('supervisor.name')->label('Supervisor'),
             ])
-            ->actions([Tables\Actions\EditAction::make(), Tables\Actions\DeleteAction::make()]);
+            ->actions([Tables\Actions\EditAction::make(), Tables\Actions\DeleteAction::make()])
+            ->bulkActions([
+                Tables\Actions\BulkActionGroup::make([
+                    Tables\Actions\DeleteBulkAction::make(),
+                ]),
+            ]);
     }
 
     public static function getPages(): array

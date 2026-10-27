@@ -88,6 +88,11 @@ public static function canAccess(): bool
             ->actions([
                 Tables\Actions\ViewAction::make()->label('Lihat Detail'),
             ])
+            ->bulkActions([
+                Tables\Actions\BulkActionGroup::make([
+                    Tables\Actions\DeleteBulkAction::make(),
+                ]),
+            ])
             ->defaultSort('submitted_at', 'desc')
             ->emptyStateHeading('Belum ada data DCM')
             ->emptyStateDescription('Siswa belum mengisi formulir DCM.');

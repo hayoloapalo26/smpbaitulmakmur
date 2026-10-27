@@ -222,6 +222,12 @@ class PengajuanSupervisiResource extends Resource
                 Tables\Actions\ViewAction::make(),
                 Tables\Actions\DeleteAction::make()
                     ->visible(fn () => $isSupervisor),
+            ])
+            ->bulkActions([
+                Tables\Actions\BulkActionGroup::make([
+                    Tables\Actions\DeleteBulkAction::make()
+                        ->visible(fn () => $isSupervisor),
+                ]),
             ]);
     }
 
