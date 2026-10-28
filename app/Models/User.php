@@ -86,6 +86,11 @@ class User extends Authenticatable implements FilamentUser, HasAvatar
         return $this->hasMany(TeacherSubjectClass::class, 'teacher_id');
     }
 
+    public function teachingSubjects()
+    {
+        return $this->belongsToMany(Subject::class, 'teacher_subject_classes', 'teacher_id', 'subject_id')->distinct();
+    }
+
     public function certificates()
     {
         return $this->hasMany(TeacherCertificate::class, 'teacher_id');

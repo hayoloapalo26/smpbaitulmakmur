@@ -16,7 +16,13 @@ trait BelongsToInstitution
 
                 // If user is Yayasan (ID = 1) or Superadmin, they can see everything (no filter applied)
                 if (!$user->hasRole('superadmin') && $user->institution_id != 1) {
-                    $builder->where($builder->getModel()->getTable() . '.institution_id', $user->institution_id);
+                    if (\Illuminate\Support\Facades\Schema::hasColumn($builder->getModel()->getTable(), 'institution_id')) {
+                        $table = $builder->getModel()->getTable();
+                        $builder->where(function ($q) use ($table, $user) {
+                            $q->where($table . '.institution_id', $user->institution_id)
+                              ->orWhereNull($table . '.institution_id');
+                        });
+                    }
                 }
             }
         });

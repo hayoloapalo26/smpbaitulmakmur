@@ -4,8 +4,8 @@ namespace App\Filament\Staff\Resources;
 
 use App\Filament\Staff\Resources\GradeResource\Pages;
 use App\Models\Grade;
-use App\Models\TeacherSubjectClass;
 use App\Models\Student;
+use App\Models\TeacherSubjectClass;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
@@ -18,26 +18,35 @@ class GradeResource extends Resource
 {
     public static function shouldRegisterNavigation(): bool
     {
-        $user = auth()->user();
-        if (!$user) return false;
-
-        // Roles with 'Rekap & Input Nilai Kelas' (RekapNilaiKelas) access GradeResource via the header button there
-        if ($user->hasAnyRole(['wali_kelas', 'guru_kelas', 'waka_kurikulum', 'kepala_sekolah', 'superadmin'])) {
-            return false;
-        }
-
-        return $user->hasAnyRole(['guru_mapel', 'guru_alquran']);
+        return auth()->user()?->hasAnyRole([
+            'guru_mapel',
+            'guru_alquran',
+            'waka_kurikulum',
+            'kepala_sekolah',
+            'superadmin',
+        ]) ?? false;
     }
 
     public static function canAccess(): bool
     {
-        return auth()->user()->hasAnyRole(['guru_mapel', 'guru_alquran', 'guru_kelas', 'wali_kelas', 'waka_kurikulum', 'kepala_sekolah', 'superadmin']);
+        return auth()->user()?->hasAnyRole([
+            'guru_mapel',
+            'guru_alquran',
+            'guru_kelas',
+            'wali_kelas',
+            'waka_kurikulum',
+            'kepala_sekolah',
+            'superadmin',
+        ]) ?? false;
     }
 
     protected static ?string $model = Grade::class;
     protected static ?string $navigationIcon = 'heroicon-o-academic-cap';
     protected static ?string $navigationGroup = 'Akademik & Kurikulum';
-    protected static ?string $modelLabel = 'Input Nilai Mapel';
+    protected static ?string $navigationLabel = 'Daftar Nilai Siswa';
+    protected static ?string $modelLabel = 'Nilai Siswa';
+    protected static ?string $pluralModelLabel = 'Daftar Nilai Siswa';
+    protected static ?int $navigationSort = 5;
 
     public static function getEloquentQuery(): Builder
     {
@@ -98,48 +107,51 @@ class GradeResource extends Resource
 
         return $form
             ->schema([
-                Forms\Components\Select::make('student_id')
-                    ->label('Siswa')
-                    ->options(function () use ($isPrivileged, $studentIds) {
-                        if ($isPrivileged) return Student::orderBy('name')->pluck('name', 'id');
-                        return Student::whereIn('id', $studentIds)->orderBy('name')->pluck('name', 'id');
-                    })
-                    ->searchable()
-                    ->required(),
-                Forms\Components\Select::make('subject_id')
-                    ->label('Mata Pelajaran')
-                    ->options(function () use ($isPrivileged, $isWaliKelas, $subjectIds) {
-                        if ($isPrivileged || $isWaliKelas) return \App\Models\Subject::orderBy('name')->pluck('name', 'id');
-                        return \App\Models\Subject::whereIn('id', $subjectIds)->orderBy('name')->pluck('name', 'id');
-                    })
-                    ->searchable()
-                    ->required(),
-                Forms\Components\Select::make('academic_year_id')
-                    ->relationship('academicYear', 'name')
-                    ->label('Tahun Ajaran')
-                    ->required(),
-                Forms\Components\Select::make('semester')
-                    ->options([
-                        'Ganjil' => 'Ganjil',
-                        'Genap'  => 'Genap',
-                    ])
-                    ->default('Ganjil')
-                    ->required(),
-                Forms\Components\Select::make('type')
-                    ->label('Tipe Nilai')
-                    ->options([
-                        'ujian'        => 'Ujian (UTS / UAS)',
-                        'pengetahuan'  => 'Pengetahuan / Tugas Harian',
-                        'keterampilan' => 'Keterampilan / Praktik',
-                    ])
-                    ->default('ujian')
-                    ->required(),
-                Forms\Components\TextInput::make('score')
-                    ->label('Nilai (0 - 100)')
-                    ->numeric()
-                    ->required()
-                    ->minValue(0)
-                    ->maxValue(100),
+                Forms\Components\Section::make('Form Input Nilai Siswa')
+                    ->schema([
+                        Forms\Components\Select::make('student_id')
+                            ->label('Siswa')
+                            ->options(function () use ($isPrivileged, $studentIds) {
+                                if ($isPrivileged) return Student::orderBy('name')->pluck('name', 'id');
+                                return Student::whereIn('id', $studentIds)->orderBy('name')->pluck('name', 'id');
+                            })
+                            ->searchable()
+                            ->required(),
+                        Forms\Components\Select::make('subject_id')
+                            ->label('Mata Pelajaran')
+                            ->options(function () use ($isPrivileged, $isWaliKelas, $subjectIds) {
+                                if ($isPrivileged || $isWaliKelas) return \App\Models\Subject::orderBy('name')->pluck('name', 'id');
+                                return \App\Models\Subject::whereIn('id', $subjectIds)->orderBy('name')->pluck('name', 'id');
+                            })
+                            ->searchable()
+                            ->required(),
+                        Forms\Components\Select::make('academic_year_id')
+                            ->relationship('academicYear', 'name')
+                            ->label('Tahun Ajaran')
+                            ->required(),
+                        Forms\Components\Select::make('semester')
+                            ->options([
+                                'Ganjil' => 'Ganjil',
+                                'Genap'  => 'Genap',
+                            ])
+                            ->default('Ganjil')
+                            ->required(),
+                        Forms\Components\Select::make('type')
+                            ->label('Tipe Nilai')
+                            ->options([
+                                'ujian'        => 'Ujian (UTS / UAS)',
+                                'pengetahuan'  => 'Pengetahuan / Tugas Harian',
+                                'keterampilan' => 'Keterampilan / Praktik',
+                            ])
+                            ->default('ujian')
+                            ->required(),
+                        Forms\Components\TextInput::make('score')
+                            ->label('Nilai (0 - 100)')
+                            ->numeric()
+                            ->required()
+                            ->minValue(0)
+                            ->maxValue(100),
+                    ])->columns(2),
             ]);
     }
 
@@ -147,21 +159,81 @@ class GradeResource extends Resource
     {
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('student.name')->searchable()->label('Siswa')->searchable(),
-                Tables\Columns\TextColumn::make('subject.name')->label('Mapel'),
-                Tables\Columns\TextColumn::make('type')->label('Tipe'),
-                Tables\Columns\TextColumn::make('score')->label('Nilai'),
-                Tables\Columns\TextColumn::make('semester'),
-                Tables\Columns\TextColumn::make('academicYear.name')->label('TA'),
+                Tables\Columns\TextColumn::make('student.name')
+                    ->searchable()
+                    ->sortable()
+                    ->label('Nama Siswa')
+                    ->weight('bold'),
+                Tables\Columns\TextColumn::make('student.classroom.name')
+                    ->label('Kelas')
+                    ->badge()
+                    ->color('gray')
+                    ->sortable(),
+                Tables\Columns\TextColumn::make('subject.name')
+                    ->label('Mata Pelajaran')
+                    ->badge()
+                    ->color('info')
+                    ->sortable()
+                    ->searchable(),
+                Tables\Columns\TextColumn::make('type')
+                    ->label('Kategori Nilai')
+                    ->badge()
+                    ->color(fn (string $state): string => match ($state) {
+                        'pengetahuan'  => 'primary',
+                        'keterampilan' => 'warning',
+                        'ujian'        => 'success',
+                        default        => 'gray',
+                    })
+                    ->formatStateUsing(fn (string $state): string => match ($state) {
+                        'pengetahuan'  => 'Pengetahuan (P)',
+                        'keterampilan' => 'Keterampilan (K)',
+                        'ujian'        => 'Ujian (UTS/UAS)',
+                        default        => ucfirst($state),
+                    }),
+                Tables\Columns\TextColumn::make('score')
+                    ->label('Nilai')
+                    ->weight('bold')
+                    ->sortable()
+                    ->color(fn (float $state): string => $state >= 75 ? 'success' : 'danger'),
+                Tables\Columns\TextColumn::make('semester')
+                    ->label('Semester')
+                    ->sortable(),
+                Tables\Columns\TextColumn::make('academicYear.name')
+                    ->label('Tahun Ajaran')
+                    ->sortable(),
+            ])
+            ->filters([
+                Tables\Filters\SelectFilter::make('subject_id')
+                    ->relationship('subject', 'name')
+                    ->label('Filter Mata Pelajaran')
+                    ->searchable()
+                    ->preload(),
+                Tables\Filters\SelectFilter::make('type')
+                    ->label('Filter Kategori')
+                    ->options([
+                        'pengetahuan'  => 'Pengetahuan',
+                        'keterampilan' => 'Keterampilan',
+                        'ujian'        => 'Ujian',
+                    ]),
+                Tables\Filters\SelectFilter::make('semester')
+                    ->options([
+                        'Ganjil' => 'Ganjil',
+                        'Genap'  => 'Genap',
+                    ]),
+                Tables\Filters\SelectFilter::make('academic_year_id')
+                    ->relationship('academicYear', 'name')
+                    ->label('Tahun Ajaran'),
             ])
             ->actions([
                 Tables\Actions\EditAction::make(),
+                Tables\Actions\DeleteAction::make(),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
                     Tables\Actions\DeleteBulkAction::make(),
                 ]),
-            ]);
+            ])
+            ->defaultSort('created_at', 'desc');
     }
 
     public static function getPages(): array
@@ -169,10 +241,5 @@ class GradeResource extends Resource
         return [
             'index' => Pages\ManageGrades::route('/'),
         ];
-    }
-
-    public static function getPluralModelLabel(): string
-    {
-        return static::getModelLabel();
     }
 }

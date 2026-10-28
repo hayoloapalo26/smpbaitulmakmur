@@ -13,7 +13,13 @@ class ManageGrades extends ManageRecords
     protected function getHeaderActions(): array
     {
         return [
-            Actions\CreateAction::make(),
+            Actions\Action::make('rumah_nilai')
+                ->label('🏠 Buka Lembar Input Nilai Per Mapel (Batch Grid)')
+                ->color('success')
+                ->icon('heroicon-o-academic-cap')
+                ->url(fn () => url('/staff/input-nilai-mapel')),
+            Actions\CreateAction::make()
+                ->label('Input Nilai Satuan'),
         ];
     }
 }

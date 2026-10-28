@@ -68,12 +68,19 @@ class RekapNilaiKelas extends Page
     protected function getHeaderActions(): array
     {
         return [
+            \Filament\Actions\Action::make('rumah_nilai_mapel')
+                ->label('🏠 Rumah Input Nilai Per Mapel')
+                ->icon('heroicon-o-pencil-square')
+                ->color('success')
+                ->url(fn () => url('/staff/input-nilai-mapel'))
+                ->visible(fn () => Auth::user()->hasAnyRole(['guru_mapel', 'guru_kelas', 'wali_kelas', 'waka_kurikulum', 'kepala_sekolah', 'superadmin'])),
+
             \Filament\Actions\Action::make('kelola_nilai_mapel')
-                ->label('Input Nilai Harian / Tugas Mapel')
+                ->label('Daftar Nilai Siswa')
                 ->icon('heroicon-o-academic-cap')
                 ->color('primary')
                 ->url(fn () => \App\Filament\Staff\Resources\GradeResource::getUrl())
-                ->visible(fn () => Auth::user()->hasAnyRole(['guru_mapel', 'guru_kelas', 'wali_kelas', 'waka_kurikulum', 'superadmin'])),
+                ->visible(fn () => Auth::user()->hasAnyRole(['guru_mapel', 'guru_kelas', 'wali_kelas', 'waka_kurikulum', 'kepala_sekolah', 'superadmin'])),
         ];
     }
 
