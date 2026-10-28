@@ -237,6 +237,16 @@ class StaffPanelProvider extends PanelProvider
                         aside.fi-sidebar .fi-sidebar-group:hover .fi-sidebar-group-label {
                             border-bottom-style: solid !important;
                         }
+                        /* Fix User Menu & Logout Dropdown positioning */
+                        .fi-user-menu,
+                        .fi-user-menu button {
+                            position: relative !important;
+                        }
+                        
+                        .fi-user-menu .fi-dropdown-panel,
+                        body > .fi-dropdown-panel {
+                            z-index: 999999 !important;
+                        }
                     </style>
                 ')
             )
@@ -313,6 +323,16 @@ class StaffPanelProvider extends PanelProvider
                             background: linear-gradient(90deg, #ffbb88, #F4EEDC); /* PEACH to CREAM MUDA */
                             -webkit-background-clip: text;
                             -webkit-text-fill-color: transparent;
+                        }
+                        /* Fix User Menu & Logout Dropdown positioning */
+                        .fi-user-menu,
+                        .fi-user-menu button {
+                            position: relative !important;
+                        }
+                        
+                        .fi-user-menu .fi-dropdown-panel,
+                        body > .fi-dropdown-panel {
+                            z-index: 999999 !important;
                         }
                     </style>
                 ')

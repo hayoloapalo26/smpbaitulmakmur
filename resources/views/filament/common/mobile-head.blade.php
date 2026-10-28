@@ -30,6 +30,15 @@
         height: calc(4rem + var(--sat)) !important;
     }
 
+    /* Pastikan dropdown menu user (termasuk tombol Logout) selalu berada di bawah avatar dan tidak terpotong */
+    .fi-user-menu {
+        position: relative !important;
+    }
+    .fi-user-menu .fi-dropdown-panel,
+    body > .fi-dropdown-panel {
+        z-index: 999999 !important;
+    }
+
     /* Sleek Custom Scrollbar for Touch & Desktop */
     ::-webkit-scrollbar { width: 5px; height: 5px; }
     ::-webkit-scrollbar-track { background: transparent; }
