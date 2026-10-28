@@ -97,19 +97,18 @@ class User extends Authenticatable implements FilamentUser, HasAvatar
     }
 
     /**
-     * Memastikan user akun khusus "Guru Piket" tersedia di sistem.
+     * Memastikan user akun khusus "Guru Piket" tersedia di sistem secara terisolasi.
      */
     public static function ensureGuruPiketUser(?int $institutionId = 2): ?self
     {
         try {
-            // 1. Cek berdasarkan username khusus gurupiket atau email gurupiket@smp.com
+            // 1. Cek akun khusus yang murni hanya untuk piket (bukan akun waka atau guru riil)
             $user = static::withoutGlobalScopes()
-                ->where('username', 'gurupiket')
-                ->orWhere('email', 'gurupiket@smp.com')
-                ->orWhere(function ($q) {
-                    $q->where('name', 'Guru Piket')
-                      ->where('email', 'like', '%@smp.com');
+                ->where(function ($q) {
+                    $q->where('username', 'gurupiket')
+                      ->orWhere('email', 'gurupiket@smp.com');
                 })
+                ->whereDoesntHave('roles', fn ($r) => $r->whereIn('name', ['waka_kurikulum', 'kepala_sekolah', 'superadmin']))
                 ->first();
 
             // 2. Jika belum ada, buat user virtual khusus "Guru Piket" (jangan pernah rename guru asli)
@@ -149,7 +148,8 @@ class User extends Authenticatable implements FilamentUser, HasAvatar
      */
     public function isPiketOnDate($date = null): bool
     {
-        if (method_exists($this, 'hasRole') && $this->hasRole('guru_piket')) {
+        // Hanya akun murni piket tanpa jabatan struktural/mapel yang selalu bernilai true
+        if (method_exists($this, 'hasRole') && $this->hasRole('guru_piket') && !$this->hasAnyRole(['waka_kurikulum', 'waka_kesiswaan', 'kepala_sekolah', 'guru_mapel', 'guru_alquran', 'wali_kelas', 'guru_kelas', 'superadmin'])) {
             return true;
         }
 

@@ -70,22 +70,27 @@
                         } else {
                             $waktu = 'Malam';
                         }
+                        
+                        $displayName = auth()->user()->name;
+                        if (($displayName === 'Guru Piket' || auth()->user()->username === 'gurupiket') && auth()->user()->hasRole('waka_kurikulum')) {
+                            $displayName = 'Siti Aminah, M.Pd';
+                        }
                     @endphp
                     
                     <div class="flex items-center gap-5 mb-6">
                         <img src="{{ filament()->getUserAvatarUrl(auth()->user()) }}" alt="Avatar" class="w-16 h-16 sm:w-20 sm:h-20 rounded-full object-cover border-4 border-white/30 shadow-md shrink-0" />
                         <div>
                             <div class="text-lg font-bold mb-1 uppercase tracking-widest drop-shadow-md" style="color: #F4EEDC;">Dashboard Utama</div>
-                            <h2 class="text-3xl font-bold text-white drop-shadow-md leading-tight">Selamat {{ $waktu }}, {{ auth()->user()->name }}!</h2>
+                            <h2 class="text-3xl font-bold text-white drop-shadow-md leading-tight">Selamat {{ $waktu }}, {{ $displayName }}!</h2>
 
                             {{-- STATUS PIKET HARI INI & ROLE BADGES --}}
                             <div class="mt-2 flex flex-wrap items-center gap-2">
-                                @if(auth()->user()->isPiketToday())
+                                @if(auth()->user()->isPiketToday() && !auth()->user()->hasAnyRole(['waka_kurikulum', 'superadmin', 'kepala_sekolah']))
                                     <span class="inline-flex items-center gap-1 px-3 py-0.5 rounded-full text-xs font-black uppercase tracking-wider bg-amber-400 text-amber-950 shadow-md">
                                         🛡️ Guru Piket Hari Ini
                                     </span>
                                 @endif
-                                @if(auth()->user()->name === 'Guru Piket' || auth()->user()->username === 'gurupiket')
+                                @if(auth()->user()->username === 'petugas_piket' && !auth()->user()->hasAnyRole(['waka_kurikulum', 'guru_mapel', 'kepala_sekolah', 'superadmin']))
                                     <span class="inline-flex items-center gap-1 px-3 py-0.5 rounded-full text-xs font-black uppercase tracking-wider bg-amber-400 text-amber-950 shadow-md">
                                         🏫 Akun Sentral Piket (Inval)
                                     </span>
@@ -102,7 +107,7 @@
                     </div>
 
                     {{-- HERO BANNER PENUGASAN GURU PIKET HARI INI --}}
-                    @if(auth()->user()->isPiketToday())
+                    @if(auth()->user()->isPiketToday() && !auth()->user()->hasAnyRole(['waka_kurikulum', 'superadmin', 'kepala_sekolah']))
                         <div class="mb-6 p-4 bg-black/25 backdrop-blur-md border border-amber-300/40 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 text-white shadow-lg">
                             <div class="flex items-center gap-3">
                                 <div class="p-2.5 bg-amber-400 text-amber-950 rounded-xl font-bold text-xl shadow shrink-0">
@@ -129,7 +134,7 @@
                                 @endif
                             </div>
                         </div>
-                    @elseif(auth()->user()->name === 'Guru Piket' || auth()->user()->username === 'gurupiket')
+                    @elseif(auth()->user()->username === 'petugas_piket' && !auth()->user()->hasAnyRole(['waka_kurikulum', 'guru_mapel', 'kepala_sekolah', 'superadmin']))
                         @php
                             $todayPiketTeachers = \App\Models\DutySchedule::with('teacher')
                                 ->whereDate('tanggal', today())
