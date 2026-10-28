@@ -58,7 +58,14 @@ public static function canAccess(): bool
                     ->searchable()
                     ->columnSpanFull(),
                 Forms\Components\RichEditor::make('isi')->required()->columnSpanFull(),
-                Forms\Components\FileUpload::make('file')->label('Lampiran File'),
+                Forms\Components\TextInput::make('file')
+                    ->label('Link Google Drive Lampiran File')
+                    ->placeholder('https://drive.google.com/file/d/.../view?usp=sharing')
+                    ->url()
+                    ->prefixIcon('heroicon-o-link')
+                    ->helperText('Tautkan link Google Drive dokumen notula / lampiran rapat untuk menghemat ruang penyimpanan hosting.')
+                    ->maxLength(2048)
+                    ->columnSpanFull(),
             ]);
     }
 
@@ -84,6 +91,13 @@ public static function canAccess(): bool
                         'ditolak' => 'danger',
                         default => 'gray',
                     }),
+                Tables\Columns\TextColumn::make('file')
+                    ->label('Lampiran')
+                    ->icon(fn ($state) => filled($state) ? 'heroicon-m-arrow-top-right-on-square' : null)
+                    ->color(fn ($state) => filled($state) ? 'primary' : 'gray')
+                    ->badge(fn ($state) => filled($state))
+                    ->formatStateUsing(fn ($state) => filled($state) ? 'Buka Link' : '-')
+                    ->url(fn ($state) => filled($state) ? (str_starts_with($state, 'http') ? $state : asset('storage/' . $state)) : null, shouldOpenInNewTab: true),
             ])
             ->actions([
                 Tables\Actions\ViewAction::make(),

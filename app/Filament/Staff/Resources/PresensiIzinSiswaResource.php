@@ -169,10 +169,13 @@ class PresensiIzinSiswaResource extends Resource
                     ->required(fn (Forms\Get $get) => in_array($get('status'), ['sakit', 'izin']))
                     ->columnSpanFull(),
 
-                Forms\Components\FileUpload::make('bukti_izin')
-                    ->label('Foto / Bukti Surat Izin / Surat Dokter')
-                    ->directory('attendance/surat_izin')
-                    ->image()
+                Forms\Components\TextInput::make('bukti_izin')
+                    ->label('Link Google Drive Bukti Surat Izin / Sakit / Foto')
+                    ->placeholder('https://drive.google.com/file/d/.../view?usp=sharing')
+                    ->url()
+                    ->prefixIcon('heroicon-o-link')
+                    ->helperText('Tautkan link Google Drive bukti surat izin/sakit siswa untuk menghemat ruang penyimpanan hosting.')
+                    ->maxLength(2048)
                     ->columnSpanFull(),
             ]);
     }
@@ -241,9 +244,13 @@ class PresensiIzinSiswaResource extends Resource
                     ->wrap()
                     ->placeholder('-'),
 
-                Tables\Columns\ImageColumn::make('bukti_izin')
-                    ->label('Surat/Bukti')
-                    ->circular()
+                Tables\Columns\TextColumn::make('bukti_izin')
+                    ->label('Bukti Izin')
+                    ->formatStateUsing(fn ($state) => filled($state) ? 'Lihat Bukti' : '-')
+                    ->url(fn ($state) => filled($state) ? (str_starts_with($state, 'http') ? $state : asset('storage/' . $state)) : null, shouldOpenInNewTab: true)
+                    ->icon(fn ($state) => filled($state) ? 'heroicon-m-arrow-top-right-on-square' : null)
+                    ->color(fn ($state) => filled($state) ? 'primary' : 'gray')
+                    ->badge(fn ($state) => filled($state))
                     ->placeholder('-'),
 
                 Tables\Columns\TextColumn::make('teacher.name')

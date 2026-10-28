@@ -118,12 +118,20 @@ class WorkProgramResource extends Resource
                             ])
                             ->default('mendatang')
                             ->required(),
-                        Forms\Components\FileUpload::make('file_proposal')
-                            ->label('File Proposal')
-                            ->directory('work_programs/proposal'),
-                        Forms\Components\FileUpload::make('file_lpj')
-                            ->label('File LPJ (Jika Selesai)')
-                            ->directory('work_programs/lpj'),
+                        Forms\Components\TextInput::make('file_proposal')
+                            ->label('Proposal (Link Google Drive)')
+                            ->placeholder('https://drive.google.com/file/d/.../view?usp=sharing')
+                            ->url()
+                            ->prefixIcon('heroicon-o-link')
+                            ->helperText('Tautkan link Google Drive dokumen proposal kegiatan untuk menghemat kapasitas hosting.')
+                            ->maxLength(2048),
+                        Forms\Components\TextInput::make('file_lpj')
+                            ->label('LPJ (Link Google Drive - Jika Selesai)')
+                            ->placeholder('https://drive.google.com/file/d/.../view?usp=sharing')
+                            ->url()
+                            ->prefixIcon('heroicon-o-link')
+                            ->helperText('Tautkan link Google Drive dokumen LPJ kegiatan untuk menghemat kapasitas hosting.')
+                            ->maxLength(2048),
                     ])->columns(2),
 
                 Forms\Components\Section::make('Penilaian Kepala Sekolah')
@@ -197,6 +205,22 @@ class WorkProgramResource extends Resource
                         'bulanan' => 'warning',
                         'tahunan' => 'success',
                     }),
+                Tables\Columns\TextColumn::make('file_proposal')
+                    ->label('Proposal')
+                    ->formatStateUsing(fn ($state) => filled($state) ? 'Proposal' : '-')
+                    ->url(fn ($state) => filled($state) ? (str_starts_with($state, 'http') ? $state : asset('storage/' . $state)) : null, shouldOpenInNewTab: true)
+                    ->icon(fn ($state) => filled($state) ? 'heroicon-m-arrow-top-right-on-square' : null)
+                    ->color(fn ($state) => filled($state) ? 'primary' : 'gray')
+                    ->badge(fn ($state) => filled($state))
+                    ->toggleable(isToggledHiddenByDefault: true),
+                Tables\Columns\TextColumn::make('file_lpj')
+                    ->label('LPJ')
+                    ->formatStateUsing(fn ($state) => filled($state) ? 'LPJ' : '-')
+                    ->url(fn ($state) => filled($state) ? (str_starts_with($state, 'http') ? $state : asset('storage/' . $state)) : null, shouldOpenInNewTab: true)
+                    ->icon(fn ($state) => filled($state) ? 'heroicon-m-arrow-top-right-on-square' : null)
+                    ->color(fn ($state) => filled($state) ? 'primary' : 'gray')
+                    ->badge(fn ($state) => filled($state))
+                    ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
                 Tables\Filters\SelectFilter::make('divisi')

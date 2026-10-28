@@ -150,10 +150,13 @@ class ProgramEvaluationResource extends Resource
                             ->rows(2)
                             ->columnSpanFull(),
 
-                        Forms\Components\FileUpload::make('file_evaluasi')
-                            ->label('Lampiran Dokumen LPJ / Laporan Evaluasi (Opsional)')
-                            ->directory('evaluasi_program')
-                            ->acceptedFileTypes(['application/pdf', 'image/*'])
+                        Forms\Components\TextInput::make('file_evaluasi')
+                            ->label('Link Google Drive LPJ / Laporan Evaluasi (Opsional)')
+                            ->placeholder('https://drive.google.com/file/d/.../view?usp=sharing')
+                            ->url()
+                            ->prefixIcon('heroicon-o-link')
+                            ->helperText('Tautkan link Google Drive dokumen LPJ / laporan evaluasi untuk menghemat kapasitas hosting.')
+                            ->maxLength(2048)
                             ->columnSpanFull(),
                     ])->columns(2),
             ]);
@@ -220,6 +223,15 @@ class ProgramEvaluationResource extends Resource
                         'Disetujui Yayasan' => 'primary',
                         default => 'gray',
                     }),
+
+                Tables\Columns\TextColumn::make('file_evaluasi')
+                    ->label('Dokumen LPJ')
+                    ->formatStateUsing(fn ($state) => filled($state) ? 'Buka LPJ' : '-')
+                    ->url(fn ($state) => filled($state) ? (str_starts_with($state, 'http') ? $state : asset('storage/' . $state)) : null, shouldOpenInNewTab: true)
+                    ->icon(fn ($state) => filled($state) ? 'heroicon-m-arrow-top-right-on-square' : null)
+                    ->color(fn ($state) => filled($state) ? 'primary' : 'gray')
+                    ->badge(fn ($state) => filled($state))
+                    ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
                 Tables\Filters\SelectFilter::make('divisi')

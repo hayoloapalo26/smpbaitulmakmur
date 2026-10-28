@@ -218,11 +218,13 @@ class TeacherLeaveRequestResource extends Resource
                             ->required()
                             ->columnSpanFull(),
 
-                        Forms\Components\FileUpload::make('supporting_letter')
-                            ->label('Surat Pendukung / Bukti Izin (Foto/Dokumen)')
-                            ->directory('teacher-leave-letters')
-                            ->image()
-                            ->maxSize(5120)
+                        Forms\Components\TextInput::make('supporting_letter')
+                            ->label('Link Google Drive Surat Pendukung / Bukti Izin (Foto/Dokumen)')
+                            ->placeholder('https://drive.google.com/file/d/.../view?usp=sharing')
+                            ->url()
+                            ->prefixIcon('heroicon-o-link')
+                            ->helperText('Tautkan link Google Drive bukti foto atau dokumen surat izin untuk menghemat kapasitas hosting.')
+                            ->maxLength(2048)
                             ->columnSpanFull(),
 
                         Forms\Components\Select::make('status')
@@ -326,11 +328,14 @@ class TeacherLeaveRequestResource extends Resource
                             ->size(Infolists\Components\TextEntry\TextEntrySize::Large)
                             ->color('gray')
                             ->weight('medium'),
-                        Infolists\Components\ImageEntry::make('supporting_letter')
-                            ->label('Surat Keterangan / Foto Bukti Lampiran')
-                            ->columnSpanFull()
-                            ->placeholder('Tidak ada lampiran surat/foto.')
-                            ->disk('public'),
+                        Infolists\Components\TextEntry::make('supporting_letter')
+                            ->label('Link Google Drive Surat / Bukti Lampiran')
+                            ->icon(fn ($state) => filled($state) ? 'heroicon-m-arrow-top-right-on-square' : null)
+                            ->color(fn ($state) => filled($state) ? 'primary' : 'gray')
+                            ->badge(fn ($state) => filled($state))
+                            ->formatStateUsing(fn ($state) => filled($state) ? 'Buka Bukti di Google Drive ↗' : 'Tidak ada lampiran surat/foto.')
+                            ->url(fn ($state) => filled($state) ? (str_starts_with($state, 'http') ? $state : asset('storage/' . $state)) : null, true)
+                            ->columnSpanFull(),
                     ]),
             ]);
     }
@@ -374,6 +379,14 @@ class TeacherLeaveRequestResource extends Resource
                     ->label('Alasan')
                     ->limit(35)
                     ->tooltip(fn ($record) => $record->alasan),
+                Tables\Columns\TextColumn::make('supporting_letter')
+                    ->label('Bukti')
+                    ->formatStateUsing(fn ($state) => filled($state) ? 'Buka Bukti' : '-')
+                    ->url(fn ($state) => filled($state) ? (str_starts_with($state, 'http') ? $state : asset('storage/' . $state)) : null, shouldOpenInNewTab: true)
+                    ->icon(fn ($state) => filled($state) ? 'heroicon-m-arrow-top-right-on-square' : null)
+                    ->color(fn ($state) => filled($state) ? 'primary' : 'gray')
+                    ->badge(fn ($state) => filled($state))
+                    ->toggleable(isToggledHiddenByDefault: true),
                 Tables\Columns\TextColumn::make('status')
                     ->label('Status ACC')
                     ->badge()

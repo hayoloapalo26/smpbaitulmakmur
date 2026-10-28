@@ -67,8 +67,18 @@
     $tujuan = $record->tujuan ?? $record->keterangan ?? '-';
     $teknis = $record->teknis_pelaksanaan ?? $record->uraian ?? '-';
 
-    // 10. Dokumen Terkait
-    $dokumenTerkait = $record->dokumen_terkait ?? null;
+    // 10. Dokumen Terkait & Google Drive
+    $docsList = [];
+    if (!empty($record->dokumen_terkait)) $docsList['Dokumen Pendukung'] = $record->dokumen_terkait;
+    if (!empty($record->dokumen_pendukung)) $docsList['Dokumen Kegiatan'] = $record->dokumen_pendukung;
+    if (!empty($record->link_drive)) $docsList['Google Drive'] = $record->link_drive;
+    if (!empty($record->link_drive_dokumen)) $docsList['Google Drive'] = $record->link_drive_dokumen;
+    if (!empty($record->proposal_file)) $docsList['Proposal'] = $record->proposal_file;
+    if (!empty($record->file_proposal)) $docsList['Proposal'] = $record->file_proposal;
+    if (!empty($record->lpj_file)) $docsList['LPJ'] = $record->lpj_file;
+    if (!empty($record->file_lpj)) $docsList['LPJ'] = $record->file_lpj;
+    if (!empty($record->file_evaluasi)) $docsList['Laporan Evaluasi / LPJ'] = $record->file_evaluasi;
+    if (!empty($record->file)) $docsList['Dokumen Lampiran'] = $record->file;
 
     // 11. Penanggung Jawab / Pembuat
     $pembuat = $record->user?->name ?? $record->waliKelas?->name ?? 'Staf Terkait';
@@ -278,19 +288,26 @@
                     </td>
                 </tr>
 
-                {{-- Row 15: Dokumen Terkait / Link --}}
-                @if(!empty($dokumenTerkait))
+                {{-- Row 15: Dokumen Terkait & Google Drive --}}
+                @if(!empty($docsList))
                 <tr class="hover:bg-gray-50/50 dark:hover:bg-gray-800/30 transition-colors">
-                    <td class="px-5 py-3.5 font-bold text-gray-500 dark:text-gray-400 bg-gray-50/50 dark:bg-gray-800/20 text-xs uppercase tracking-wider">
-                        Dokumen Pendukung
+                    <td class="px-5 py-3.5 font-bold text-gray-500 dark:text-gray-400 bg-gray-50/50 dark:bg-gray-800/20 text-xs uppercase tracking-wider align-top">
+                        Dokumen & Google Drive
                     </td>
                     <td class="px-5 py-3.5">
-                        <a href="{{ $dokumenTerkait }}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-primary-50 dark:bg-primary-950/50 text-primary-600 dark:text-primary-400 hover:text-primary-700 font-bold text-xs border border-primary-200 dark:border-primary-800 shadow-sm transition-all hover:shadow">
-                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                            </svg>
-                            <span>Buka Dokumen / Link Pendukung &rarr;</span>
-                        </a>
+                        <div class="flex items-center gap-2 flex-wrap">
+                            @foreach($docsList as $label => $url)
+                                @php
+                                    $targetUrl = str_starts_with($url, 'http') ? $url : asset('storage/' . $url);
+                                @endphp
+                                <a href="{{ $targetUrl }}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-primary-50 dark:bg-primary-950/50 text-primary-600 dark:text-primary-400 hover:text-primary-700 font-bold text-xs border border-primary-200 dark:border-primary-800 shadow-sm transition-all hover:shadow">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                                    </svg>
+                                    <span>Buka {{ $label }} &rarr;</span>
+                                </a>
+                            @endforeach
+                        </div>
                     </td>
                 </tr>
                 @endif

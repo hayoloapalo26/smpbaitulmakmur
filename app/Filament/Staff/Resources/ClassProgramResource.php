@@ -184,9 +184,13 @@ class ClassProgramResource extends Resource
                             ->default('rencana')
                             ->required(),
 
-                        Forms\Components\FileUpload::make('dokumen_pendukung')
-                            ->label('Dokumen / Foto Kegiatan (Opsional)')
-                            ->directory('class_programs/docs'),
+                        Forms\Components\TextInput::make('dokumen_pendukung')
+                            ->label('Link Google Drive Dokumen / Foto Kegiatan (Opsional)')
+                            ->placeholder('https://drive.google.com/drive/folders/... atau https://docs.google.com/...')
+                            ->url()
+                            ->prefixIcon('heroicon-o-link')
+                            ->helperText('Tautkan link Google Drive dokumen atau foto kegiatan untuk menghemat penyimpanan hosting.')
+                            ->maxLength(2048),
 
                         Forms\Components\Textarea::make('evaluasi_catatan')
                             ->label('Catatan Ketercapaian / Evaluasi Hasil')
@@ -306,6 +310,15 @@ class ClassProgramResource extends Resource
                         default => 'gray',
                     })
                     ->default('Menunggu Persetujuan'),
+
+                Tables\Columns\TextColumn::make('dokumen_pendukung')
+                    ->label('Dokumen Drive')
+                    ->formatStateUsing(fn ($state) => filled($state) ? 'Buka Drive' : '-')
+                    ->url(fn ($state) => filled($state) ? (str_starts_with($state, 'http') ? $state : asset('storage/' . $state)) : null, shouldOpenInNewTab: true)
+                    ->icon(fn ($state) => filled($state) ? 'heroicon-m-arrow-top-right-on-square' : null)
+                    ->color(fn ($state) => filled($state) ? 'info' : 'gray')
+                    ->badge(fn ($state) => filled($state))
+                    ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->defaultSort('created_at', 'desc')
             ->filters([

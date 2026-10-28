@@ -66,7 +66,13 @@ class InstruksiYayasan extends Page
                         'text' => TextInput::make($fieldName)->label($fieldData['field_name']),
                         'textarea' => Textarea::make($fieldName)->label($fieldData['field_name']),
                         'checkbox' => Checkbox::make($fieldName)->label($fieldData['field_name']),
-                        'file_upload' => FileUpload::make($fieldName)->label($fieldData['field_name'])->disk('public')->directory('yayasan_submissions'),
+                        'file_upload' => TextInput::make($fieldName)
+                            ->label($fieldData['field_name'] . ' (Link Google Drive)')
+                            ->placeholder('https://drive.google.com/...')
+                            ->url()
+                            ->prefixIcon('heroicon-o-link')
+                            ->helperText('Tautkan link Google Drive dokumen tugas untuk menghemat kapasitas hosting.')
+                            ->maxLength(2048),
                         default => TextInput::make($fieldName)->label($fieldData['field_name'])
                     };
                     

@@ -36,7 +36,13 @@ public static function canAccess(): bool
                 Forms\Components\TextInput::make('nomor')->label('Nomor Surat')->required(),
                 Forms\Components\DatePicker::make('tanggal')->required(),
                 Forms\Components\TextInput::make('perihal')->required(),
-                Forms\Components\FileUpload::make('file')->label('File Surat'),
+                Forms\Components\TextInput::make('file')
+                    ->label('Link Google Drive Surat')
+                    ->placeholder('https://drive.google.com/file/d/.../view?usp=sharing')
+                    ->url()
+                    ->prefixIcon('heroicon-o-link')
+                    ->helperText('Tautkan link Google Drive dokumen surat untuk menghemat ruang penyimpanan hosting.')
+                    ->maxLength(2048),
             ]);
     }
 
@@ -54,6 +60,13 @@ public static function canAccess(): bool
                 Tables\Columns\TextColumn::make('nomor')->searchable(),
                 Tables\Columns\TextColumn::make('tanggal')->date(),
                 Tables\Columns\TextColumn::make('perihal')->searchable(),
+                Tables\Columns\TextColumn::make('file')
+                    ->label('Dokumen')
+                    ->icon(fn ($state) => filled($state) ? 'heroicon-m-arrow-top-right-on-square' : null)
+                    ->color(fn ($state) => filled($state) ? 'primary' : 'gray')
+                    ->badge(fn ($state) => filled($state))
+                    ->formatStateUsing(fn ($state) => filled($state) ? 'Buka Link' : '-')
+                    ->url(fn ($state) => filled($state) ? (str_starts_with($state, 'http') ? $state : asset('storage/' . $state)) : null, shouldOpenInNewTab: true),
             ])
             ->actions([Tables\Actions\EditAction::make(), Tables\Actions\DeleteAction::make()])
             ->bulkActions([

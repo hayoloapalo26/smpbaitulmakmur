@@ -723,11 +723,13 @@ class StudentResource extends Resource
                             ->default(now())
                             ->required(),
 
-                        Forms\Components\FileUpload::make('sertifikat')
-                            ->label('Unggah Sertifikat / Piagam / Bukti (Opsional)')
-                            ->directory('prestasi_sertifikat')
-                            ->acceptedFileTypes(['image/*', 'application/pdf'])
-                            ->maxSize(5120)
+                        Forms\Components\TextInput::make('sertifikat')
+                            ->label('Link Google Drive Sertifikat / Piagam / Bukti (Opsional)')
+                            ->placeholder('https://drive.google.com/file/d/.../view?usp=sharing')
+                            ->url()
+                            ->prefixIcon('heroicon-o-link')
+                            ->helperText('Tautkan link Google Drive sertifikat atau bukti foto prestasi untuk menghemat ruang penyimpanan hosting.')
+                            ->maxLength(2048)
                             ->nullable(),
 
                         Forms\Components\Textarea::make('keterangan')

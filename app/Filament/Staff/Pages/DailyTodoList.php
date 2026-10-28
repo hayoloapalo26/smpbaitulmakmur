@@ -81,12 +81,12 @@ class DailyTodoList extends Page implements HasForms, HasTable
     {
         $schema = [];
         foreach ($record->form_schema ?? [] as $field) {
-            $name = $field['field_name'] ?? null;
+            $name = $field['field_name'] ?? $field['name'] ?? null;
             if (!$name) {
                 continue;
             }
-            $type = $field['field_type'] ?? 'text';
-            $isRequired = $field['is_required'] ?? false;
+            $type = $field['field_type'] ?? $field['type'] ?? 'text';
+            $isRequired = $field['is_required'] ?? $field['required'] ?? false;
 
             if ($type === 'checkbox') {
                 $schema[] = \Filament\Forms\Components\Checkbox::make($name)
@@ -98,9 +98,13 @@ class DailyTodoList extends Page implements HasForms, HasTable
                     ->rows(3)
                     ->required($isRequired);
             } elseif (in_array($type, ['file', 'file_upload'])) {
-                $schema[] = \Filament\Forms\Components\FileUpload::make($name)
-                    ->label($name)
-                    ->directory('mandatory_task_files')
+                $schema[] = \Filament\Forms\Components\TextInput::make($name)
+                    ->label($name . ' (Link Google Drive)')
+                    ->placeholder('https://drive.google.com/...')
+                    ->url()
+                    ->prefixIcon('heroicon-o-link')
+                    ->helperText('Tautkan link Google Drive dokumen bukti tugas untuk menghemat kapasitas hosting.')
+                    ->maxLength(2048)
                     ->required($isRequired);
             } else {
                 $schema[] = \Filament\Forms\Components\TextInput::make($name)

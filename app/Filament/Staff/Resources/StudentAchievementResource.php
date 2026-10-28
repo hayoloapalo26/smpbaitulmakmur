@@ -199,11 +199,13 @@ class StudentAchievementResource extends Resource
                             ->default(now())
                             ->required(),
 
-                        Forms\Components\FileUpload::make('sertifikat')
-                            ->label('Unggah Sertifikat / Piagam / Bukti Foto (Opsional)')
-                            ->directory('prestasi_sertifikat')
-                            ->acceptedFileTypes(['image/*', 'application/pdf'])
-                            ->maxSize(5120)
+                        Forms\Components\TextInput::make('sertifikat')
+                            ->label('Link Google Drive Sertifikat / Piagam / Bukti Foto (Opsional)')
+                            ->placeholder('https://drive.google.com/file/d/.../view?usp=sharing')
+                            ->url()
+                            ->prefixIcon('heroicon-o-link')
+                            ->helperText('Tautkan link Google Drive sertifikat atau bukti foto prestasi untuk menghemat ruang penyimpanan hosting.')
+                            ->maxLength(2048)
                             ->nullable(),
 
                         Forms\Components\Textarea::make('keterangan')
@@ -337,6 +339,15 @@ class StudentAchievementResource extends Resource
 
                 Tables\Columns\TextColumn::make('inputBy.name')
                     ->label('Diinput Oleh')
+                    ->toggleable(isToggledHiddenByDefault: true),
+
+                Tables\Columns\TextColumn::make('sertifikat')
+                    ->label('Sertifikat')
+                    ->formatStateUsing(fn ($state) => filled($state) ? 'Lihat Bukti' : '-')
+                    ->url(fn ($state) => filled($state) ? (str_starts_with($state, 'http') ? $state : asset('storage/' . $state)) : null, shouldOpenInNewTab: true)
+                    ->icon(fn ($state) => filled($state) ? 'heroicon-m-arrow-top-right-on-square' : null)
+                    ->color(fn ($state) => filled($state) ? 'primary' : 'gray')
+                    ->badge(fn ($state) => filled($state))
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([

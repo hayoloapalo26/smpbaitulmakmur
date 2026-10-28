@@ -51,13 +51,25 @@ class OsisProgramResource extends Resource
             ->schema([
                 Forms\Components\Section::make('Informasi Program OSIS')
                     ->schema([
-                        Forms\Components\TextInput::make('nama_program')->searchable()->required(),
+                        Forms\Components\TextInput::make('nama_program')->required(),
                         Forms\Components\DatePicker::make('tanggal')->required(),
                         Forms\Components\Select::make('status')
                             ->options(['direncanakan'=>'Direncanakan','berjalan'=>'Berjalan','selesai'=>'Selesai','batal'=>'Batal'])
                             ->required(),
-                        Forms\Components\FileUpload::make('proposal_file')->label('Proposal'),
-                        Forms\Components\FileUpload::make('lpj_file')->label('LPJ'),
+                        Forms\Components\TextInput::make('proposal_file')
+                            ->label('Proposal (Link Google Drive)')
+                            ->placeholder('https://drive.google.com/file/d/.../view?usp=sharing')
+                            ->url()
+                            ->prefixIcon('heroicon-o-link')
+                            ->helperText('Tautkan link Google Drive dokumen proposal untuk menghemat penyimpanan hosting.')
+                            ->maxLength(2048),
+                        Forms\Components\TextInput::make('lpj_file')
+                            ->label('LPJ (Link Google Drive)')
+                            ->placeholder('https://drive.google.com/file/d/.../view?usp=sharing')
+                            ->url()
+                            ->prefixIcon('heroicon-o-link')
+                            ->helperText('Tautkan link Google Drive dokumen LPJ untuk menghemat penyimpanan hosting.')
+                            ->maxLength(2048),
                     ])->columns(2),
 
                 Forms\Components\Section::make('Verifikasi & Persetujuan Kepala Sekolah (Approval)')
@@ -112,6 +124,24 @@ class OsisProgramResource extends Resource
                         default => 'gray',
                     })
                     ->default('Menunggu Persetujuan'),
+
+                Tables\Columns\TextColumn::make('proposal_file')
+                    ->label('Proposal')
+                    ->formatStateUsing(fn ($state) => filled($state) ? 'Buka Proposal' : '-')
+                    ->url(fn ($state) => filled($state) ? (str_starts_with($state, 'http') ? $state : asset('storage/' . $state)) : null, shouldOpenInNewTab: true)
+                    ->icon(fn ($state) => filled($state) ? 'heroicon-m-arrow-top-right-on-square' : null)
+                    ->color(fn ($state) => filled($state) ? 'primary' : 'gray')
+                    ->badge(fn ($state) => filled($state))
+                    ->toggleable(isToggledHiddenByDefault: true),
+
+                Tables\Columns\TextColumn::make('lpj_file')
+                    ->label('LPJ')
+                    ->formatStateUsing(fn ($state) => filled($state) ? 'Buka LPJ' : '-')
+                    ->url(fn ($state) => filled($state) ? (str_starts_with($state, 'http') ? $state : asset('storage/' . $state)) : null, shouldOpenInNewTab: true)
+                    ->icon(fn ($state) => filled($state) ? 'heroicon-m-arrow-top-right-on-square' : null)
+                    ->color(fn ($state) => filled($state) ? 'primary' : 'gray')
+                    ->badge(fn ($state) => filled($state))
+                    ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
                 Tables\Filters\SelectFilter::make('status')

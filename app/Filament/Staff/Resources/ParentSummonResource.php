@@ -145,9 +145,13 @@ class ParentSummonResource extends Resource
                             ->default('menunggu')
                             ->required(),
 
-                        Forms\Components\FileUpload::make('surat_file')
-                            ->label('Upload Berita Acara / Surat Bertandatangan (PDF/Foto)')
-                            ->directory('parent_summons/documents'),
+                        Forms\Components\TextInput::make('surat_file')
+                            ->label('Link Google Drive Berita Acara / Surat Bertandatangan')
+                            ->placeholder('https://drive.google.com/file/d/.../view?usp=sharing')
+                            ->url()
+                            ->prefixIcon('heroicon-o-link')
+                            ->helperText('Tautkan link Google Drive dokumen berita acara atau surat untuk menghemat ruang penyimpanan hosting.')
+                            ->maxLength(2048),
 
                         Forms\Components\Textarea::make('hasil_pertemuan')
                             ->label('Hasil Pertemuan / Notula Kesepakatan Bersama Orang Tua')
@@ -214,6 +218,15 @@ class ParentSummonResource extends Resource
 
                 Tables\Columns\TextColumn::make('teacher.name')
                     ->label('Pembuat Surat')
+                    ->toggleable(isToggledHiddenByDefault: true),
+
+                Tables\Columns\TextColumn::make('surat_file')
+                    ->label('Dokumen')
+                    ->formatStateUsing(fn ($state) => filled($state) ? 'Buka Link' : '-')
+                    ->url(fn ($state) => filled($state) ? (str_starts_with($state, 'http') ? $state : asset('storage/' . $state)) : null, shouldOpenInNewTab: true)
+                    ->icon(fn ($state) => filled($state) ? 'heroicon-m-arrow-top-right-on-square' : null)
+                    ->color(fn ($state) => filled($state) ? 'primary' : 'gray')
+                    ->badge(fn ($state) => filled($state))
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->defaultSort('tanggal_pemanggilan', 'desc')
