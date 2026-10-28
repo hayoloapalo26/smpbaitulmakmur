@@ -52,7 +52,7 @@ class BkReportResource extends Resource
     {
         return $form
             ->schema([
-                Forms\Components\TextInput::make('student.name')->searchable()->label('Siswa')->disabled(),
+                Forms\Components\TextInput::make('student.name')->label('Siswa')->disabled(),
                 Forms\Components\DatePicker::make('tanggal')->disabled(),
                 Forms\Components\Textarea::make('isi_laporan')
                     ->label('Isi Laporan BK')

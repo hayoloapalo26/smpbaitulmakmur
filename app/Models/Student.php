@@ -55,6 +55,16 @@ class Student extends Model
         return $this->hasMany(StudentCase::class);
     }
 
+    public function parentSummons()
+    {
+        return $this->hasMany(ParentSummon::class);
+    }
+
+    public function attributeViolations()
+    {
+        return $this->hasMany(AttributeViolation::class);
+    }
+
     public function subjectAttendances()
     {
         return $this->hasMany(SubjectAttendance::class);

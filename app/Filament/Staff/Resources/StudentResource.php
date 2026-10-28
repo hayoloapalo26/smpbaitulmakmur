@@ -776,7 +776,16 @@ class StudentResource extends Resource
                     ->modalSubmitAction(false)
                     ->modalCancelActionLabel('Tutup')
                     ->modalWidth('4xl')
-                    ->modalContent(fn (Student $record) => view('filament.staff.modals.student-monitoring-modal', ['record' => $record])),
+                    ->modalContent(fn (Student $record) => view('filament.staff.modals.student-monitoring-modal', [
+                        'record' => $record->loadMissing([
+                            'studentAchievements.inputBy',
+                            'dailyAttendances',
+                            'studentCases.parentSummons',
+                            'parentSummons',
+                            'attributeViolations.teacher',
+                            'characterScoreLogs',
+                        ]),
+                    ])),
                 Tables\Actions\ViewAction::make(),
                 Tables\Actions\EditAction::make(),
                 Tables\Actions\Action::make('download_pdf')

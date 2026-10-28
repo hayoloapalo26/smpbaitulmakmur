@@ -8,6 +8,8 @@ use App\Models\Student;
 use App\Models\Classroom;
 use Filament\Forms;
 use Filament\Forms\Form;
+use Filament\Infolists;
+use Filament\Infolists\Infolist;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
@@ -125,7 +127,57 @@ class StudentCaseResource extends Resource
                         )
                         ->searchable()
                         ->required()
+                        ->live()
                         ->disabled(fn ($record) => $record !== null && !$isWaliKelas),
+
+                    Forms\Components\Placeholder::make('student_profile_preview')
+                        ->label('Profil Siswa & Rekam Jejak Terkait')
+                        ->visible(fn (Forms\Get $get) => filled($get('student_id')))
+                        ->content(function (Forms\Get $get, $record) {
+                            $student = Student::with(['classroom', 'studentCases', 'attributeViolations'])->find($get('student_id'));
+                            if (!$student) return '-';
+
+                            $kelas = $student->classroom->name ?? '-';
+                            $ortu = $student->nama_ayah ?: ($student->nama_ibu ?: 'Orang Tua / Wali');
+                            $hp = $student->no_telepon_orang_tua ?: 'Belum terdata';
+                            $skor = $student->character_score ?? 100;
+                            $otherCases = $student->studentCases->where('id', '!=', $record?->id);
+                            $otherCasesCount = $otherCases->count();
+                            $activeCasesCount = $otherCases->where('status', 'proses')->count();
+                            $attrCount = $student->attributeViolations->count();
+
+                            $recentAttrs = $student->attributeViolations()->latest('tanggal')->take(3)->get()
+                                ->map(fn ($av) => (is_array($av->attribute_type) ? implode(', ', $av->attribute_type) : $av->attribute_type) . ' (' . \Carbon\Carbon::parse($av->tanggal)->format('d/m') . ')')
+                                ->implode('; ');
+
+                            return new \Illuminate\Support\HtmlString("
+                                <div class='p-3.5 bg-gradient-to-r from-red-50/60 to-amber-50/60 dark:from-gray-800 dark:to-gray-800/80 border border-red-200 dark:border-red-900/40 rounded-xl space-y-2.5 text-xs shadow-sm'>
+                                    <div class='flex flex-wrap items-center justify-between gap-2 border-b border-red-200/60 dark:border-gray-700 pb-2'>
+                                        <div>
+                                            <span class='font-black text-gray-900 dark:text-white text-sm'>{$student->name}</span>
+                                            <span class='ml-2 px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-300 font-bold'>Kelas: {$kelas}</span>
+                                            <span class='ml-1 text-gray-500 font-mono'>NIS: {$student->nis}</span>
+                                        </div>
+                                        <div class='flex items-center gap-2'>
+                                            <span class='px-2 py-0.5 rounded-md bg-amber-100 dark:bg-amber-900/50 text-amber-900 dark:text-amber-200 font-bold'>
+                                                Skor Karakter: {$skor}
+                                            </span>
+                                            <span class='px-2 py-0.5 rounded-md bg-rose-100 dark:bg-rose-900/50 text-rose-900 dark:text-rose-200 font-bold'>
+                                                Kasus Lain: {$otherCasesCount} (Aktif: {$activeCasesCount})
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <div class='grid grid-cols-1 sm:grid-cols-2 gap-2 text-gray-700 dark:text-gray-300'>
+                                        <div><strong>Wali Murid:</strong> {$ortu} &bull; <span class='font-mono text-emerald-600 dark:text-emerald-400 font-bold'>WA: {$hp}</span></div>
+                                        <div>
+                                            <strong>Pelanggaran Atribut (Piket):</strong> 
+                                            " . ($attrCount > 0 ? "<span class='text-purple-700 dark:text-purple-400 font-semibold'>{$attrCount}x ({$recentAttrs})</span>" : "<span class='text-emerald-600'>Nihil / Tertib</span>") . "
+                                        </div>
+                                    </div>
+                                </div>
+                            ");
+                        })
+                        ->columnSpanFull(),
 
                     Forms\Components\DatePicker::make('tanggal_kejadian')
                         ->label('Tanggal Kejadian')
@@ -213,7 +265,146 @@ class StudentCaseResource extends Resource
                 ])
                 ->visible(fn ($record) => $record?->recommended_to_kepsek),
 
+            // ── Riwayat Pemanggilan Orang Tua Terkait Kasus Ini ────────
+            Forms\Components\Section::make('📨 Riwayat Pemanggilan Orang Tua Terkait Kasus Ini')
+                ->icon('heroicon-o-envelope-open')
+                ->schema([
+                    Forms\Components\ViewField::make('parent_summons_form_view')
+                        ->view('filament.staff.components.case-parent-summons-view')
+                        ->columnSpanFull(),
+                ])
+                ->visible(fn ($record) => $record?->parentSummons()->exists()),
+
         ]);
+    }
+
+    public static function infolist(Infolist $infolist): Infolist
+    {
+        return $infolist
+            ->schema([
+                Infolists\Components\Section::make('📋 Status & Nomor Kasus')
+                    ->icon('heroicon-o-shield-exclamation')
+                    ->schema([
+                        Infolists\Components\TextEntry::make('nomor_kasus')
+                            ->label('Nomor Kasus')
+                            ->badge()
+                            ->color('primary')
+                            ->copyable(),
+                        Infolists\Components\TextEntry::make('status')
+                            ->label('Status Kasus')
+                            ->badge()
+                            ->color(fn (string $state): string => match ($state) {
+                                'selesai' => 'success',
+                                'proses'  => 'warning',
+                                default   => 'gray',
+                            })
+                            ->formatStateUsing(fn (string $state): string => match ($state) {
+                                'selesai' => '✅ Selesai / Tuntas',
+                                'proses'  => '🔄 Sedang Dalam Penanganan',
+                                default   => ucfirst($state),
+                            }),
+                        Infolists\Components\TextEntry::make('ditangani_oleh')
+                            ->label('Tingkat Penanganan Saat Ini')
+                            ->badge()
+                            ->color(fn ($state) => match($state) {
+                                'kepala_sekolah' => 'danger',
+                                'kesiswaan'      => 'warning',
+                                'bk'             => 'info',
+                                default          => 'gray',
+                            })
+                            ->formatStateUsing(fn ($state) => match($state) {
+                                'bk'             => '🧑‍⚕️ Guru BK',
+                                'kesiswaan'      => '🏫 Waka Kesiswaan',
+                                'kepala_sekolah' => '👨‍💼 Kepala Sekolah',
+                                default          => '👩‍🏫 Wali Kelas',
+                            }),
+                        Infolists\Components\TextEntry::make('tanggal_kejadian')
+                            ->label('Tanggal Kejadian')
+                            ->date('d F Y'),
+                        Infolists\Components\TextEntry::make('waliKelas.name')
+                            ->label('Wali Kelas Pelapor')
+                            ->placeholder('Wali Kelas'),
+                        Infolists\Components\TextEntry::make('diselesaikanOleh.name')
+                            ->label('Diselesaikan Oleh')
+                            ->placeholder('Masih dalam proses')
+                            ->visible(fn ($record) => $record->status === 'selesai'),
+                    ])->columns(3),
+
+                Infolists\Components\Section::make('👤 Data Siswa & Wali Murid Terkait')
+                    ->icon('heroicon-o-user')
+                    ->schema([
+                        Infolists\Components\TextEntry::make('student.name')
+                            ->label('Nama Lengkap Siswa')
+                            ->weight('bold'),
+                        Infolists\Components\TextEntry::make('student.classroom.name')
+                            ->label('Kelas')
+                            ->badge()
+                            ->color('info'),
+                        Infolists\Components\TextEntry::make('student.nis')
+                            ->label('NIS Siswa'),
+                        Infolists\Components\TextEntry::make('student.character_score')
+                            ->label('Skor Karakter Saat Ini')
+                            ->badge()
+                            ->color('warning')
+                            ->state(fn ($record) => $record->student?->character_score ?? 100),
+                        Infolists\Components\TextEntry::make('student.wali')
+                            ->label('Wali Murid (Ayah / Ibu)')
+                            ->state(fn ($record) => $record->student?->nama_ayah ?: ($record->student?->nama_ibu ?: '-')),
+                        Infolists\Components\TextEntry::make('student.no_telepon_orang_tua')
+                            ->label('Kontak WhatsApp Orang Tua')
+                            ->icon('heroicon-o-chat-bubble-left-ellipsis')
+                            ->color('success')
+                            ->placeholder('Belum terdata'),
+                    ])->columns(3),
+
+                Infolists\Components\Section::make('⚠️ Uraian & Kategori Pelanggaran')
+                    ->icon('heroicon-o-exclamation-triangle')
+                    ->schema([
+                        Infolists\Components\TextEntry::make('kategori_kasus')
+                            ->label('Kategori Pelanggaran')
+                            ->badge()
+                            ->color('danger')
+                            ->formatStateUsing(fn ($state) => is_array($state) ? implode(', ', $state) : $state)
+                            ->columnSpanFull(),
+                        Infolists\Components\TextEntry::make('deskripsi')
+                            ->label('Kronologi / Uraian Masalah Kasus')
+                            ->columnSpanFull(),
+                    ]),
+
+                Infolists\Components\Section::make('📨 Riwayat Pemanggilan Orang Tua Terkait Kasus Ini')
+                    ->icon('heroicon-o-envelope-open')
+                    ->schema([
+                        Infolists\Components\ViewEntry::make('parent_summons_list')
+                            ->label('')
+                            ->view('filament.staff.components.case-parent-summons-view')
+                            ->columnSpanFull(),
+                    ])
+                    ->visible(fn ($record) => $record->parentSummons()->exists()),
+
+                Infolists\Components\Section::make('📝 Alur Penanganan & Catatan Bertingkat')
+                    ->icon('heroicon-o-chat-bubble-bottom-center-text')
+                    ->schema([
+                        Infolists\Components\TextEntry::make('catatan_wali_kelas')
+                            ->label('1. Catatan & Tindakan Wali Kelas')
+                            ->placeholder('Belum ada catatan wali kelas.')
+                            ->columnSpanFull(),
+                        Infolists\Components\TextEntry::make('catatan_bk')
+                            ->label('2. Catatan Penanganan Guru BK')
+                            ->placeholder('Belum ditangani BK.')
+                            ->visible(fn ($record) => (bool)$record->recommended_to_bk)
+                            ->columnSpanFull(),
+                        Infolists\Components\TextEntry::make('catatan_kesiswaan')
+                            ->label('3. Catatan Penanganan Waka Kesiswaan')
+                            ->placeholder('Belum ditangani Kesiswaan.')
+                            ->visible(fn ($record) => (bool)$record->recommended_to_kesiswaan)
+                            ->columnSpanFull(),
+                        Infolists\Components\TextEntry::make('catatan_kepsek')
+                            ->label('4. Keputusan & Arahan Kepala Sekolah')
+                            ->placeholder('Belum dilaporkan ke Kepala Sekolah.')
+                            ->visible(fn ($record) => (bool)$record->recommended_to_kepsek)
+                            ->columnSpanFull(),
+                    ]),
+            ]);
     }
 
     // ─── Table ────────────────────────────────────────────────────
@@ -238,7 +429,18 @@ class StudentCaseResource extends Resource
                 Tables\Columns\TextColumn::make('student.name')
                     ->label('Siswa')
                     ->searchable()
-                    ->description(fn ($record) => $record->student->classroom->name ?? ''),
+                    ->weight('bold')
+                    ->description(function (StudentCase $record) {
+                        $parts = [];
+                        if ($record->student?->classroom?->name) {
+                            $parts[] = 'Kelas ' . $record->student->classroom->name;
+                        }
+                        $ortu = $record->student?->nama_ayah ?: ($record->student?->nama_ibu ?: null);
+                        if ($ortu) {
+                            $parts[] = 'Wali: ' . $ortu;
+                        }
+                        return implode(' • ', $parts);
+                    }),
 
                 Tables\Columns\TextColumn::make('kategori_kasus')
                     ->label('Kategori')
@@ -454,6 +656,13 @@ class StudentCaseResource extends Resource
                             ->default(fn ($record) => "Kasus {$record->nomor_kasus}: " . $record->deskripsi)
                             ->rows(3)
                             ->required(),
+                        Forms\Components\TextInput::make('surat_file')
+                            ->label('Link Google Drive Surat Bertandatangan (Opsional)')
+                            ->placeholder('https://drive.google.com/file/d/.../view?usp=sharing')
+                            ->url()
+                            ->prefixIcon('heroicon-o-link')
+                            ->helperText('Tautkan link Google Drive dokumen jika surat fisik sudah dicetak/ditandatangani.')
+                            ->maxLength(2048),
                     ])
                     ->action(function ($record, array $data) use ($user) {
                         \App\Models\ParentSummon::create([
@@ -466,6 +675,7 @@ class StudentCaseResource extends Resource
                             'tempat_pertemuan'    => $data['tempat_pertemuan'] ?? 'Ruang BK / Wali Kelas',
                             'kasus'               => $data['kasus'],
                             'status'              => 'menunggu',
+                            'surat_file'          => $data['surat_file'] ?? null,
                             'institution_id'      => $record->student->institution_id ?? $user->institution_id,
                         ]);
 

@@ -5,7 +5,7 @@
                 <span>🎓</span>
                 <span class="font-bold">Fitur Kepala Sekolah: Ketercapaian Profil Lulusan Siswa Ini</span>
             </div>
-            <a href="{{ \App\Filament\Staff\Pages\KetercapaianProfilLulusan::getUrl(['student_id' => $record->id, 'class_id' => $record->classroom_id]) }}" class="px-3 py-1 bg-white text-amber-700 font-bold text-xs rounded-lg shadow-sm hover:bg-amber-50 transition-all">
+            <a href="{{ rescue(fn () => \App\Filament\Staff\Pages\KetercapaianProfilLulusan::getUrl(['student_id' => $record->id, 'class_id' => $record->classroom_id]), '#') }}" class="px-3 py-1 bg-white text-amber-700 font-bold text-xs rounded-lg shadow-sm hover:bg-amber-50 transition-all">
                 Buka Analisis 3 Aspek →
             </a>
         </div>
@@ -99,9 +99,14 @@
                                     <td class="px-3 py-2 text-center text-gray-500 font-mono">{{ \Carbon\Carbon::parse($ach->tanggal)->format('d M Y') }}</td>
                                     <td class="px-3 py-2 text-center">
                                         @if($ach->sertifikat)
-                                            <a href="{{ \Illuminate\Support\Facades\Storage::url($ach->sertifikat) }}" target="_blank" class="inline-flex items-center space-x-1 px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-100 text-emerald-800 hover:bg-emerald-200">
-                                                <span>📄</span>
-                                                <span>Lihat</span>
+                                            @php
+                                                $certUrl = str_starts_with($ach->sertifikat, 'http')
+                                                    ? $ach->sertifikat
+                                                    : \Illuminate\Support\Facades\Storage::url($ach->sertifikat);
+                                            @endphp
+                                            <a href="{{ $certUrl }}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center space-x-1 px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-100 text-emerald-800 hover:bg-emerald-200">
+                                                <span>🔗</span>
+                                                <span>{{ str_starts_with($ach->sertifikat, 'http') ? 'Buka Link Drive' : 'Lihat' }}</span>
                                             </a>
                                         @else
                                             <span class="text-gray-400 text-[10px]">-</span>
@@ -163,56 +168,203 @@
         </div>
     </div>
 
-    <!-- SEKSI 3: RIWAYAT KASUS & REKAP KEHADIRAN (DUA KOLOM) -->
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <!-- Rekap Kehadiran -->
-        <div class="border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden p-3 bg-white dark:bg-gray-800">
-            <h5 class="font-bold text-xs text-gray-700 dark:text-gray-300 mb-2 flex items-center space-x-1">
-                <span>📅</span>
-                <span>Ringkasan Kehadiran</span>
-            </h5>
-            <div class="grid grid-cols-4 gap-2 text-center text-xs">
-                <div class="p-2 bg-emerald-50 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 rounded-lg">
-                    <div class="font-black text-base">{{ $record->dailyAttendances->where('status', 'hadir')->count() }}</div>
-                    <div class="text-[10px]">Hadir</div>
+    <!-- SEKSI 3: REKAP KEHADIRAN & STATUS DISIPLIN -->
+    <div class="border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden p-3 bg-white dark:bg-gray-800">
+        <h5 class="font-bold text-xs text-gray-700 dark:text-gray-300 mb-2 flex items-center space-x-1">
+            <span>📅</span>
+            <span>Ringkasan Kehadiran Harian</span>
+        </h5>
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center text-xs">
+            <div class="p-2.5 bg-emerald-50 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 rounded-lg border border-emerald-100 dark:border-emerald-900/40">
+                <div class="font-black text-lg">{{ $record->dailyAttendances->where('status', 'hadir')->count() }}</div>
+                <div class="text-[10px] font-semibold">Hadir</div>
+            </div>
+            <div class="p-2.5 bg-amber-50 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300 rounded-lg border border-amber-100 dark:border-amber-900/40">
+                <div class="font-black text-lg">{{ $record->dailyAttendances->where('status', 'sakit')->count() }}</div>
+                <div class="text-[10px] font-semibold">Sakit</div>
+            </div>
+            <div class="p-2.5 bg-blue-50 text-blue-800 dark:bg-blue-950/40 dark:text-blue-300 rounded-lg border border-blue-100 dark:border-blue-900/40">
+                <div class="font-black text-lg">{{ $record->dailyAttendances->where('status', 'izin')->count() }}</div>
+                <div class="text-[10px] font-semibold">Izin</div>
+            </div>
+            <div class="p-2.5 bg-rose-50 text-rose-800 dark:bg-rose-950/40 dark:text-rose-300 rounded-lg border border-rose-100 dark:border-rose-900/40">
+                <div class="font-black text-lg">{{ $record->dailyAttendances->where('status', 'alpa')->count() }}</div>
+                <div class="text-[10px] font-semibold">Alpha</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- SEKSI 4: KASUS PELANGGARAN SISWA & RIWAYAT PEMANGGILAN ORANG TUA (2 KOLOM) -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <!-- Kasus Pelanggaran Siswa -->
+        <div class="border border-rose-200 dark:border-rose-900/50 rounded-xl overflow-hidden shadow-sm bg-white dark:bg-gray-800 flex flex-col">
+            <div class="p-3 bg-rose-50/80 dark:bg-rose-950/30 border-b border-rose-200 dark:border-rose-900/50 flex justify-between items-center">
+                <div class="flex items-center space-x-1.5 font-bold text-xs text-rose-900 dark:text-rose-300">
+                    <span>⚠️</span>
+                    <span>Kasus Disiplin & Pelanggaran ({{ $record->studentCases->count() }})</span>
                 </div>
-                <div class="p-2 bg-amber-50 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300 rounded-lg">
-                    <div class="font-black text-base">{{ $record->dailyAttendances->where('status', 'sakit')->count() }}</div>
-                    <div class="text-[10px]">Sakit</div>
-                </div>
-                <div class="p-2 bg-blue-50 text-blue-800 dark:bg-blue-950/40 dark:text-blue-300 rounded-lg">
-                    <div class="font-black text-base">{{ $record->dailyAttendances->where('status', 'izin')->count() }}</div>
-                    <div class="text-[10px]">Izin</div>
-                </div>
-                <div class="p-2 bg-rose-50 text-rose-800 dark:bg-rose-950/40 dark:text-rose-300 rounded-lg">
-                    <div class="font-black text-base">{{ $record->dailyAttendances->where('status', 'alpa')->count() }}</div>
-                    <div class="text-[10px]">Alpha</div>
-                </div>
+                <span class="text-[10px] px-2 py-0.5 rounded-full font-bold {{ $record->studentCases->where('status', '!=', 'selesai')->count() > 0 ? 'bg-rose-200 text-rose-900' : 'bg-gray-100 text-gray-700' }}">
+                    {{ $record->studentCases->where('status', '!=', 'selesai')->count() }} Aktif
+                </span>
+            </div>
+            <div class="p-3 divide-y divide-gray-100 dark:divide-gray-700 flex-1 overflow-y-auto max-h-56">
+                @forelse($record->studentCases as $sc)
+                    <div class="py-2 first:pt-0 last:pb-0 space-y-1">
+                        <div class="flex items-center justify-between text-xs">
+                            <span class="font-mono font-bold text-rose-700 dark:text-rose-400">{{ $sc->nomor_kasus }}</span>
+                            <span class="px-2 py-0.5 rounded text-[10px] font-bold {{ $sc->status === 'selesai' ? 'bg-emerald-100 text-emerald-800' : ($sc->status === 'eskalasi_bk' ? 'bg-purple-100 text-purple-800' : 'bg-amber-100 text-amber-800') }}">
+                                {{ ucfirst(str_replace('_', ' ', $sc->status)) }}
+                            </span>
+                        </div>
+                        <p class="text-xs text-gray-800 dark:text-gray-200 font-medium">{{ $sc->deskripsi }}</p>
+                        <div class="flex flex-wrap items-center justify-between gap-1 text-[10px] text-gray-500 pt-0.5">
+                            <span>Tgl: {{ \Carbon\Carbon::parse($sc->tanggal)->format('d M Y') }} • Kat: {{ ucfirst($sc->kategori) }}</span>
+                            @if($sc->parentSummons->isNotEmpty())
+                                <span class="text-blue-600 font-semibold">📞 {{ $sc->parentSummons->count() }} Panggilan Ortu</span>
+                            @endif
+                        </div>
+                    </div>
+                @empty
+                    <div class="py-6 text-center text-xs text-gray-400">
+                        ✅ Tidak ada catatan kasus pelanggaran.
+                    </div>
+                @endforelse
             </div>
         </div>
 
-        <!-- Riwayat Kasus Siswa -->
-        <div class="border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden p-3 bg-white dark:bg-gray-800">
-            <h5 class="font-bold text-xs text-gray-700 dark:text-gray-300 mb-2 flex items-center space-x-1">
-                <span>⚠️</span>
-                <span>Catatan Pelanggaran & Kasus ({{ $record->studentCases->count() }})</span>
-            </h5>
-            @if($record->studentCases->isNotEmpty())
-                <div class="space-y-1.5 max-h-28 overflow-y-auto pr-1 text-xs">
-                    @foreach($record->studentCases as $sc)
-                        <div class="p-1.5 bg-gray-50 dark:bg-gray-700/50 rounded flex justify-between items-center text-[11px]">
-                            <span class="font-medium text-gray-800 dark:text-gray-200 truncate max-w-[140px]">{{ $sc->nomor_kasus }}: {{ $sc->deskripsi }}</span>
-                            <span class="px-1.5 py-0.5 rounded text-[10px] font-bold {{ $sc->status === 'selesai' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800' }}">
-                                {{ ucfirst($sc->status) }}
+        <!-- Riwayat Pemanggilan Orang Tua -->
+        <div class="border border-blue-200 dark:border-blue-900/50 rounded-xl overflow-hidden shadow-sm bg-white dark:bg-gray-800 flex flex-col">
+            <div class="p-3 bg-blue-50/80 dark:bg-blue-950/30 border-b border-blue-200 dark:border-blue-900/50 flex justify-between items-center">
+                <div class="flex items-center space-x-1.5 font-bold text-xs text-blue-900 dark:text-blue-300">
+                    <span>📨</span>
+                    <span>Riwayat Pemanggilan Orang Tua ({{ $record->parentSummons->count() }})</span>
+                </div>
+                <span class="text-[10px] px-2 py-0.5 rounded-full font-bold bg-blue-100 text-blue-900">
+                    {{ $record->parentSummons->where('status', 'hadir')->count() }} Hadir
+                </span>
+            </div>
+            <div class="p-3 divide-y divide-gray-100 dark:divide-gray-700 flex-1 overflow-y-auto max-h-56">
+                @forelse($record->parentSummons as $ps)
+                    <div class="py-2 first:pt-0 last:pb-0 space-y-1">
+                        <div class="flex items-center justify-between text-xs">
+                            <span class="font-mono font-bold text-blue-700 dark:text-blue-400">{{ $ps->nomor_surat }}</span>
+                            @php
+                                $statusBadge = match($ps->status) {
+                                    'hadir' => 'bg-emerald-100 text-emerald-800',
+                                    'tidak_hadir' => 'bg-rose-100 text-rose-800',
+                                    'dibatalkan' => 'bg-gray-100 text-gray-700',
+                                    default => 'bg-amber-100 text-amber-800',
+                                };
+                            @endphp
+                            <span class="px-2 py-0.5 rounded text-[10px] font-bold {{ $statusBadge }}">
+                                {{ ucfirst(str_replace('_', ' ', $ps->status)) }}
                             </span>
                         </div>
-                    @endforeach
+                        <p class="text-xs text-gray-800 dark:text-gray-200"><span class="font-semibold">Keperluan:</span> {{ $ps->keperluan }}</p>
+                        @if($ps->hasil_pertemuan)
+                            <p class="text-[11px] text-emerald-700 dark:text-emerald-400 bg-emerald-50/60 dark:bg-emerald-950/20 p-1 rounded font-medium">
+                                🤝 Kesepakatan: {{ Str::limit($ps->hasil_pertemuan, 80) }}
+                            </p>
+                        @endif
+                        <div class="flex items-center justify-between text-[10px] text-gray-500 pt-0.5">
+                            <span>Jadwal: {{ \Carbon\Carbon::parse($ps->tanggal_hadir)->format('d M Y') }} ({{ $ps->jam_hadir ?? '-' }})</span>
+                            @if($ps->surat_file || $ps->notula_file)
+                                <div class="flex items-center space-x-1">
+                                    @if($ps->surat_file)
+                                        <a href="{{ str_starts_with($ps->surat_file, 'http') ? $ps->surat_file : \Illuminate\Support\Facades\Storage::url($ps->surat_file) }}" target="_blank" class="text-blue-600 hover:underline">Surat ↗</a>
+                                    @endif
+                                    @if($ps->notula_file)
+                                        <a href="{{ str_starts_with($ps->notula_file, 'http') ? $ps->notula_file : \Illuminate\Support\Facades\Storage::url($ps->notula_file) }}" target="_blank" class="text-emerald-600 hover:underline">Notula ↗</a>
+                                    @endif
+                                </div>
+                            @endif
+                        </div>
+                    </div>
+                @empty
+                    <div class="py-6 text-center text-xs text-gray-400">
+                        Tidak ada riwayat pemanggilan orang tua.
+                    </div>
+                @endforelse
+            </div>
+        </div>
+    </div>
+
+    <!-- SEKSI 5: PELANGGARAN ATRIBUT PIKET & MUTASI SKOR KARAKTER (2 KOLOM) -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <!-- Pelanggaran Atribut (Guru Piket) -->
+        <div class="border border-amber-200 dark:border-amber-900/50 rounded-xl overflow-hidden shadow-sm bg-white dark:bg-gray-800 flex flex-col">
+            <div class="p-3 bg-amber-50/80 dark:bg-amber-950/30 border-b border-amber-200 dark:border-amber-900/50 flex justify-between items-center">
+                <div class="flex items-center space-x-1.5 font-bold text-xs text-amber-900 dark:text-amber-300">
+                    <span>🥼</span>
+                    <span>Pelanggaran Atribut (Guru Piket) ({{ $record->attributeViolations->count() }})</span>
                 </div>
-            @else
-                <div class="py-4 text-center text-gray-400 text-xs">
-                    ✅ Tidak ada riwayat pelanggaran kasus.
+                <span class="text-[10px] px-2 py-0.5 rounded-full font-bold bg-amber-100 text-amber-900">
+                    {{ $record->attributeViolations->where('status', '!=', 'selesai')->count() }} Terbuka
+                </span>
+            </div>
+            <div class="p-3 divide-y divide-gray-100 dark:divide-gray-700 flex-1 overflow-y-auto max-h-56">
+                @forelse($record->attributeViolations as $av)
+                    @php
+                        $attrText = is_array($av->attribute_type)
+                            ? implode(', ', $av->attribute_type)
+                            : ($av->attribute_type ?? $av->kategori ?? 'Atribut');
+                    @endphp
+                    <div class="py-2 first:pt-0 last:pb-0 space-y-1">
+                        <div class="flex items-center justify-between text-xs">
+                            <span class="font-semibold text-gray-800 dark:text-gray-200 uppercase tracking-wide text-[11px]">{{ $attrText }}</span>
+                            <span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-100 text-rose-800 dark:bg-rose-950/40 dark:text-rose-300">
+                                Dicatat
+                            </span>
+                        </div>
+                        <p class="text-xs text-gray-600 dark:text-gray-300">{{ $av->jenis_pelanggaran ?? $av->keterangan }}</p>
+                        <div class="text-[10px] text-gray-400">
+                            {{ \Carbon\Carbon::parse($av->tanggal)->format('d M Y') }} • Petugas: {{ $av->teacher?->name ?? $av->inputBy?->name ?? 'Guru Piket' }}
+                        </div>
+                    </div>
+                @empty
+                    <div class="py-6 text-center text-xs text-gray-400">
+                        ✅ Tidak ada catatan pelanggaran atribut.
+                    </div>
+                @endforelse
+            </div>
+        </div>
+
+        <!-- Riwayat Poin Karakter -->
+        <div class="border border-purple-200 dark:border-purple-900/50 rounded-xl overflow-hidden shadow-sm bg-white dark:bg-gray-800 flex flex-col">
+            <div class="p-3 bg-purple-50/80 dark:bg-purple-950/30 border-b border-purple-200 dark:border-purple-900/50 flex justify-between items-center">
+                <div class="flex items-center space-x-1.5 font-bold text-xs text-purple-900 dark:text-purple-300">
+                    <span>📈</span>
+                    <span>Riwayat Poin Karakter (Skor Saat Ini: {{ $record->character_score ?? 100 }})</span>
                 </div>
-            @endif
+                <span class="text-[10px] px-2 py-0.5 rounded-full font-bold bg-purple-100 text-purple-900">
+                    Log Terbaru
+                </span>
+            </div>
+            <div class="p-3 divide-y divide-gray-100 dark:divide-gray-700 flex-1 overflow-y-auto max-h-56">
+                @php
+                    $scoreLogs = $record->characterScoreLogs()->latest('tanggal')->take(8)->get();
+                @endphp
+                @forelse($scoreLogs as $cLog)
+                    <div class="py-2 first:pt-0 last:pb-0 flex items-center justify-between text-xs">
+                        <div class="space-y-0.5">
+                            <div class="font-medium text-gray-800 dark:text-gray-200 text-[11px]">{{ $cLog->description }}</div>
+                            <div class="text-[10px] text-gray-400">
+                                {{ \Carbon\Carbon::parse($cLog->tanggal)->format('d M Y') }} • Kat: {{ ucfirst($cLog->category) }} ({{ ucfirst(str_replace('_', ' ', $cLog->source ?? 'guru')) }})
+                            </div>
+                        </div>
+                        <div class="text-right">
+                            <span class="font-bold text-xs {{ $cLog->point_change > 0 ? 'text-emerald-600' : 'text-rose-600' }}">
+                                {{ $cLog->point_change > 0 ? '+'.$cLog->point_change : $cLog->point_change }}
+                            </span>
+                            <div class="text-[10px] text-gray-400 font-mono">Poin</div>
+                        </div>
+                    </div>
+                @empty
+                    <div class="py-6 text-center text-xs text-gray-400">
+                        Belum ada mutasi log poin karakter.
+                    </div>
+                @endforelse
+            </div>
         </div>
     </div>
 </div>

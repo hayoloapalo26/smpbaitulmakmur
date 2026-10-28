@@ -16,6 +16,8 @@ use App\Models\MeetingMinute;
 use App\Observers\MeetingMinuteObserver;
 use App\Models\News;
 use App\Observers\NewsObserver;
+use App\Models\ParentSummon;
+use App\Observers\ParentSummonObserver;
 use Illuminate\Support\Facades\Gate;
 
 class AppServiceProvider extends ServiceProvider
@@ -39,6 +41,7 @@ class AppServiceProvider extends ServiceProvider
         PrayerAttendance::observe(PrayerAttendanceObserver::class);
         MeetingMinute::observe(MeetingMinuteObserver::class);
         News::observe(NewsObserver::class);
+        ParentSummon::observe(ParentSummonObserver::class);
 
         Gate::before(function ($user, $ability) {
             // 1. Hak Akses Mutlak (Superadmin)
