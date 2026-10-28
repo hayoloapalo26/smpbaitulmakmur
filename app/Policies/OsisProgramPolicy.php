@@ -8,30 +8,36 @@ use Illuminate\Auth\Access\Response;
 
 class OsisProgramPolicy
 {
+    public function before(User $user, string $ability): ?bool
+    {
+        if ($user->hasRole('superadmin')) {
+            return true;
+        }
+        return null;
+    }
+
     public function viewAny(User $user): bool
     {
-        if ($user->hasRole('kepala_sekolah')) return true;
-        return $user->hasRole(['waka_kesiswaan']);
+        return $user->hasAnyRole(['waka_kesiswaan', 'kepala_sekolah', 'superadmin']);
     }
 
     public function view(User $user, OsisProgram $model): bool
     {
-        if ($user->hasRole('kepala_sekolah')) return true;
-        return $user->hasRole(['waka_kesiswaan']);
+        return $user->hasAnyRole(['waka_kesiswaan', 'kepala_sekolah', 'superadmin']);
     }
 
     public function create(User $user): bool
     {
-        return $user->hasRole(['waka_kesiswaan']);
+        return $user->hasAnyRole(['waka_kesiswaan', 'superadmin']);
     }
 
     public function update(User $user, OsisProgram $model): bool
     {
-        return $user->hasRole(['waka_kesiswaan']);
+        return $user->hasAnyRole(['waka_kesiswaan', 'kepala_sekolah', 'superadmin']);
     }
 
     public function delete(User $user, OsisProgram $model): bool
     {
-        return $user->hasRole(['waka_kesiswaan']);
+        return $user->hasAnyRole(['waka_kesiswaan', 'superadmin']);
     }
 }

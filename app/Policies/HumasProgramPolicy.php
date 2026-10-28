@@ -8,13 +8,20 @@ use Illuminate\Auth\Access\Response;
 
 class HumasProgramPolicy
 {
+    public function before(User $user, string $ability): ?bool
+    {
+        if ($user->hasRole('superadmin')) {
+            return true;
+        }
+        return null;
+    }
+
     /**
      * Determine whether the user can view any models.
      */
     public function viewAny($user): bool
     {
-        if ($user->hasRole('kepala_sekolah')) return true;
-        return $user->hasRole(['kepala_sekolah', 'humas']);
+        return $user->hasAnyRole(['kepala_sekolah', 'humas', 'superadmin']);
     }
 
     /**
@@ -22,7 +29,7 @@ class HumasProgramPolicy
      */
     public function view($user, $model): bool
     {
-        return $user->hasRole(['kepala_sekolah', 'humas']);
+        return $user->hasAnyRole(['kepala_sekolah', 'humas', 'superadmin']);
     }
 
     /**
@@ -30,7 +37,7 @@ class HumasProgramPolicy
      */
     public function create($user): bool
     {
-        return $user->hasRole(['humas']);
+        return $user->hasAnyRole(['humas', 'superadmin']);
     }
 
     /**
@@ -38,7 +45,7 @@ class HumasProgramPolicy
      */
     public function update($user, $model): bool
     {
-        return $user->hasRole(['humas']);
+        return $user->hasAnyRole(['humas', 'kepala_sekolah', 'superadmin']);
     }
 
     /**
@@ -46,7 +53,7 @@ class HumasProgramPolicy
      */
     public function delete($user, $model): bool
     {
-        return $user->hasRole(['humas']);
+        return $user->hasAnyRole(['humas', 'superadmin']);
     }
 
     /**

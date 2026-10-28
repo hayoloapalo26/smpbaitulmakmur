@@ -16,12 +16,27 @@ class BkWorkProgramResource extends Resource
 {
     public static function shouldRegisterNavigation(): bool
     {
-        return auth()->user()?->hasAnyRole(['bk', 'superadmin']) ?? false;
+        return auth()->user()?->hasAnyRole(['bk', 'kepala_sekolah', 'superadmin']) ?? false;
     }
 
     public static function canAccess(): bool
     {
-        return auth()->user()->hasAnyRole(['bk', 'kepala_sekolah', 'superadmin']);
+        return auth()->user()?->hasAnyRole(['bk', 'kepala_sekolah', 'superadmin']) ?? false;
+    }
+
+    public static function getNavigationBadge(): ?string
+    {
+        if (auth()->user()?->hasRole('kepala_sekolah')) {
+            $count = static::getModel()::where('status_persetujuan', 'Menunggu Persetujuan')->count();
+            return $count > 0 ? (string) $count : null;
+        }
+
+        return null;
+    }
+
+    public static function getNavigationBadgeColor(): ?string
+    {
+        return 'warning';
     }
 
     protected static ?string $model = BkWorkProgram::class;
@@ -42,7 +57,7 @@ class BkWorkProgramResource extends Resource
 
     public static function canEdit(\Illuminate\Database\Eloquent\Model $record): bool
     {
-        return auth()->user()->hasAnyRole(['bk', 'superadmin']);
+        return auth()->user()->hasAnyRole(['bk', 'kepala_sekolah', 'superadmin']);
     }
 
     public static function canDelete(\Illuminate\Database\Eloquent\Model $record): bool
@@ -148,6 +163,29 @@ class BkWorkProgramResource extends Resource
                             ->label('Keterangan Tambahan (Opsional)')
                             ->rows(2),
                     ])->columns(1),
+
+                Forms\Components\Section::make('Verifikasi & Persetujuan Kepala Sekolah (Approval)')
+                    ->schema([
+                        Forms\Components\Select::make('status_persetujuan')
+                            ->label('Status Persetujuan')
+                            ->options([
+                                'Menunggu Persetujuan' => 'Menunggu Persetujuan',
+                                'Disetujui' => 'Disetujui',
+                                'Perlu Perbaikan' => 'Perlu Perbaikan',
+                            ])
+                            ->default('Menunggu Persetujuan')
+                            ->required()
+                            ->disabled(fn () => !auth()->user()?->hasAnyRole(['kepala_sekolah', 'superadmin'])),
+                        Forms\Components\Textarea::make('catatan_kepsek')
+                            ->label('Catatan / Arahan Kepala Sekolah')
+                            ->placeholder('Catatan atau arahan kepala sekolah...')
+                            ->rows(3)
+                            ->disabled(fn () => !auth()->user()?->hasAnyRole(['kepala_sekolah', 'superadmin'])),
+                        Forms\Components\DateTimePicker::make('tanggal_persetujuan')
+                            ->label('Waktu Persetujuan')
+                            ->disabled()
+                            ->visible(fn ($record) => filled($record?->tanggal_persetujuan)),
+                    ])->columns(2),
             ]);
     }
 
@@ -195,6 +233,16 @@ class BkWorkProgramResource extends Resource
                         'Tidak Terlaksana' => 'danger',
                         default => 'gray',
                     }),
+                Tables\Columns\TextColumn::make('status_persetujuan')
+                    ->label('Approval KS')
+                    ->badge()
+                    ->color(fn (?string $state): string => match ($state) {
+                        'Disetujui' => 'success',
+                        'Perlu Perbaikan' => 'danger',
+                        'Menunggu Persetujuan' => 'warning',
+                        default => 'gray',
+                    })
+                    ->default('Menunggu Persetujuan'),
                 Tables\Columns\TextColumn::make('user.name')
                     ->label('Penyusun')
                     ->searchable()
@@ -209,6 +257,13 @@ class BkWorkProgramResource extends Resource
                         'Terlaksana' => 'Terlaksana',
                         'Tidak Terlaksana' => 'Tidak Terlaksana',
                     ]),
+                Tables\Filters\SelectFilter::make('status_persetujuan')
+                    ->label('Status Persetujuan')
+                    ->options([
+                        'Menunggu Persetujuan' => 'Menunggu Persetujuan',
+                        'Disetujui' => 'Disetujui',
+                        'Perlu Perbaikan' => 'Perlu Perbaikan',
+                    ]),
                 Tables\Filters\SelectFilter::make('bidang_layanan')
                     ->options([
                         'Pribadi' => 'Pribadi',
@@ -221,6 +276,55 @@ class BkWorkProgramResource extends Resource
                 Tables\Actions\ViewAction::make()
                     ->modalHeading(fn ($record) => 'Ringkasan Program Kerja: ' . ($record->judul_program ?? 'Program Kerja BK'))
                     ->modalWidth('4xl'),
+                Tables\Actions\Action::make('setuju')
+                    ->label('ACC')
+                    ->icon('heroicon-o-check-circle')
+                    ->color('success')
+                    ->visible(fn ($record) => auth()->user()?->hasAnyRole(['kepala_sekolah', 'superadmin']) && $record->status_persetujuan !== 'Disetujui')
+                    ->requiresConfirmation()
+                    ->modalHeading('Persetujuan Program Kerja BK')
+                    ->modalDescription('Apakah Anda yakin menyetujui program kerja ini?')
+                    ->modalSubmitActionLabel('Ya, Setujui')
+                    ->form([
+                        Forms\Components\Textarea::make('catatan_kepsek')
+                            ->label('Catatan / Disposisi (Opsional)')
+                            ->placeholder('Berikan catatan jika ada...'),
+                    ])
+                    ->action(function ($record, array $data) {
+                        $record->update([
+                            'status_persetujuan' => 'Disetujui',
+                            'catatan_kepsek' => $data['catatan_kepsek'] ?? $record->catatan_kepsek,
+                            'tanggal_persetujuan' => now(),
+                            'approved_by' => auth()->id(),
+                        ]);
+                        \Filament\Notifications\Notification::make()
+                            ->title('Program Kerja BK Disetujui')
+                            ->success()
+                            ->send();
+                    }),
+                Tables\Actions\Action::make('perbaiki')
+                    ->label('Catatan/Revisi')
+                    ->icon('heroicon-o-pencil-square')
+                    ->color('warning')
+                    ->visible(fn ($record) => auth()->user()?->hasAnyRole(['kepala_sekolah', 'superadmin']))
+                    ->form([
+                        Forms\Components\Textarea::make('catatan_kepsek')
+                            ->label('Catatan Perbaikan dari Kepala Sekolah')
+                            ->required()
+                            ->placeholder('Tuliskan poin-poin yang perlu diperbaiki oleh Guru BK...'),
+                    ])
+                    ->action(function ($record, array $data) {
+                        $record->update([
+                            'status_persetujuan' => 'Perlu Perbaikan',
+                            'catatan_kepsek' => $data['catatan_kepsek'],
+                            'tanggal_persetujuan' => now(),
+                            'approved_by' => auth()->id(),
+                        ]);
+                        \Filament\Notifications\Notification::make()
+                            ->title('Catatan Revisi Terkirim')
+                            ->warning()
+                            ->send();
+                    }),
                 Tables\Actions\EditAction::make(),
                 Tables\Actions\DeleteAction::make(),
             ])

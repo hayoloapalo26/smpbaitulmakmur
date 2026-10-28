@@ -4,36 +4,29 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class ProgramKurikulum extends Model
 {
     use \App\Models\Traits\BelongsToInstitution;
-
     use HasFactory;
 
     protected $table = 'program_kurikulums';
 
-    protected $fillable = [
-        'user_id',
-        'tahun_ajaran',
-        'nama_program',
-        'kategori',
-        'tipe_pelaksanaan',
-        'sifat',
-        'tujuan',
-        'teknis_pelaksanaan',
-        'sasaran',
-        'waktu_pelaksanaan',
-        'dokumen_terkait',
-        'estimasi_anggaran',
-        'status_pelaksanaan',
-        'status_persetujuan',
-        'catatan_kepsek',
-        'tanggal_persetujuan',
+    protected $guarded = ['id'];
+
+    protected $casts = [
+        'tanggal_persetujuan' => 'datetime',
+        'estimasi_anggaran' => 'integer',
     ];
 
-    public function user()
+    public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function approver(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'approved_by');
     }
 }

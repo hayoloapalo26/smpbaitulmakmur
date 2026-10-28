@@ -16,37 +16,48 @@ class ProgramKesiswaanResource extends Resource
 {
     public static function shouldRegisterNavigation(): bool
     {
-        return auth()->user()?->hasAnyRole(['waka_kesiswaan', 'superadmin']) ?? false;
+        return auth()->user()?->hasAnyRole(['waka_kesiswaan', 'kepala_sekolah', 'superadmin']) ?? false;
     }
 
     public static function canAccess(): bool
     {
-        return auth()->user()->hasAnyRole(['waka_kesiswaan', 'kepala_sekolah', 'superadmin']);
+        return auth()->user()?->hasAnyRole(['waka_kesiswaan', 'kepala_sekolah', 'superadmin']) ?? false;
+    }
+
+    public static function getNavigationBadge(): ?string
+    {
+        if (auth()->user()?->hasRole('kepala_sekolah')) {
+            $count = static::getModel()::where('status_persetujuan', 'Menunggu Persetujuan')->count();
+            return $count > 0 ? (string) $count : null;
+        }
+        return null;
+    }
+
+    public static function getNavigationBadgeColor(): ?string
+    {
+        return 'warning';
     }
 
     protected static ?string $model = ProgramKesiswaan::class;
-
     protected static ?string $navigationIcon = 'heroicon-o-calendar-days';
     protected static ?string $navigationGroup = 'Kesiswaan & Karakter';
     protected static ?string $modelLabel = 'Program Kerja Kesiswaan';
     protected static ?string $pluralModelLabel = 'Program Kerja Kesiswaan';
     protected static ?int $navigationSort = 1;
 
-    
-
     public static function canCreate(): bool
     {
-        return auth()->user()->hasAnyRole(['waka_kesiswaan', 'superadmin']);
+        return auth()->user()->hasAnyRole(['waka_kesiswaan', 'kepala_sekolah', 'superadmin']);
     }
 
     public static function canEdit(\Illuminate\Database\Eloquent\Model $record): bool
     {
-        return auth()->user()->hasAnyRole(['waka_kesiswaan', 'superadmin']);
+        return auth()->user()->hasAnyRole(['waka_kesiswaan', 'kepala_sekolah', 'superadmin']);
     }
 
     public static function canDelete(\Illuminate\Database\Eloquent\Model $record): bool
     {
-        return auth()->user()->hasAnyRole(['waka_kesiswaan', 'superadmin']);
+        return auth()->user()->hasAnyRole(['waka_kesiswaan', 'kepala_sekolah', 'superadmin']);
     }
 
     public static function form(Form $form): Form
@@ -66,12 +77,13 @@ class ProgramKesiswaanResource extends Resource
                         Forms\Components\Select::make('kategori')
                             ->label('Kategori Program')
                             ->options([
-                                'PPDB (Penerimaan Peserta Didik Baru)' => 'PPDB (Penerimaan Peserta Didik Baru)',
-                                'Pembinaan Karakter & Siswa' => 'Pembinaan Karakter & Siswa',
+                                'PPDB (Penerimaan Peserta Didik Baru)' => 'PPDB',
+                                'Pembinaan Karakter & Siswa' => 'Pembinaan Karakter',
                                 'Kelulusan' => 'Kelulusan',
-                                'PHBI (Peringatan Hari Besar Islam)' => 'PHBI (Peringatan Hari Besar Islam)',
-                                'PHBN (Peringatan Hari Besar Nasional)' => 'PHBN (Peringatan Hari Besar Nasional)',
-                                'Program Keberlanjutan & Penunjang' => 'Program Keberlanjutan & Penunjang',
+                                'PHBI (Peringatan Hari Besar Islam)' => 'PHBI',
+                                'PHBN (Peringatan Hari Besar Nasional)' => 'PHBN',
+                                'Program Keberlanjutan & Penunjang' => 'Penunjang',
+                                'Lainnya' => 'Lainnya',
                             ])
                             ->required(),
                             
@@ -83,6 +95,7 @@ class ProgramKesiswaanResource extends Resource
                                 'Bulanan' => 'Bulanan',
                                 'Semesteran' => 'Semesteran',
                                 'Tahunan' => 'Tahunan',
+                                'Insidentil' => 'Insidentil',
                             ])
                             ->required(),
                             
@@ -108,15 +121,23 @@ class ProgramKesiswaanResource extends Resource
 
                         Forms\Components\TextInput::make('sasaran')
                             ->label('Sasaran Peserta')
-                            ->placeholder('Contoh: Seluruh Siswa / Kelas X / Tim Ekstrakurikuler'),
+                            ->placeholder('Contoh: Seluruh Siswa / Pengurus OSIS'),
                             
                         Forms\Components\TextInput::make('waktu_pelaksanaan')
                             ->label('Waktu Pelaksanaan')
-                            ->placeholder('Contoh: Setiap Senin / Juli 2026'),
+                            ->placeholder('Contoh: Setiap Bulan Muharram / Agustus 2026'),
                             
                         Forms\Components\TextInput::make('dokumen_terkait')
-                            ->label('Dokumen Terkait')
-                            ->placeholder('Contoh: SK, Proposal, Jadwal'),
+                            ->label('Dokumen Terkait (Link Google Drive)')
+                            ->placeholder('https://drive.google.com/...')
+                            ->helperText('Tempelkan link Google Drive dokumen pendukung (Proposal, SK, foto kegiatan).')
+                            ->suffixAction(
+                                Forms\Components\Actions\Action::make('openLink')
+                                    ->icon('heroicon-m-arrow-top-right-on-square')
+                                    ->tooltip('Buka link di tab baru')
+                                    ->url(fn ($state) => $state, shouldOpenInNewTab: true)
+                                    ->visible(fn ($state) => filled($state))
+                            ),
                             
                         Forms\Components\TextInput::make('estimasi_anggaran')
                             ->label('Estimasi Anggaran')
@@ -139,6 +160,29 @@ class ProgramKesiswaanResource extends Resource
                             ->label('Teknis Pelaksanaan')
                             ->toolbarButtons(['bold', 'italic', 'bulletList', 'orderedList']),
                     ])->columns(1),
+
+                Forms\Components\Section::make('Verifikasi & Persetujuan Kepala Sekolah (Approval)')
+                    ->description('Tinjauan dan disposisi persetujuan program kerja oleh Kepala Sekolah')
+                    ->schema([
+                        Forms\Components\Select::make('status_persetujuan')
+                            ->label('Status Persetujuan')
+                            ->options([
+                                'Menunggu Persetujuan' => '⏳ Menunggu Persetujuan',
+                                'Disetujui' => '✅ Disetujui (ACC)',
+                                'Perlu Perbaikan' => '⚠️ Perlu Perbaikan',
+                                'Ditolak' => '❌ Ditolak',
+                            ])
+                            ->default('Menunggu Persetujuan')
+                            ->disabled(fn () => !auth()->user()?->hasAnyRole(['kepala_sekolah', 'superadmin']))
+                            ->columnSpan(1),
+
+                        Forms\Components\Textarea::make('catatan_kepsek')
+                            ->label('Catatan Disposisi / Arahan Kepala Sekolah')
+                            ->placeholder('Tuliskan arahan pelaksanaan atau tindak lanjut program kesiswaan...')
+                            ->rows(3)
+                            ->disabled(fn () => !auth()->user()?->hasAnyRole(['kepala_sekolah', 'superadmin']))
+                            ->columnSpan(2),
+                    ])->columns(3),
             ]);
     }
 
@@ -192,8 +236,25 @@ class ProgramKesiswaanResource extends Resource
                         'Batal' => 'danger',
                         default => 'gray',
                     }),
+                Tables\Columns\TextColumn::make('status_persetujuan')
+                    ->label('Status KS')
+                    ->badge()
+                    ->colors([
+                        'warning' => 'Menunggu Persetujuan',
+                        'success' => 'Disetujui',
+                        'danger' => 'Perlu Perbaikan',
+                        'gray' => 'Ditolak',
+                    ]),
             ])
             ->filters([
+                Tables\Filters\SelectFilter::make('status_persetujuan')
+                    ->label('Status Persetujuan KS')
+                    ->options([
+                        'Menunggu Persetujuan' => 'Menunggu Persetujuan',
+                        'Disetujui' => 'Disetujui',
+                        'Perlu Perbaikan' => 'Perlu Perbaikan',
+                        'Ditolak' => 'Ditolak',
+                    ]),
                 Tables\Filters\SelectFilter::make('kategori')
                     ->options([
                         'PPDB (Penerimaan Peserta Didik Baru)' => 'PPDB',
@@ -210,12 +271,72 @@ class ProgramKesiswaanResource extends Resource
                         'Bulanan' => 'Bulanan',
                         'Semesteran' => 'Semesteran',
                         'Tahunan' => 'Tahunan',
+                        'Insidentil' => 'Insidentil',
                     ]),
             ])
             ->actions([
                 Tables\Actions\ViewAction::make()
+                    ->label('Detail')
+                    ->button()
+                    ->color('info')
+                    ->icon('heroicon-m-eye')
                     ->modalHeading(fn ($record) => 'Ringkasan Program Kerja: ' . ($record->nama_program ?? 'Program Kerja Kesiswaan'))
                     ->modalWidth('4xl'),
+
+                // Aksi Cepat Kepala Sekolah: ACC / Setujui
+                Tables\Actions\Action::make('setuju')
+                    ->label('ACC')
+                    ->icon('heroicon-m-check-circle')
+                    ->color('success')
+                    ->button()
+                    ->visible(fn ($record) => auth()->user()?->hasAnyRole(['kepala_sekolah', 'superadmin']) && $record->status_persetujuan !== 'Disetujui')
+                    ->requiresConfirmation()
+                    ->modalHeading('ACC Program Kerja Kesiswaan')
+                    ->modalDescription(fn ($record) => "Apakah Anda menyetujui program kerja kesiswaan '{$record->nama_program}'?")
+                    ->form([
+                        Forms\Components\Textarea::make('catatan_kepsek')
+                            ->label('Catatan Disposisi / Arahan (Opsional)')
+                            ->placeholder('Tuliskan arahan pelaksanaan program jika ada...'),
+                    ])
+                    ->action(function ($record, array $data) {
+                        $record->update([
+                            'status_persetujuan' => 'Disetujui',
+                            'catatan_kepsek' => !empty($data['catatan_kepsek']) ? $data['catatan_kepsek'] : $record->catatan_kepsek,
+                            'approved_by' => auth()->id(),
+                            'tanggal_persetujuan' => now(),
+                        ]);
+                        \Filament\Notifications\Notification::make()
+                            ->title('Program Kerja Kesiswaan Berhasil Di-ACC')
+                            ->success()
+                            ->send();
+                    }),
+
+                // Aksi Kepala Sekolah: Minta Perbaikan / Revisi
+                Tables\Actions\Action::make('perbaiki')
+                    ->label('Revisi')
+                    ->icon('heroicon-m-pencil-square')
+                    ->color('warning')
+                    ->button()
+                    ->visible(fn ($record) => auth()->user()?->hasAnyRole(['kepala_sekolah', 'superadmin']) && in_array($record->status_persetujuan, ['Menunggu Persetujuan', 'Disetujui']))
+                    ->form([
+                        Forms\Components\Textarea::make('catatan_kepsek')
+                            ->label('Catatan Revisi / Arahan Perbaikan')
+                            ->required()
+                            ->placeholder('Tuliskan poin-poin yang perlu diperbaiki...'),
+                    ])
+                    ->action(function ($record, array $data) {
+                        $record->update([
+                            'status_persetujuan' => 'Perlu Perbaikan',
+                            'catatan_kepsek' => $data['catatan_kepsek'],
+                            'approved_by' => auth()->id(),
+                            'tanggal_persetujuan' => now(),
+                        ]);
+                        \Filament\Notifications\Notification::make()
+                            ->title('Catatan Revisi Terkirim ke Kesiswaan')
+                            ->warning()
+                            ->send();
+                    }),
+
                 Tables\Actions\EditAction::make(),
                 Tables\Actions\DeleteAction::make(),
             ])

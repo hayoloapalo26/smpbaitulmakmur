@@ -24,6 +24,21 @@ class ProgramKurikulumResource extends Resource
         return auth()->user()->hasAnyRole(['waka_kurikulum', 'kepala_sekolah', 'superadmin']);
     }
 
+    public static function getNavigationBadge(): ?string
+    {
+        if (auth()->user()?->hasRole('kepala_sekolah')) {
+            $count = static::getModel()::where('status_persetujuan', 'Menunggu Persetujuan')->count();
+            return $count > 0 ? (string) $count : null;
+        }
+
+        return null;
+    }
+
+    public static function getNavigationBadgeColor(): ?string
+    {
+        return 'warning';
+    }
+
     protected static ?string $model = ProgramKurikulum::class;
 
     protected static ?string $navigationIcon = 'heroicon-o-clipboard-document-list';
@@ -273,22 +288,29 @@ class ProgramKurikulumResource extends Resource
                     ->modalWidth('4xl'),
 
                 Tables\Actions\Action::make('setuju')
-                    ->label('Setuju')
+                    ->label('ACC')
                     ->icon('heroicon-m-check-circle')
                     ->color('success')
                     ->button()
                     ->visible(fn ($record) => auth()->user()?->hasAnyRole(['kepala_sekolah', 'superadmin']) && $record->status_persetujuan !== 'Disetujui')
                     ->requiresConfirmation()
-                    ->modalHeading('Persetujuan Program Kerja')
+                    ->modalHeading('Persetujuan Program Kerja Kurikulum')
                     ->modalDescription('Apakah Anda yakin menyetujui program kerja ini?')
                     ->modalSubmitActionLabel('Ya, Setujui')
-                    ->action(function ($record) {
+                    ->form([
+                        Forms\Components\Textarea::make('catatan_kepsek')
+                            ->label('Catatan / Disposisi (Opsional)')
+                            ->placeholder('Berikan catatan jika ada...'),
+                    ])
+                    ->action(function ($record, array $data) {
                         $record->update([
                             'status_persetujuan' => 'Disetujui',
+                            'catatan_kepsek' => $data['catatan_kepsek'] ?? $record->catatan_kepsek,
                             'tanggal_persetujuan' => now(),
+                            'approved_by' => auth()->id(),
                         ]);
                         \Filament\Notifications\Notification::make()
-                            ->title('Program Kerja Disetujui')
+                            ->title('Program Kerja Kurikulum Disetujui')
                             ->success()
                             ->send();
                     }),
@@ -310,6 +332,7 @@ class ProgramKurikulumResource extends Resource
                             'status_persetujuan' => 'Perlu Perbaikan',
                             'catatan_kepsek' => $data['catatan_kepsek'],
                             'tanggal_persetujuan' => now(),
+                            'approved_by' => auth()->id(),
                         ]);
                         \Filament\Notifications\Notification::make()
                             ->title('Catatan Perbaikan Dikirim')
@@ -334,6 +357,7 @@ class ProgramKurikulumResource extends Resource
                             'status_persetujuan' => 'Ditolak',
                             'catatan_kepsek' => $data['catatan_kepsek'],
                             'tanggal_persetujuan' => now(),
+                            'approved_by' => auth()->id(),
                         ]);
                         \Filament\Notifications\Notification::make()
                             ->title('Program Kerja Ditolak')

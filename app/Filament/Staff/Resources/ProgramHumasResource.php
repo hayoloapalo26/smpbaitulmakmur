@@ -266,7 +266,7 @@ class ProgramHumasResource extends Resource
 
                 // Aksi Kepala Sekolah: ACC / Setujui
                 Tables\Actions\Action::make('setuju')
-                    ->label('Setuju')
+                    ->label('ACC')
                     ->icon('heroicon-m-check-circle')
                     ->color('success')
                     ->button()
@@ -275,9 +275,15 @@ class ProgramHumasResource extends Resource
                     ->modalHeading('Persetujuan Program Kerja Humas')
                     ->modalDescription('Apakah Anda yakin menyetujui program kerja ini?')
                     ->modalSubmitActionLabel('Ya, Setujui')
-                    ->action(function ($record) {
+                    ->form([
+                        Forms\Components\Textarea::make('catatan_kepsek')
+                            ->label('Catatan / Disposisi (Opsional)')
+                            ->placeholder('Berikan catatan jika ada...'),
+                    ])
+                    ->action(function ($record, array $data) {
                         $record->update([
                             'status_persetujuan' => 'Disetujui',
+                            'catatan_kepsek' => $data['catatan_kepsek'] ?? $record->catatan_kepsek,
                             'tanggal_persetujuan' => now(),
                             'approved_by' => auth()->id(),
                         ]);
