@@ -6,6 +6,8 @@ use App\Filament\Staff\Resources\ProgramKurikulumResource\Pages;
 use App\Models\ProgramKurikulum;
 use Filament\Forms;
 use Filament\Forms\Form;
+use Filament\Infolists;
+use Filament\Infolists\Infolist;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
@@ -177,6 +179,16 @@ class ProgramKurikulumResource extends Resource
             ]);
     }
 
+    public static function infolist(Infolist $infolist): Infolist
+    {
+        return $infolist
+            ->schema([
+                Infolists\Components\ViewEntry::make('summary_table')
+                    ->view('filament.staff.components.program-kerja-summary-table')
+                    ->columnSpanFull(),
+            ]);
+    }
+
     public static function table(Table $table): Table
     {
         return $table
@@ -256,7 +268,9 @@ class ProgramKurikulumResource extends Resource
                     ->label('Detail')
                     ->button()
                     ->color('info')
-                    ->icon('heroicon-m-eye'),
+                    ->icon('heroicon-m-eye')
+                    ->modalHeading(fn ($record) => 'Ringkasan Program Kerja: ' . ($record->nama_program ?? 'Program Kerja Kurikulum'))
+                    ->modalWidth('4xl'),
 
                 Tables\Actions\Action::make('setuju')
                     ->label('Setuju')

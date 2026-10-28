@@ -5,6 +5,8 @@ namespace App\Filament\Staff\Resources;
 use App\Models\ProgramHumas;
 use Filament\Forms;
 use Filament\Forms\Form;
+use Filament\Infolists;
+use Filament\Infolists\Infolist;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
@@ -172,6 +174,16 @@ class ProgramHumasResource extends Resource
             ]);
     }
 
+    public static function infolist(Infolist $infolist): Infolist
+    {
+        return $infolist
+            ->schema([
+                Infolists\Components\ViewEntry::make('summary_table')
+                    ->view('filament.staff.components.program-kerja-summary-table')
+                    ->columnSpanFull(),
+            ]);
+    }
+
     public static function table(Table $table): Table
     {
         return $table
@@ -248,7 +260,9 @@ class ProgramHumasResource extends Resource
                     ]),
             ])
             ->actions([
-                Tables\Actions\ViewAction::make(),
+                Tables\Actions\ViewAction::make()
+                    ->modalHeading(fn ($record) => 'Ringkasan Program Kerja: ' . ($record->nama_program ?? 'Program Kerja Humas'))
+                    ->modalWidth('4xl'),
 
                 // Aksi Kepala Sekolah: ACC / Setujui
                 Tables\Actions\Action::make('setuju')

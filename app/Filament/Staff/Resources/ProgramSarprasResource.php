@@ -5,6 +5,8 @@ namespace App\Filament\Staff\Resources;
 use App\Models\ProgramSarpras;
 use Filament\Forms;
 use Filament\Forms\Form;
+use Filament\Infolists;
+use Filament\Infolists\Infolist;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
@@ -175,6 +177,16 @@ class ProgramSarprasResource extends Resource
             ]);
     }
 
+    public static function infolist(Infolist $infolist): Infolist
+    {
+        return $infolist
+            ->schema([
+                Infolists\Components\ViewEntry::make('summary_table')
+                    ->view('filament.staff.components.program-kerja-summary-table')
+                    ->columnSpanFull(),
+            ]);
+    }
+
     public static function table(Table $table): Table
     {
         return $table
@@ -257,7 +269,9 @@ class ProgramSarprasResource extends Resource
                     ]),
             ])
             ->actions([
-                Tables\Actions\ViewAction::make(),
+                Tables\Actions\ViewAction::make()
+                    ->modalHeading(fn ($record) => 'Ringkasan Program Kerja: ' . ($record->nama_program ?? 'Program Kerja Sarpras'))
+                    ->modalWidth('4xl'),
                 Tables\Actions\EditAction::make(),
 
                 // Aksi Cepat Kepala Sekolah: ACC / Setujui

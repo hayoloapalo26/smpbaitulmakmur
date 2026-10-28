@@ -6,6 +6,8 @@ use App\Filament\Staff\Resources\HumasProgramResource\Pages;
 use App\Models\HumasProgram;
 use Filament\Forms;
 use Filament\Forms\Form;
+use Filament\Infolists;
+use Filament\Infolists\Infolist;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
@@ -41,6 +43,16 @@ class HumasProgramResource extends Resource
             ]);
     }
 
+    public static function infolist(Infolist $infolist): Infolist
+    {
+        return $infolist
+            ->schema([
+                Infolists\Components\ViewEntry::make('summary_table')
+                    ->view('filament.staff.components.program-kerja-summary-table')
+                    ->columnSpanFull(),
+            ]);
+    }
+
     public static function table(Table $table): Table
     {
         return $table
@@ -55,7 +67,13 @@ class HumasProgramResource extends Resource
                         default => 'gray',
                     }),
             ])
-            ->actions([Tables\Actions\EditAction::make(), Tables\Actions\DeleteAction::make()])
+            ->actions([
+                Tables\Actions\ViewAction::make()
+                    ->modalHeading(fn ($record) => 'Ringkasan Program Kerja: ' . ($record->nama ?? 'Program Kerja'))
+                    ->modalWidth('4xl'),
+                Tables\Actions\EditAction::make(),
+                Tables\Actions\DeleteAction::make(),
+            ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
                     Tables\Actions\DeleteBulkAction::make(),

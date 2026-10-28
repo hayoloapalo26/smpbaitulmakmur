@@ -6,6 +6,8 @@ use App\Filament\Staff\Resources\OsisProgramResource\Pages;
 use App\Models\OsisProgram;
 use Filament\Forms;
 use Filament\Forms\Form;
+use Filament\Infolists;
+use Filament\Infolists\Infolist;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
@@ -40,6 +42,16 @@ public static function canAccess(): bool
             ]);
     }
 
+    public static function infolist(Infolist $infolist): Infolist
+    {
+        return $infolist
+            ->schema([
+                Infolists\Components\ViewEntry::make('summary_table')
+                    ->view('filament.staff.components.program-kerja-summary-table')
+                    ->columnSpanFull(),
+            ]);
+    }
+
     public static function table(Table $table): Table
     {
         return $table
@@ -48,7 +60,13 @@ public static function canAccess(): bool
                 Tables\Columns\TextColumn::make('tanggal')->date(),
                 Tables\Columns\TextColumn::make('status'),
             ])
-            ->actions([Tables\Actions\EditAction::make(), Tables\Actions\DeleteAction::make()])
+            ->actions([
+                Tables\Actions\ViewAction::make()
+                    ->modalHeading(fn ($record) => 'Ringkasan Program Kerja: ' . ($record->nama_program ?? 'Program Kerja OSIS'))
+                    ->modalWidth('4xl'),
+                Tables\Actions\EditAction::make(),
+                Tables\Actions\DeleteAction::make(),
+            ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
                     Tables\Actions\DeleteBulkAction::make(),
