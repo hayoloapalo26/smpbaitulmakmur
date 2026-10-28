@@ -15,7 +15,7 @@ use Filament\Models\Contracts\HasAvatar;
 use Filament\Panel;
 use Illuminate\Support\Facades\Storage;
 
-#[Fillable(['name', 'email', 'password', 'avatar_url', 'username', 'is_active', 'institution_id', 'has_account'])]
+#[Fillable(['name', 'email', 'password', 'avatar_url', 'username', 'is_active', 'institution_id', 'has_account', 'nuptk', 'no_induk_yayasan', 'gender', 'tempat_lahir', 'tanggal_lahir', 'alamat', 'no_hp'])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable implements FilamentUser, HasAvatar
 {
@@ -154,9 +154,15 @@ class User extends Authenticatable implements FilamentUser, HasAvatar
         }
 
         $targetDate = $date ? \Carbon\Carbon::parse($date)->toDateString() : \Carbon\Carbon::today()->toDateString();
+        $targetDay = Schedule::getIndonesianDayName($targetDate);
 
         return \App\Models\DutySchedule::where('teacher_id', $this->id)
-            ->whereDate('tanggal', $targetDate)
+            ->where(function ($q) use ($targetDate, $targetDay) {
+                $q->whereDate('tanggal', $targetDate)
+                  ->orWhere(function ($sub) use ($targetDay) {
+                      $sub->whereNull('tanggal')->where('hari', $targetDay);
+                  });
+            })
             ->exists();
     }
 

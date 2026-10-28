@@ -58,8 +58,59 @@ class CustomLogin extends BaseLogin
         return [
             $loginType => $loginInput,
             'password' => $data['password'],
-            'is_active' => 1,
         ];
+    }
+
+    /**
+     * Authenticate user with flexible username, email, NUPTK, or No Induk Yayasan,
+     * with case-insensitivity and friendly active account handling.
+     */
+    public function authenticate(): ?\Filament\Http\Responses\Auth\Contracts\LoginResponse
+    {
+        try {
+            $this->rateLimit(5);
+        } catch (\DanHarrin\LivewireRateLimiting\Exceptions\TooManyRequestsException $exception) {
+            $this->getRateLimitedNotification($exception)?->send();
+
+            return null;
+        }
+
+        $data = $this->form->getState();
+        $loginInput = trim($data['login'] ?? '');
+        $password = (string) ($data['password'] ?? '');
+        $remember = (bool) ($data['remember'] ?? false);
+
+        if (empty($loginInput) || empty($password)) {
+            $this->throwFailureValidationException();
+        }
+
+        $lowerInput = strtolower($loginInput);
+
+        // Cari user fleksibel: email ATAU username ATAU nuptk ATAU no_induk_yayasan
+        $user = \App\Models\User::withoutGlobalScopes()
+            ->where(function ($q) use ($lowerInput, $loginInput) {
+                $q->whereRaw('LOWER(email) = ?', [$lowerInput])
+                  ->orWhereRaw('LOWER(username) = ?', [$lowerInput])
+                  ->orWhere('nuptk', $loginInput)
+                  ->orWhere('no_induk_yayasan', $loginInput);
+            })
+            ->first();
+
+        if (! $user || ! \Illuminate\Support\Facades\Hash::check($password, $user->password)) {
+            $this->throwFailureValidationException();
+        }
+
+        // Cek jika akun nonaktif secara eksplisit
+        if ($user->is_active === false || $user->is_active === 0) {
+            throw ValidationException::withMessages([
+                'data.login' => 'Akun Anda dinonaktifkan oleh administrator. Silakan hubungi admin sekolah.',
+            ]);
+        }
+
+        \Filament\Facades\Filament::auth()->login($user, $remember);
+        session()->regenerate();
+
+        return app(\Filament\Http\Responses\Auth\Contracts\LoginResponse::class);
     }
 
     /**

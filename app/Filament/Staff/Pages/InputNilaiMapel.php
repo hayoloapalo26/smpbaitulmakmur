@@ -264,6 +264,14 @@ class InputNilaiMapel extends Page
 
         // Fallback jika belum di-routing oleh kurikulum
         if ($subjects->isEmpty()) {
+            if ($user->hasRole('guru_alquran') && !$user->hasAnyRole(['guru_mapel', 'waka_kurikulum', 'superadmin'])) {
+                $quranSubject = Subject::where('name', 'Al-Qur’an')
+                    ->orWhere('name', 'like', '%Qur%')
+                    ->get();
+                if ($quranSubject->isNotEmpty()) {
+                    return $quranSubject;
+                }
+            }
             return Subject::orderBy('name')->get();
         }
 

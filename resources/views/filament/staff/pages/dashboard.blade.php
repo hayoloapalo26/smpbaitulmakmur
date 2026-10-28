@@ -77,8 +77,97 @@
                         <div>
                             <div class="text-lg font-bold mb-1 uppercase tracking-widest drop-shadow-md" style="color: #F4EEDC;">Dashboard Utama</div>
                             <h2 class="text-3xl font-bold text-white drop-shadow-md leading-tight">Selamat {{ $waktu }}, {{ auth()->user()->name }}!</h2>
+
+                            {{-- STATUS PIKET HARI INI & ROLE BADGES --}}
+                            <div class="mt-2 flex flex-wrap items-center gap-2">
+                                @if(auth()->user()->isPiketToday())
+                                    <span class="inline-flex items-center gap-1 px-3 py-0.5 rounded-full text-xs font-black uppercase tracking-wider bg-amber-400 text-amber-950 shadow-md">
+                                        🛡️ Guru Piket Hari Ini
+                                    </span>
+                                @endif
+                                @if(auth()->user()->name === 'Guru Piket' || auth()->user()->username === 'gurupiket')
+                                    <span class="inline-flex items-center gap-1 px-3 py-0.5 rounded-full text-xs font-black uppercase tracking-wider bg-amber-400 text-amber-950 shadow-md">
+                                        🏫 Akun Sentral Piket (Inval)
+                                    </span>
+                                @endif
+                                @foreach(auth()->user()->roles->take(3) as $r)
+                                    @if($r->name !== 'guru_piket')
+                                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-white/20 text-white backdrop-blur-sm">
+                                            {{ ucwords(str_replace('_', ' ', $r->name)) }}
+                                        </span>
+                                    @endif
+                                @endforeach
+                            </div>
                         </div>
                     </div>
+
+                    {{-- HERO BANNER PENUGASAN GURU PIKET HARI INI --}}
+                    @if(auth()->user()->isPiketToday())
+                        <div class="mb-6 p-4 bg-black/25 backdrop-blur-md border border-amber-300/40 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 text-white shadow-lg">
+                            <div class="flex items-center gap-3">
+                                <div class="p-2.5 bg-amber-400 text-amber-950 rounded-xl font-bold text-xl shadow shrink-0">
+                                    🛡️
+                                </div>
+                                <div>
+                                    <div class="flex items-center gap-2">
+                                        <span class="text-xs font-black uppercase tracking-wider text-amber-300">Penugasan Piket Aktif</span>
+                                        <span class="text-xs text-white/80">&bull; {{ \Carbon\Carbon::now()->translatedFormat('l, d F Y') }}</span>
+                                    </div>
+                                    <p class="text-sm font-bold text-white mt-0.5">
+                                        Anda bertugas sebagai <u>Guru Piket</u> hari ini. Semua menu monitoring kesiswaan dan presensi telah aktif di sidebar.
+                                    </p>
+                                </div>
+                            </div>
+                            <div class="flex items-center gap-2 self-stretch sm:self-auto shrink-0">
+                                <a href="{{ \App\Filament\Staff\Pages\PiketDashboard::getUrl() }}" class="flex-1 sm:flex-initial text-center px-4 py-2 rounded-xl bg-amber-400 hover:bg-amber-300 text-amber-950 text-xs font-black shadow transition-all">
+                                    Buka Dasbor Piket &rarr;
+                                </a>
+                                @if(class_exists(\App\Filament\Staff\Pages\AbsensiManual::class))
+                                    <a href="{{ \App\Filament\Staff\Pages\AbsensiManual::getUrl() }}" class="px-3 py-2 rounded-xl bg-white/20 hover:bg-white/30 text-white text-xs font-bold transition-all">
+                                        Presensi Cepat
+                                    </a>
+                                @endif
+                            </div>
+                        </div>
+                    @elseif(auth()->user()->name === 'Guru Piket' || auth()->user()->username === 'gurupiket')
+                        @php
+                            $todayPiketTeachers = \App\Models\DutySchedule::with('teacher')
+                                ->whereDate('tanggal', today())
+                                ->get()
+                                ->pluck('teacher.name')
+                                ->filter()
+                                ->unique()
+                                ->values();
+                        @endphp
+                        <div class="mb-6 p-4 bg-black/25 backdrop-blur-md border border-amber-300/40 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 text-white shadow-lg">
+                            <div class="flex items-center gap-3">
+                                <div class="p-2.5 bg-amber-400 text-amber-950 rounded-xl font-bold text-xl shadow shrink-0">
+                                    🏫
+                                </div>
+                                <div>
+                                    <div class="flex items-center gap-2">
+                                        <span class="text-xs font-black uppercase tracking-wider text-amber-300">Pos / Sentral Piket Bersama</span>
+                                        <span class="text-xs text-white/80">&bull; {{ \Carbon\Carbon::now()->translatedFormat('l, d F Y') }}</span>
+                                    </div>
+                                    <p class="text-sm font-semibold text-white mt-0.5">
+                                        @if($todayPiketTeachers->isNotEmpty())
+                                            Guru yang bertugas piket hari ini: <strong class="text-amber-200">{{ $todayPiketTeachers->implode(', ') }}</strong>
+                                        @else
+                                            Jadwal piket guru untuk hari ini belum digenerate oleh Waka Kesiswaan.
+                                        @endif
+                                    </p>
+                                </div>
+                            </div>
+                            <div class="flex items-center gap-2 self-stretch sm:self-auto shrink-0">
+                                <a href="{{ \App\Filament\Staff\Pages\PiketDashboard::getUrl() }}" class="flex-1 sm:flex-initial text-center px-4 py-2 rounded-xl bg-amber-400 hover:bg-amber-300 text-amber-950 text-xs font-black shadow transition-all">
+                                    Buka Dasbor Piket &rarr;
+                                </a>
+                                <a href="{{ \App\Filament\Staff\Resources\DutyScheduleResource::getUrl() }}" class="px-3 py-2 rounded-xl bg-white/20 hover:bg-white/30 text-white text-xs font-bold transition-all">
+                                    Jadwal 1 Semester
+                                </a>
+                            </div>
+                        </div>
+                    @endif
                     
                     {{-- TOTAL SISWA & GURU (Inside Terracotta) --}}
                     <div class="flex flex-col sm:flex-row gap-4 mb-6">
