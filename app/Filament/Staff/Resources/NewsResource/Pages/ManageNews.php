@@ -13,7 +13,10 @@ class ManageNews extends ManageRecords
     protected function getHeaderActions(): array
     {
         return [
-            Actions\CreateAction::make(),
+            Actions\CreateAction::make()
+                ->label('Buat Pengumuman Baru')
+                ->icon('heroicon-m-plus')
+                ->visible(fn () => static::getResource()::canCreate()),
         ];
     }
 }
