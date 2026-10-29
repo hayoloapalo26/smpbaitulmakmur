@@ -135,11 +135,39 @@ class InputNilaiMapel extends Page
             return;
         }
 
-        $studentsQuery = Student::with(['guruQuran'])
-            ->where('classroom_id', $this->selectedClassroomId);
+        $selectedClassroom = Classroom::find($this->selectedClassroomId);
+        $cName = strtolower($selectedClassroom?->name ?? '');
+        $isQuranClassroom = str_contains($cName, 'tahsin') 
+            || str_contains($cName, 'yanbua') 
+            || str_contains($cName, 'yanbu\'a') 
+            || str_contains($cName, 'tahfidz') 
+            || str_contains($cName, 'qur');
 
-        if (!empty($this->selectedQuranClass)) {
-            $studentsQuery->where('kelas_quran', $this->selectedQuranClass);
+        $matchedQuranSpec = match (true) {
+            str_contains($cName, 'yanbua') || str_contains($cName, 'yanbu\'a') => 'yanbua',
+            str_contains($cName, 'tahsin') => 'tahsin',
+            str_contains($cName, 'tahfidz lanjutan') => 'tahfidz_lanjutan',
+            str_contains($cName, 'tahfidz') => 'tahfidz_dasar',
+            default => null,
+        };
+
+        $studentsQuery = Student::with(['guruQuran']);
+
+        if ($isQuranClassroom) {
+            $studentsQuery->where(function ($sq) use ($matchedQuranSpec) {
+                $sq->where('classroom_id', $this->selectedClassroomId);
+                if ($matchedQuranSpec) {
+                    $sq->orWhere('kelas_quran', $matchedQuranSpec);
+                }
+            });
+            if (!empty($this->selectedQuranClass)) {
+                $studentsQuery->where('kelas_quran', $this->selectedQuranClass);
+            }
+        } else {
+            $studentsQuery->where('classroom_id', $this->selectedClassroomId);
+            if (!empty($this->selectedQuranClass)) {
+                $studentsQuery->where('kelas_quran', $this->selectedQuranClass);
+            }
         }
 
         $students = $studentsQuery->orderBy('name')->get();
@@ -392,7 +420,32 @@ class InputNilaiMapel extends Page
         // Ambil daftar siswa
         $studentsQuery = Student::with(['guruQuran', 'classroom']);
         if ($this->selectedClassroomId) {
-            $studentsQuery->where('classroom_id', $this->selectedClassroomId);
+            $selectedClassroom = Classroom::find($this->selectedClassroomId);
+            $cName = strtolower($selectedClassroom?->name ?? '');
+            $isQuranClassroom = str_contains($cName, 'tahsin') 
+                || str_contains($cName, 'yanbua') 
+                || str_contains($cName, 'yanbu\'a') 
+                || str_contains($cName, 'tahfidz') 
+                || str_contains($cName, 'qur');
+
+            $matchedQuranSpec = match (true) {
+                str_contains($cName, 'yanbua') || str_contains($cName, 'yanbu\'a') => 'yanbua',
+                str_contains($cName, 'tahsin') => 'tahsin',
+                str_contains($cName, 'tahfidz lanjutan') => 'tahfidz_lanjutan',
+                str_contains($cName, 'tahfidz') => 'tahfidz_dasar',
+                default => null,
+            };
+
+            if ($isQuranClassroom) {
+                $studentsQuery->where(function ($sq) use ($matchedQuranSpec) {
+                    $sq->where('classroom_id', $this->selectedClassroomId);
+                    if ($matchedQuranSpec) {
+                        $sq->orWhere('kelas_quran', $matchedQuranSpec);
+                    }
+                });
+            } else {
+                $studentsQuery->where('classroom_id', $this->selectedClassroomId);
+            }
         } else {
             $studentsQuery->whereRaw('1=0');
         }

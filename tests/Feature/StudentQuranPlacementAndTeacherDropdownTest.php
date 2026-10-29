@@ -335,4 +335,55 @@ class StudentQuranPlacementAndTeacherDropdownTest extends TestCase
         // Santri 1 (Yanbu'a) must NOT be present for Guru Tahsin
         $this->assertArrayNotHasKey($this->santri1->id, $options);
     }
+
+    public function test_selecting_tahsin_classroom_and_filter_loads_students_properly(): void
+    {
+        // 1. Create a classroom named "Tahsin" as seen in real user data
+        $classroomTahsin = Classroom::create([
+            'institution_id' => $this->institution->id,
+            'name' => 'Tahsin',
+            'tingkat' => '7',
+            'grade_level' => 7,
+        ]);
+
+        // 2. Santri 2 is in regular classroom 7A, but placed into Tahsin by Waka Kurikulum
+        $this->santri2->update([
+            'classroom_id' => $this->classroomA->id,
+            'kelas_quran' => 'tahsin',
+            'guru_quran_id' => $this->guruTahsin->id,
+            'tanggal_penempatan_quran' => '2026-10-29',
+        ]);
+
+        $this->actingAs($this->wakaKurikulum);
+
+        // Test in GradeResource create action
+        $livewire = Livewire::test(GradeResource\Pages\ManageGrades::class);
+        $livewire->mountAction('create');
+
+        // Set filter_kelas_quran = 'tahsin' AND classroom_id = $classroomTahsin->id
+        $livewire->setActionData([
+            'filter_kelas_quran' => 'tahsin',
+            'classroom_id' => $classroomTahsin->id,
+        ]);
+
+        $form = $livewire->instance()->getMountedActionForm();
+        $studentComponent = collect($form->getFlatComponents())->first(fn ($c) => method_exists($c, 'getName') && $c->getName() === 'student_id');
+
+        $options = $studentComponent?->getOptions() ?? [];
+
+        // Santri 2 MUST be present despite being in regular Classroom 7A!
+        $this->assertArrayHasKey($this->santri2->id, $options);
+        $this->assertStringContainsString('Kelas Al-Qur\'an: Tahsin', $options[$this->santri2->id]);
+
+        // Test when ONLY classroom_id is selected as "Tahsin" (without explicit filter_kelas_quran)
+        $livewire->setActionData([
+            'filter_kelas_quran' => null,
+            'classroom_id' => $classroomTahsin->id,
+        ]);
+        $form2 = $livewire->instance()->getMountedActionForm();
+        $studentComp2 = collect($form2->getFlatComponents())->first(fn ($c) => method_exists($c, 'getName') && $c->getName() === 'student_id');
+        $options2 = $studentComp2?->getOptions() ?? [];
+
+        $this->assertArrayHasKey($this->santri2->id, $options2);
+    }
 }
