@@ -20,6 +20,7 @@ class Dashboard extends BaseDashboard
     protected ?string $cachedAiSummary = null;
     protected ?string $cachedLatestNews = null;
     protected $cachedUpcomingSupervisions = null;
+    protected $cachedUpcomingSchedules = null;
     protected ?string $cachedGoodNews = null;
     protected ?string $cachedBadNews = null;
 
@@ -337,15 +338,147 @@ class Dashboard extends BaseDashboard
             return $this->cachedUpcomingSupervisions = collect();
         }
 
-        $query = \App\Models\TeacherSupervision::with(['teacher', 'supervisor'])
+        // HANYA guru bersangkutan yang menerima info jadwal supervisi (bukan semua guru / kepsek)
+        return $this->cachedUpcomingSupervisions = \App\Models\TeacherSupervision::with(['teacher', 'supervisor'])
+            ->where('teacher_id', $user->id)
             ->where('status', 'dijadwalkan')
-            ->orderBy('jadwal', 'asc');
+            ->whereNull('notif_dismissed_at')
+            ->whereNull('score')
+            ->whereNotNull('jadwal')
+            ->orderBy('jadwal', 'asc')
+            ->get();
+    }
 
-        if ($user->hasAnyRole(['kepala_sekolah', 'waka_kurikulum', 'superadmin'])) {
-            return $this->cachedUpcomingSupervisions = $query->get();
+    public function getUpcomingSchedulesProperty()
+    {
+        if ($this->cachedUpcomingSchedules !== null) {
+            return $this->cachedUpcomingSchedules;
         }
 
-        return $this->cachedUpcomingSupervisions = $query->where('teacher_id', $user->id)->get();
+        $user = Auth::user();
+        if (!$user) {
+            return $this->cachedUpcomingSchedules = collect();
+        }
+
+        // 1. Jadwal Supervisi Guru (Hanya untuk guru bersangkutan)
+        $supervisiUrl = '/staff/pengajuan-supervisis';
+        try {
+            if (\Filament\Facades\Filament::getCurrentPanel() !== null) {
+                $supervisiUrl = \App\Filament\Staff\Resources\PengajuanSupervisiResource::getUrl();
+            }
+        } catch (\Throwable $e) {
+            $supervisiUrl = '/staff/pengajuan-supervisis';
+        }
+
+        $supervisions = \App\Models\TeacherSupervision::with(['teacher', 'supervisor'])
+            ->where('teacher_id', $user->id)
+            ->where('status', 'dijadwalkan')
+            ->whereNull('notif_dismissed_at')
+            ->whereNull('score')
+            ->whereNotNull('jadwal')
+            ->get()
+            ->map(function ($sup) use ($user, $supervisiUrl) {
+                return [
+                    'type' => 'supervisi',
+                    'id' => $sup->id,
+                    'badge_label' => 'Supervisi Guru',
+                    'badge_color' => 'amber',
+                    'title' => 'Supervisi Guru',
+                    'teacher_name' => $sup->teacher?->name ?? $user->name,
+                    'assessor_name' => $sup->supervisor?->name ?? 'Supervisor Yayasan',
+                    'jadwal_raw' => $sup->jadwal,
+                    'jadwal_formatted' => $sup->jadwal ? \Carbon\Carbon::parse($sup->jadwal)->translatedFormat('d M Y, H:i') : '-',
+                    'jalur' => $sup->jalur_supervisi === 'penjamin_mutu' ? 'Penjamin Mutu' : 'Permintaan Guru',
+                    'catatan' => $sup->catatan_yayasan ?: ($sup->catatan ?: null),
+                    'detail_url' => $supervisiUrl,
+                ];
+            });
+
+        // 2. Jadwal UKG / Penilaian Kinerja Guru (Hanya untuk guru bersangkutan)
+        $ukgUrl = '/staff/pengajuan-ukgs';
+        try {
+            if (\Filament\Facades\Filament::getCurrentPanel() !== null) {
+                $ukgUrl = \App\Filament\Staff\Resources\PengajuanUkgResource::getUrl();
+            }
+        } catch (\Throwable $e) {
+            $ukgUrl = '/staff/pengajuan-ukgs';
+        }
+
+        $ukgs = \App\Models\TeacherCompetencyTest::with(['teacher', 'assessor'])
+            ->where('teacher_id', $user->id)
+            ->where('status', 'dijadwalkan')
+            ->whereNull('notif_dismissed_at')
+            ->where(function ($q) {
+                $q->whereNull('nilai_akhir')->orWhere('nilai_akhir', 0);
+            })
+            ->where(function ($q) {
+                $q->whereNull('total_skor')->orWhere('total_skor', 0);
+            })
+            ->where(function ($q) {
+                $q->whereNotNull('jadwal')->orWhereNotNull('tanggal');
+            })
+            ->get()
+            ->map(function ($ukg) use ($user, $ukgUrl) {
+                $dt = $ukg->jadwal ?: $ukg->tanggal;
+                return [
+                    'type' => 'ukg',
+                    'id' => $ukg->id,
+                    'badge_label' => 'Uji Kompetensi Guru (UKG)',
+                    'badge_color' => 'indigo',
+                    'title' => 'Penilaian Kinerja Guru (PKG)',
+                    'teacher_name' => $ukg->teacher?->name ?? $user->name,
+                    'assessor_name' => $ukg->assessor?->name ?? 'Asesor Yayasan',
+                    'jadwal_raw' => $dt,
+                    'jadwal_formatted' => $ukg->jadwal ? \Carbon\Carbon::parse($ukg->jadwal)->translatedFormat('d M Y, H:i') : ($ukg->tanggal ? \Carbon\Carbon::parse($ukg->tanggal)->translatedFormat('d M Y') : '-'),
+                    'jalur' => 'Uji Kompetensi',
+                    'catatan' => $ukg->catatan_yayasan ?: ($ukg->catatan ?: null),
+                    'detail_url' => $ukgUrl,
+                ];
+            });
+
+        // Gabungkan dan urutkan berdasarkan jadwal
+        return $this->cachedUpcomingSchedules = $supervisions->concat($ukgs)->sortBy('jadwal_raw')->values();
+    }
+
+    public function dismissSchedule(string $type, int $id): void
+    {
+        $user = Auth::user();
+        if (!$user) {
+            return;
+        }
+
+        if ($type === 'supervisi') {
+            $record = \App\Models\TeacherSupervision::where('id', $id)
+                ->where('teacher_id', $user->id)
+                ->first();
+
+            if ($record) {
+                $record->update([
+                    'notif_dismissed_at' => now(),
+                    'status' => in_array($record->status, ['dijadwalkan', 'menunggu']) ? 'selesai' : $record->status,
+                ]);
+            }
+        } elseif ($type === 'ukg') {
+            $record = \App\Models\TeacherCompetencyTest::where('id', $id)
+                ->where('teacher_id', $user->id)
+                ->first();
+
+            if ($record) {
+                $record->update([
+                    'notif_dismissed_at' => now(),
+                    'status' => in_array($record->status, ['dijadwalkan', 'menunggu']) ? 'selesai' : $record->status,
+                ]);
+            }
+        }
+
+        $this->cachedUpcomingSupervisions = null;
+        $this->cachedUpcomingSchedules = null;
+
+        Notification::make()
+            ->title('Notifikasi Jadwal Berhasil Dihilangkan')
+            ->body('Jadwal telah ditandai selesai dilaksanakan dan tidak lagi ditampilkan pada dashboard.')
+            ->success()
+            ->send();
     }
 
     public function getGoodNewsProperty()

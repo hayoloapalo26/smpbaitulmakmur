@@ -3,6 +3,9 @@
 namespace App\Models;
 
 use App\Models\Traits\BelongsToInstitution;
+use Carbon\Carbon;
+use Filament\Notifications\Actions\Action as NotificationAction;
+use Filament\Notifications\Notification;
 use Illuminate\Database\Eloquent\Model;
 
 class TeacherCompetencyTest extends Model
@@ -14,6 +17,7 @@ class TeacherCompetencyTest extends Model
     protected $casts = [
         'tanggal' => 'date',
         'jadwal' => 'datetime',
+        'notif_dismissed_at' => 'datetime',
         'tanggal_lahir' => 'date',
         'komponen_penilaian' => 'array',
         'skor_manajerial' => 'integer',
@@ -402,5 +406,73 @@ class TeacherCompetencyTest extends Model
                 }
             }
         });
+
+        static::created(function (TeacherCompetencyTest $ukg) {
+            $ukg->notifyOnCreated();
+        });
+
+        static::updated(function (TeacherCompetencyTest $ukg) {
+            $ukg->notifyOnUpdated();
+        });
+    }
+
+    public function notifyOnCreated(): void
+    {
+        $teacher = User::withoutGlobalScopes()->find($this->teacher_id);
+        if (!$teacher) {
+            return;
+        }
+
+        // Hanya kirim jika berstatus dijadwalkan atau ada tanggal/jadwal
+        if ($this->status === 'dijadwalkan' || !empty($this->jadwal)) {
+            $jadwalFormatted = $this->jadwal ? Carbon::parse($this->jadwal)->translatedFormat('d M Y, H:i') : ($this->tanggal ? Carbon::parse($this->tanggal)->translatedFormat('d M Y') : 'Segera menyusul');
+            $assessorName = $this->assessor?->name ?? 'Asesor Yayasan';
+            $catatanInfo = $this->catatan_yayasan ?: ($this->catatan ?: '-');
+
+            Notification::make()
+                ->title('Jadwal Uji Kompetensi Guru (UKG)')
+                ->body("Agenda UKG / PKG Anda telah dijadwalkan pada {$jadwalFormatted} bersama {$assessorName}. Catatan: {$catatanInfo}")
+                ->warning()
+                ->actions([
+                    NotificationAction::make('lihat')
+                        ->label('Lihat Jadwal')
+                        ->url('/staff/pengajuan-ukgs'),
+                ])
+                ->sendToDatabase($teacher);
+        }
+    }
+
+    public function notifyOnUpdated(): void
+    {
+        $teacher = User::withoutGlobalScopes()->find($this->teacher_id);
+        if (!$teacher) {
+            return;
+        }
+
+        $jadwalFormatted = $this->jadwal ? Carbon::parse($this->jadwal)->translatedFormat('d M Y, H:i') : ($this->tanggal ? Carbon::parse($this->tanggal)->translatedFormat('d M Y') : '-');
+
+        if (($this->wasChanged('status') && $this->status === 'dijadwalkan') || ($this->wasChanged('jadwal') && $this->jadwal !== null)) {
+            Notification::make()
+                ->title('Jadwal UKG Ditetapkan')
+                ->body("Agenda UKG Anda dijadwalkan pada {$jadwalFormatted}. Catatan: " . ($this->catatan_yayasan ?: '-'))
+                ->info()
+                ->actions([
+                    NotificationAction::make('lihat')
+                        ->label('Lihat Jadwal')
+                        ->url('/staff/pengajuan-ukgs'),
+                ])
+                ->sendToDatabase($teacher);
+        } elseif (($this->wasChanged('status') && $this->status === 'dinilai') || ($this->wasChanged('nilai_akhir') && $this->nilai_akhir > 0) || ($this->wasChanged('score') && $this->score > 0)) {
+            Notification::make()
+                ->title('Hasil Penilaian UKG Keluar')
+                ->body("Penilaian UKG Anda telah selesai dengan nilai akhir {$this->nilai_akhir} (Predikat: " . ($this->predikat ?: '-') . ").")
+                ->success()
+                ->actions([
+                    NotificationAction::make('lihat')
+                        ->label('Lihat Hasil')
+                        ->url('/staff/pengajuan-ukgs'),
+                ])
+                ->sendToDatabase($teacher);
+        }
     }
 }

@@ -16,6 +16,7 @@ class TeacherSupervision extends Model
     protected $casts = [
         'tanggal' => 'date',
         'jadwal' => 'datetime',
+        'notif_dismissed_at' => 'datetime',
         'komponen_penilaian' => 'array',
         'total_skor' => 'integer',
         'skor_perencanaan' => 'integer',
@@ -406,7 +407,7 @@ class TeacherSupervision extends Model
             ->get();
 
         if ($this->jalur_supervisi === 'penjamin_mutu') {
-            // Jalur 1: Penjamin Mutu menjadwalkan supervisi tanpa permintaan -> Informasikan ke Guru & KS
+            // Jalur 1: Penjamin Mutu menjadwalkan supervisi -> Notifikasi jadwal HANYA dikirim ke Guru bersangkutan
             Notification::make()
                 ->title('Jadwal Supervisi dari Penjamin Mutu')
                 ->body("Tim Penjamin Mutu telah menjadwalkan supervisi untuk Anda pada {$jadwalFormatted}. Catatan: {$catatanInfo}")
@@ -417,24 +418,8 @@ class TeacherSupervision extends Model
                         ->url('/staff/pengajuan-supervisis'),
                 ])
                 ->sendToDatabase($teacher);
-
-            foreach ($schoolLeaders as $leader) {
-                if ($leader->id === $teacher->id) {
-                    continue;
-                }
-                Notification::make()
-                    ->title("Informasi Supervisi Guru: {$teacher->name}")
-                    ->body("Penjamin Mutu Yayasan menjadwalkan supervisi (tanpa permintaan) untuk guru {$teacher->name} ({$institutionName}) pada {$jadwalFormatted}. Catatan: {$catatanInfo}")
-                    ->info()
-                    ->actions([
-                        NotificationAction::make('lihat')
-                            ->label('Lihat Jadwal Supervisi')
-                            ->url('/staff/pengajuan-supervisis'),
-                    ])
-                    ->sendToDatabase($leader);
-            }
         } else {
-            // Jalur 2: Permintaan sendiri oleh guru -> Informasikan ke Penjamin Mutu, Ketua Yayasan, & KS
+            // Jalur 2: Permintaan sendiri oleh guru -> Informasikan ke Penjamin Mutu & Ketua Yayasan untuk ditinjau
             $yayasanReviewers = User::withoutGlobalScopes()
                 ->whereHas('roles', fn ($q) => $q->whereIn('name', ['tim_pengembang_penjamin_mutu_yayasan', 'ketua_yayasan']))
                 ->get();
@@ -451,22 +436,6 @@ class TeacherSupervision extends Model
                     ])
                     ->sendToDatabase($reviewer);
             }
-
-            foreach ($schoolLeaders as $leader) {
-                if ($leader->id === $teacher->id) {
-                    continue;
-                }
-                Notification::make()
-                    ->title("Pengajuan Supervisi Mandiri: {$teacher->name}")
-                    ->body("Guru {$teacher->name} mengajukan permintaan supervisi mandiri. Keterangan: {$catatanInfo}")
-                    ->info()
-                    ->actions([
-                        NotificationAction::make('lihat')
-                            ->label('Lihat Pengajuan')
-                            ->url('/staff/pengajuan-supervisis'),
-                    ])
-                    ->sendToDatabase($leader);
-            }
         }
     }
 
@@ -478,14 +447,10 @@ class TeacherSupervision extends Model
         }
 
         $instId = $this->institution_id ?: $teacher->institution_id;
-        $schoolLeaders = User::withoutGlobalScopes()
-            ->where('institution_id', $instId)
-            ->whereHas('roles', fn ($q) => $q->whereIn('name', ['kepala_sekolah', 'waka_kurikulum']))
-            ->get();
-
         $jadwalFormatted = $this->jadwal ? Carbon::parse($this->jadwal)->translatedFormat('d M Y, H:i') : '-';
 
         if ($this->wasChanged('status') && $this->status === 'dijadwalkan') {
+            // Notifikasi jadwal HANYA dikirim ke Guru bersangkutan
             Notification::make()
                 ->title('Jadwal Supervisi Ditetapkan')
                 ->body("Supervisi Anda telah dijadwalkan pada {$jadwalFormatted}. Catatan: " . ($this->catatan_yayasan ?: '-'))
@@ -496,22 +461,6 @@ class TeacherSupervision extends Model
                         ->url('/staff/pengajuan-supervisis'),
                 ])
                 ->sendToDatabase($teacher);
-
-            foreach ($schoolLeaders as $leader) {
-                if ($leader->id === $teacher->id) {
-                    continue;
-                }
-                Notification::make()
-                    ->title("Jadwal Supervisi Guru: {$teacher->name}")
-                    ->body("Supervisi untuk guru {$teacher->name} telah dijadwalkan pada {$jadwalFormatted}.")
-                    ->info()
-                    ->actions([
-                        NotificationAction::make('lihat')
-                            ->label('Lihat Jadwal')
-                            ->url('/staff/pengajuan-supervisis'),
-                    ])
-                    ->sendToDatabase($leader);
-            }
         } elseif (($this->wasChanged('status') && $this->status === 'dinilai') || ($this->wasChanged('score') && $this->score !== null)) {
             Notification::make()
                 ->title('Hasil Penilaian Supervisi Keluar')
