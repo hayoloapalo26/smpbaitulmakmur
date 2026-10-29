@@ -300,4 +300,62 @@ class StudentDisciplineAndCaseInterconnectionTest extends TestCase
         $this->assertStringContainsString('Kaus kaki tidak sesuai ketentuan', $view);
         $this->assertStringContainsString('Riwayat Poin Karakter', $view);
     }
+
+    public function test_kepala_sekolah_can_only_view_parent_summons_and_cannot_create_or_edit(): void
+    {
+        Role::firstOrCreate(['name' => 'kepala_sekolah', 'guard_name' => 'web']);
+        $kepsek = User::factory()->create([
+            'email' => 'kepsek@baitulmakmur.sch.id',
+            'institution_id' => $this->institution->id,
+            'is_active' => true,
+        ]);
+        $kepsek->assignRole('kepala_sekolah');
+
+        $this->actingAs($kepsek);
+
+        $case = StudentCase::create([
+            'institution_id' => $this->institution->id,
+            'student_id' => $this->student->id,
+            'wali_kelas_id' => $this->teacher->id,
+            'nomor_kasus' => 'KASUS-2026-007',
+            'tanggal' => now()->toDateString(),
+            'kategori' => 'sedang',
+            'deskripsi' => 'Ujian menyontek',
+            'status' => 'proses',
+        ]);
+
+        $summon = ParentSummon::create([
+            'institution_id' => $this->institution->id,
+            'student_id' => $this->student->id,
+            'student_case_id' => $case->id,
+            'teacher_id' => $this->teacher->id,
+            'nomor_surat' => '048/SMPI/SP/X/2026',
+            'tanggal_pemanggilan' => now()->toDateString(),
+            'tanggal_pertemuan' => now()->addDay()->toDateString(),
+            'tempat_pertemuan' => 'Ruang BK',
+            'kasus' => 'Klarifikasi insiden menyontek',
+            'status' => 'menunggu',
+            'hasil_pertemuan' => 'Komitmen kejujuran akademik',
+            'surat_file' => 'https://drive.google.com/file/d/sp-048/view',
+        ]);
+
+        $this->assertTrue(\App\Filament\Staff\Resources\ParentSummonResource::canAccess());
+        $this->assertFalse(\App\Filament\Staff\Resources\ParentSummonResource::canCreate());
+        $this->assertFalse(\App\Filament\Staff\Resources\ParentSummonResource::canEdit($summon));
+        $this->assertFalse(\App\Filament\Staff\Resources\ParentSummonResource::canDelete($summon));
+
+        $view = view('filament.staff.components.parent-summon-summary-table', [
+            'record' => $summon,
+        ])->render();
+
+        $this->assertStringContainsString('Mode Tinjauan Kepala Sekolah', $view);
+        $this->assertStringContainsString('Read-Only', $view);
+        $this->assertStringContainsString('Surat Panggilan Orang Tua / Wali Murid', $view);
+        $this->assertStringContainsString('048/SMPI/SP/X/2026', $view);
+        $this->assertStringContainsString('Ahmad Fulan', $view);
+        $this->assertStringContainsString('Bapak Fulan', $view);
+        $this->assertStringContainsString('Klarifikasi insiden menyontek', $view);
+        $this->assertStringContainsString('Komitmen kejujuran akademik', $view);
+        $this->assertStringContainsString('https://drive.google.com/file/d/sp-048/view', $view);
+    }
 }

@@ -24,6 +24,33 @@ class ParentSummonResource extends Resource
         return Auth::user()->hasAnyRole(['wali_kelas', 'bk', 'waka_kesiswaan', 'kepala_sekolah', 'superadmin']);
     }
 
+    public static function canCreate(): bool
+    {
+        $user = Auth::user();
+        if ($user->hasRole('kepala_sekolah')) {
+            return false;
+        }
+        return $user->hasAnyRole(['wali_kelas', 'bk', 'waka_kesiswaan', 'superadmin']);
+    }
+
+    public static function canEdit(\Illuminate\Database\Eloquent\Model $record): bool
+    {
+        $user = Auth::user();
+        if ($user->hasRole('kepala_sekolah')) {
+            return false;
+        }
+        return $user->hasAnyRole(['wali_kelas', 'bk', 'waka_kesiswaan', 'superadmin']);
+    }
+
+    public static function canDelete(\Illuminate\Database\Eloquent\Model $record): bool
+    {
+        $user = Auth::user();
+        if ($user->hasRole('kepala_sekolah')) {
+            return false;
+        }
+        return $user->hasAnyRole(['wali_kelas', 'bk', 'waka_kesiswaan', 'superadmin']);
+    }
+
     protected static ?string $model = ParentSummon::class;
     protected static ?string $navigationIcon = 'heroicon-o-envelope-open';
     protected static ?string $modelLabel = 'Panggilan Orang Tua';
@@ -206,111 +233,9 @@ class ParentSummonResource extends Resource
     {
         return $infolist
             ->schema([
-                Infolists\Components\Section::make('✉️ Dokumen Panggilan Resmi Orang Tua')
-                    ->icon('heroicon-o-envelope-open')
-                    ->schema([
-                        Infolists\Components\TextEntry::make('nomor_surat')
-                            ->label('Nomor Surat')
-                            ->badge()
-                            ->color('primary')
-                            ->copyable(),
-                        Infolists\Components\TextEntry::make('status')
-                            ->label('Status Kehadiran')
-                            ->badge()
-                            ->color(fn (string $state): string => match ($state) {
-                                'menunggu'    => 'warning',
-                                'hadir'       => 'success',
-                                'tidak_hadir' => 'danger',
-                                default       => 'gray',
-                            })
-                            ->formatStateUsing(fn (string $state): string => match ($state) {
-                                'menunggu'    => '⏳ Menunggu / Belum Hadir',
-                                'hadir'       => '✅ Telah Hadir Memenuhi Panggilan',
-                                'tidak_hadir' => '❌ Mangkir / Tidak Hadir',
-                                default       => ucfirst($state),
-                            }),
-                        Infolists\Components\TextEntry::make('tanggal_pemanggilan')
-                            ->label('Tanggal Surat')
-                            ->date('d F Y'),
-                        Infolists\Components\TextEntry::make('tanggal_pertemuan')
-                            ->label('Jadwal Pertemuan / Hadir')
-                            ->formatStateUsing(fn ($state) => $state ? \Carbon\Carbon::parse($state)->isoFormat('dddd, D MMMM Y') : '-'),
-                        Infolists\Components\TextEntry::make('tempat_pertemuan')
-                            ->label('Tempat Pertemuan'),
-                        Infolists\Components\TextEntry::make('teacher.name')
-                            ->label('Guru / Pembuat Surat Panggilan')
-                            ->icon('heroicon-o-user-check'),
-                    ])->columns(3),
-
-                Infolists\Components\Section::make('👤 Data Siswa & Wali Murid Terkait')
-                    ->icon('heroicon-o-user-group')
-                    ->schema([
-                        Infolists\Components\TextEntry::make('student.name')
-                            ->label('Nama Lengkap Siswa')
-                            ->weight('bold'),
-                        Infolists\Components\TextEntry::make('student.classroom.name')
-                            ->label('Kelas')
-                            ->badge()
-                            ->color('info'),
-                        Infolists\Components\TextEntry::make('student.nis')
-                            ->label('NIS Siswa'),
-                        Infolists\Components\TextEntry::make('student.wali_murid')
-                            ->label('Nama Orang Tua / Wali')
-                            ->state(fn ($record) => $record->student?->nama_ayah ?: ($record->student?->nama_ibu ?: '-')),
-                        Infolists\Components\TextEntry::make('student.no_telepon_orang_tua')
-                            ->label('No. WhatsApp Orang Tua')
-                            ->icon('heroicon-o-chat-bubble-left-ellipsis')
-                            ->color('success')
-                            ->placeholder('Belum terdata'),
-                        Infolists\Components\TextEntry::make('student.alamat')
-                            ->label('Alamat Rumah')
-                            ->placeholder('-'),
-                    ])->columns(3),
-
-                Infolists\Components\Section::make('⚠️ Keterkaitan Kasus & Alasan Pemanggilan')
-                    ->icon('heroicon-o-exclamation-triangle')
-                    ->schema([
-                        Infolists\Components\TextEntry::make('studentCase.nomor_kasus')
-                            ->label('Nomor Kasus Siswa')
-                            ->badge()
-                            ->color('info')
-                            ->placeholder('Tidak terhubung ke kasus spesifik'),
-                        Infolists\Components\TextEntry::make('studentCase.kategori_kasus')
-                            ->label('Kategori Kasus')
-                            ->badge()
-                            ->placeholder('-')
-                            ->formatStateUsing(fn ($state) => is_array($state) ? implode(', ', $state) : $state),
-                        Infolists\Components\TextEntry::make('studentCase.ditangani_oleh')
-                            ->label('Ditangani Oleh')
-                            ->badge()
-                            ->formatStateUsing(fn ($state) => match($state) {
-                                'bk' => 'Guru BK',
-                                'kesiswaan' => 'Waka Kesiswaan',
-                                'kepala_sekolah' => 'Kepala Sekolah',
-                                default => 'Wali Kelas',
-                            })
-                            ->placeholder('-'),
-                        Infolists\Components\TextEntry::make('kasus')
-                            ->label('Uraian Permasalahan / Alasan Pemanggilan')
-                            ->columnSpanFull(),
-                    ])->columns(3),
-
-                Infolists\Components\Section::make('📝 Notula Hasil Musyawarah & Kesepakatan Bersama Orang Tua')
-                    ->icon('heroicon-o-document-text')
-                    ->schema([
-                        Infolists\Components\TextEntry::make('hasil_pertemuan')
-                            ->label('Hasil Pertemuan & Komitmen Bersama')
-                            ->placeholder('Belum ada notula pertemuan / orang tua belum hadir.')
-                            ->columnSpanFull(),
-                        Infolists\Components\TextEntry::make('surat_file')
-                            ->label('Link Google Drive Dokumen / Berita Acara')
-                            ->icon(fn ($state) => filled($state) ? 'heroicon-m-arrow-top-right-on-square' : null)
-                            ->color(fn ($state) => filled($state) ? 'primary' : 'gray')
-                            ->badge(fn ($state) => filled($state))
-                            ->formatStateUsing(fn ($state) => filled($state) ? 'Buka Dokumen di Google Drive ↗' : 'Tidak ada lampiran dokumen.')
-                            ->url(fn ($state) => filled($state) ? (str_starts_with($state, 'http') ? $state : asset('storage/' . $state)) : null, true)
-                            ->columnSpanFull(),
-                    ]),
+                Infolists\Components\ViewEntry::make('summary_table')
+                    ->view('filament.staff.components.parent-summon-summary-table')
+                    ->columnSpanFull(),
             ]);
     }
 
@@ -396,6 +321,7 @@ class ParentSummonResource extends Resource
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->defaultSort('tanggal_pemanggilan', 'desc')
+            ->recordAction('view')
             ->filters([
                 Tables\Filters\SelectFilter::make('status')
                     ->options([
@@ -405,12 +331,20 @@ class ParentSummonResource extends Resource
                     ]),
             ])
             ->actions([
-                Tables\Actions\ViewAction::make(),
-                Tables\Actions\EditAction::make(),
+                Tables\Actions\ViewAction::make()
+                    ->label('Lihat Ringkasan')
+                    ->icon('heroicon-o-eye')
+                    ->modalHeading('📋 Ringkasan Detail Surat Panggilan Orang Tua')
+                    ->modalWidth('4xl')
+                    ->modalSubmitAction(false)
+                    ->modalCancelActionLabel('Tutup'),
+                Tables\Actions\EditAction::make()
+                    ->visible(fn () => !Auth::user()->hasRole('kepala_sekolah')),
                 Tables\Actions\Action::make('catat_hasil')
                     ->label('Catat Hadir / Notula')
                     ->icon('heroicon-o-clipboard-document-check')
                     ->color('warning')
+                    ->visible(fn () => !Auth::user()->hasRole('kepala_sekolah'))
                     ->modalHeading(fn (ParentSummon $record) => "Catat Kehadiran Orang Tua: {$record->student->name}")
                     ->modalDescription('Dokumentasikan kehadiran orang tua dan kesepakatan bersama pembinaan siswa.')
                     ->modalSubmitActionLabel('Simpan Hasil Pertemuan')
@@ -459,7 +393,7 @@ class ParentSummonResource extends Resource
                     ->label('WA Undangan')
                     ->icon('heroicon-o-chat-bubble-left-ellipsis')
                     ->color('success')
-                    ->visible(fn (ParentSummon $record) => !empty($record->student->no_telepon_orang_tua))
+                    ->visible(fn (ParentSummon $record) => !Auth::user()->hasRole('kepala_sekolah') && !empty($record->student->no_telepon_orang_tua))
                     ->url(function (ParentSummon $record) {
                         $phone = preg_replace('/[^0-9]/', '', $record->student->no_telepon_orang_tua);
                         $tgl = $record->tanggal_pertemuan ? \Carbon\Carbon::parse($record->tanggal_pertemuan)->isoFormat('dddd, D MMMM Y') : '-';
@@ -475,11 +409,13 @@ class ParentSummonResource extends Resource
                         return "https://wa.me/{$phone}?text=" . urlencode($msg);
                     })
                     ->openUrlInNewTab(),
-                Tables\Actions\DeleteAction::make(),
+                Tables\Actions\DeleteAction::make()
+                    ->visible(fn () => !Auth::user()->hasRole('kepala_sekolah')),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\DeleteBulkAction::make(),
+                    Tables\Actions\DeleteBulkAction::make()
+                        ->visible(fn () => !Auth::user()->hasRole('kepala_sekolah')),
                 ]),
             ]);
     }
@@ -489,6 +425,7 @@ class ParentSummonResource extends Resource
         return [
             'index'  => Pages\ListParentSummons::route('/'),
             'create' => Pages\CreateParentSummon::route('/create'),
+            'view'   => Pages\ViewParentSummon::route('/{record}'),
             'edit'   => Pages\EditParentSummon::route('/{record}/edit'),
         ];
     }
