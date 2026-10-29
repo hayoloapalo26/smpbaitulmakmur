@@ -307,7 +307,7 @@ class GradeResource extends Resource
 
                 // 3. PARAMETER PENILAIAN, SKOR & CATATAN GURU PER-TP
                 Forms\Components\Section::make('📝 Bentuk Penilaian, Skor & Evaluasi Umpan Balik')
-                    ->description('Tentukan tipe nilai, bentuk penilaian, nilai perolehan siswa, serta catatan evaluasi guru per-TP.')
+                    ->description('Skala Nilai Resmi: [100: Excellent] | [90-99: Sangat Baik] | [80-89: Baik] | [70-79: Cukup Baik] | [< 70: Perlu Pembinaan].')
                     ->schema([
                         Forms\Components\Select::make('type')
                             ->label('Tipe Nilai')
@@ -358,12 +358,15 @@ class GradeResource extends Resource
                             ->prefix('Skor:')
                             ->live()
                             ->helperText(function (Forms\Get $get) {
-                                $score = (float)$get('score');
-                                if ($score === 0.0 && $get('score') === null) return 'Rentang nilai 0 - 100.';
-                                if ($score >= 75) {
-                                    return '✅ TUNTAS (Memenuhi KKM 75 - Siswa berhak mengikuti Program Pengayaan).';
+                                $score = $get('score');
+                                if ($score === null || $score === '') {
+                                    return '💡 Skala Nilai: 100 (Excellent) | 90 - 99 (Sangat Baik) | 80 - 89 (Baik) | 70 - 79 (Cukup Baik) | < 70 (Perlu Pembinaan).';
                                 }
-                                return '⚠️ BELUM TUNTAS (< 75) - Siswa perlu mengikuti Program Remedial untuk TP yang belum tuntas.';
+                                $scale = Grade::determineScale((float)$score);
+                                if ($scale['is_tuntas']) {
+                                    return "✅ Predikat: {$scale['label']} (Tuntas - Memenuhi Kriteria & Berhak mengikuti Pengayaan).";
+                                }
+                                return "⚠️ Predikat: {$scale['label']} (Belum Tuntas - Perlu Pembinaan / Mengikuti Remedial).";
                             })
                             ->columnSpanFull(),
 
@@ -560,10 +563,17 @@ class GradeResource extends Resource
                             return '⭐ Pengayaan Selesai (' . ($record->nilai_pengayaan ?? $record->score) . ')';
                         }
                         if ($record->is_remedial) {
-                            return '🔄 Remedial: ' . ($record->nilai_remedial >= 75 ? 'Tuntas' : 'Belum Tuntas');
+                            return '🔄 Remedial: ' . ($record->nilai_remedial >= 70 ? 'Tuntas' : 'Perlu Pembinaan');
                         }
-                        return $record->isTuntas() ? '✅ Tuntas' : '⚠️ Belum Tuntas';
+                        return $record->isTuntas() ? "✅ Tuntas ({$record->predikat})" : '⚠️ Perlu Pembinaan';
                     }),
+
+                Tables\Columns\TextColumn::make('predikat')
+                    ->label('Predikat Skala')
+                    ->badge()
+                    ->color(fn (Grade $record): string => $record->predikat_color)
+                    ->formatStateUsing(fn (Grade $record): string => $record->predikat)
+                    ->description(fn (Grade $record): string => $record->predikat_label),
 
                 Tables\Columns\TextColumn::make('tp_count')
                     ->label('TP Diuji')
@@ -599,8 +609,8 @@ class GradeResource extends Resource
                     ->state(function (Grade $record): string {
                         if ($record->is_pengayaan) return '⭐ Pengayaan';
                         if ($record->is_remedial) return '🔄 Remedial';
-                        if ($record->isTuntas()) return '✅ Tuntas (Siap Pengayaan)';
-                        return '⚠️ Perlu Remedial';
+                        if ($record->isTuntas()) return "✅ Tuntas ({$record->predikat})";
+                        return '⚠️ Perlu Pembinaan';
                     }),
 
                 Tables\Columns\TextColumn::make('status_verifikasi')
@@ -620,6 +630,27 @@ class GradeResource extends Resource
                         'Diterima' => 'Diterima',
                         'Perlu Perbaikan' => 'Perlu Perbaikan',
                     ]),
+
+                Tables\Filters\SelectFilter::make('skala_nilai')
+                    ->label('Filter Predikat Skala Nilai')
+                    ->options([
+                        'excellent'       => '100 : Excellent',
+                        'sangat_baik'     => '90 - 99 : Sangat Baik',
+                        'baik'            => '80 - 89 : Baik',
+                        'cukup_baik'      => '70 - 79 : Cukup Baik',
+                        'perlu_pembinaan' => '< 70 : Perlu Pembinaan',
+                    ])
+                    ->query(function (Builder $query, array $data) {
+                        if (empty($data['value'])) return $query;
+                        return match ($data['value']) {
+                            'excellent'       => $query->where('score', '>=', 100),
+                            'sangat_baik'     => $query->whereBetween('score', [90, 99.99]),
+                            'baik'            => $query->whereBetween('score', [80, 89.99]),
+                            'cukup_baik'      => $query->whereBetween('score', [70, 79.99]),
+                            'perlu_pembinaan' => $query->where('score', '<', 70),
+                            default           => $query,
+                        };
+                    }),
 
                 Tables\Filters\SelectFilter::make('classroom_id')
                     ->relationship('classroom', 'name')
@@ -643,12 +674,12 @@ class GradeResource extends Resource
                     ]),
 
                 Tables\Filters\Filter::make('perlu_remedial')
-                    ->label('Hanya Perlu Remedial (< 75)')
-                    ->query(fn (Builder $query): Builder => $query->where('score', '<', 75)->where('is_remedial', false)),
+                    ->label('Hanya Perlu Pembinaan / Remedial (< 70)')
+                    ->query(fn (Builder $query): Builder => $query->where('score', '<', 70)->where('is_remedial', false)),
 
                 Tables\Filters\Filter::make('tuntas_pengayaan')
-                    ->label('Hanya Tuntas / Siap Pengayaan (>= 75)')
-                    ->query(fn (Builder $query): Builder => $query->where('score', '>=', 75)->orWhere(fn ($q) => $q->where('is_remedial', true)->where('nilai_remedial', '>=', 75))),
+                    ->label('Hanya Tuntas / Siap Pengayaan (>= 70)')
+                    ->query(fn (Builder $query): Builder => $query->where('score', '>=', 70)->orWhere(fn ($q) => $q->where('is_remedial', true)->where('nilai_remedial', '>=', 70))),
             ])
             ->actions([
                 Tables\Actions\Action::make('terima_nilai')
@@ -685,7 +716,7 @@ class GradeResource extends Resource
                     ->form([
                         Forms\Components\Placeholder::make('info_nilai_awal')
                             ->label('Informasi Nilai Awal')
-                            ->content(fn (Grade $record) => "Nilai Awal: {$record->score} | KKM: 75 | Status: " . ($record->isTuntas() ? 'Tuntas' : 'Belum Tuntas')),
+                            ->content(fn (Grade $record) => "Nilai Awal: {$record->score} | Skala: {$record->predikat_label} | Batas Ketuntasan: 70 | Status: " . ($record->isTuntas() ? 'Tuntas' : 'Perlu Pembinaan')),
 
                         Forms\Components\Select::make('tp_remedial_ids')
                             ->label('1. TP yang Belum Tuntas / Diremedial (Multiple Choice)')
@@ -759,7 +790,7 @@ class GradeResource extends Resource
                             ->label('Nama Siswa & Nilai Tuntas Sebelumnya')
                             ->content(function (Grade $record) {
                                 $nilaiTuntas = $record->nilai_akhir;
-                                return "Nama Siswa: {$record->student?->name} (Kelas: {$record->classroom?->name}) | Nilai Tuntas Sebelumnya: {$nilaiTuntas} (Otomatis dari nilai inputan / rekomendasi guru)";
+                                return "Nama Siswa: {$record->student?->name} (Kelas: {$record->classroom?->name}) | Nilai Tuntas: {$nilaiTuntas} (Predikat: {$record->predikat})";
                             }),
 
                         Forms\Components\Select::make('tp_pengayaan_id')

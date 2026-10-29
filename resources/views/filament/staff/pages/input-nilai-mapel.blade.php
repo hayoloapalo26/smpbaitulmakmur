@@ -115,7 +115,7 @@
                             <div class="text-lg font-bold text-primary-600 dark:text-primary-400">{{ $averageScore > 0 ? $averageScore : '-' }}</div>
                         </div>
                         <div class="bg-white/80 dark:bg-gray-800/60 p-2.5 rounded-xl border border-gray-100 dark:border-gray-700/40 text-center">
-                            <div class="text-xs text-gray-500 dark:text-gray-400">Tuntas (>=75)</div>
+                            <div class="text-xs text-gray-500 dark:text-gray-400">Tuntas (≥70)</div>
                             <div class="text-lg font-bold text-blue-600 dark:text-blue-400">{{ $tuntasPercent }}%</div>
                         </div>
                     </div>

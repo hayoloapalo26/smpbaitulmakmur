@@ -330,7 +330,35 @@ class GradingVariablesRemedialPengayaanTest extends TestCase
         Livewire::test(ManageGrades::class)
             ->assertSuccessful()
             ->assertSee('Semua Nilai')
-            ->assertSee('Perlu Remedial')
+            ->assertSee('Perlu Pembinaan')
             ->assertSee('Tuntas (Siap Pengayaan)');
+    }
+
+    public function test_evaluates_correct_grading_scales_and_predicates()
+    {
+        $scale1 = Grade::determineScale(68);
+        $this->assertEquals(Grade::SCALE_PERLU_PEMBINAAN, $scale1['predikat']);
+        $this->assertEquals('< 70 : Perlu Pembinaan', $scale1['label']);
+        $this->assertFalse($scale1['is_tuntas']);
+
+        $scale2 = Grade::determineScale(75);
+        $this->assertEquals(Grade::SCALE_CUKUP_BAIK, $scale2['predikat']);
+        $this->assertEquals('70 - 79 : Cukup Baik', $scale2['label']);
+        $this->assertTrue($scale2['is_tuntas']);
+
+        $scale3 = Grade::determineScale(85);
+        $this->assertEquals(Grade::SCALE_BAIK, $scale3['predikat']);
+        $this->assertEquals('80 - 89 : Baik', $scale3['label']);
+        $this->assertTrue($scale3['is_tuntas']);
+
+        $scale4 = Grade::determineScale(95);
+        $this->assertEquals(Grade::SCALE_SANGAT_BAIK, $scale4['predikat']);
+        $this->assertEquals('90 - 99 : Sangat Baik', $scale4['label']);
+        $this->assertTrue($scale4['is_tuntas']);
+
+        $scale5 = Grade::determineScale(100);
+        $this->assertEquals(Grade::SCALE_EXCELLENT, $scale5['predikat']);
+        $this->assertEquals('100 : Excellent', $scale5['label']);
+        $this->assertTrue($scale5['is_tuntas']);
     }
 }

@@ -19,9 +19,9 @@ class ManageGrades extends ManageRecords
             'semua' => Tab::make('Semua Nilai')
                 ->icon('heroicon-o-list-bullet'),
 
-            'perlu_remedial' => Tab::make('⚠️ Perlu Remedial (< 75)')
-                ->modifyQueryUsing(fn (Builder $query) => $query->where('score', '<', 75)->where('is_remedial', false))
-                ->badge(fn () => $this->getModel()::where('score', '<', 75)->where('is_remedial', false)->count())
+            'perlu_remedial' => Tab::make('⚠️ Perlu Pembinaan (< 70)')
+                ->modifyQueryUsing(fn (Builder $query) => $query->where('score', '<', 70)->where('is_remedial', false))
+                ->badge(fn () => $this->getModel()::where('score', '<', 70)->where('is_remedial', false)->count())
                 ->badgeColor('danger'),
 
             'remedial_selesai' => Tab::make('🔄 Remedial Selesai')
@@ -29,14 +29,14 @@ class ManageGrades extends ManageRecords
                 ->badge(fn () => $this->getModel()::where('is_remedial', true)->count())
                 ->badgeColor('warning'),
 
-            'siap_pengayaan' => Tab::make('✅ Tuntas (Siap Pengayaan)')
+            'siap_pengayaan' => Tab::make('✅ Tuntas (Siap Pengayaan) (≥ 70)')
                 ->modifyQueryUsing(fn (Builder $query) => $query->where(function ($q) {
-                    $q->where('score', '>=', 75)
-                      ->orWhere(fn ($sq) => $sq->where('is_remedial', true)->where('nilai_remedial', '>=', 75));
+                    $q->where('score', '>=', 70)
+                      ->orWhere(fn ($sq) => $sq->where('is_remedial', true)->where('nilai_remedial', '>=', 70));
                 })->where('is_pengayaan', false))
                 ->badge(fn () => $this->getModel()::where(function ($q) {
-                    $q->where('score', '>=', 75)
-                      ->orWhere(fn ($sq) => $sq->where('is_remedial', true)->where('nilai_remedial', '>=', 75));
+                    $q->where('score', '>=', 70)
+                      ->orWhere(fn ($sq) => $sq->where('is_remedial', true)->where('nilai_remedial', '>=', 70));
                 })->where('is_pengayaan', false)->count())
                 ->badgeColor('success'),
 
