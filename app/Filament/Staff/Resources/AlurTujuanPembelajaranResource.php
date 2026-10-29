@@ -17,6 +17,11 @@ use Illuminate\Support\Facades\Auth;
 
 class AlurTujuanPembelajaranResource extends Resource
 {
+    public static function shouldRegisterNavigation(): bool
+    {
+        return false;
+    }
+
     public static function canAccess(): bool
     {
         return auth()->user()?->hasAnyRole([

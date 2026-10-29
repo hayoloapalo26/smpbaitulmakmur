@@ -428,4 +428,73 @@ class PerangkatAjarAndGradeSystemTest extends TestCase
 
         $this->assertLessThan(95, $normalGrade->score);
     }
+
+    public function test_perangkat_ajar_separate_resources_are_hidden_from_sidebar_navigation(): void
+    {
+        $this->assertFalse(\App\Filament\Staff\Resources\CapaianPembelajaranResource::shouldRegisterNavigation());
+        $this->assertFalse(\App\Filament\Staff\Resources\TujuanPembelajaranResource::shouldRegisterNavigation());
+        $this->assertFalse(\App\Filament\Staff\Resources\AlurTujuanPembelajaranResource::shouldRegisterNavigation());
+    }
+
+    public function test_rppm_creation_directly_inputs_and_persists_cp_and_tp(): void
+    {
+        $page = new \App\Filament\Staff\Resources\RppmResource\Pages\CreateRppm();
+
+        $reflection = new \ReflectionClass($page);
+        $method = $reflection->getMethod('mutateFormDataBeforeCreate');
+        $method->setAccessible(true);
+
+        $formData = [
+            'kelas_fase' => 'Kelas 7 / Fase D',
+            'mata_pelajaran' => 'Matematika',
+            'topik' => 'Pecahan dan Aljabar',
+            'alokasi_waktu' => '2 x 40 Menit',
+            'input_perangkat_mode' => 'input_baru',
+            'new_cp_elemen' => 'Bilangan & Aljabar',
+            'new_cp_masa_berlaku' => '1 Tahun',
+            'new_cp_deskripsi' => 'Peserta didik mampu memahami operasi aljabar bilangan pecahan.',
+            'new_tps' => [
+                [
+                    'kode_tp' => 'TP.7.1.10',
+                    'materi' => 'Aljabar Pecahan',
+                    'deskripsi_tp' => 'Menyederhanakan pecahan bentuk aljabar.',
+                ],
+                [
+                    'kode_tp' => 'TP.7.1.11',
+                    'materi' => 'Aljabar Pecahan',
+                    'deskripsi_tp' => 'Menyelesaikan perkalian dan pembagian pecahan aljabar.',
+                ],
+            ],
+            'content' => [],
+        ];
+
+        $mutated = $method->invoke($page, $formData);
+
+        // CP should be created and linked
+        $this->assertNotNull($mutated['capaian_pembelajaran_id']);
+        $this->assertDatabaseHas('capaian_pembelajarans', [
+            'id' => $mutated['capaian_pembelajaran_id'],
+            'elemen' => 'Bilangan & Aljabar',
+            'deskripsi_cp' => 'Peserta didik mampu memahami operasi aljabar bilangan pecahan.',
+        ]);
+
+        // 2 TPs should be created and linked
+        $this->assertCount(2, $mutated['selected_tp_ids']);
+        $this->assertDatabaseHas('tujuan_pembelajarans', [
+            'kode_tp' => 'TP.7.1.10',
+            'deskripsi_tp' => 'Menyederhanakan pecahan bentuk aljabar.',
+        ]);
+        $this->assertDatabaseHas('tujuan_pembelajarans', [
+            'kode_tp' => 'TP.7.1.11',
+            'deskripsi_tp' => 'Menyelesaikan perkalian dan pembagian pecahan aljabar.',
+        ]);
+
+        // Content in Desain Pembelajaran should be populated
+        $this->assertEquals('Peserta didik mampu memahami operasi aljabar bilangan pecahan.', $mutated['content']['capaian_pembelajaran']);
+        $this->assertCount(2, $mutated['content']['tujuan_pembelajaran']);
+
+        // Temporary keys cleaned up
+        $this->assertArrayNotHasKey('new_cp_deskripsi', $mutated);
+        $this->assertArrayNotHasKey('new_tps', $mutated);
+    }
 }

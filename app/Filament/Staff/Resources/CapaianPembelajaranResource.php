@@ -16,6 +16,11 @@ use Illuminate\Support\Facades\Auth;
 
 class CapaianPembelajaranResource extends Resource
 {
+    public static function shouldRegisterNavigation(): bool
+    {
+        return false;
+    }
+
     public static function canAccess(): bool
     {
         return auth()->user()?->hasAnyRole([
