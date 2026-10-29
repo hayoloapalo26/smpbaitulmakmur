@@ -22,7 +22,7 @@ class GradePolicy
     public function viewAny($user): bool
     {
         if ($user->hasRole(['kepala_sekolah', 'superadmin', 'waka_kurikulum', 'koordinator_madin'])) return true;
-        return $user->hasAnyRole(['guru_mapel', 'guru_kelas', 'guru_alquran', 'wali_kelas']);
+        return $user->hasAnyRole(array_merge(['guru_mapel', 'guru_kelas', 'wali_kelas'], \App\Models\User::QURAN_TEACHER_ROLES));
     }
 
     /**
@@ -31,7 +31,7 @@ class GradePolicy
     public function view($user, $model): bool
     {
         if ($user->hasRole(['kepala_sekolah', 'superadmin', 'waka_kurikulum', 'koordinator_madin'])) return true;
-        return $user->hasAnyRole(['guru_mapel', 'guru_kelas', 'guru_alquran', 'wali_kelas']);
+        return $user->hasAnyRole(array_merge(['guru_mapel', 'guru_kelas', 'wali_kelas'], \App\Models\User::QURAN_TEACHER_ROLES));
     }
 
     /**
@@ -39,7 +39,7 @@ class GradePolicy
      */
     public function create($user): bool
     {
-        return $user->hasAnyRole(['guru_mapel', 'guru_kelas', 'guru_alquran', 'koordinator_madin', 'waka_kurikulum', 'superadmin']);
+        return $user->hasAnyRole(array_merge(['guru_mapel', 'guru_kelas', 'koordinator_madin', 'waka_kurikulum', 'superadmin'], \App\Models\User::QURAN_TEACHER_ROLES));
     }
 
     /**
@@ -47,7 +47,7 @@ class GradePolicy
      */
     public function update($user, $model): bool
     {
-        return $user->hasAnyRole(['guru_mapel', 'guru_kelas', 'guru_alquran', 'koordinator_madin', 'waka_kurikulum', 'superadmin']);
+        return $user->hasAnyRole(array_merge(['guru_mapel', 'guru_kelas', 'koordinator_madin', 'waka_kurikulum', 'superadmin'], \App\Models\User::QURAN_TEACHER_ROLES));
     }
 
     /**
@@ -55,7 +55,7 @@ class GradePolicy
      */
     public function delete($user, $model): bool
     {
-        return $user->hasAnyRole(['guru_mapel', 'guru_kelas', 'guru_alquran', 'waka_kurikulum', 'superadmin']);
+        return $user->hasAnyRole(array_merge(['guru_mapel', 'guru_kelas', 'waka_kurikulum', 'superadmin'], \App\Models\User::QURAN_TEACHER_ROLES));
     }
 
     /**

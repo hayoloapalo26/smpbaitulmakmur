@@ -58,7 +58,7 @@ class TeacherMonthlyWorkloadWidget extends Widget
         // Ambil guru riil (tanpa akun dummy, role non-guru, dan akun Guru Piket)
         $teachers = User::withoutGlobalScopes()
             ->where(function ($q) {
-                $q->whereHas('roles', fn ($r) => $r->whereIn('name', ['guru_mapel', 'guru_alquran', 'wali_kelas', 'guru_kelas', 'waka_kurikulum']))
+                $q->whereHas('roles', fn ($r) => $r->whereIn('name', array_merge(['guru_mapel', 'wali_kelas', 'guru_kelas', 'waka_kurikulum'], User::QURAN_TEACHER_ROLES)))
                   ->orWhereHas('schedules');
             })
             ->where('name', 'not like', '%piket%')

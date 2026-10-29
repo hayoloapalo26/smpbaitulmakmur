@@ -14,7 +14,7 @@ class ReadingQualityScorePolicy
     public function viewAny($user): bool
     {
         if ($user->hasRole('kepala_sekolah')) return true;
-        return $user->hasRole(['waka_kurikulum', 'guru_alquran', 'koordinator_madin']);
+        return $user->hasRole(array_merge(['waka_kurikulum', 'koordinator_madin'], \App\Models\User::QURAN_TEACHER_ROLES));
     }
 
     /**
@@ -22,7 +22,7 @@ class ReadingQualityScorePolicy
      */
     public function view($user, $model): bool
     {
-        return $user->hasRole(['waka_kurikulum', 'guru_alquran', 'koordinator_madin']);
+        return $user->hasRole(array_merge(['waka_kurikulum', 'koordinator_madin'], \App\Models\User::QURAN_TEACHER_ROLES));
     }
 
     /**
@@ -30,7 +30,7 @@ class ReadingQualityScorePolicy
      */
     public function create($user): bool
     {
-        return $user->hasRole(['guru_alquran', 'koordinator_madin']);
+        return $user->hasRole(array_merge(['koordinator_madin'], \App\Models\User::QURAN_TEACHER_ROLES));
     }
 
     /**
@@ -38,7 +38,7 @@ class ReadingQualityScorePolicy
      */
     public function update($user, $model): bool
     {
-        return $user->hasRole(['guru_alquran', 'koordinator_madin']);
+        return $user->hasRole(array_merge(['koordinator_madin'], \App\Models\User::QURAN_TEACHER_ROLES));
     }
 
     /**
@@ -46,7 +46,7 @@ class ReadingQualityScorePolicy
      */
     public function delete($user, $model): bool
     {
-        return $user->hasRole(['guru_alquran']);
+        return $user->hasRole(\App\Models\User::QURAN_TEACHER_ROLES);
     }
 
     /**
@@ -54,7 +54,7 @@ class ReadingQualityScorePolicy
      */
     public function restore($user, $model): bool
     {
-        return $user->hasRole(['guru_alquran']);
+        return $user->hasRole(\App\Models\User::QURAN_TEACHER_ROLES);
     }
 
     /**
@@ -62,6 +62,6 @@ class ReadingQualityScorePolicy
      */
     public function forceDelete($user, $model): bool
     {
-        return $user->hasRole(['guru_alquran']);
+        return $user->hasRole(\App\Models\User::QURAN_TEACHER_ROLES);
     }
 }

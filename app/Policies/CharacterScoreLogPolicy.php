@@ -14,7 +14,7 @@ class CharacterScoreLogPolicy
     public function viewAny($user): bool
     {
         if ($user->hasRole('kepala_sekolah')) return true;
-        return $user->hasRole(['waka_kesiswaan', 'wali_kelas', 'guru_mapel', 'guru_alquran', 'bk']);
+        return $user->hasRole(array_merge(['waka_kesiswaan', 'wali_kelas', 'guru_mapel', 'bk'], \App\Models\User::QURAN_TEACHER_ROLES));
     }
 
     /**
@@ -22,7 +22,7 @@ class CharacterScoreLogPolicy
      */
     public function view($user, $model): bool
     {
-        return $user->hasRole(['waka_kesiswaan', 'wali_kelas', 'guru_mapel', 'guru_alquran', 'bk']);
+        return $user->hasRole(array_merge(['waka_kesiswaan', 'wali_kelas', 'guru_mapel', 'bk'], \App\Models\User::QURAN_TEACHER_ROLES));
     }
 
     /**
@@ -30,7 +30,7 @@ class CharacterScoreLogPolicy
      */
     public function create($user): bool
     {
-        return $user->hasRole(['waka_kesiswaan', 'wali_kelas', 'guru_mapel', 'guru_alquran', 'bk']);
+        return $user->hasRole(array_merge(['waka_kesiswaan', 'wali_kelas', 'guru_mapel', 'bk'], \App\Models\User::QURAN_TEACHER_ROLES));
     }
 
     /**
@@ -38,7 +38,7 @@ class CharacterScoreLogPolicy
      */
     public function update($user, $model): bool
     {
-        return $user->hasRole(['waka_kesiswaan', 'wali_kelas', 'guru_mapel', 'guru_alquran', 'bk']);
+        return $user->hasRole(array_merge(['waka_kesiswaan', 'wali_kelas', 'guru_mapel', 'bk'], \App\Models\User::QURAN_TEACHER_ROLES));
     }
 
     /**

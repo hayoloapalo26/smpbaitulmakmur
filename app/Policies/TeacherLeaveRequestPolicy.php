@@ -13,7 +13,7 @@ class TeacherLeaveRequestPolicy
      */
     public function viewAny($user): bool
     {
-        return $user->hasRole(['waka_kurikulum', 'kepala_sekolah', 'guru_mapel', 'guru_alquran', 'wali_kelas', 'tata_usaha', 'superadmin']);
+        return $user->hasRole(array_merge(['waka_kurikulum', 'kepala_sekolah', 'guru_mapel', 'wali_kelas', 'tata_usaha', 'superadmin'], \App\Models\User::QURAN_TEACHER_ROLES));
     }
 
     /**
@@ -21,7 +21,7 @@ class TeacherLeaveRequestPolicy
      */
     public function view($user, $model): bool
     {
-        return $user->hasRole(['waka_kurikulum', 'kepala_sekolah', 'guru_mapel', 'guru_alquran', 'wali_kelas', 'tata_usaha', 'superadmin']);
+        return $user->hasRole(array_merge(['waka_kurikulum', 'kepala_sekolah', 'guru_mapel', 'wali_kelas', 'tata_usaha', 'superadmin'], \App\Models\User::QURAN_TEACHER_ROLES));
     }
 
     /**
@@ -33,7 +33,7 @@ class TeacherLeaveRequestPolicy
             return false;
         }
 
-        return $user->hasRole(['waka_kurikulum', 'guru_mapel', 'guru_alquran', 'wali_kelas', 'tata_usaha', 'superadmin']);
+        return $user->hasRole(array_merge(['waka_kurikulum', 'guru_mapel', 'wali_kelas', 'tata_usaha', 'superadmin'], \App\Models\User::QURAN_TEACHER_ROLES));
     }
 
     /**
@@ -45,7 +45,7 @@ class TeacherLeaveRequestPolicy
             return false;
         }
 
-        return $user->hasRole(['waka_kurikulum', 'guru_mapel', 'guru_alquran', 'wali_kelas', 'tata_usaha', 'superadmin']);
+        return $user->hasRole(array_merge(['waka_kurikulum', 'guru_mapel', 'wali_kelas', 'tata_usaha', 'superadmin'], \App\Models\User::QURAN_TEACHER_ROLES));
     }
 
     /**

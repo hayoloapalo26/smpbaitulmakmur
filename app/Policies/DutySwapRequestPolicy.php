@@ -15,9 +15,9 @@ class DutySwapRequestPolicy
             return true;
         }
 
-        return $user->hasAnyRole([
-            'guru_mapel', 'guru_alquran', 'wali_kelas', 'guru_kelas', 'bk', 'guru_piket', 'tata_usaha'
-        ]) || DutySchedule::where('teacher_id', $user->id)->exists();
+        return $user->hasAnyRole(array_merge([
+            'guru_mapel', 'wali_kelas', 'guru_kelas', 'bk', 'guru_piket', 'tata_usaha'
+        ], \App\Models\User::QURAN_TEACHER_ROLES)) || DutySchedule::where('teacher_id', $user->id)->exists();
     }
 
     public function viewAny(User $user): bool

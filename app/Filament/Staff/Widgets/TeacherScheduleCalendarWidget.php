@@ -26,7 +26,7 @@ class TeacherScheduleCalendarWidget extends Widget
     public static function canView(): bool
     {
         $user = Auth::user();
-        return $user && $user->hasAnyRole(['guru_mapel', 'wali_kelas', 'guru_alquran']);
+        return $user && $user->hasAnyRole(array_merge(['guru_mapel', 'wali_kelas'], \App\Models\User::QURAN_TEACHER_ROLES));
     }
 
     public function nextMonth()

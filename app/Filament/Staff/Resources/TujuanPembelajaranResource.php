@@ -24,14 +24,13 @@ class TujuanPembelajaranResource extends Resource
 
     public static function canAccess(): bool
     {
-        return auth()->user()?->hasAnyRole([
+        return auth()->user()?->hasAnyRole(array_merge([
             'guru_mapel',
             'guru_kelas',
-            'guru_alquran',
             'waka_kurikulum',
             'kepala_sekolah',
             'superadmin',
-        ]) ?? false;
+        ], \App\Models\User::QURAN_TEACHER_ROLES)) ?? false;
     }
 
     protected static ?string $model = TujuanPembelajaran::class;

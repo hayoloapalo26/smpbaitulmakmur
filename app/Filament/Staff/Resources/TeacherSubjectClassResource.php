@@ -53,8 +53,21 @@ class TeacherSubjectClassResource extends Resource
                                     });
                                 }
                                 $query->whereHas('roles', function ($q) {
-                                    $q->whereIn('name', ['guru_mapel', 'guru_kelas', 'guru_alquran', 'wali_kelas', 'waka_kurikulum', 'waka_kesiswaan']);
+                                    $q->whereIn('name', array_merge([
+                                        'guru_mapel', 'guru_kelas', 'wali_kelas', 'waka_kurikulum', 'waka_kesiswaan'
+                                    ], \App\Models\User::QURAN_TEACHER_ROLES));
                                 });
+                            })
+                            ->getOptionLabelFromRecordUsing(function ($record) {
+                                $roles = $record->roles->pluck('name')->toArray();
+                                $spec = [];
+                                if (in_array('guru_quran_yanbua', $roles)) $spec[] = 'Yanbu\'a';
+                                if (in_array('guru_quran_tahsin', $roles)) $spec[] = 'Tahsin';
+                                if (in_array('guru_quran_tahfidz_dasar', $roles)) $spec[] = 'Tahfidz Dasar';
+                                if (in_array('guru_quran_tahfidz_lanjutan', $roles)) $spec[] = 'Tahfidz Lanjutan';
+                                if (in_array('guru_alquran', $roles) && empty($spec)) $spec[] = 'Al-Qur\'an';
+                                $tag = !empty($spec) ? ' [Guru ' . implode(', ', $spec) . ']' : '';
+                                return $record->name . $tag;
                             })
                             ->label('Guru Pengajar')
                             ->searchable()
@@ -93,6 +106,25 @@ class TeacherSubjectClassResource extends Resource
                     ->label('Guru Pengajar')
                     ->weight('bold')
                     ->icon('heroicon-o-user'),
+                Tables\Columns\TextColumn::make('peran_guru')
+                    ->label('Rumpun / Spesialisasi')
+                    ->state(function (TeacherSubjectClass $record) {
+                        $roles = $record->teacher?->roles?->pluck('name')->toArray() ?? [];
+                        if (in_array('guru_quran_yanbua', $roles)) return 'Al-Qur\'an (Yanbu\'a)';
+                        if (in_array('guru_quran_tahsin', $roles)) return 'Al-Qur\'an (Tahsin)';
+                        if (in_array('guru_quran_tahfidz_dasar', $roles)) return 'Tahfidz Dasar';
+                        if (in_array('guru_quran_tahfidz_lanjutan', $roles)) return 'Tahfidz Lanjutan';
+                        if (in_array('guru_alquran', $roles)) return 'Guru Al-Qur\'an';
+                        if (in_array('guru_mapel', $roles)) return 'Guru Mapel';
+                        return 'Guru';
+                    })
+                    ->badge()
+                    ->colors([
+                        'warning' => fn ($state) => str_contains($state, 'Yanbu\'a'),
+                        'info' => fn ($state) => str_contains($state, 'Tahsin'),
+                        'success' => fn ($state) => str_contains($state, 'Tahfidz'),
+                        'primary' => fn ($state) => $state === 'Guru Mapel' || $state === 'Guru Al-Qur\'an',
+                    ]),
                 Tables\Columns\TextColumn::make('subject.name')
                     ->searchable()
                     ->sortable()
@@ -107,6 +139,31 @@ class TeacherSubjectClassResource extends Resource
                     ->color('success'),
             ])
             ->filters([
+                Tables\Filters\SelectFilter::make('kategori_quran')
+                    ->label('Rumpun Guru')
+                    ->options([
+                        'quran' => 'Seluruh Guru Al-Qur\'an',
+                        'yanbua' => 'Guru Yanbu\'a',
+                        'tahsin' => 'Guru Tahsin',
+                        'tahfidz_dasar' => 'Guru Tahfidz Dasar',
+                        'tahfidz_lanjutan' => 'Guru Tahfidz Lanjutan',
+                        'mapel' => 'Guru Mapel Umum',
+                    ])
+                    ->query(function (\Illuminate\Database\Eloquent\Builder $query, array $data) {
+                        if (($data['value'] ?? null) === 'quran') {
+                            $query->whereHas('teacher.roles', fn ($r) => $r->whereIn('name', \App\Models\User::QURAN_TEACHER_ROLES));
+                        } elseif (($data['value'] ?? null) === 'yanbua') {
+                            $query->whereHas('teacher.roles', fn ($r) => $r->where('name', 'guru_quran_yanbua'));
+                        } elseif (($data['value'] ?? null) === 'tahsin') {
+                            $query->whereHas('teacher.roles', fn ($r) => $r->where('name', 'guru_quran_tahsin'));
+                        } elseif (($data['value'] ?? null) === 'tahfidz_dasar') {
+                            $query->whereHas('teacher.roles', fn ($r) => $r->where('name', 'guru_quran_tahfidz_dasar'));
+                        } elseif (($data['value'] ?? null) === 'tahfidz_lanjutan') {
+                            $query->whereHas('teacher.roles', fn ($r) => $r->where('name', 'guru_quran_tahfidz_lanjutan'));
+                        } elseif (($data['value'] ?? null) === 'mapel') {
+                            $query->whereHas('teacher.roles', fn ($r) => $r->where('name', 'guru_mapel'));
+                        }
+                    }),
                 Tables\Filters\SelectFilter::make('teacher_id')
                     ->relationship('teacher', 'name')
                     ->label('Filter Guru')

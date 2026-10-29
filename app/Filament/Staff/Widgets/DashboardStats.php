@@ -32,7 +32,7 @@ class DashboardStats extends BaseWidget
             ->pluck('submitted_by')->unique()->toArray();
             
         $totalTeachers = User::whereHas('roles', function($q) {
-            $q->whereIn('name', ['guru_mapel', 'guru_alquran', 'wali_kelas']);
+            $q->whereIn('name', array_merge(['guru_mapel', 'wali_kelas'], User::QURAN_TEACHER_ROLES));
         })->count();
         
         $missingCount = max(0, $totalTeachers - count($filledTeacherIds));

@@ -45,6 +45,18 @@ class PenerimaanNilaiMadin extends Page
     protected static string $view = 'filament.staff.pages.penerimaan-nilai-madin';
     protected static ?int $navigationSort = 1;
 
+    public static function applyInstitutionScope(\Illuminate\Database\Eloquent\Builder $query, ?int $instId, $user): \Illuminate\Database\Eloquent\Builder
+    {
+        if (!$instId || ($user && $user->hasRole('superadmin'))) {
+            return $query;
+        }
+
+        return $query->where(function ($q) use ($instId) {
+            $q->whereHas('student.classroom', fn ($c) => $c->where('institution_id', $instId))
+              ->orWhereHas('student', fn ($s) => $s->where('institution_id', $instId));
+        });
+    }
+
     public static function getNavigationBadge(): ?string
     {
         $user = Auth::user();
@@ -52,27 +64,32 @@ class PenerimaanNilaiMadin extends Page
 
         $instId = $user->institution_id;
 
-        $pendingCapaian = QuranAchievement::where('status_verifikasi', 'Menunggu Verifikasi')
-            ->when($instId && !$user->hasRole('superadmin'), fn ($q) => $q->whereHas('student', fn ($s) => $s->where('institution_id', $instId)))
-            ->count();
+        $pendingCapaian = static::applyInstitutionScope(
+            QuranAchievement::where('status_verifikasi', 'Menunggu Verifikasi'),
+            $instId,
+            $user
+        )->count();
 
-        $pendingKualitas = ReadingQualityScore::where('status_verifikasi', 'Menunggu Verifikasi')
-            ->when($instId && !$user->hasRole('superadmin'), fn ($q) => $q->whereHas('student', fn ($s) => $s->where('institution_id', $instId)))
-            ->count();
+        $pendingKualitas = static::applyInstitutionScope(
+            ReadingQualityScore::where('status_verifikasi', 'Menunggu Verifikasi'),
+            $instId,
+            $user
+        )->count();
 
-        $pendingGrades = Grade::where('status_verifikasi', 'Menunggu Verifikasi')
+        $gradesBaseQuery = Grade::where('status_verifikasi', 'Menunggu Verifikasi')
             ->where(function ($q) {
                 $q->whereHas('subject', function ($sq) {
                     $sq->where('name', 'like', '%qur%')
                       ->orWhere('name', 'like', '%tahfidz%')
                       ->orWhere('name', 'like', '%tahsin%')
+                      ->orWhere('name', 'like', '%yanbua%')
                       ->orWhere('name', 'like', '%madin%')
                       ->orWhere('name', 'like', '%diniyah%')
                       ->orWhere('name', 'like', '%pai%');
-                })->orWhereHas('teacher', fn ($t) => $t->whereHas('roles', fn ($r) => $r->where('name', 'guru_alquran')));
-            })
-            ->when($instId && !$user->hasRole('superadmin'), fn ($q) => $q->whereHas('student', fn ($s) => $s->where('institution_id', $instId)))
-            ->count();
+                })->orWhereHas('teacher', fn ($t) => $t->whereHas('roles', fn ($r) => $r->whereIn('name', User::QURAN_TEACHER_ROLES)));
+            });
+
+        $pendingGrades = static::applyInstitutionScope($gradesBaseQuery, $instId, $user)->count();
 
         $totalPending = $pendingCapaian + $pendingKualitas + $pendingGrades;
         return $totalPending > 0 ? (string) $totalPending : null;
@@ -85,6 +102,7 @@ class PenerimaanNilaiMadin extends Page
 
     // Filter properties
     public ?int $selectedTeacherId = null;
+    public ?string $selectedSpecialization = null; // 'yanbua', 'tahsin', 'tahfidz_dasar', 'tahfidz_lanjutan'
     public ?int $selectedClassroomId = null;
     public ?int $selectedAcademicYearId = null;
     public string $selectedSemester = 'Ganjil';
@@ -330,9 +348,21 @@ class PenerimaanNilaiMadin extends Page
         $user = Auth::user();
         $instId = $user?->institution_id;
 
-        // 1. Seluruh Guru Al-Qur'an
-        $quranTeachers = User::whereHas('roles', fn ($q) => $q->where('name', 'guru_alquran'))
+        // 1. Seluruh Guru Al-Qur'an (Termasuk Yanbu'a, Tahsin, Tahfidz Dasar, Tahfidz Lanjutan)
+        $quranTeachers = User::whereHas('roles', fn ($q) => $q->whereIn('name', User::QURAN_TEACHER_ROLES))
             ->when($instId && !$user->hasRole('superadmin'), fn ($q) => $q->where('institution_id', $instId))
+            ->when($this->selectedSpecialization, function ($q) {
+                $roleName = match ($this->selectedSpecialization) {
+                    'yanbua' => 'guru_quran_yanbua',
+                    'tahsin' => 'guru_quran_tahsin',
+                    'tahfidz_dasar' => 'guru_quran_tahfidz_dasar',
+                    'tahfidz_lanjutan' => 'guru_quran_tahfidz_lanjutan',
+                    default => null,
+                };
+                if ($roleName) {
+                    $q->whereHas('roles', fn ($r) => $r->where('name', $roleName));
+                }
+            })
             ->orderBy('name')
             ->get();
 
@@ -347,52 +377,57 @@ class PenerimaanNilaiMadin extends Page
         // --- STATS OVERVIEW ---
         $stats = [
             'total_guru' => $quranTeachers->count(),
-            'pending_capaian' => QuranAchievement::where('status_verifikasi', 'Menunggu Verifikasi')
-                ->when($instId && !$user->hasRole('superadmin'), fn ($q) => $q->whereHas('student', fn ($s) => $s->where('institution_id', $instId)))
-                ->count(),
-            'accepted_capaian' => QuranAchievement::where('status_verifikasi', 'Diterima')
-                ->when($instId && !$user->hasRole('superadmin'), fn ($q) => $q->whereHas('student', fn ($s) => $s->where('institution_id', $instId)))
-                ->count(),
-            'pending_kualitas' => ReadingQualityScore::where('status_verifikasi', 'Menunggu Verifikasi')
-                ->when($instId && !$user->hasRole('superadmin'), fn ($q) => $q->whereHas('student', fn ($s) => $s->where('institution_id', $instId)))
-                ->count(),
-            'accepted_kualitas' => ReadingQualityScore::where('status_verifikasi', 'Diterima')
-                ->when($instId && !$user->hasRole('superadmin'), fn ($q) => $q->whereHas('student', fn ($s) => $s->where('institution_id', $instId)))
-                ->count(),
-            'pending_nilai' => Grade::where('status_verifikasi', 'Menunggu Verifikasi')
+            'pending_capaian' => static::applyInstitutionScope(QuranAchievement::where('status_verifikasi', 'Menunggu Verifikasi'), $instId, $user)->count(),
+            'accepted_capaian' => static::applyInstitutionScope(QuranAchievement::where('status_verifikasi', 'Diterima'), $instId, $user)->count(),
+            'pending_kualitas' => static::applyInstitutionScope(ReadingQualityScore::where('status_verifikasi', 'Menunggu Verifikasi'), $instId, $user)->count(),
+            'accepted_kualitas' => static::applyInstitutionScope(ReadingQualityScore::where('status_verifikasi', 'Diterima'), $instId, $user)->count(),
+            'pending_nilai' => static::applyInstitutionScope(Grade::where('status_verifikasi', 'Menunggu Verifikasi')
                 ->where(function ($q) {
                     $q->whereHas('subject', function ($sq) {
                         $sq->where('name', 'like', '%qur%')
                           ->orWhere('name', 'like', '%tahfidz%')
                           ->orWhere('name', 'like', '%tahsin%')
+                          ->orWhere('name', 'like', '%yanbua%')
                           ->orWhere('name', 'like', '%madin%')
                           ->orWhere('name', 'like', '%diniyah%')
                           ->orWhere('name', 'like', '%pai%');
-                    })->orWhereHas('teacher', fn ($t) => $t->whereHas('roles', fn ($r) => $r->where('name', 'guru_alquran')));
-                })
-                ->when($instId && !$user->hasRole('superadmin'), fn ($q) => $q->whereHas('student', fn ($s) => $s->where('institution_id', $instId)))
-                ->count(),
-            'accepted_nilai' => Grade::where('status_verifikasi', 'Diterima')
+                    })->orWhereHas('teacher', fn ($t) => $t->whereHas('roles', fn ($r) => $r->whereIn('name', User::QURAN_TEACHER_ROLES)));
+                }), $instId, $user)->count(),
+            'accepted_nilai' => static::applyInstitutionScope(Grade::where('status_verifikasi', 'Diterima')
                 ->where(function ($q) {
                     $q->whereHas('subject', function ($sq) {
                         $sq->where('name', 'like', '%qur%')
                           ->orWhere('name', 'like', '%tahfidz%')
                           ->orWhere('name', 'like', '%tahsin%')
+                          ->orWhere('name', 'like', '%yanbua%')
                           ->orWhere('name', 'like', '%madin%')
                           ->orWhere('name', 'like', '%diniyah%')
                           ->orWhere('name', 'like', '%pai%');
-                    })->orWhereHas('teacher', fn ($t) => $t->whereHas('roles', fn ($r) => $r->where('name', 'guru_alquran')));
-                })
-                ->when($instId && !$user->hasRole('superadmin'), fn ($q) => $q->whereHas('student', fn ($s) => $s->where('institution_id', $instId)))
-                ->count(),
+                    })->orWhereHas('teacher', fn ($t) => $t->whereHas('roles', fn ($r) => $r->whereIn('name', User::QURAN_TEACHER_ROLES)));
+                }), $instId, $user)->count(),
         ];
         $stats['total_pending'] = $stats['pending_capaian'] + $stats['pending_kualitas'] + $stats['pending_nilai'];
         $stats['total_accepted'] = $stats['accepted_capaian'] + $stats['accepted_kualitas'] + $stats['accepted_nilai'];
 
         // --- DATA TAB 1: CAPAIAN QURAN ---
-        $capaianQuery = QuranAchievement::with(['student.classroom', 'teacher', 'verifier'])
-            ->when($instId && !$user->hasRole('superadmin'), fn ($q) => $q->whereHas('student', fn ($s) => $s->where('institution_id', $instId)))
+        $capaianQuery = static::applyInstitutionScope(
+            QuranAchievement::with(['student.classroom', 'teacher.roles', 'verifier']),
+            $instId,
+            $user
+        )
             ->when($this->selectedTeacherId, fn ($q) => $q->where('teacher_id', $this->selectedTeacherId))
+            ->when($this->selectedSpecialization, function ($q) {
+                $roleName = match ($this->selectedSpecialization) {
+                    'yanbua' => 'guru_quran_yanbua',
+                    'tahsin' => 'guru_quran_tahsin',
+                    'tahfidz_dasar' => 'guru_quran_tahfidz_dasar',
+                    'tahfidz_lanjutan' => 'guru_quran_tahfidz_lanjutan',
+                    default => null,
+                };
+                if ($roleName) {
+                    $q->whereHas('teacher.roles', fn ($r) => $r->where('name', $roleName));
+                }
+            })
             ->when($this->selectedClassroomId, fn ($q) => $q->whereHas('student', fn ($s) => $s->where('classroom_id', $this->selectedClassroomId)))
             ->when($this->selectedStatus !== 'Semua', fn ($q) => $q->where('status_verifikasi', $this->selectedStatus))
             ->when($this->search, function ($q) {
@@ -405,9 +440,24 @@ class PenerimaanNilaiMadin extends Page
         $capaianData = $this->activeTab === 'capaian_quran' ? $capaianQuery->paginate(20) : null;
 
         // --- DATA TAB 2: SKOR KUALITAS BACAAN ---
-        $kualitasQuery = ReadingQualityScore::with(['student.classroom', 'teacher', 'verifier'])
-            ->when($instId && !$user->hasRole('superadmin'), fn ($q) => $q->whereHas('student', fn ($s) => $s->where('institution_id', $instId)))
+        $kualitasQuery = static::applyInstitutionScope(
+            ReadingQualityScore::with(['student.classroom', 'teacher.roles', 'verifier']),
+            $instId,
+            $user
+        )
             ->when($this->selectedTeacherId, fn ($q) => $q->where('teacher_id', $this->selectedTeacherId))
+            ->when($this->selectedSpecialization, function ($q) {
+                $roleName = match ($this->selectedSpecialization) {
+                    'yanbua' => 'guru_quran_yanbua',
+                    'tahsin' => 'guru_quran_tahsin',
+                    'tahfidz_dasar' => 'guru_quran_tahfidz_dasar',
+                    'tahfidz_lanjutan' => 'guru_quran_tahfidz_lanjutan',
+                    default => null,
+                };
+                if ($roleName) {
+                    $q->whereHas('teacher.roles', fn ($r) => $r->where('name', $roleName));
+                }
+            })
             ->when($this->selectedClassroomId, fn ($q) => $q->whereHas('student', fn ($s) => $s->where('classroom_id', $this->selectedClassroomId)))
             ->when($this->selectedStatus !== 'Semua', fn ($q) => $q->where('status_verifikasi', $this->selectedStatus))
             ->when($this->search, function ($q) {
@@ -419,19 +469,33 @@ class PenerimaanNilaiMadin extends Page
         $kualitasData = $this->activeTab === 'kualitas_bacaan' ? $kualitasQuery->paginate(20) : null;
 
         // --- DATA TAB 3: NILAI MAPEL MADIN ---
-        $gradesQuery = Grade::with(['student.classroom', 'teacher', 'subject', 'verifier'])
+        $gradesBase = Grade::with(['student.classroom', 'teacher.roles', 'subject', 'verifier'])
             ->where(function ($q) {
                 $q->whereHas('subject', function ($sq) {
                     $sq->where('name', 'like', '%qur%')
                       ->orWhere('name', 'like', '%tahfidz%')
                       ->orWhere('name', 'like', '%tahsin%')
+                      ->orWhere('name', 'like', '%yanbua%')
                       ->orWhere('name', 'like', '%madin%')
                       ->orWhere('name', 'like', '%diniyah%')
                       ->orWhere('name', 'like', '%pai%');
-                })->orWhereHas('teacher', fn ($t) => $t->whereHas('roles', fn ($r) => $r->where('name', 'guru_alquran')));
-            })
-            ->when($instId && !$user->hasRole('superadmin'), fn ($q) => $q->whereHas('student', fn ($s) => $s->where('institution_id', $instId)))
+                })->orWhereHas('teacher', fn ($t) => $t->whereHas('roles', fn ($r) => $r->whereIn('name', User::QURAN_TEACHER_ROLES)));
+            });
+
+        $gradesQuery = static::applyInstitutionScope($gradesBase, $instId, $user)
             ->when($this->selectedTeacherId, fn ($q) => $q->where('teacher_id', $this->selectedTeacherId))
+            ->when($this->selectedSpecialization, function ($q) {
+                $roleName = match ($this->selectedSpecialization) {
+                    'yanbua' => 'guru_quran_yanbua',
+                    'tahsin' => 'guru_quran_tahsin',
+                    'tahfidz_dasar' => 'guru_quran_tahfidz_dasar',
+                    'tahfidz_lanjutan' => 'guru_quran_tahfidz_lanjutan',
+                    default => null,
+                };
+                if ($roleName) {
+                    $q->whereHas('teacher.roles', fn ($r) => $r->where('name', $roleName));
+                }
+            })
             ->when($this->selectedClassroomId, fn ($q) => $q->where('classroom_id', $this->selectedClassroomId))
             ->when($this->selectedAcademicYearId, fn ($q) => $q->where('academic_year_id', $this->selectedAcademicYearId))
             ->when($this->selectedSemester, fn ($q) => $q->where('semester', $this->selectedSemester))
@@ -476,6 +540,7 @@ class PenerimaanNilaiMadin extends Page
 
             $monitoringGuru[] = [
                 'teacher' => $teacher,
+                'specialization' => $teacher->getQuranSpecializationLabel() ?? 'Al-Qur\'an',
                 'classes' => !empty($tClasses) ? implode(', ', $tClasses) : 'Seluruh Kelas',
                 'total_capaian' => $totalCapaian,
                 'total_kualitas' => $totalKualitas,

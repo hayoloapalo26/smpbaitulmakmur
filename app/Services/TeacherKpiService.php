@@ -257,7 +257,7 @@ class TeacherKpiService
 
         $teachers = User::with('roles')->where('institution_id', $institutionId)
             ->whereHas('roles', function ($q) {
-                $q->whereIn('name', ['guru_mapel', 'guru_alquran', 'wali_kelas', 'guru_kelas']);
+                $q->whereIn('name', array_merge(['guru_mapel', 'wali_kelas', 'guru_kelas'], User::QURAN_TEACHER_ROLES));
             })
             ->get();
 

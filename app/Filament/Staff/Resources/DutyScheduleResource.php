@@ -20,10 +20,10 @@ class DutyScheduleResource extends Resource
 {
     public static function canAccess(): bool
     {
-        return auth()->user()?->hasAnyRole([
+        return auth()->user()?->hasAnyRole(array_merge([
             'waka_kesiswaan', 'superadmin', 'kepala_sekolah',
-            'guru_mapel', 'guru_alquran', 'koordinator_madin', 'wali_kelas', 'guru_kelas', 'bk', 'guru_piket', 'tata_usaha'
-        ]) ?? false;
+            'guru_mapel', 'koordinator_madin', 'wali_kelas', 'guru_kelas', 'bk', 'guru_piket', 'tata_usaha'
+        ], \App\Models\User::QURAN_TEACHER_ROLES)) ?? false;
     }
 
     protected static ?string $model = DutySchedule::class;

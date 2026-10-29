@@ -19,12 +19,12 @@ class QuranAchievementResource extends Resource
 {
     public static function shouldRegisterNavigation(): bool
     {
-        return auth()->user()?->hasAnyRole(['guru_alquran', 'koordinator_madin', 'waka_kurikulum', 'kepala_sekolah', 'superadmin']) ?? false;
+        return auth()->user()?->hasAnyRole(array_merge(\App\Models\User::QURAN_TEACHER_ROLES, ['koordinator_madin', 'waka_kurikulum', 'kepala_sekolah', 'superadmin'])) ?? false;
     }
 
     public static function canAccess(): bool
     {
-        return auth()->user()->hasAnyRole(['guru_alquran', 'koordinator_madin', 'waka_kurikulum', 'kepala_sekolah', 'superadmin']);
+        return auth()->user()->hasAnyRole(array_merge(\App\Models\User::QURAN_TEACHER_ROLES, ['koordinator_madin', 'waka_kurikulum', 'kepala_sekolah', 'superadmin']));
     }
 
     protected static ?string $model = QuranAchievement::class;
@@ -39,7 +39,7 @@ class QuranAchievementResource extends Resource
         if ($user?->hasRole('koordinator_madin')) {
             return 'Madrasah Diniyah (Madin)';
         }
-        if ($user?->hasRole('guru_alquran')) {
+        if ($user?->isQuranTeacher()) {
             return 'Fitur Guru Al-Qur\'an';
         }
         return 'Kesiswaan & Karakter';

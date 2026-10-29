@@ -14,7 +14,7 @@ class SubjectAttendancePolicy
     public function viewAny($user): bool
     {
         if ($user->hasRole('kepala_sekolah')) return true;
-        return $user->hasRole(['waka_kurikulum', 'guru_mapel', 'guru_alquran']);
+        return $user->hasRole(array_merge(['waka_kurikulum', 'guru_mapel'], \App\Models\User::QURAN_TEACHER_ROLES));
     }
 
     /**
@@ -22,7 +22,7 @@ class SubjectAttendancePolicy
      */
     public function view($user, $model): bool
     {
-        return $user->hasRole(['waka_kurikulum', 'guru_mapel', 'guru_alquran']);
+        return $user->hasRole(array_merge(['waka_kurikulum', 'guru_mapel'], \App\Models\User::QURAN_TEACHER_ROLES));
     }
 
     /**
@@ -30,7 +30,7 @@ class SubjectAttendancePolicy
      */
     public function create($user): bool
     {
-        return $user->hasRole(['waka_kurikulum', 'guru_mapel', 'guru_alquran']);
+        return $user->hasRole(array_merge(['waka_kurikulum', 'guru_mapel'], \App\Models\User::QURAN_TEACHER_ROLES));
     }
 
     /**
@@ -38,7 +38,7 @@ class SubjectAttendancePolicy
      */
     public function update($user, $model): bool
     {
-        return $user->hasRole(['waka_kurikulum', 'guru_mapel', 'guru_alquran']);
+        return $user->hasRole(array_merge(['waka_kurikulum', 'guru_mapel'], \App\Models\User::QURAN_TEACHER_ROLES));
     }
 
     /**
@@ -46,7 +46,7 @@ class SubjectAttendancePolicy
      */
     public function delete($user, $model): bool
     {
-        return $user->hasRole(['waka_kurikulum', 'guru_mapel', 'guru_alquran']);
+        return $user->hasRole(array_merge(['waka_kurikulum', 'guru_mapel'], \App\Models\User::QURAN_TEACHER_ROLES));
     }
 
     /**

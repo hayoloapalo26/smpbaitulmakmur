@@ -222,7 +222,7 @@ class Dashboard extends BaseDashboard
 
         $instId = Auth::user()?->institution_id;
         $count = \App\Models\User::whereHas('roles', function($q) {
-            $q->whereIn('name', ['guru_mapel', 'guru_alquran', 'wali_kelas']);
+            $q->whereIn('name', array_merge(['guru_mapel', 'wali_kelas'], \App\Models\User::QURAN_TEACHER_ROLES));
         })->where('institution_id', $instId)->count();
 
         $kpiService = new \App\Services\TeacherKpiService();
@@ -243,7 +243,7 @@ class Dashboard extends BaseDashboard
         $teachers = \App\Models\User::with('roles')
             ->where('institution_id', $institutionId)
             ->whereHas('roles', function ($q) {
-                $q->whereIn('name', ['guru_mapel', 'guru_alquran', 'wali_kelas', 'guru_kelas']);
+                $q->whereIn('name', array_merge(['guru_mapel', 'wali_kelas', 'guru_kelas'], \App\Models\User::QURAN_TEACHER_ROLES));
             })
             ->get();
 

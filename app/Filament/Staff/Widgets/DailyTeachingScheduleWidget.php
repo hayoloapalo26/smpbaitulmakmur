@@ -19,7 +19,7 @@ class DailyTeachingScheduleWidget extends BaseWidget
     public static function canView(): bool
     {
         $user = auth()->user();
-        return $user && $user->hasAnyRole(['guru_mapel', 'guru_alquran', 'wali_kelas']);
+        return $user && $user->hasAnyRole(array_merge(['guru_mapel', 'wali_kelas'], \App\Models\User::QURAN_TEACHER_ROLES));
     }
 
     public function table(Table $table): Table

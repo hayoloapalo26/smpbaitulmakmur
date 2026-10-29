@@ -22,7 +22,7 @@ class SendTeacherNotifications extends Command
         $this->info("Menjalankan pengecekan notifikasi sistem untuk tanggal $today...");
 
         // Ambil semua guru
-        $teachers = User::role(['guru_mapel', 'guru_alquran', 'wali_kelas'])->get();
+        $teachers = User::role(array_merge(['guru_mapel', 'wali_kelas'], User::QURAN_TEACHER_ROLES))->get();
 
         foreach ($teachers as $teacher) {
             // 1. Cek Ketidakhadiran

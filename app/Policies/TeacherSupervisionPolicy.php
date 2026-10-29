@@ -10,7 +10,7 @@ class TeacherSupervisionPolicy
 {
     public function viewAny(User $user): bool
     {
-        return $user->hasAnyRole(['superadmin', 'kepala_sekolah', 'guru_mapel', 'guru_alquran', 'wali_kelas', 'waka_kurikulum', 'ketua_yayasan', 'tim_pengembang_penjamin_mutu_yayasan']);
+        return $user->hasAnyRole(array_merge(['superadmin', 'kepala_sekolah', 'guru_mapel', 'wali_kelas', 'waka_kurikulum', 'ketua_yayasan', 'tim_pengembang_penjamin_mutu_yayasan'], \App\Models\User::QURAN_TEACHER_ROLES));
     }
 
     public function view(User $user, TeacherSupervision $model): bool
@@ -20,7 +20,7 @@ class TeacherSupervisionPolicy
 
     public function create(User $user): bool
     {
-        return $user->hasAnyRole(['superadmin', 'guru_mapel', 'guru_alquran', 'wali_kelas', 'waka_kurikulum']);
+        return $user->hasAnyRole(array_merge(['superadmin', 'guru_mapel', 'wali_kelas', 'waka_kurikulum'], \App\Models\User::QURAN_TEACHER_ROLES));
     }
 
     public function update(User $user, TeacherSupervision $model): bool
@@ -30,6 +30,6 @@ class TeacherSupervisionPolicy
 
     public function delete(User $user, TeacherSupervision $model): bool
     {
-        return $user->hasAnyRole(['superadmin', 'guru_mapel', 'guru_alquran', 'wali_kelas', 'waka_kurikulum']);
+        return $user->hasAnyRole(array_merge(['superadmin', 'guru_mapel', 'wali_kelas', 'waka_kurikulum'], \App\Models\User::QURAN_TEACHER_ROLES));
     }
 }

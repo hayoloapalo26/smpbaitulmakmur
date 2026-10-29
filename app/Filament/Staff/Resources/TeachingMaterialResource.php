@@ -16,7 +16,7 @@ class TeachingMaterialResource extends Resource
 {
     public static function canAccess(): bool
     {
-        return auth()->user()->hasAnyRole(['guru_mapel', 'guru_kelas', 'waka_kurikulum', 'kepala_sekolah', 'superadmin']);
+        return auth()->user()->hasAnyRole(array_merge(['guru_mapel', 'guru_kelas', 'waka_kurikulum', 'kepala_sekolah', 'superadmin'], \App\Models\User::QURAN_TEACHER_ROLES));
     }
 
     protected static bool $shouldRegisterNavigation = false;

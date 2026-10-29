@@ -11,19 +11,19 @@ class DutySchedulePolicy
     public function viewAny(User $user): bool
     {
         if ($user->hasRole('kepala_sekolah') || $user->hasRole('superadmin')) return true;
-        return $user->hasRole([
-            'waka_kesiswaan', 'kepala_sekolah', 'guru_mapel', 'guru_alquran', 
+        return $user->hasRole(array_merge([
+            'waka_kesiswaan', 'kepala_sekolah', 'guru_mapel', 
             'wali_kelas', 'guru_kelas', 'bk', 'guru_piket', 'tata_usaha'
-        ]);
+        ], \App\Models\User::QURAN_TEACHER_ROLES));
     }
 
     public function view(User $user, DutySchedule $model): bool
     {
         if ($user->hasRole('kepala_sekolah') || $user->hasRole('superadmin')) return true;
-        return $user->hasRole([
-            'waka_kesiswaan', 'kepala_sekolah', 'guru_mapel', 'guru_alquran', 
+        return $user->hasRole(array_merge([
+            'waka_kesiswaan', 'kepala_sekolah', 'guru_mapel', 
             'wali_kelas', 'guru_kelas', 'bk', 'guru_piket', 'tata_usaha'
-        ]);
+        ], \App\Models\User::QURAN_TEACHER_ROLES));
     }
 
     public function create(User $user): bool

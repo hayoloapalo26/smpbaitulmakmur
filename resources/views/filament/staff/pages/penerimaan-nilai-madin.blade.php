@@ -75,14 +75,26 @@
 
         {{-- 2. BAR FILTER PENERIMAAN --}}
         <div class="p-4 bg-white border border-gray-200 rounded-xl shadow-sm dark:bg-gray-800 dark:border-gray-700">
-            <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+            <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-6">
+                <!-- Filter Spesialisasi Guru Al-Qur'an -->
+                <div>
+                    <label class="block mb-1 text-xs font-semibold text-gray-600 dark:text-gray-300">Spesialisasi Qur'an</label>
+                    <select wire:model.live="selectedSpecialization" class="w-full text-sm border-gray-300 rounded-lg shadow-sm focus:border-primary-500 focus:ring-primary-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                        <option value="">-- Semua Spesialisasi --</option>
+                        <option value="yanbua">Yanbu'a</option>
+                        <option value="tahsin">Tahsin</option>
+                        <option value="tahfidz_dasar">Tahfidz Dasar</option>
+                        <option value="tahfidz_lanjutan">Tahfidz Lanjutan</option>
+                    </select>
+                </div>
+
                 <!-- Filter Guru Al-Qur'an -->
                 <div>
                     <label class="block mb-1 text-xs font-semibold text-gray-600 dark:text-gray-300">Guru Al-Qur'an</label>
                     <select wire:model.live="selectedTeacherId" class="w-full text-sm border-gray-300 rounded-lg shadow-sm focus:border-primary-500 focus:ring-primary-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
                         <option value="">-- Seluruh Guru Al-Qur'an --</option>
                         @foreach($quranTeachers as $teacher)
-                            <option value="{{ $teacher->id }}">{{ $teacher->name }}</option>
+                            <option value="{{ $teacher->id }}">{{ $teacher->name }} [{{ $teacher->getQuranSpecializationLabel() ?? 'Al-Qur\'an' }}]</option>
                         @endforeach
                     </select>
                 </div>
@@ -189,6 +201,7 @@
                         <thead class="text-xs uppercase bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300">
                             <tr>
                                 <th class="px-4 py-3">Nama Guru Al-Qur'an</th>
+                                <th class="px-4 py-3">Spesialisasi Guru</th>
                                 <th class="px-4 py-3">Rombel Kelas</th>
                                 <th class="px-4 py-3 text-center">Setoran Hafalan</th>
                                 <th class="px-4 py-3 text-center">Kualitas Bacaan</th>
@@ -211,6 +224,21 @@
                                                 <div class="text-xs text-gray-400 font-normal">{{ $item['teacher']->email }}</div>
                                             </div>
                                         </div>
+                                    </td>
+                                    <td class="px-4 py-3">
+                                        @php
+                                            $spec = $item['specialization'];
+                                            $colorClass = match($spec) {
+                                                'Yanbu\'a' => 'bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-900/60 dark:text-amber-200',
+                                                'Tahsin' => 'bg-sky-100 text-sky-800 border-sky-300 dark:bg-sky-900/60 dark:text-sky-200',
+                                                'Tahfidz Dasar' => 'bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-900/60 dark:text-emerald-200',
+                                                'Tahfidz Lanjutan' => 'bg-purple-100 text-purple-800 border-purple-300 dark:bg-purple-900/60 dark:text-purple-200',
+                                                default => 'bg-teal-100 text-teal-800 border-teal-300 dark:bg-teal-900/60 dark:text-teal-200',
+                                            };
+                                        @endphp
+                                        <span class="inline-flex items-center px-2.5 py-1 text-xs font-semibold rounded-md border {{ $colorClass }}">
+                                            {{ $spec }}
+                                        </span>
                                     </td>
                                     <td class="px-4 py-3">
                                         <span class="px-2.5 py-1 text-xs font-medium rounded-md bg-gray-100 text-gray-700 border border-gray-200 dark:bg-gray-700 dark:text-gray-200 dark:border-gray-600">
@@ -259,7 +287,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="8" class="px-4 py-6 text-center text-gray-500 italic">
+                                    <td colspan="9" class="px-4 py-6 text-center text-gray-500 italic">
                                         Tidak ada data guru Al-Qur'an pada unit ini.
                                     </td>
                                 </tr>
@@ -320,7 +348,12 @@
                                         </span>
                                     </td>
                                     <td class="px-4 py-3 text-xs text-emerald-700 font-medium dark:text-emerald-400">
-                                        {{ $row->teacher?->name ?? '-' }}
+                                        <div>{{ $row->teacher?->name ?? '-' }}</div>
+                                        @if($row->teacher?->getQuranSpecializationLabel())
+                                            <span class="inline-block px-1.5 py-0.5 text-[10px] font-semibold rounded bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 mt-0.5">
+                                                {{ $row->teacher->getQuranSpecializationLabel() }}
+                                            </span>
+                                        @endif
                                     </td>
                                     <td class="px-4 py-3">
                                         @php
@@ -451,7 +484,12 @@
                                         </span>
                                     </td>
                                     <td class="px-4 py-3 text-xs text-emerald-700 font-medium dark:text-emerald-400">
-                                        {{ $row->teacher?->name ?? '-' }}
+                                        <div>{{ $row->teacher?->name ?? '-' }}</div>
+                                        @if($row->teacher?->getQuranSpecializationLabel())
+                                            <span class="inline-block px-1.5 py-0.5 text-[10px] font-semibold rounded bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 mt-0.5">
+                                                {{ $row->teacher->getQuranSpecializationLabel() }}
+                                            </span>
+                                        @endif
                                     </td>
                                     <td class="px-4 py-3">
                                         <span class="px-2.5 py-1 text-xs rounded-md font-semibold {{ $row->program === 'tahfidz' ? 'bg-indigo-100 text-indigo-800' : 'bg-teal-100 text-teal-800' }}">
@@ -581,7 +619,12 @@
                                         {{ $row->subject?->name }}
                                     </td>
                                     <td class="px-4 py-3 text-xs text-emerald-700 font-medium dark:text-emerald-400">
-                                        {{ $row->teacher?->name ?? '-' }}
+                                        <div>{{ $row->teacher?->name ?? '-' }}</div>
+                                        @if($row->teacher?->getQuranSpecializationLabel())
+                                            <span class="inline-block px-1.5 py-0.5 text-[10px] font-semibold rounded bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 mt-0.5">
+                                                {{ $row->teacher->getQuranSpecializationLabel() }}
+                                            </span>
+                                        @endif
                                     </td>
                                     <td class="px-4 py-3 text-xs">
                                         <span class="px-2 py-0.5 rounded font-medium bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200">

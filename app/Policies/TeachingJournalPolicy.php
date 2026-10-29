@@ -9,7 +9,7 @@ class TeachingJournalPolicy
 {
     public function viewAny(User $user): bool
     {
-        return $user->hasAnyRole(['superadmin', 'kepala_sekolah', 'waka_kurikulum', 'guru_mapel', 'guru_alquran', 'wali_kelas', 'tata_usaha']);
+        return $user->hasAnyRole(array_merge(['superadmin', 'kepala_sekolah', 'waka_kurikulum', 'guru_mapel', 'wali_kelas', 'tata_usaha'], \App\Models\User::QURAN_TEACHER_ROLES));
     }
 
     public function view(User $user, TeachingJournal $model): bool
@@ -19,16 +19,16 @@ class TeachingJournalPolicy
 
     public function create(User $user): bool
     {
-        return $user->hasAnyRole(['superadmin', 'waka_kurikulum', 'guru_mapel', 'guru_alquran', 'wali_kelas']);
+        return $user->hasAnyRole(array_merge(['superadmin', 'waka_kurikulum', 'guru_mapel', 'wali_kelas'], \App\Models\User::QURAN_TEACHER_ROLES));
     }
 
     public function update(User $user, TeachingJournal $model): bool
     {
-        return $user->hasAnyRole(['superadmin', 'waka_kurikulum', 'guru_mapel', 'guru_alquran', 'wali_kelas']);
+        return $user->hasAnyRole(array_merge(['superadmin', 'waka_kurikulum', 'guru_mapel', 'wali_kelas'], \App\Models\User::QURAN_TEACHER_ROLES));
     }
 
     public function delete(User $user, TeachingJournal $model): bool
     {
-        return $user->hasAnyRole(['superadmin', 'waka_kurikulum', 'guru_mapel', 'guru_alquran', 'wali_kelas']);
+        return $user->hasAnyRole(array_merge(['superadmin', 'waka_kurikulum', 'guru_mapel', 'wali_kelas'], \App\Models\User::QURAN_TEACHER_ROLES));
     }
 }

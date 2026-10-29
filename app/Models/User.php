@@ -22,6 +22,45 @@ class User extends Authenticatable implements FilamentUser, HasAvatar
     /** @use HasFactory<UserFactory> */
     use HasFactory, Notifiable, HasRoles;
 
+    public const ROLE_GURU_QURAN_YANBUA = 'guru_quran_yanbua';
+    public const ROLE_GURU_QURAN_TAHSIN = 'guru_quran_tahsin';
+    public const ROLE_GURU_QURAN_TAHFIDZ_DASAR = 'guru_quran_tahfidz_dasar';
+    public const ROLE_GURU_QURAN_TAHFIDZ_LANJUTAN = 'guru_quran_tahfidz_lanjutan';
+
+    public const QURAN_TEACHER_ROLES = [
+        'guru_alquran',
+        'guru_quran_yanbua',
+        'guru_quran_tahsin',
+        'guru_quran_tahfidz_dasar',
+        'guru_quran_tahfidz_lanjutan',
+    ];
+
+    public static function getQuranTeacherRoleLabels(): array
+    {
+        return [
+            'guru_alquran' => 'Guru Al-Qur\'an',
+            'guru_quran_yanbua' => 'Guru Al-Qur\'an Yanbu\'a',
+            'guru_quran_tahsin' => 'Guru Al-Qur\'an Tahsin',
+            'guru_quran_tahfidz_dasar' => 'Guru Al-Qur\'an Tahfidz Dasar',
+            'guru_quran_tahfidz_lanjutan' => 'Guru Al-Qur\'an Tahfidz Lanjutan',
+        ];
+    }
+
+    public function isQuranTeacher(): bool
+    {
+        return $this->hasAnyRole(self::QURAN_TEACHER_ROLES);
+    }
+
+    public function getQuranSpecializationLabel(): ?string
+    {
+        if ($this->hasRole(self::ROLE_GURU_QURAN_YANBUA)) return 'Yanbu\'a';
+        if ($this->hasRole(self::ROLE_GURU_QURAN_TAHSIN)) return 'Tahsin';
+        if ($this->hasRole(self::ROLE_GURU_QURAN_TAHFIDZ_DASAR)) return 'Tahfidz Dasar';
+        if ($this->hasRole(self::ROLE_GURU_QURAN_TAHFIDZ_LANJUTAN)) return 'Tahfidz Lanjutan';
+        if ($this->hasRole('guru_alquran')) return 'Al-Qur\'an';
+        return null;
+    }
+
     public function institution()
     {
         return $this->belongsTo(Institution::class, 'institution_id');
@@ -149,7 +188,9 @@ class User extends Authenticatable implements FilamentUser, HasAvatar
     public function isPiketOnDate($date = null): bool
     {
         // Hanya akun murni piket tanpa jabatan struktural/mapel yang selalu bernilai true
-        if (method_exists($this, 'hasRole') && $this->hasRole('guru_piket') && !$this->hasAnyRole(['waka_kurikulum', 'waka_kesiswaan', 'kepala_sekolah', 'guru_mapel', 'guru_alquran', 'wali_kelas', 'guru_kelas', 'superadmin'])) {
+        if (method_exists($this, 'hasRole') && $this->hasRole('guru_piket') && !$this->hasAnyRole(array_merge([
+            'waka_kurikulum', 'waka_kesiswaan', 'kepala_sekolah', 'guru_mapel', 'wali_kelas', 'guru_kelas', 'superadmin'
+        ], self::QURAN_TEACHER_ROLES))) {
             return true;
         }
 
@@ -192,13 +233,12 @@ class User extends Authenticatable implements FilamentUser, HasAvatar
 
         $query = static::withoutGlobalScopes()
             ->where(function ($q) {
-                $q->whereHas('roles', fn ($r) => $r->whereIn('name', [
+                $q->whereHas('roles', fn ($r) => $r->whereIn('name', array_merge([
                     'guru_mapel',
-                    'guru_alquran',
                     'wali_kelas',
                     'guru_kelas',
                     'waka_kurikulum',
-                ]))
+                ], self::QURAN_TEACHER_ROLES)))
                 ->orWhereHas('schedules');
             });
 

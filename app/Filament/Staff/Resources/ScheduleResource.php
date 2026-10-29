@@ -22,10 +22,10 @@ class ScheduleResource extends Resource
 
     public static function canAccess(): bool
     {
-        return auth()->user()->hasAnyRole([
+        return auth()->user()->hasAnyRole(array_merge([
             'waka_kurikulum', 'superadmin', 'kepala_sekolah', 'tata_usaha',
-            'guru_mapel', 'guru_kelas', 'guru_alquran', 'koordinator_madin', 'wali_kelas'
-        ]);
+            'guru_mapel', 'guru_kelas', 'koordinator_madin', 'wali_kelas'
+        ], \App\Models\User::QURAN_TEACHER_ROLES));
     }
 
     protected static ?string $model = Schedule::class;
@@ -82,7 +82,7 @@ class ScheduleResource extends Resource
                                     });
                                 }
                                 $query->whereHas('roles', function ($q) {
-                                    $q->whereIn('name', ['guru_mapel', 'guru_alquran', 'koordinator_madin', 'wali_kelas']);
+                                    $q->whereIn('name', array_merge(['guru_mapel', 'koordinator_madin', 'wali_kelas'], \App\Models\User::QURAN_TEACHER_ROLES));
                                 });
                             })
                             ->searchable()

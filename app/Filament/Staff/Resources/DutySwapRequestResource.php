@@ -18,10 +18,10 @@ class DutySwapRequestResource extends Resource
 {
     public static function canAccess(): bool
     {
-        return auth()->user()?->hasAnyRole([
+        return auth()->user()?->hasAnyRole(array_merge([
             'waka_kesiswaan', 'kepala_sekolah', 'superadmin', 'guru_piket', 
-            'guru_mapel', 'guru_alquran', 'koordinator_madin', 'wali_kelas', 'guru_kelas', 'bk', 'tata_usaha'
-        ]) ?? false;
+            'guru_mapel', 'koordinator_madin', 'wali_kelas', 'guru_kelas', 'bk', 'tata_usaha'
+        ], \App\Models\User::QURAN_TEACHER_ROLES)) ?? false;
     }
 
     protected static ?string $model = DutySwapRequest::class;

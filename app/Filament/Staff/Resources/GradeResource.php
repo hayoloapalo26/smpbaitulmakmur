@@ -23,29 +23,27 @@ class GradeResource extends Resource
 {
     public static function shouldRegisterNavigation(): bool
     {
-        return auth()->user()?->hasAnyRole([
+        return auth()->user()?->hasAnyRole(array_merge([
             'guru_mapel',
-            'guru_alquran',
             'koordinator_madin',
             'guru_kelas',
             'waka_kurikulum',
             'kepala_sekolah',
             'superadmin',
-        ]) ?? false;
+        ], \App\Models\User::QURAN_TEACHER_ROLES)) ?? false;
     }
 
     public static function canAccess(): bool
     {
-        return auth()->user()?->hasAnyRole([
+        return auth()->user()?->hasAnyRole(array_merge([
             'guru_mapel',
-            'guru_alquran',
             'koordinator_madin',
             'guru_kelas',
             'wali_kelas',
             'waka_kurikulum',
             'kepala_sekolah',
             'superadmin',
-        ]) ?? false;
+        ], \App\Models\User::QURAN_TEACHER_ROLES)) ?? false;
     }
 
     protected static ?string $model = Grade::class;
@@ -71,12 +69,13 @@ class GradeResource extends Resource
                     $sq->where('name', 'like', '%qur%')
                       ->orWhere('name', 'like', '%tahfidz%')
                       ->orWhere('name', 'like', '%tahsin%')
+                      ->orWhere('name', 'like', '%yanbua%')
                       ->orWhere('name', 'like', '%madin%')
                       ->orWhere('name', 'like', '%diniyah%')
                       ->orWhere('name', 'like', '%pai%')
                       ->orWhere('name', 'like', '%islam%');
                 })->orWhereHas('teacher', function ($tq) {
-                    $tq->whereHas('roles', fn ($r) => $r->where('name', 'guru_alquran'));
+                    $tq->whereHas('roles', fn ($r) => $r->whereIn('name', \App\Models\User::QURAN_TEACHER_ROLES));
                 });
             });
         }

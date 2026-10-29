@@ -17,16 +17,15 @@ class InputNilaiMapel extends Page
 {
     public static function canAccess(): bool
     {
-        return Auth::user()?->hasAnyRole([
+        return Auth::user()?->hasAnyRole(array_merge([
             'guru_mapel',
             'guru_kelas',
-            'guru_alquran',
             'koordinator_madin',
             'wali_kelas',
             'waka_kurikulum',
             'kepala_sekolah',
             'superadmin',
-        ]) ?? false;
+        ], \App\Models\User::QURAN_TEACHER_ROLES)) ?? false;
     }
 
     protected static ?string $navigationIcon = 'heroicon-o-pencil-square';
@@ -265,9 +264,12 @@ class InputNilaiMapel extends Page
 
         // Fallback jika belum di-routing oleh kurikulum
         if ($subjects->isEmpty()) {
-            if ($user->hasRole('guru_alquran') && !$user->hasAnyRole(['guru_mapel', 'waka_kurikulum', 'superadmin'])) {
+            if ($user->isQuranTeacher() && !$user->hasAnyRole(['guru_mapel', 'waka_kurikulum', 'superadmin'])) {
                 $quranSubject = Subject::where('name', 'Al-Qur’an')
                     ->orWhere('name', 'like', '%Qur%')
+                    ->orWhere('name', 'like', '%Yanbua%')
+                    ->orWhere('name', 'like', '%Tahsin%')
+                    ->orWhere('name', 'like', '%Tahfidz%')
                     ->get();
                 if ($quranSubject->isNotEmpty()) {
                     return $quranSubject;
