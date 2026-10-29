@@ -73,17 +73,19 @@ class ScheduleResource extends Resource
                         Forms\Components\Select::make('teacher_id')
                             ->label('Guru Pengajar')
                             ->relationship('teacher', 'name', modifyQueryUsing: function (Builder $query) {
-                                $user = Auth::user();
-                                if ($user && $user->institution_id && !$user->hasRole('superadmin')) {
-                                    $query->where(function ($q) use ($user) {
-                                        $q->where('institution_id', $user->institution_id)
-                                          ->orWhereNull('institution_id')
-                                          ->orWhere('institution_id', 1);
+                                $query->where('is_active', true)
+                                    ->whereHas('roles', function ($q) {
+                                        $q->whereIn('name', array_merge(['guru_mapel', 'koordinator_madin', 'wali_kelas', 'guru_kelas'], \App\Models\User::QURAN_TEACHER_ROLES));
                                     });
+                            })
+                            ->getOptionLabelFromRecordUsing(function ($record) {
+                                $user = Auth::user();
+                                $tag = '';
+                                if ($user && $record->institution_id && $record->institution_id != $user->institution_id) {
+                                    $instName = $record->institution?->name ?? 'Lintas Lembaga';
+                                    $tag = " [Lintas Lembaga: {$instName}]";
                                 }
-                                $query->whereHas('roles', function ($q) {
-                                    $q->whereIn('name', array_merge(['guru_mapel', 'koordinator_madin', 'wali_kelas'], \App\Models\User::QURAN_TEACHER_ROLES));
-                                });
+                                return $record->name . $tag;
                             })
                             ->searchable()
                             ->preload()

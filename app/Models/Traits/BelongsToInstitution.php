@@ -16,11 +16,37 @@ trait BelongsToInstitution
 
                 // If user is Yayasan (ID = 1) or Superadmin, they can see everything (no filter applied)
                 if (!$user->hasRole('superadmin') && $user->institution_id != 1) {
-                    if (\Illuminate\Support\Facades\Schema::hasColumn($builder->getModel()->getTable(), 'institution_id')) {
-                        $table = $builder->getModel()->getTable();
+                    $table = $builder->getModel()->getTable();
+                    if (\Illuminate\Support\Facades\Schema::hasColumn($table, 'institution_id')) {
                         $builder->where(function ($q) use ($table, $user) {
                             $q->where($table . '.institution_id', $user->institution_id)
                               ->orWhereNull($table . '.institution_id');
+
+                            // Dukungan Guru Lintas Lembaga (Cross-Institution Teaching):
+                            // 1. Jika record memiliki teacher_id atau guru_id (jadwal, jurnal, presensi, supervisi)
+                            if (\Illuminate\Support\Facades\Schema::hasColumn($table, 'teacher_id')) {
+                                $q->orWhere($table . '.teacher_id', $user->id);
+                            }
+                            if (\Illuminate\Support\Facades\Schema::hasColumn($table, 'guru_id')) {
+                                $q->orWhere($table . '.guru_id', $user->id);
+                            }
+
+                            // 2. Jika tabel classrooms atau subjects:
+                            // Izinkan guru mengakses kelas atau mapel lintas lembaga yang dijadwalkan untuknya
+                            if ($table === 'classrooms') {
+                                $q->orWhereIn($table . '.id', function ($sub) use ($user) {
+                                    $sub->select('classroom_id')
+                                        ->from('schedules')
+                                        ->where('teacher_id', $user->id);
+                                });
+                            }
+                            if ($table === 'subjects') {
+                                $q->orWhereIn($table . '.id', function ($sub) use ($user) {
+                                    $sub->select('subject_id')
+                                        ->from('schedules')
+                                        ->where('teacher_id', $user->id);
+                                });
+                            }
                         });
                     }
                 }

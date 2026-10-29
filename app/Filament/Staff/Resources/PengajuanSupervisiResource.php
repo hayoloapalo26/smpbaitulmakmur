@@ -63,17 +63,43 @@ class PengajuanSupervisiResource extends Resource
                                 ->label('Nama Guru yang Disupervisi')
                                 ->options(function () {
                                     $user = Auth::user();
+                                    $currentInstId = $user?->institution_id;
+
+                                    // Ambil guru yang lembaga induknya sama, atau guru lintas lembaga yang mengajar di lembaga ini
+                                    $crossTeacherIds = \App\Models\TeacherSubjectClass::withoutGlobalScopes()
+                                        ->where('institution_id', $currentInstId)
+                                        ->pluck('teacher_id')
+                                        ->merge(
+                                            \App\Models\Schedule::withoutGlobalScopes()
+                                                ->where('institution_id', $currentInstId)
+                                                ->pluck('teacher_id')
+                                        )->unique()->filter()->toArray();
+
                                     $query = \App\Models\User::withoutGlobalScopes()
+                                        ->with('institution')
+                                        ->where('is_active', true)
+                                        ->where(function ($q) use ($currentInstId, $crossTeacherIds) {
+                                            if ($currentInstId) {
+                                                $q->where('institution_id', $currentInstId)
+                                                  ->orWhereIn('id', $crossTeacherIds);
+                                            }
+                                        })
                                         ->whereHas('roles', fn ($q) => $q->whereIn('name', [
                                             'guru_kelas', 'guru_mapel', 'guru_alquran', 'wali_kelas',
                                             'bk', 'guru_piket', 'waka_kurikulum', 'waka_kesiswaan',
                                         ]));
 
-                                    if ($user && $user->institution_id) {
-                                        $query->where('institution_id', $user->institution_id);
-                                    }
-
-                                    return $query->orderBy('name')->pluck('name', 'id');
+                                    return $query->get()->sortBy(function ($t) use ($currentInstId) {
+                                        $isSame = ($t->institution_id == $currentInstId);
+                                        return ($isSame ? '0_' : '1_') . $t->name;
+                                    })->mapWithKeys(function ($teacher) use ($currentInstId) {
+                                        $isSame = ($teacher->institution_id == $currentInstId);
+                                        $instName = $teacher->institution?->name ?? 'Yayasan';
+                                        $label = $isSame 
+                                            ? $teacher->name 
+                                            : "{$teacher->name} [Guru Lintas Lembaga: {$instName}]";
+                                        return [$teacher->id => $label];
+                                    });
                                 })
                                 ->searchable()
                                 ->preload()

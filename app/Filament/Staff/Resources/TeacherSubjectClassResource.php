@@ -44,21 +44,15 @@ class TeacherSubjectClassResource extends Resource
                     ->schema([
                         Forms\Components\Select::make('teacher_id')
                             ->relationship('teacher', 'name', modifyQueryUsing: function ($query) {
-                                $user = auth()->user();
-                                if ($user && $user->institution_id && !$user->hasRole('superadmin')) {
-                                    $query->where(function ($q) use ($user) {
-                                        $q->where('institution_id', $user->institution_id)
-                                          ->orWhereNull('institution_id')
-                                          ->orWhere('institution_id', 1);
+                                $query->where('is_active', true)
+                                    ->whereHas('roles', function ($q) {
+                                        $q->whereIn('name', array_merge([
+                                            'guru_mapel', 'guru_kelas', 'wali_kelas', 'waka_kurikulum', 'waka_kesiswaan'
+                                        ], \App\Models\User::QURAN_TEACHER_ROLES));
                                     });
-                                }
-                                $query->whereHas('roles', function ($q) {
-                                    $q->whereIn('name', array_merge([
-                                        'guru_mapel', 'guru_kelas', 'wali_kelas', 'waka_kurikulum', 'waka_kesiswaan'
-                                    ], \App\Models\User::QURAN_TEACHER_ROLES));
-                                });
                             })
                             ->getOptionLabelFromRecordUsing(function ($record) {
+                                $user = auth()->user();
                                 $roles = $record->roles->pluck('name')->toArray();
                                 $spec = [];
                                 if (in_array('guru_quran_yanbua', $roles)) $spec[] = 'Yanbu\'a';
@@ -67,7 +61,14 @@ class TeacherSubjectClassResource extends Resource
                                 if (in_array('guru_quran_tahfidz_lanjutan', $roles)) $spec[] = 'Tahfidz Lanjutan';
                                 if (in_array('guru_alquran', $roles) && empty($spec)) $spec[] = 'Al-Qur\'an';
                                 $tag = !empty($spec) ? ' [Guru ' . implode(', ', $spec) . ']' : '';
-                                return $record->name . $tag;
+
+                                $crossTag = '';
+                                if ($user && $record->institution_id && $record->institution_id != $user->institution_id) {
+                                    $instName = $record->institution?->name ?? 'Lintas Lembaga';
+                                    $crossTag = " [Lintas Lembaga: {$instName}]";
+                                }
+
+                                return $record->name . $tag . $crossTag;
                             })
                             ->label('Guru Pengajar')
                             ->searchable()
@@ -106,6 +107,12 @@ class TeacherSubjectClassResource extends Resource
                     ->label('Guru Pengajar')
                     ->weight('bold')
                     ->icon('heroicon-o-user'),
+                Tables\Columns\TextColumn::make('teacher.institution.name')
+                    ->label('Asal Lembaga')
+                    ->badge()
+                    ->color(fn (TeacherSubjectClass $record) => $record->teacher?->institution_id == $record->institution_id ? 'gray' : 'warning')
+                    ->formatStateUsing(fn ($state, TeacherSubjectClass $record) => $record->teacher?->institution_id == $record->institution_id ? 'Internal' : "Lintas: {$state}")
+                    ->toggleable(),
                 Tables\Columns\TextColumn::make('peran_guru')
                     ->label('Rumpun / Spesialisasi')
                     ->state(function (TeacherSubjectClass $record) {

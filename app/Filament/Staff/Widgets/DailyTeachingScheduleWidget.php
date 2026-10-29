@@ -47,6 +47,10 @@ class DailyTeachingScheduleWidget extends BaseWidget
                     ->badge()
                     ->color('info')
                     ->sortable(),
+                Tables\Columns\TextColumn::make('classroom.institution.name')
+                    ->label('Lembaga')
+                    ->badge()
+                    ->color('gray'),
                 Tables\Columns\TextColumn::make('subject.name')
                     ->label('Mata Pelajaran')
                     ->sortable(),
