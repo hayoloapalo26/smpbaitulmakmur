@@ -532,4 +532,53 @@ class PerangkatAjarAndGradeSystemTest extends TestCase
             'deskripsi_tp' => 'Memahami bilangan desimal dan persen.',
         ]);
     }
+
+    public function test_atp_is_automatically_synced_from_all_inputted_tps_of_teacher(): void
+    {
+        $cp = CapaianPembelajaran::create([
+            'institution_id' => $this->institution->id,
+            'guru_id' => $this->teacher->id,
+            'subject_id' => $this->subject->id,
+            'fase' => 'Fase D (SMP)',
+            'tingkat' => '7',
+            'tahun_ajaran' => '2026/2027',
+            'semester' => '1',
+            'elemen' => 'Aljabar',
+            'deskripsi_cp' => 'Capaian Aljabar',
+            'masa_berlaku' => '1 Tahun',
+        ]);
+
+        $tp1 = TujuanPembelajaran::create([
+            'institution_id' => $this->institution->id,
+            'guru_id' => $this->teacher->id,
+            'capaian_pembelajaran_id' => $cp->id,
+            'subject_id' => $this->subject->id,
+            'deskripsi_tp' => 'TP 1 Aljabar Dasar',
+            'materi' => 'Aljabar',
+            'kelas_tingkat' => '7',
+            'semester' => 'Ganjil',
+        ]);
+
+        $tp2 = TujuanPembelajaran::create([
+            'institution_id' => $this->institution->id,
+            'guru_id' => $this->teacher->id,
+            'capaian_pembelajaran_id' => $cp->id,
+            'subject_id' => $this->subject->id,
+            'deskripsi_tp' => 'TP 2 Aljabar Lanjutan',
+            'materi' => 'Aljabar',
+            'kelas_tingkat' => '7',
+            'semester' => 'Ganjil',
+        ]);
+
+        // ATP should have been automatically created and synced
+        $atp = AlurTujuanPembelajaran::where('guru_id', $this->teacher->id)
+            ->where('subject_id', $this->subject->id)
+            ->where('tingkat', '7')
+            ->first();
+
+        $this->assertNotNull($atp);
+        $this->assertContains($tp1->id, $atp->tp_ids);
+        $this->assertContains($tp2->id, $atp->tp_ids);
+        $this->assertCount(2, $atp->tp_ids);
+    }
 }

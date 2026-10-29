@@ -87,9 +87,22 @@ class CreateRppm extends CreateRecord
             $tps = TujuanPembelajaran::whereIn('id', $data['selected_tp_ids'])->get();
             $tpItems = [];
             foreach ($tps as $tp) {
-                $tpItems[] = ['rumusan' => "[{$tp->kode_tp}] {$tp->deskripsi_tp}"];
+                $prefix = $tp->materi ? "[{$tp->materi}] " : '';
+                $tpItems[] = ['rumusan' => "{$prefix}{$tp->deskripsi_tp}"];
             }
             $data['content']['tujuan_pembelajaran'] = $tpItems;
+        }
+
+        // 5. Otomatis tautkan ATP yang terakumulasi untuk guru dan mapel ini
+        if ($subjectId) {
+            $atp = \App\Models\AlurTujuanPembelajaran::syncForTeacherAndSubject(
+                auth()->id(),
+                $subjectId,
+                $tingkat
+            );
+            if ($atp) {
+                $data['alur_tujuan_pembelajaran_id'] = $atp->id;
+            }
         }
 
         // Bersihkan variabel form sementara

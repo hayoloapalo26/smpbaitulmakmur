@@ -23,6 +23,26 @@ class TujuanPembelajaran extends Model
                 $tp->kode_tp = "TP.{$tingkat}.{$count}";
             }
         });
+
+        static::saved(function ($tp) {
+            if ($tp->guru_id && $tp->subject_id) {
+                AlurTujuanPembelajaran::syncForTeacherAndSubject(
+                    $tp->guru_id,
+                    $tp->subject_id,
+                    $tp->kelas_tingkat ?? '7'
+                );
+            }
+        });
+
+        static::deleted(function ($tp) {
+            if ($tp->guru_id && $tp->subject_id) {
+                AlurTujuanPembelajaran::syncForTeacherAndSubject(
+                    $tp->guru_id,
+                    $tp->subject_id,
+                    $tp->kelas_tingkat ?? '7'
+                );
+            }
+        });
     }
 
     public function capaianPembelajaran()

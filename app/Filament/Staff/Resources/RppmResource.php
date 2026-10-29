@@ -220,74 +220,26 @@ class RppmResource extends Resource
                                     })->toArray();
                                     $set('content.tujuan_pembelajaran', $tpItems);
 
+                                    // Otomatis akumulasikan dan sinkronisasi ATP untuk guru & mapel ini
+                                    $atp = \App\Models\AlurTujuanPembelajaran::syncForTeacherAndSubject(
+                                        auth()->id(),
+                                        $tp->subject_id,
+                                        $tp->kelas_tingkat ?? '7'
+                                    );
+                                    if ($atp) {
+                                        $set('alur_tujuan_pembelajaran_id', $atp->id);
+                                    }
+
                                     \Filament\Notifications\Notification::make()
                                         ->title('Tujuan Pembelajaran (TP) Berhasil Disimpan!')
-                                        ->body('Tujuan Pembelajaran telah tersimpan ke database dan otomatis terpilih pada menu dropdown.')
-                                        ->success()
-                                        ->send();
-                                }),
-
-                            Forms\Components\Actions\Action::make('modal_create_atp')
-                                ->label('+ Susun & Simpan ATP Baru')
-                                ->icon('heroicon-o-arrow-trending-up')
-                                ->color('warning')
-                                ->button()
-                                ->modalHeading('Susun & Simpan Alur Tujuan Pembelajaran (ATP) Baru')
-                                ->modalDescription('ATP adalah susunan akumulasi Tujuan Pembelajaran (TP) yang disusun berurutan.')
-                                ->modalSubmitActionLabel('Simpan Alur Tujuan Pembelajaran (ATP)')
-                                ->modalWidth('2xl')
-                                ->form([
-                                    Forms\Components\TextInput::make('modal_judul_atp')
-                                        ->label('Judul Alur Pembelajaran (ATP)')
-                                        ->placeholder('Contoh: Alur Pembelajaran Matematika Semester Ganjil')
-                                        ->required(),
-
-                                    Forms\Components\Select::make('modal_atp_tp_ids')
-                                        ->label('Pilih TP yang Diakumulasikan dalam Alur Ini')
-                                        ->multiple()
-                                        ->options(function () {
-                                            return \App\Models\TujuanPembelajaran::get()->mapWithKeys(function ($tp) {
-                                                $prefix = $tp->materi ? "[{$tp->materi}] " : '';
-                                                return [$tp->id => "{$prefix}" . \Illuminate\Support\Str::limit($tp->deskripsi_tp, 60)];
-                                            });
-                                        })
-                                        ->searchable()
-                                        ->preload()
-                                        ->required(),
-
-                                    Forms\Components\TextInput::make('modal_total_jp')
-                                        ->label('Total Alokasi Waktu (JP)')
-                                        ->numeric()
-                                        ->placeholder('Contoh: 18'),
-                                ])
-                                ->action(function (array $data, Forms\Set $set) {
-                                    $firstTp = !empty($data['modal_atp_tp_ids']) ? \App\Models\TujuanPembelajaran::find($data['modal_atp_tp_ids'][0]) : null;
-
-                                    $atp = \App\Models\AlurTujuanPembelajaran::create([
-                                        'institution_id' => auth()->user()?->institution_id,
-                                        'guru_id' => auth()->id(),
-                                        'subject_id' => $firstTp?->subject_id ?? \App\Models\Subject::first()?->id,
-                                        'fase' => 'Fase D (SMP)',
-                                        'tingkat' => $firstTp?->kelas_tingkat ?? '7',
-                                        'tahun_ajaran' => '2026/2027',
-                                        'semester' => 'Ganjil',
-                                        'judul_atp' => $data['modal_judul_atp'],
-                                        'tp_ids' => $data['modal_atp_tp_ids'],
-                                        'total_alokasi_jp' => $data['modal_total_jp'] ?? null,
-                                    ]);
-
-                                    $set('alur_tujuan_pembelajaran_id', $atp->id);
-
-                                    \Filament\Notifications\Notification::make()
-                                        ->title('Alur Tujuan Pembelajaran (ATP) Berhasil Disimpan!')
-                                        ->body("ATP '{$atp->judul_atp}' tersimpan dan terpilih.")
+                                        ->body('Tujuan Pembelajaran telah tersimpan dan Alur Tujuan Pembelajaran (ATP) otomatis terakumulasi.')
                                         ->success()
                                         ->send();
                                 }),
                         ])
                         ->columnSpanFull(),
 
-                        // Menu Dropdown Capaian Pembelajaran & Alur Tujuan Pembelajaran
+                        // Menu Dropdown Capaian Pembelajaran & Alur Tujuan Pembelajaran Otomatis
                         Forms\Components\Select::make('capaian_pembelajaran_id')
                             ->label('1. Capaian Pembelajaran (CP) [Menu Dropdown]')
                             ->options(function () {
@@ -309,23 +261,69 @@ class RppmResource extends Resource
                                         if ($cp->subject) {
                                             $set('mata_pelajaran', $cp->subject->name);
                                         }
+
+                                        // Otomatis sinkronisasi ATP sesuai CP & mapel ini
+                                        $atp = \App\Models\AlurTujuanPembelajaran::syncForTeacherAndSubject(
+                                            auth()->id(),
+                                            $cp->subject_id,
+                                            $cp->tingkat
+                                        );
+                                        if ($atp) {
+                                            $set('alur_tujuan_pembelajaran_id', $atp->id);
+                                        }
                                     }
                                 }
                             })
                             ->helperText('Pilih CP yang telah disimpan atau klik tombol "+ Input & Simpan CP Baru" di atas untuk menambah.'),
 
                         Forms\Components\Select::make('alur_tujuan_pembelajaran_id')
-                            ->label('2. Alur Tujuan Pembelajaran (ATP) [Menu Dropdown]')
-                            ->options(function () {
-                                return \App\Models\AlurTujuanPembelajaran::with('subject')->get()->mapWithKeys(function ($atp) {
-                                    $mapel = $atp->subject?->name ?? 'Mapel';
-                                    return [$atp->id => "[{$mapel} - Kelas {$atp->tingkat}] {$atp->judul_atp}"];
+                            ->label('2. Alur Tujuan Pembelajaran (ATP) [Otomatis Terakumulasi]')
+                            ->options(function (Forms\Get $get) {
+                                $guruId = auth()->id();
+                                $cpId = $get('capaian_pembelajaran_id') ?? $get('content.capaian_pembelajaran_id');
+                                $subjectId = null;
+                                $tingkat = '7';
+                                if ($cpId) {
+                                    $cp = \App\Models\CapaianPembelajaran::find($cpId);
+                                    $subjectId = $cp?->subject_id;
+                                    $tingkat = $cp?->tingkat ?? '7';
+                                }
+                                if (!$subjectId) {
+                                    $subjectId = \App\Models\TeacherSubjectClass::where('teacher_id', $guruId)->value('subject_id')
+                                        ?? \App\Models\Subject::first()?->id;
+                                }
+                                if ($guruId && $subjectId) {
+                                    \App\Models\AlurTujuanPembelajaran::syncForTeacherAndSubject($guruId, $subjectId, $tingkat);
+                                }
+
+                                return \App\Models\AlurTujuanPembelajaran::where('guru_id', $guruId)->get()->mapWithKeys(function ($atp) {
+                                    return [$atp->id => "[Otomatis] {$atp->judul_atp}"];
                                 });
+                            })
+                            ->default(function (Forms\Get $get) {
+                                $guruId = auth()->id();
+                                $cpId = $get('capaian_pembelajaran_id') ?? $get('content.capaian_pembelajaran_id');
+                                $subjectId = null;
+                                $tingkat = '7';
+                                if ($cpId) {
+                                    $cp = \App\Models\CapaianPembelajaran::find($cpId);
+                                    $subjectId = $cp?->subject_id;
+                                    $tingkat = $cp?->tingkat ?? '7';
+                                }
+                                if (!$subjectId) {
+                                    $subjectId = \App\Models\TeacherSubjectClass::where('teacher_id', $guruId)->value('subject_id')
+                                        ?? \App\Models\Subject::first()?->id;
+                                }
+                                if ($guruId && $subjectId) {
+                                    $atp = \App\Models\AlurTujuanPembelajaran::syncForTeacherAndSubject($guruId, $subjectId, $tingkat);
+                                    return $atp?->id;
+                                }
+                                return null;
                             })
                             ->searchable()
                             ->preload()
                             ->live()
-                            ->helperText('Pilih ATP yang telah disimpan atau klik tombol "+ Susun & Simpan ATP Baru" di atas.'),
+                            ->helperText('ATP diakumulasikan secara otomatis dari seluruh inputan TP oleh guru mapel yang bersangkutan.'),
 
                         Forms\Components\Select::make('selected_tp_ids')
                             ->label('3. Tujuan Pembelajaran (TP) Terkait [Menu Dropdown Multi-Select]')
