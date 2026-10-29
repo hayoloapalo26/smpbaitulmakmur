@@ -90,22 +90,7 @@ class ReadingQualityScoreResource extends Resource
                     ->helperText('Pilih kelas Al-Qur\'an untuk memfilter siswa sesuai penempatan Waka Kurikulum.'),
 
                 Forms\Components\Select::make('classroom_id')
-                    ->label('2. Filter Rombel Reguler (Opsional)')
-                    ->visible(fn () => !Auth::user()?->isQuranTeacher())
-                    ->options(function () {
-                        $user = Auth::user();
-                        if (!$user) return [];
-                        if ($user->hasAnyRole(['koordinator_madin', 'waka_kurikulum', 'superadmin', 'kepala_sekolah'])) {
-                            return Classroom::orderBy('name')->pluck('name', 'id');
-                        }
-                        return Classroom::orderBy('name')->pluck('name', 'id');
-                    })
-                    ->searchable()
-                    ->preload()
-                    ->live()
-                    ->afterStateUpdated(fn (Forms\Set $set) => $set('student_id', null))
-                    ->dehydrated(false)
-                    ->helperText('Pilih rombel jika ingin menyaring siswa per rombel reguler (7A, 7B, dll).'),
+                    ->hidden(),
 
                 Forms\Components\Select::make('student_id')
                     ->label('Nama Siswa (Lengkap Dengan Status Kelas Al-Qur\'an)')
@@ -153,11 +138,10 @@ class ReadingQualityScoreResource extends Resource
                             $quranLabel = $s->kelas_quran_label 
                                 ? " • [Kelas Al-Qur'an: {$s->kelas_quran_label}]" 
                                 : " • [⚠️ Belum Ada Kelas Al-Qur'an]";
-                            $rombel = $s->classroom?->name ? " [Rombel Asli: {$s->classroom->name}]" : '';
                             $guru = $s->guruQuran?->name ? " (Guru: {$s->guruQuran->name})" : '';
                             $nis = $s->nis ? " (NIS: {$s->nis})" : '';
                             return [
-                                $s->id => "{$s->name}{$nis}{$quranLabel}{$guru}{$rombel}"
+                                $s->id => "{$s->name}{$nis}{$quranLabel}{$guru}"
                             ];
                         })->toArray();
                     })
@@ -175,10 +159,9 @@ class ReadingQualityScoreResource extends Resource
                                     ? " • [Kelas Al-Qur'an: {$s->kelas_quran_label}]" 
                                     : " • [⚠️ Belum Ada Kelas Al-Qur'an]";
                                 $guru = $s->guruQuran?->name ? " (Guru: {$s->guruQuran->name})" : '';
-                                $rombel = $s->classroom?->name ? " [Rombel: {$s->classroom->name}]" : '';
                                 $nis = $s->nis ? " (NIS: {$s->nis})" : '';
                                 return [
-                                    $s->id => "{$s->name}{$nis}{$quranLabel}{$guru}{$rombel}"
+                                    $s->id => "{$s->name}{$nis}{$quranLabel}{$guru}"
                                 ];
                             })->toArray();
                     })
@@ -189,10 +172,9 @@ class ReadingQualityScoreResource extends Resource
                         $quranLabel = $s->kelas_quran_label 
                             ? " • [Kelas Al-Qur'an: {$s->kelas_quran_label}]" 
                             : " • [⚠️ Belum Ada Kelas Al-Qur'an]";
-                        $rombel = $s->classroom?->name ? " [Rombel: {$s->classroom->name}]" : '';
                         $guru = $s->guruQuran?->name ? " (Guru: {$s->guruQuran->name})" : '';
                         $nis = $s->nis ? " (NIS: {$s->nis})" : '';
-                        return "{$s->name}{$nis}{$quranLabel}{$guru}{$rombel}";
+                        return "{$s->name}{$nis}{$quranLabel}{$guru}";
                     })
                     ->searchable()
                     ->preload()
@@ -271,20 +253,8 @@ class ReadingQualityScoreResource extends Resource
                     ->weight('bold')
                     ->description(fn (ReadingQualityScore $record) => 'NIS: ' . ($record->student?->nis ?? '-')),
 
-                Tables\Columns\TextColumn::make('student.classroom.name')
-                    ->label('Kelas')
-                    ->badge()
-                    ->color('gray'),
-
-                Tables\Columns\TextColumn::make('teacher.name')
-                    ->label('Guru Penginput')
-                    ->searchable()
-                    ->badge()
-                    ->color('info')
-                    ->description(fn (ReadingQualityScore $record) => $record->teacher?->getQuranSpecializationLabel() ? "[{$record->teacher->getQuranSpecializationLabel()}]" : null),
-
                 Tables\Columns\TextColumn::make('program')
-                    ->label('Program')
+                    ->label('Kelas Al-Qur\'an')
                     ->badge()
                     ->color(fn (string $state): string => match ($state) {
                         'yanbua'           => 'emerald',
@@ -294,6 +264,13 @@ class ReadingQualityScoreResource extends Resource
                         default            => 'gray',
                     })
                     ->formatStateUsing(fn ($state, ReadingQualityScore $record) => $record->program_label),
+
+                Tables\Columns\TextColumn::make('teacher.name')
+                    ->label('Guru Penginput')
+                    ->searchable()
+                    ->badge()
+                    ->color('info')
+                    ->description(fn (ReadingQualityScore $record) => $record->teacher?->getQuranSpecializationLabel() ? "[{$record->teacher->getQuranSpecializationLabel()}]" : null),
 
                 Tables\Columns\TextColumn::make('scale_score')
                     ->label('Skor')

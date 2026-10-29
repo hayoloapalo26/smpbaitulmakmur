@@ -324,6 +324,9 @@ class StudentQuranPlacementAndTeacherDropdownTest extends TestCase
         $livewire = Livewire::test(ReadingQualityScoreResource\Pages\ManageReadingQualityScores::class);
         $livewire->mountAction('create');
         $form = $livewire->instance()->getMountedActionForm();
+        $classroomCompWaka = collect($form->getFlatComponents())->first(fn ($c) => method_exists($c, 'getName') && $c->getName() === 'classroom_id');
+        $this->assertTrue($classroomCompWaka?->isHidden() ?? true);
+
         $studentComponent = collect($form->getFlatComponents())->first(fn ($c) => method_exists($c, 'getName') && $c->getName() === 'student_id');
 
         $options = $studentComponent?->getOptions() ?? [];
@@ -367,6 +370,9 @@ class StudentQuranPlacementAndTeacherDropdownTest extends TestCase
         ]);
 
         $form = $livewire->instance()->getMountedActionForm();
+        $classroomCompWaka = collect($form->getFlatComponents())->first(fn ($c) => method_exists($c, 'getName') && $c->getName() === 'classroom_id');
+        $this->assertTrue($classroomCompWaka?->isHidden() ?? true);
+
         $studentComponent = collect($form->getFlatComponents())->first(fn ($c) => method_exists($c, 'getName') && $c->getName() === 'student_id');
 
         $options = $studentComponent?->getOptions() ?? [];

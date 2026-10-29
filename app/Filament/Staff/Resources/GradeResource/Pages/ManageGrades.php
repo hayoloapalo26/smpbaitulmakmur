@@ -57,7 +57,14 @@ class ManageGrades extends ManageRecords
                 ->url(fn () => url('/staff/input-nilai-mapel')),
             Actions\CreateAction::make()
                 ->label('Input Nilai Satuan')
-                ->icon('heroicon-o-plus-circle'),
+                ->icon('heroicon-o-plus-circle')
+                ->mutateFormDataUsing(function (array $data): array {
+                    if (empty($data['classroom_id']) && !empty($data['student_id'])) {
+                        $student = \App\Models\Student::find($data['student_id']);
+                        $data['classroom_id'] = $student?->classroom_id;
+                    }
+                    return $data;
+                }),
         ];
     }
 }

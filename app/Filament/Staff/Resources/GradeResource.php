@@ -168,7 +168,7 @@ class GradeResource extends Resource
                             ->default(fn () => Auth::id()),
 
                         Forms\Components\Select::make('filter_kelas_quran')
-                            ->label(fn () => Auth::user()?->isQuranTeacher() ? '1. Kelas Al-Qur\'an (Yanbu\'a / Tahsin / Tahfidz)' : '1. Filter Kelas Al-Qur\'an (Khusus Nilai Tahsin / Yanbu\'a / Tahfidz)')
+                            ->label('1. Kelas / Kelompok Al-Qur\'an')
                             ->options([
                                 'yanbua'           => '📖 Kelas Yanbu\'a (Metode Baca Tulis Al-Qur\'an)',
                                 'tahsin'           => '📖 Kelas Tahsin (Kualitas & Kaidah Tajwid)',
@@ -184,32 +184,38 @@ class GradeResource extends Resource
                                 if ($user->hasRole(User::ROLE_GURU_QURAN_TAHFIDZ_LANJUTAN)) return 'tahfidz_lanjutan';
                                 return null;
                             })
-                            ->placeholder(fn () => Auth::user()?->isQuranTeacher() ? '-- Pilih Kelas Al-Qur\'an --' : '-- Semua / Pilih Kelas Al-Qur\'an --')
+                            ->placeholder('-- Pilih Kelas Al-Qur\'an (Yanbu\'a / Tahsin / Tahfidz) --')
                             ->required(fn () => Auth::user()?->isQuranTeacher())
                             ->live()
                             ->dehydrated(false)
-                            ->afterStateUpdated(function (Forms\Set $set) {
+                            ->afterStateUpdated(function (Forms\Set $set, $state) {
                                 $set('student_id', null);
+                                if (!empty($state)) {
+                                    $set('classroom_id', null);
+                                }
                             })
-                            ->helperText(fn () => Auth::user()?->isQuranTeacher()
-                                ? 'Data siswa otomatis diambil dari pembagian kelas Al-Qur\'an oleh Waka Kurikulum (tanpa terikat rombel Kelas 7).'
-                                : 'Pilih untuk langsung menyaring siswa yang ditempatkan di kelas Al-Qur\'an ini.'),
+                            ->helperText('Data siswa otomatis diambil dari pembagian kelas Al-Qur\'an oleh Waka Kurikulum (tanpa terikat Kelas 7).'),
 
                         Forms\Components\Select::make('classroom_id')
                             ->label('2. Kelas Reguler / Rombel')
-                            ->visible(fn () => !Auth::user()?->isQuranTeacher())
+                            ->hidden(fn (Forms\Get $get) => !empty($get('filter_kelas_quran')) || (Auth::user()?->isQuranTeacher() ?? false))
                             ->options(function () use ($isPrivileged, $isWaliKelas) {
                                 $user = Auth::user();
                                 if (!$user) return [];
+                                $query = Classroom::where('name', 'not like', '%tahsin%')
+                                    ->where('name', 'not like', '%yanbua%')
+                                    ->where('name', 'not like', '%yanbu\'a%')
+                                    ->where('name', 'not like', '%tahfidz%')
+                                    ->where('name', 'not like', '%qur%');
                                 if ($isPrivileged) {
-                                    return Classroom::orderBy('name')->pluck('name', 'id');
+                                    return $query->orderBy('name')->pluck('name', 'id');
                                 }
                                 $tscClassrooms = TeacherSubjectClass::where('teacher_id', $user->id)->pluck('classroom_id')->toArray();
                                 if ($isWaliKelas) {
                                     $waliClassrooms = Classroom::where('wali_kelas_id', $user->id)->pluck('id')->toArray();
                                     $tscClassrooms = array_unique(array_merge($tscClassrooms, $waliClassrooms));
                                 }
-                                return Classroom::whereIn('id', $tscClassrooms)->orderBy('name')->pluck('name', 'id');
+                                return $query->whereIn('id', $tscClassrooms)->orderBy('name')->pluck('name', 'id');
                             })
                             ->searchable()
                             ->preload()
@@ -269,10 +275,9 @@ class GradeResource extends Resource
                                         ? " • [Kelas Al-Qur'an: {$s->kelas_quran_label}]" 
                                         : " • [⚠️ Belum Ada Kelas Al-Qur'an]";
                                     $guru = $s->guruQuran?->name ? " (Guru: {$s->guruQuran->name})" : '';
-                                    $rombel = $s->classroom?->name ? " [Rombel: {$s->classroom->name}]" : '';
                                     $nis = $s->nis ? " (NIS: {$s->nis})" : '';
                                     return [
-                                        $s->id => "{$s->name}{$nis}{$quranBadge}{$guru}{$rombel}"
+                                        $s->id => "{$s->name}{$nis}{$quranBadge}{$guru}"
                                     ];
                                 })->toArray();
                             })
@@ -304,10 +309,9 @@ class GradeResource extends Resource
                                         ? " • [Kelas Al-Qur'an: {$s->kelas_quran_label}]" 
                                         : " • [⚠️ Belum Ada Kelas Al-Qur'an]";
                                     $guru = $s->guruQuran?->name ? " (Guru: {$s->guruQuran->name})" : '';
-                                    $rombel = $s->classroom?->name ? " [Rombel: {$s->classroom->name}]" : '';
                                     $nis = $s->nis ? " (NIS: {$s->nis})" : '';
                                     return [
-                                        $s->id => "{$s->name}{$nis}{$quranBadge}{$guru}{$rombel}"
+                                        $s->id => "{$s->name}{$nis}{$quranBadge}{$guru}"
                                     ];
                                 })->toArray();
                             })
@@ -319,9 +323,8 @@ class GradeResource extends Resource
                                     ? " • [Kelas Al-Qur'an: {$s->kelas_quran_label}]" 
                                     : " • [⚠️ Belum Ada Kelas Al-Qur'an]";
                                 $guru = $s->guruQuran?->name ? " (Guru: {$s->guruQuran->name})" : '';
-                                $rombel = $s->classroom?->name ? " [Rombel: {$s->classroom->name}]" : '';
                                 $nis = $s->nis ? " (NIS: {$s->nis})" : '';
-                                return "{$s->name}{$nis}{$quranBadge}{$guru}{$rombel}";
+                                return "{$s->name}{$nis}{$quranBadge}{$guru}";
                             })
                             ->searchable()
                             ->preload()
@@ -871,7 +874,14 @@ class GradeResource extends Resource
                     }),
 
                 Tables\Actions\ViewAction::make(),
-                Tables\Actions\EditAction::make(),
+                Tables\Actions\EditAction::make()
+                    ->mutateFormDataUsing(function (array $data): array {
+                        if (empty($data['classroom_id']) && !empty($data['student_id'])) {
+                            $student = Student::find($data['student_id']);
+                            $data['classroom_id'] = $student?->classroom_id;
+                        }
+                        return $data;
+                    }),
 
                 // 🔄 FITUR REMEDIAL: Inputan tanggal dan nilai ulang untuk TP yang belum tuntas
                 Tables\Actions\Action::make('remedial')
