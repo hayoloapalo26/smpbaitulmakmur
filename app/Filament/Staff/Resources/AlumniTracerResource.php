@@ -17,31 +17,72 @@ class AlumniTracerResource extends Resource
 {
     public static function canAccess(): bool
     {
-        return auth()->user()->hasAnyRole(['waka_kesiswaan', 'superadmin', 'kepala_sekolah', 'tata_usaha', 'bk']);
+        return auth()->user()->hasAnyRole(['tata_usaha', 'superadmin', 'kepala_sekolah', 'waka_kesiswaan', 'bk']);
     }
 
     public static function canCreate(): bool
     {
-        return auth()->user()->hasAnyRole(['waka_kesiswaan', 'superadmin']);
+        return auth()->user()->hasAnyRole(['tata_usaha', 'superadmin']);
     }
 
     public static function canEdit($record): bool
     {
-        return auth()->user()->hasAnyRole(['waka_kesiswaan', 'superadmin']);
+        return auth()->user()->hasAnyRole(['tata_usaha', 'superadmin']);
     }
 
     public static function canDelete($record): bool
     {
-        return auth()->user()->hasAnyRole(['waka_kesiswaan', 'superadmin']);
+        return auth()->user()->hasAnyRole(['tata_usaha', 'superadmin']);
     }
 
     protected static ?string $model = AlumniTracer::class;
     protected static ?string $navigationIcon = 'heroicon-o-academic-cap';
-    protected static ?string $navigationGroup = 'Kesiswaan & Karakter';
+    protected static ?string $navigationGroup = 'Administrasi & Data Induk';
     protected static ?string $navigationLabel = 'Tracer Study (Alumni)';
     protected static ?string $modelLabel = 'Tracer Study Alumni';
     protected static ?string $pluralModelLabel = 'Tracer Study Alumni';
-    protected static ?int $navigationSort = 6;
+    protected static ?int $navigationSort = 3;
+
+    public static function getNavigationGroup(): ?string
+    {
+        $user = auth()->user();
+        if ($user?->hasRole('waka_kesiswaan') || $user?->hasRole('bk')) {
+            return 'Kesiswaan & Karakter';
+        }
+        return 'Administrasi & Data Induk';
+    }
+
+    public static function getNavigationSort(): ?int
+    {
+        $user = auth()->user();
+        if ($user?->hasRole('waka_kesiswaan') || $user?->hasRole('bk')) {
+            return 6;
+        }
+        return 3;
+    }
+
+    public static function getNavigationBadge(): ?string
+    {
+        $user = auth()->user();
+        if (!$user) return null;
+
+        $query = AlumniTracer::where('status_kegiatan', 'belum_terlacak');
+        if (!$user->hasRole('superadmin') && $user->institution_id != 1) {
+            $query->where('institution_id', $user->institution_id);
+        }
+        $count = $query->count();
+        return $count > 0 ? (string) $count : null;
+    }
+
+    public static function getNavigationBadgeColor(): ?string
+    {
+        return 'warning';
+    }
+
+    public static function getNavigationBadgeTooltip(): ?string
+    {
+        return 'Alumni baru yang belum dilengkapi data penelusurannya';
+    }
 
     public static function getEloquentQuery(): Builder
     {
@@ -194,8 +235,8 @@ class AlumniTracerResource extends Resource
                             ->columnSpanFull(),
 
                         Forms\Components\Textarea::make('keterangan')
-                            ->label('Catatan Kesiswaan')
-                            ->placeholder('Catatan internal kesiswaan terkait alumni ini...')
+                            ->label('Catatan Tata Usaha (TU)')
+                            ->placeholder('Catatan internal Tata Usaha terkait penelusuran alumni ini...')
                             ->rows(2)
                             ->columnSpanFull(),
 
