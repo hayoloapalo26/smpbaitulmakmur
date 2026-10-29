@@ -20,6 +20,7 @@ class Grade extends Model
         'score'            => 'float',
         'nilai_remedial'   => 'float',
         'nilai_pengayaan'  => 'float',
+        'verified_at'      => 'datetime',
     ];
 
     public function student()
@@ -35,6 +36,11 @@ class Grade extends Model
     public function teacher()
     {
         return $this->belongsTo(User::class, 'teacher_id');
+    }
+
+    public function verifier()
+    {
+        return $this->belongsTo(User::class, 'verified_by');
     }
 
     public function subject()

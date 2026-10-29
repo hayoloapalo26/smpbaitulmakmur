@@ -19,12 +19,12 @@ class QuranAchievementResource extends Resource
 {
     public static function shouldRegisterNavigation(): bool
     {
-        return auth()->user()?->hasAnyRole(['guru_alquran', 'waka_kurikulum', 'kepala_sekolah', 'superadmin']) ?? false;
+        return auth()->user()?->hasAnyRole(['guru_alquran', 'koordinator_madin', 'waka_kurikulum', 'kepala_sekolah', 'superadmin']) ?? false;
     }
 
     public static function canAccess(): bool
     {
-        return auth()->user()->hasAnyRole(['guru_alquran', 'waka_kurikulum', 'kepala_sekolah', 'superadmin']);
+        return auth()->user()->hasAnyRole(['guru_alquran', 'koordinator_madin', 'waka_kurikulum', 'kepala_sekolah', 'superadmin']);
     }
 
     protected static ?string $model = QuranAchievement::class;
@@ -35,7 +35,11 @@ class QuranAchievementResource extends Resource
 
     public static function getNavigationGroup(): ?string
     {
-        if (auth()->user()?->hasRole('guru_alquran')) {
+        $user = auth()->user();
+        if ($user?->hasRole('koordinator_madin')) {
+            return 'Madrasah Diniyah (Madin)';
+        }
+        if ($user?->hasRole('guru_alquran')) {
             return 'Fitur Guru Al-Qur\'an';
         }
         return 'Kesiswaan & Karakter';
@@ -74,7 +78,7 @@ class QuranAchievementResource extends Resource
     {
         $query = parent::getEloquentQuery();
         $user = Auth::user();
-        if ($user->hasAnyRole(['waka_kurikulum', 'kepala_sekolah', 'superadmin'])) {
+        if ($user->hasAnyRole(['koordinator_madin', 'waka_kurikulum', 'kepala_sekolah', 'superadmin'])) {
             return $query;
         }
         return $query->where('teacher_id', $user->id);
@@ -85,7 +89,7 @@ class QuranAchievementResource extends Resource
         $user = Auth::user();
         $studentIds = [];
 
-        if (!$user->hasAnyRole(['waka_kurikulum', 'superadmin', 'kepala_sekolah'])) {
+        if (!$user->hasAnyRole(['koordinator_madin', 'waka_kurikulum', 'superadmin', 'kepala_sekolah'])) {
             $studentIds = TeacherSubjectClass::where('teacher_id', $user->id)
                 ->join('students', 'students.classroom_id', '=', 'teacher_subject_classes.classroom_id')
                 ->pluck('students.id')
@@ -102,7 +106,7 @@ class QuranAchievementResource extends Resource
                 Forms\Components\Select::make('student_id')
                     ->label('Siswa')
                     ->options(function () use ($user, $studentIds) {
-                        if ($user->hasAnyRole(['waka_kurikulum', 'superadmin', 'kepala_sekolah'])) {
+                        if ($user->hasAnyRole(['koordinator_madin', 'waka_kurikulum', 'superadmin', 'kepala_sekolah'])) {
                             return Student::when($user->institution_id && !$user->hasRole('superadmin'), fn ($q) => $q->where('institution_id', $user->institution_id))
                                 ->orderBy('name')
                                 ->pluck('name', 'id');
@@ -176,7 +180,10 @@ class QuranAchievementResource extends Resource
     {
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('student.name')->searchable()->label('Siswa')->searchable(),
+                Tables\Columns\TextColumn::make('tanggal')->date()->sortable(),
+                Tables\Columns\TextColumn::make('student.name')->searchable()->label('Siswa'),
+                Tables\Columns\TextColumn::make('student.classroom.name')->label('Kelas')->badge()->color('gray'),
+                Tables\Columns\TextColumn::make('teacher.name')->label('Guru Penginput')->searchable()->badge()->color('info'),
                 Tables\Columns\TextColumn::make('type')
                     ->label('Tipe')
                     ->badge()
@@ -188,14 +195,69 @@ class QuranAchievementResource extends Resource
                         return self::getSurahs()[$state] ?? $state;
                     }),
                 Tables\Columns\TextColumn::make('ayah')->label('Ayat'),
-                Tables\Columns\TextColumn::make('catatan')->limit(30),
-                Tables\Columns\TextColumn::make('tanggal')->date(),
+                Tables\Columns\TextColumn::make('status_verifikasi')
+                    ->label('Status')
+                    ->badge()
+                    ->color(fn ($state) => match ($state) {
+                        'Diterima' => 'success',
+                        'Perlu Perbaikan' => 'danger',
+                        default => 'warning',
+                    }),
+                Tables\Columns\TextColumn::make('catatan')->limit(25)->toggleable(),
+            ])
+            ->filters([
+                Tables\Filters\SelectFilter::make('status_verifikasi')
+                    ->label('Status Verifikasi')
+                    ->options([
+                        'Menunggu Verifikasi' => 'Menunggu Verifikasi',
+                        'Diterima' => 'Diterima',
+                        'Perlu Perbaikan' => 'Perlu Perbaikan',
+                    ]),
+                Tables\Filters\SelectFilter::make('teacher_id')
+                    ->label('Guru Penginput')
+                    ->relationship('teacher', 'name'),
             ])
             ->actions([
+                Tables\Actions\Action::make('terima')
+                    ->label('Terima')
+                    ->icon('heroicon-o-check-circle')
+                    ->color('success')
+                    ->visible(fn ($record) => $record->status_verifikasi !== 'Diterima' && (auth()->user()?->hasAnyRole(['koordinator_madin', 'kepala_sekolah', 'waka_kurikulum', 'superadmin']) ?? false))
+                    ->requiresConfirmation()
+                    ->modalHeading('Terima Inputan Setoran Al-Qur\'an')
+                    ->modalDescription('Apakah Anda yakin menerima dan memvalidasi capaian Al-Qur\'an siswa ini?')
+                    ->action(function ($record) {
+                        $record->update([
+                            'status_verifikasi' => 'Diterima',
+                            'verified_by' => auth()->id(),
+                            'verified_at' => now(),
+                        ]);
+                        \Filament\Notifications\Notification::make()
+                            ->title('Setoran Berhasil Diterima')
+                            ->success()
+                            ->send();
+                    }),
                 Tables\Actions\EditAction::make(),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
+                    Tables\Actions\BulkAction::make('terima_massal')
+                        ->label('Terima Semua Terpilih')
+                        ->icon('heroicon-o-check-badge')
+                        ->color('success')
+                        ->requiresConfirmation()
+                        ->visible(fn () => auth()->user()?->hasAnyRole(['koordinator_madin', 'kepala_sekolah', 'waka_kurikulum', 'superadmin']) ?? false)
+                        ->action(function (\Illuminate\Database\Eloquent\Collection $records) {
+                            $records->each->update([
+                                'status_verifikasi' => 'Diterima',
+                                'verified_by' => auth()->id(),
+                                'verified_at' => now(),
+                            ]);
+                            \Filament\Notifications\Notification::make()
+                                ->title('Semua setoran hafalan terpilih berhasil diterima')
+                                ->success()
+                                ->send();
+                        }),
                     Tables\Actions\DeleteBulkAction::make(),
                 ]),
             ]);

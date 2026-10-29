@@ -12,9 +12,8 @@ class QuranAchievement extends Model
 
     protected $casts = [
         'type' => 'array',
+        'verified_at' => 'datetime',
     ];
-
-    //
 
     public function student()
     {
@@ -24,5 +23,10 @@ class QuranAchievement extends Model
     public function teacher()
     {
         return $this->belongsTo(User::class, 'teacher_id');
+    }
+
+    public function verifier()
+    {
+        return $this->belongsTo(User::class, 'verified_by');
     }
 }

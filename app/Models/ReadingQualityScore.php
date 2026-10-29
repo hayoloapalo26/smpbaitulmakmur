@@ -10,7 +10,10 @@ class ReadingQualityScore extends Model
 
     protected $guarded = ['id'];
 
-    //
+    protected $casts = [
+        'tanggal' => 'date',
+        'verified_at' => 'datetime',
+    ];
 
     public function student()
     {
@@ -20,5 +23,10 @@ class ReadingQualityScore extends Model
     public function teacher()
     {
         return $this->belongsTo(User::class, 'teacher_id');
+    }
+
+    public function verifier()
+    {
+        return $this->belongsTo(User::class, 'verified_by');
     }
 }

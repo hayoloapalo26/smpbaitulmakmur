@@ -21,6 +21,7 @@ class InputNilaiMapel extends Page
             'guru_mapel',
             'guru_kelas',
             'guru_alquran',
+            'koordinator_madin',
             'wali_kelas',
             'waka_kurikulum',
             'kepala_sekolah',
@@ -249,8 +250,8 @@ class InputNilaiMapel extends Page
             return collect();
         }
 
-        // Jika Kurikulum / Kepsek / Admin: melihat seluruh 17 mapel
-        if ($user->hasAnyRole(['waka_kurikulum', 'kepala_sekolah', 'superadmin'])) {
+        // Jika Kurikulum / Kepsek / Admin / Koordinator Madin: melihat seluruh mapel
+        if ($user->hasAnyRole(['koordinator_madin', 'waka_kurikulum', 'kepala_sekolah', 'superadmin'])) {
             return Subject::orderBy('name')->get();
         }
 
@@ -285,8 +286,8 @@ class InputNilaiMapel extends Page
             return collect();
         }
 
-        // Jika Kurikulum / Kepsek / Admin: melihat seluruh kelas
-        if ($user->hasAnyRole(['waka_kurikulum', 'kepala_sekolah', 'superadmin'])) {
+        // Jika Kurikulum / Kepsek / Admin / Koordinator Madin: melihat seluruh kelas
+        if ($user->hasAnyRole(['koordinator_madin', 'waka_kurikulum', 'kepala_sekolah', 'superadmin'])) {
             return Classroom::orderBy('name')->get();
         }
 

@@ -49,6 +49,7 @@ class StaffPanelProvider extends PanelProvider
                 'Pengumuman & Informasi',
                 'Akademik & Kurikulum',
                 'Fitur Guru Al-Qur\'an',
+                'Madrasah Diniyah (Madin)',
                 'Kesiswaan & Karakter',
                 'Sarpras',
                 'Humas',

@@ -26,6 +26,7 @@ class GradeResource extends Resource
         return auth()->user()?->hasAnyRole([
             'guru_mapel',
             'guru_alquran',
+            'koordinator_madin',
             'guru_kelas',
             'waka_kurikulum',
             'kepala_sekolah',
@@ -38,6 +39,7 @@ class GradeResource extends Resource
         return auth()->user()?->hasAnyRole([
             'guru_mapel',
             'guru_alquran',
+            'koordinator_madin',
             'guru_kelas',
             'wali_kelas',
             'waka_kurikulum',
@@ -60,6 +62,23 @@ class GradeResource extends Resource
         $user = Auth::user();
         if ($user->hasAnyRole(['waka_kurikulum', 'superadmin', 'kepala_sekolah'])) {
             return $query;
+        }
+
+        // Koordinator Madin: Melihat nilai mapel Al-Qur'an / Diniyah atau nilai yang diinput oleh Guru Al-Qur'an
+        if ($user->hasRole('koordinator_madin')) {
+            return $query->where(function ($q) {
+                $q->whereHas('subject', function ($sq) {
+                    $sq->where('name', 'like', '%qur%')
+                      ->orWhere('name', 'like', '%tahfidz%')
+                      ->orWhere('name', 'like', '%tahsin%')
+                      ->orWhere('name', 'like', '%madin%')
+                      ->orWhere('name', 'like', '%diniyah%')
+                      ->orWhere('name', 'like', '%pai%')
+                      ->orWhere('name', 'like', '%islam%');
+                })->orWhereHas('teacher', function ($tq) {
+                    $tq->whereHas('roles', fn ($r) => $r->where('name', 'guru_alquran'));
+                });
+            });
         }
 
         // Guru Mapel: Nilai pada mata pelajaran yang diampu
@@ -376,8 +395,25 @@ class GradeResource extends Resource
                     ->limit(40)
                     ->wrap()
                     ->tooltip(fn (Grade $record) => $record->catatan_guru),
+
+                Tables\Columns\TextColumn::make('status_verifikasi')
+                    ->label('Status')
+                    ->badge()
+                    ->color(fn ($state) => match ($state) {
+                        'Diterima' => 'success',
+                        'Perlu Perbaikan' => 'danger',
+                        default => 'warning',
+                    }),
             ])
             ->filters([
+                Tables\Filters\SelectFilter::make('status_verifikasi')
+                    ->label('Status Verifikasi')
+                    ->options([
+                        'Menunggu Verifikasi' => 'Menunggu Verifikasi',
+                        'Diterima' => 'Diterima',
+                        'Perlu Perbaikan' => 'Perlu Perbaikan',
+                    ]),
+
                 Tables\Filters\SelectFilter::make('classroom_id')
                     ->relationship('classroom', 'name')
                     ->label('Filter Kelas')
@@ -406,6 +442,25 @@ class GradeResource extends Resource
                     ]),
             ])
             ->actions([
+                Tables\Actions\Action::make('terima_nilai')
+                    ->label('Terima')
+                    ->icon('heroicon-o-check-circle')
+                    ->color('success')
+                    ->visible(fn (Grade $record) => $record->status_verifikasi !== 'Diterima' && (auth()->user()?->hasAnyRole(['koordinator_madin', 'kepala_sekolah', 'waka_kurikulum', 'superadmin']) ?? false))
+                    ->requiresConfirmation()
+                    ->modalHeading('Terima & Verifikasi Nilai Siswa')
+                    ->modalDescription('Apakah Anda yakin menerima dan memvalidasi nilai yang diinputkan guru ini?')
+                    ->action(function (Grade $record) {
+                        $record->update([
+                            'status_verifikasi' => 'Diterima',
+                            'verified_by' => auth()->id(),
+                            'verified_at' => now(),
+                        ]);
+                        Notification::make()
+                            ->title('Nilai Berhasil Diterima & Diverifikasi')
+                            ->success()
+                            ->send();
+                    }),
                 Tables\Actions\ViewAction::make(),
                 Tables\Actions\EditAction::make(),
 

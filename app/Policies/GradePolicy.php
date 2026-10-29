@@ -21,7 +21,7 @@ class GradePolicy
      */
     public function viewAny($user): bool
     {
-        if ($user->hasRole(['kepala_sekolah', 'superadmin', 'waka_kurikulum'])) return true;
+        if ($user->hasRole(['kepala_sekolah', 'superadmin', 'waka_kurikulum', 'koordinator_madin'])) return true;
         return $user->hasAnyRole(['guru_mapel', 'guru_kelas', 'guru_alquran', 'wali_kelas']);
     }
 
@@ -30,7 +30,7 @@ class GradePolicy
      */
     public function view($user, $model): bool
     {
-        if ($user->hasRole(['kepala_sekolah', 'superadmin', 'waka_kurikulum'])) return true;
+        if ($user->hasRole(['kepala_sekolah', 'superadmin', 'waka_kurikulum', 'koordinator_madin'])) return true;
         return $user->hasAnyRole(['guru_mapel', 'guru_kelas', 'guru_alquran', 'wali_kelas']);
     }
 
@@ -39,7 +39,7 @@ class GradePolicy
      */
     public function create($user): bool
     {
-        return $user->hasAnyRole(['guru_mapel', 'guru_kelas', 'guru_alquran', 'waka_kurikulum', 'superadmin']);
+        return $user->hasAnyRole(['guru_mapel', 'guru_kelas', 'guru_alquran', 'koordinator_madin', 'waka_kurikulum', 'superadmin']);
     }
 
     /**
@@ -47,7 +47,7 @@ class GradePolicy
      */
     public function update($user, $model): bool
     {
-        return $user->hasAnyRole(['guru_mapel', 'guru_kelas', 'guru_alquran', 'waka_kurikulum', 'superadmin']);
+        return $user->hasAnyRole(['guru_mapel', 'guru_kelas', 'guru_alquran', 'koordinator_madin', 'waka_kurikulum', 'superadmin']);
     }
 
     /**

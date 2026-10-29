@@ -19,7 +19,7 @@ class TeachingJournalResource extends Resource
     public static function canAccess(): bool
     {
         return auth()->user()->hasAnyRole([
-            'guru_kelas', 'guru_mapel', 'guru_alquran', 'wali_kelas',
+            'guru_kelas', 'guru_mapel', 'guru_alquran', 'koordinator_madin', 'wali_kelas',
             'waka_kurikulum', 'kepala_sekolah', 'superadmin'
         ]);
     }
@@ -110,7 +110,7 @@ class TeachingJournalResource extends Resource
                                 if ($user->institution_id && !$user->hasRole('superadmin')) {
                                     $query->where('institution_id', $user->institution_id);
                                 }
-                                $query->whereHas('roles', fn ($q) => $q->whereIn('name', ['guru_mapel', 'guru_alquran', 'wali_kelas']));
+                                $query->whereHas('roles', fn ($q) => $q->whereIn('name', ['guru_mapel', 'guru_alquran', 'koordinator_madin', 'wali_kelas']));
                             })
                             ->default(Auth::id())
                             ->visible($isAdminOrWaka)

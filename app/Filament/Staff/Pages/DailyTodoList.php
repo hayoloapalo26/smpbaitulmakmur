@@ -47,6 +47,7 @@ class DailyTodoList extends Page implements HasForms, HasTable
             'guru_mapel' => 'Guru Mapel',
             'wali_kelas', 'guru_kelas' => 'Wali Kelas',
             'guru_alquran' => 'Guru Al-Qur\'an',
+            'koordinator_madin' => 'Koordinator Madin',
             'guru_piket' => 'Guru Piket',
             'bk' => 'Guru BK',
             'tata_usaha' => 'Tata Usaha',

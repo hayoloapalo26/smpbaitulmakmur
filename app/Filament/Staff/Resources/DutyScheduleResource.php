@@ -22,7 +22,7 @@ class DutyScheduleResource extends Resource
     {
         return auth()->user()?->hasAnyRole([
             'waka_kesiswaan', 'superadmin', 'kepala_sekolah',
-            'guru_mapel', 'guru_alquran', 'wali_kelas', 'guru_kelas', 'bk', 'guru_piket', 'tata_usaha'
+            'guru_mapel', 'guru_alquran', 'koordinator_madin', 'wali_kelas', 'guru_kelas', 'bk', 'guru_piket', 'tata_usaha'
         ]) ?? false;
     }
 

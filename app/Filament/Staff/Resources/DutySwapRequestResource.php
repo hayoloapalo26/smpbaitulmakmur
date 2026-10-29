@@ -20,7 +20,7 @@ class DutySwapRequestResource extends Resource
     {
         return auth()->user()?->hasAnyRole([
             'waka_kesiswaan', 'kepala_sekolah', 'superadmin', 'guru_piket', 
-            'guru_mapel', 'guru_alquran', 'wali_kelas', 'guru_kelas', 'bk', 'tata_usaha'
+            'guru_mapel', 'guru_alquran', 'koordinator_madin', 'wali_kelas', 'guru_kelas', 'bk', 'tata_usaha'
         ]) ?? false;
     }
 

@@ -33,6 +33,7 @@ class MandatoryTaskResource extends Resource
             'wali_kelas'     => 'Wali Kelas / Guru Kelas',
             'guru_mapel'     => 'Guru Mata Pelajaran',
             'guru_alquran'   => 'Guru Al-Qur\'an (Tahfidz & Tahsin)',
+            'koordinator_madin' => 'Koordinator Madin (Madrasah Diniyah)',
             'guru_piket'     => 'Guru Piket',
             'bk'             => 'Guru BK (Bimbingan Konseling)',
             'tata_usaha'     => 'Tata Usaha (TU)',

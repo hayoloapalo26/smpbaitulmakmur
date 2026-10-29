@@ -122,7 +122,7 @@ class TeacherLeaveRequestResource extends Resource
                                           ->orWhereNull('institution_id');
                                     });
                                 }
-                                $query->whereHas('roles', fn ($q) => $q->whereIn('name', ['guru_mapel', 'guru_alquran', 'wali_kelas', 'guru_kelas', 'waka_kurikulum']));
+                                $query->whereHas('roles', fn ($q) => $q->whereIn('name', ['guru_mapel', 'guru_alquran', 'koordinator_madin', 'wali_kelas', 'guru_kelas', 'waka_kurikulum']));
                             })
                             ->default(Auth::id())
                             ->searchable()

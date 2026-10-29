@@ -24,7 +24,7 @@ class ScheduleResource extends Resource
     {
         return auth()->user()->hasAnyRole([
             'waka_kurikulum', 'superadmin', 'kepala_sekolah', 'tata_usaha',
-            'guru_mapel', 'guru_kelas', 'guru_alquran', 'wali_kelas'
+            'guru_mapel', 'guru_kelas', 'guru_alquran', 'koordinator_madin', 'wali_kelas'
         ]);
     }
 
@@ -82,7 +82,7 @@ class ScheduleResource extends Resource
                                     });
                                 }
                                 $query->whereHas('roles', function ($q) {
-                                    $q->whereIn('name', ['guru_mapel', 'guru_alquran', 'wali_kelas']);
+                                    $q->whereIn('name', ['guru_mapel', 'guru_alquran', 'koordinator_madin', 'wali_kelas']);
                                 });
                             })
                             ->searchable()

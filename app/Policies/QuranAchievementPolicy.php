@@ -14,7 +14,7 @@ class QuranAchievementPolicy
     public function viewAny($user): bool
     {
         if ($user->hasRole('kepala_sekolah')) return true;
-        return $user->hasRole(['waka_kurikulum', 'guru_alquran']);
+        return $user->hasRole(['waka_kurikulum', 'guru_alquran', 'koordinator_madin']);
     }
 
     /**
@@ -22,7 +22,7 @@ class QuranAchievementPolicy
      */
     public function view($user, $model): bool
     {
-        return $user->hasRole(['waka_kurikulum', 'guru_alquran']);
+        return $user->hasRole(['waka_kurikulum', 'guru_alquran', 'koordinator_madin']);
     }
 
     /**
@@ -30,7 +30,7 @@ class QuranAchievementPolicy
      */
     public function create($user): bool
     {
-        return $user->hasRole(['guru_alquran']);
+        return $user->hasRole(['guru_alquran', 'koordinator_madin']);
     }
 
     /**
@@ -38,7 +38,7 @@ class QuranAchievementPolicy
      */
     public function update($user, $model): bool
     {
-        return $user->hasRole(['guru_alquran']);
+        return $user->hasRole(['guru_alquran', 'koordinator_madin']);
     }
 
     /**
