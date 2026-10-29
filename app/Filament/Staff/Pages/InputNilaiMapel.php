@@ -39,6 +39,7 @@ class InputNilaiMapel extends Page
     public ?int $selectedClassroomId = null;
     public ?int $selectedAcademicYearId = null;
     public string $selectedSemester = 'Ganjil';
+    public ?string $selectedQuranClass = null; // 'tahsin', 'yanbua', 'tahfidz_dasar', 'tahfidz_lanjutan'
     public array $scores = [];
     public string $search = '';
 
@@ -51,6 +52,7 @@ class InputNilaiMapel extends Page
         'selectedSubjectId' => ['except' => null, 'as' => 'subject_id'],
         'selectedClassroomId' => ['except' => null, 'as' => 'classroom_id'],
         'selectedSemester' => ['except' => 'Ganjil', 'as' => 'semester'],
+        'selectedQuranClass' => ['except' => null, 'as' => 'quran_class'],
     ];
 
     public function mount(?int $subject_id = null, ?int $classroom_id = null): void
@@ -109,6 +111,11 @@ class InputNilaiMapel extends Page
         $this->loadStudentScores();
     }
 
+    public function updatedSelectedQuranClass(): void
+    {
+        $this->loadStudentScores();
+    }
+
     public function selectSubject(int $subjectId): void
     {
         $this->selectedSubjectId = $subjectId;
@@ -128,9 +135,14 @@ class InputNilaiMapel extends Page
             return;
         }
 
-        $students = Student::where('classroom_id', $this->selectedClassroomId)
-            ->orderBy('name')
-            ->get();
+        $studentsQuery = Student::with(['guruQuran'])
+            ->where('classroom_id', $this->selectedClassroomId);
+
+        if (!empty($this->selectedQuranClass)) {
+            $studentsQuery->where('kelas_quran', $this->selectedQuranClass);
+        }
+
+        $students = $studentsQuery->orderBy('name')->get();
 
         $existingGrades = Grade::where([
             'subject_id'       => $this->selectedSubjectId,
@@ -378,11 +390,15 @@ class InputNilaiMapel extends Page
         }
 
         // Ambil daftar siswa
-        $studentsQuery = Student::query();
+        $studentsQuery = Student::with(['guruQuran', 'classroom']);
         if ($this->selectedClassroomId) {
             $studentsQuery->where('classroom_id', $this->selectedClassroomId);
         } else {
             $studentsQuery->whereRaw('1=0');
+        }
+
+        if (!empty($this->selectedQuranClass)) {
+            $studentsQuery->where('kelas_quran', $this->selectedQuranClass);
         }
 
         if (!empty($this->search)) {

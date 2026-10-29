@@ -166,9 +166,27 @@ class GradeResource extends Resource
                         Forms\Components\Hidden::make('teacher_id')
                             ->default(fn () => Auth::id()),
 
+                        Forms\Components\Select::make('filter_kelas_quran')
+                            ->label('1. Filter Kelas Al-Qur\'an (Khusus Nilai Tahsin / Yanbu\'a / Tahfidz)')
+                            ->options([
+                                'tahsin'           => '📖 Kelas Tahsin (Kualitas & Kaidah Tajwid)',
+                                'yanbua'           => '📖 Kelas Yanbu\'a (Metode Baca Tulis Al-Qur\'an)',
+                                'tahfidz_dasar'    => '📖 Kelas Tahfidz Dasar (Juz 30 / Juz \'Amma)',
+                                'tahfidz_lanjutan' => '📖 Kelas Tahfidz Lanjutan (Juz 1-29)',
+                            ])
+                            ->placeholder('-- Semua / Pilih Kelas Al-Qur\'an --')
+                            ->live()
+                            ->dehydrated(false)
+                            ->afterStateUpdated(function (Forms\Set $set) {
+                                $set('student_id', null);
+                            })
+                            ->helperText('Pilih untuk langsung menyaring siswa yang ditempatkan di kelas Al-Qur\'an ini.'),
+
                         Forms\Components\Select::make('classroom_id')
-                            ->label('1. Kelas')
-                            ->options(function () use ($isPrivileged, $user, $isWaliKelas) {
+                            ->label('2. Kelas Reguler / Rombel')
+                            ->options(function () use ($isPrivileged, $isWaliKelas) {
+                                $user = Auth::user();
+                                if (!$user) return [];
                                 if ($isPrivileged) {
                                     return Classroom::orderBy('name')->pluck('name', 'id');
                                 }
@@ -185,43 +203,88 @@ class GradeResource extends Resource
                             })
                             ->searchable()
                             ->preload()
-                            ->required()
                             ->live()
                             ->afterStateUpdated(function (Forms\Set $set) {
                                 $set('student_id', null);
-                            }),
+                            })
+                            ->helperText('Pilih rombel jika ingin menyaring siswa per rombel reguler.'),
 
                         Forms\Components\Select::make('student_id')
-                            ->label('2. Nama Siswa')
-                            ->options(function (Forms\Get $get) use ($isPrivileged, $studentIds, $user) {
+                            ->label('3. Nama Siswa (Lengkap Dengan Status Kelas Al-Qur\'an)')
+                            ->options(function (Forms\Get $get) {
+                                $user = Auth::user();
+                                if (!$user) return [];
                                 $classroomId = $get('classroom_id');
-                                if ($classroomId) {
-                                    $stQuery = Student::where('classroom_id', $classroomId);
+                                $quranClass = $get('filter_kelas_quran');
+
+                                $query = Student::query()->with(['classroom', 'guruQuran']);
+
+                                // 1. Isolasi Lembaga jika bukan superadmin
+                                if ($user->institution_id && $user->institution_id != 1 && !$user->hasRole('superadmin')) {
+                                    if (\Illuminate\Support\Facades\Schema::hasColumn('students', 'institution_id')) {
+                                        $query->where('students.institution_id', $user->institution_id);
+                                    } else {
+                                        $query->whereHas('classroom', fn ($cq) => $cq->where('institution_id', $user->institution_id));
+                                    }
+                                }
+
+                                // 2. Filter berdasarkan Kelas Al-Qur'an jika dipilih
+                                if ($quranClass) {
+                                    $query->where('kelas_quran', $quranClass);
                                     if ($user->isQuranTeacher()) {
-                                        $hasMyQuranInClass = (clone $stQuery)->where('guru_quran_id', $user->id)->exists();
-                                        if ($hasMyQuranInClass) {
-                                            $stQuery->where('guru_quran_id', $user->id);
+                                        $hasAssignedToMe = (clone $query)->where('guru_quran_id', $user->id)->exists();
+                                        if ($hasAssignedToMe) {
+                                            $query->where('guru_quran_id', $user->id);
                                         }
                                     }
-                                    return $stQuery->orderBy('name')
-                                        ->get()
-                                        ->mapWithKeys(fn ($s) => [$s->id => "{$s->name}" . ($s->nis ? " (NIS: {$s->nis})" : '')]);
+                                } elseif ($user->isQuranTeacher()) {
+                                    $spec = match (true) {
+                                        $user->hasRole(User::ROLE_GURU_QURAN_YANBUA) => 'yanbua',
+                                        $user->hasRole(User::ROLE_GURU_QURAN_TAHSIN) => 'tahsin',
+                                        $user->hasRole(User::ROLE_GURU_QURAN_TAHFIDZ_DASAR) => 'tahfidz_dasar',
+                                        $user->hasRole(User::ROLE_GURU_QURAN_TAHFIDZ_LANJUTAN) => 'tahfidz_lanjutan',
+                                        default => null,
+                                    };
+                                    $query->where(function ($sq) use ($user, $spec) {
+                                        $sq->where('guru_quran_id', $user->id);
+                                        if ($spec) {
+                                            $sq->orWhere('kelas_quran', $spec);
+                                        }
+                                    });
                                 }
-                                if ($isPrivileged) {
-                                    return Student::orderBy('name')->pluck('name', 'id');
+
+                                // 3. Filter rombel reguler jika dipilih
+                                if ($classroomId) {
+                                    $query->where('classroom_id', $classroomId);
                                 }
-                                if ($user->isQuranTeacher()) {
-                                    $myQuran = Student::where('guru_quran_id', $user->id)->orderBy('name')->get();
-                                    if ($myQuran->isNotEmpty()) {
-                                        return $myQuran->mapWithKeys(fn ($s) => [$s->id => "{$s->name}" . ($s->nis ? " (NIS: {$s->nis})" : '')]);
-                                    }
-                                }
-                                return Student::whereIn('id', $studentIds)->orderBy('name')->pluck('name', 'id');
+
+                                return $query->orderBy('name')->get()->mapWithKeys(function ($s) {
+                                    $quranBadge = $s->kelas_quran_label 
+                                        ? " • [Kelas Al-Qur'an: {$s->kelas_quran_label}]" 
+                                        : " • [⚠️ Belum Ada Kelas Al-Qur'an]";
+                                    $guru = $s->guruQuran?->name ? " (Guru: {$s->guruQuran->name})" : '';
+                                    $rombel = $s->classroom?->name ? " [Rombel: {$s->classroom->name}]" : '';
+                                    $nis = $s->nis ? " (NIS: {$s->nis})" : '';
+                                    return [
+                                        $s->id => "{$s->name}{$nis}{$quranBadge}{$guru}{$rombel}"
+                                    ];
+                                });
                             })
                             ->searchable()
                             ->required()
                             ->live()
-                            ->helperText('Daftar siswa otomatis disesuaikan dengan kelas yang Anda pilih di atas.'),
+                            ->afterStateUpdated(function (Forms\Set $set, $state) {
+                                if ($state) {
+                                    $student = Student::with(['classroom', 'guruQuran'])->find($state);
+                                    if ($student?->classroom_id) {
+                                        $set('classroom_id', $student->classroom_id);
+                                    }
+                                    if ($student?->kelas_quran) {
+                                        $set('filter_kelas_quran', $student->kelas_quran);
+                                    }
+                                }
+                            })
+                            ->helperText('Daftar siswa otomatis menampilkan status penempatan kelas Al-Qur\'an masing-masing siswa.'),
 
                         Forms\Components\Select::make('subject_id')
                             ->label('3. Mata Pelajaran')

@@ -145,7 +145,20 @@
                         </div>
                     </div>
 
-                    <div class="grid grid-cols-2 gap-3 pt-2">
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                                Filter Kelas Al-Qur'an
+                            </label>
+                            <select wire:model.live="selectedQuranClass" 
+                                    class="w-full text-xs rounded-xl border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white shadow-sm focus:border-primary-500 focus:ring-primary-500">
+                                <option value="">-- Semua Siswa Rombel --</option>
+                                <option value="tahsin">📖 Hanya Kelas Tahsin</option>
+                                <option value="yanbua">📖 Hanya Kelas Yanbu'a</option>
+                                <option value="tahfidz_dasar">📖 Hanya Kelas Tahfidz Dasar</option>
+                                <option value="tahfidz_lanjutan">📖 Hanya Kelas Tahfidz Lanjutan</option>
+                            </select>
+                        </div>
                         <div>
                             <label class="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
                                 Semester
@@ -257,8 +270,24 @@
                                     <td class="py-2.5 px-3 text-xs font-mono text-gray-600 dark:text-gray-400">
                                         {{ $student->nis ?? ($student->nisn ?? '-') }}
                                     </td>
-                                    <td class="py-2.5 px-4 font-semibold text-gray-900 dark:text-white">
-                                        {{ $student->name }}
+                                    <td class="py-2.5 px-4 text-gray-900 dark:text-white">
+                                        <div class="font-semibold text-sm">{{ $student->name }}</div>
+                                        <div class="mt-1 flex items-center gap-1.5 flex-wrap">
+                                            @if ($student->kelas_quran)
+                                                <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700">
+                                                    📖 Kelas Al-Qur'an: {{ $student->kelas_quran_label }}
+                                                </span>
+                                            @else
+                                                <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400 border border-amber-200 dark:border-amber-800">
+                                                    ⚠️ Belum Masuk Kelas Al-Qur'an
+                                                </span>
+                                            @endif
+                                            @if ($student->guruQuran)
+                                                <span class="text-[10px] text-gray-500 dark:text-gray-400">
+                                                    (Guru: {{ $student->guruQuran->name }})
+                                                </span>
+                                            @endif
+                                        </div>
                                     </td>
                                     
                                     {{-- Input Nilai Pengetahuan --}}

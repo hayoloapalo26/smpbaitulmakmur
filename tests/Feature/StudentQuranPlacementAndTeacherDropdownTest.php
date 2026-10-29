@@ -301,4 +301,38 @@ class StudentQuranPlacementAndTeacherDropdownTest extends TestCase
         $this->assertNull($this->santri3->kelas_quran);
         $this->assertNull($this->santri3->guru_quran_id);
     }
+
+    public function test_tahsin_class_filtering_and_quran_class_label_in_student_dropdown(): void
+    {
+        // 1. Place santri 4 into Tahsin under guruTahsin
+        $this->santri4->update([
+            'kelas_quran' => 'tahsin',
+            'guru_quran_id' => $this->guruTahsin->id,
+            'tanggal_penempatan_quran' => '2026-10-29',
+        ]);
+
+        // 2. Place santri 1 into Yanbua under guruYanbua
+        $this->santri1->update([
+            'kelas_quran' => 'yanbua',
+            'guru_quran_id' => $this->guruYanbua->id,
+            'tanggal_penempatan_quran' => '2026-10-29',
+        ]);
+
+        $this->actingAs($this->guruTahsin);
+
+        // Test in ReadingQualityScoreResource: when guruTahsin opens the create action
+        $livewire = Livewire::test(ReadingQualityScoreResource\Pages\ManageReadingQualityScores::class);
+        $livewire->mountAction('create');
+        $form = $livewire->instance()->getMountedActionForm();
+        $studentComponent = collect($form->getFlatComponents())->first(fn ($c) => method_exists($c, 'getName') && $c->getName() === 'student_id');
+
+        $options = $studentComponent?->getOptions() ?? [];
+
+        // Santri 4 (Tahsin) MUST be present and have the Tahsin label
+        $this->assertArrayHasKey($this->santri4->id, $options);
+        $this->assertStringContainsString('Kelas Al-Qur\'an: Tahsin', $options[$this->santri4->id]);
+
+        // Santri 1 (Yanbu'a) must NOT be present for Guru Tahsin
+        $this->assertArrayNotHasKey($this->santri1->id, $options);
+    }
 }
