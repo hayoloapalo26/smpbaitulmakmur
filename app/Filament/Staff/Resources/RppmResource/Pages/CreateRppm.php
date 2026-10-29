@@ -14,9 +14,73 @@ class CreateRppm extends CreateRecord
 {
     protected static string $resource = RppmResource::class;
 
+    public bool $isDraft = false;
+
+    public function saveDraft(): void
+    {
+        $this->isDraft = true;
+        $this->create();
+    }
+
+    protected function getHeaderActions(): array
+    {
+        return [
+            Actions\Action::make('saveDraftHeader')
+                ->label('💾 Simpan Sementara (Draft)')
+                ->color('warning')
+                ->icon('heroicon-o-bookmark')
+                ->action('saveDraft'),
+        ];
+    }
+
+    protected function getFormActions(): array
+    {
+        return [
+            Actions\Action::make('saveDraft')
+                ->label('💾 Simpan Sementara (Draft)')
+                ->color('warning')
+                ->icon('heroicon-o-bookmark')
+                ->action('saveDraft'),
+            $this->getCreateFormAction()
+                ->label('🚀 Simpan & Publikasikan (Selesai)')
+                ->icon('heroicon-o-check-circle')
+                ->color('success')
+                ->action(function () {
+                    $this->isDraft = false;
+                    $this->create();
+                }),
+            $this->getCancelFormAction(),
+        ];
+    }
+
+    protected function getCreatedNotification(): ?\Filament\Notifications\Notification
+    {
+        if ($this->isDraft) {
+            return \Filament\Notifications\Notification::make()
+                ->title('Draft RPPM Berhasil Disimpan Sementara')
+                ->body('Data RPPM telah tersimpan sebagai draft. Anda dapat keluar dan melanjutkannya kembali kapan saja melalui menu RPPM.')
+                ->warning();
+        }
+
+        return \Filament\Notifications\Notification::make()
+            ->title('RPPM Berhasil Dipublikasikan')
+            ->body('Dokumen RPPM dan Perangkat Ajar telah selesai dan berhasil dipublikasikan.')
+            ->success();
+    }
+
+    protected function getRedirectUrl(): string
+    {
+        return $this->getResource()::getUrl('index');
+    }
+
     protected function mutateFormDataBeforeCreate(array $data): array
     {
         $data['guru_id'] = auth()->id();
+        $data['status'] = $this->isDraft ? 'draft' : 'published';
+
+        $data['kelas_fase'] = !empty($data['kelas_fase']) ? $data['kelas_fase'] : 'Kelas 7 / Fase D';
+        $data['mata_pelajaran'] = !empty($data['mata_pelajaran']) ? $data['mata_pelajaran'] : 'Mata Pelajaran (Draft)';
+        $data['topik'] = !empty($data['topik']) ? $data['topik'] : 'Draft Topik Pembelajaran';
 
         // 1. Tentukan subject_id jika memungkinkan
         $subjectId = null;

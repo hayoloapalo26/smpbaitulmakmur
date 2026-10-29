@@ -20,6 +20,7 @@ class Rppm extends Model
         'capaian_pembelajaran_id',
         'alur_tujuan_pembelajaran_id',
         'selected_tp_ids',
+        'status',
         'topik',
         'alokasi_waktu',
         'content',

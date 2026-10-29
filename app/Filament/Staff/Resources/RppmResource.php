@@ -359,20 +359,19 @@ class RppmResource extends Resource
                         Forms\Components\TextInput::make('kelas_fase')
                             ->label('Kelas / Fase')
                             ->placeholder('Contoh: VII / Fase D')
-                            ->required(),
+                            ->default('Kelas 7 / Fase D'),
 
                         Forms\Components\TextInput::make('mata_pelajaran')
                             ->label('Mata Pelajaran')
-                            ->required(),
+                            ->placeholder('Contoh: Bahasa Indonesia'),
 
                         Forms\Components\TextInput::make('topik')
                             ->label('Topik / Materi Pokok')
-                            ->required(),
+                            ->placeholder('Contoh: Teks Deskripsi'),
 
                         Forms\Components\TextInput::make('alokasi_waktu')
                             ->label('Alokasi Waktu')
-                            ->placeholder('Contoh: 2 x 40 Menit (1 Pertemuan)')
-                            ->required(),
+                            ->placeholder('Contoh: 2 x 40 Menit (1 Pertemuan)'),
                     ])->columns(2),
 
                 Forms\Components\Tabs::make('RPPM Builder')
@@ -399,9 +398,9 @@ class RppmResource extends Resource
                                         Forms\Components\Repeater::make('content.profil_lulusan')
                                             ->label('')
                                             ->schema([
-                                                Forms\Components\TextInput::make('dimensi')->label('Dimensi')->required(),
-                                                Forms\Components\Textarea::make('penjelasan')->label('Penjelasan Keterkaitan')->required(),
-                                            ])->columns(2)->defaultItems(1)
+                                                Forms\Components\TextInput::make('dimensi')->label('Dimensi'),
+                                                Forms\Components\Textarea::make('penjelasan')->label('Penjelasan Keterkaitan'),
+                                            ])->columns(2)->defaultItems(0)
                                     ]),
                             ]),
 
@@ -492,11 +491,10 @@ class RppmResource extends Resource
                                                 'Kegiatan Awal' => 'Kegiatan Awal',
                                                 'Kegiatan Inti' => 'Kegiatan Inti',
                                                 'Kegiatan Penutup' => 'Kegiatan Penutup',
-                                            ])->required(),
+                                            ]),
                                         Forms\Components\TextInput::make('waktu')
                                             ->label('Alokasi Waktu')
-                                            ->placeholder('Contoh: 15 menit')
-                                            ->required(),
+                                            ->placeholder('Contoh: 15 menit'),
                                         Forms\Components\Textarea::make('prinsip')
                                             ->label('Prinsip Pembelajaran Mendalam')
                                             ->columnSpanFull(),
@@ -504,7 +502,7 @@ class RppmResource extends Resource
                                             ->label('Uraian Kegiatan')
                                             ->toolbarButtons(['bold', 'italic', 'bulletList', 'orderedList'])
                                             ->columnSpanFull(),
-                                    ])->columns(2)->defaultItems(1)
+                                    ])->columns(2)->defaultItems(0)
                             ]),
 
                         Forms\Components\Tabs\Tab::make('D. Asesmen')
@@ -520,12 +518,12 @@ class RppmResource extends Resource
                                                         'Asesmen Awal (Diagnostik)' => 'Awal (Diagnostik)',
                                                         'Asesmen Proses (Formatif)' => 'Proses (Formatif)',
                                                         'Asesmen Akhir (Sumatif)' => 'Akhir (Sumatif)',
-                                                    ])->required(),
+                                                    ]),
                                                 Forms\Components\TextInput::make('waktu')->label('Waktu Pelaksanaan'),
                                                 Forms\Components\TextInput::make('teknik')->label('Teknik'),
                                                 Forms\Components\TextInput::make('instrumen')->label('Instrumen'),
                                                 Forms\Components\Textarea::make('tujuan')->label('Tujuan')->columnSpanFull(),
-                                            ])->columns(2)->defaultItems(1)
+                                            ])->columns(2)->defaultItems(0)
                                     ]),
                                     
                                 Forms\Components\Fieldset::make('Kriteria Ketercapaian Tujuan Pembelajaran (KKTP)')
@@ -533,12 +531,12 @@ class RppmResource extends Resource
                                         Forms\Components\Repeater::make('content.kktp')
                                             ->label('')
                                             ->schema([
-                                                Forms\Components\TextInput::make('kriteria')->label('Kriteria Penilaian')->required()->columnSpanFull(),
+                                                Forms\Components\TextInput::make('kriteria')->label('Kriteria Penilaian')->columnSpanFull(),
                                                 Forms\Components\Textarea::make('bimbingan')->label('Perlu Bimbingan (0-40)'),
                                                 Forms\Components\Textarea::make('cukup')->label('Cukup (41-65)'),
                                                 Forms\Components\Textarea::make('baik')->label('Baik (66-85)'),
                                                 Forms\Components\Textarea::make('sangat_baik')->label('Sangat Baik (86-100)'),
-                                            ])->columns(2)->defaultItems(1)
+                                            ])->columns(2)->defaultItems(0)
                                     ]),
                             ]),
                             
@@ -556,6 +554,20 @@ class RppmResource extends Resource
     {
         return $table
             ->columns([
+                Tables\Columns\TextColumn::make('status')
+                    ->label('Status')
+                    ->badge()
+                    ->color(fn (?string $state): string => match ($state) {
+                        'published' => 'success',
+                        'draft' => 'warning',
+                        default => 'gray',
+                    })
+                    ->formatStateUsing(fn (?string $state): string => match ($state) {
+                        'published' => 'Selesai (Publikasi)',
+                        'draft' => 'Draft (Simpan Sementara)',
+                        default => ucfirst($state ?? 'Draft'),
+                    })
+                    ->sortable(),
                 Tables\Columns\TextColumn::make('mata_pelajaran')
                     ->label('Mata Pelajaran')
                     ->searchable()
@@ -579,16 +591,29 @@ class RppmResource extends Resource
                 Tables\Columns\TextColumn::make('guru.name')
                     ->label('Penyusun')
                     ->searchable(),
-                Tables\Columns\TextColumn::make('created_at')
-                    ->label('Dibuat Pada')
-                    ->dateTime('d M Y')
+                Tables\Columns\TextColumn::make('updated_at')
+                    ->label('Terakhir Diperbarui')
+                    ->dateTime('d M Y H:i')
                     ->sortable(),
             ])
             ->filters([
-                //
+                Tables\Filters\SelectFilter::make('status')
+                    ->label('Status RPPM')
+                    ->options([
+                        'draft' => 'Draft (Simpan Sementara)',
+                        'published' => 'Selesai (Publikasi)',
+                    ]),
             ])
             ->actions([
-                Tables\Actions\EditAction::make(),
+                Tables\Actions\Action::make('continue')
+                    ->label('Lanjutkan Pengisian')
+                    ->icon('heroicon-o-pencil-square')
+                    ->color('warning')
+                    ->button()
+                    ->url(fn (Rppm $record): string => RppmResource::getUrl('edit', ['record' => $record]))
+                    ->visible(fn (Rppm $record): bool => ($record->status ?? 'draft') === 'draft'),
+                Tables\Actions\EditAction::make()
+                    ->label(fn (Rppm $record) => ($record->status ?? 'draft') === 'draft' ? 'Edit Draft' : 'Edit'),
                 Tables\Actions\ViewAction::make(),
             ])
             ->bulkActions([
@@ -596,7 +621,7 @@ class RppmResource extends Resource
                     Tables\Actions\DeleteBulkAction::make(),
                 ]),
             ])
-            ->defaultSort('created_at', 'desc');
+            ->defaultSort('updated_at', 'desc');
     }
 
     public static function getRelations(): array

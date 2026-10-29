@@ -35,6 +35,8 @@ class PerangkatAjarAndGradeSystemTest extends TestCase
     {
         parent::setUp();
 
+        \Filament\Facades\Filament::setCurrentPanel(\Filament\Facades\Filament::getPanel('staff'));
+
         Role::firstOrCreate(['name' => 'superadmin', 'guard_name' => 'web']);
         Role::firstOrCreate(['name' => 'guru_mapel', 'guard_name' => 'web']);
         Role::firstOrCreate(['name' => 'waka_kurikulum', 'guard_name' => 'web']);
@@ -580,5 +582,69 @@ class PerangkatAjarAndGradeSystemTest extends TestCase
         $this->assertContains($tp1->id, $atp->tp_ids);
         $this->assertContains($tp2->id, $atp->tp_ids);
         $this->assertCount(2, $atp->tp_ids);
+    }
+
+    public function test_rppm_can_be_saved_as_draft_halfway_and_then_published(): void
+    {
+        $cp = CapaianPembelajaran::create([
+            'institution_id' => $this->institution->id,
+            'guru_id' => $this->teacher->id,
+            'subject_id' => $this->subject->id,
+            'fase' => 'Fase D (SMP)',
+            'tingkat' => '7',
+            'tahun_ajaran' => '2026/2027',
+            'semester' => '1',
+            'elemen' => 'Geometri',
+            'deskripsi_cp' => 'Capaian Geometri',
+            'masa_berlaku' => '1 Tahun',
+        ]);
+
+        $tp = TujuanPembelajaran::create([
+            'institution_id' => $this->institution->id,
+            'guru_id' => $this->teacher->id,
+            'capaian_pembelajaran_id' => $cp->id,
+            'subject_id' => $this->subject->id,
+            'deskripsi_tp' => 'TP 1 Geometri Bangun Ruang',
+            'materi' => 'Geometri',
+            'kelas_tingkat' => '7',
+            'semester' => 'Ganjil',
+        ]);
+
+        // 1. Simpan Sementara (Draft) saat baru mengisi sebagian (misal: hanya CP dan TP pada Desain Pembelajaran)
+        Livewire::test(\App\Filament\Staff\Resources\RppmResource\Pages\CreateRppm::class)
+            ->fillForm([
+                'kelas_fase' => 'Kelas 7 / Fase D',
+                'mata_pelajaran' => $this->subject->name,
+                'topik' => 'Bangun Ruang Sisi Datar (Draft)',
+                'capaian_pembelajaran_id' => $cp->id,
+                'selected_tp_ids' => [$tp->id],
+                'content' => [
+                    'capaian_pembelajaran' => $cp->deskripsi_cp,
+                    'lintas_disiplin' => 'Fisika & Seni Budaya',
+                ],
+            ])
+            ->call('saveDraft')
+            ->assertHasNoFormErrors();
+
+        $rppm = Rppm::where('topik', 'Bangun Ruang Sisi Datar (Draft)')->first();
+        $this->assertNotNull($rppm);
+        $this->assertEquals('draft', $rppm->status);
+        $this->assertEquals($cp->id, $rppm->capaian_pembelajaran_id);
+        $this->assertContains($tp->id, $rppm->selected_tp_ids);
+
+        // 2. Lanjutkan Pengisian dan Publikasikan (Selesai)
+        Livewire::test(\App\Filament\Staff\Resources\RppmResource\Pages\EditRppm::class, [
+            'record' => $rppm->id,
+        ])
+            ->fillForm([
+                'topik' => 'Bangun Ruang Sisi Datar - Selesai',
+                'alokasi_waktu' => '2 x 40 Menit',
+            ])
+            ->call('save') // submit save untuk publikasi
+            ->assertHasNoFormErrors();
+
+        $rppm->refresh();
+        $this->assertEquals('published', $rppm->status);
+        $this->assertEquals('Bangun Ruang Sisi Datar - Selesai', $rppm->topik);
     }
 }
