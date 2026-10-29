@@ -29,4 +29,16 @@ class QuranAchievement extends Model
     {
         return $this->belongsTo(User::class, 'verified_by');
     }
+
+    public function getProgramLabelAttribute(): string
+    {
+        return match ($this->program) {
+            'yanbua'           => 'Yanbu\'a',
+            'tahsin'           => 'Tahsin',
+            'tahfidz_dasar'    => 'Tahfidz Dasar',
+            'tahfidz_lanjutan' => 'Tahfidz Lanjutan',
+            'tahfidz'          => 'Tahfidz',
+            default            => ucfirst(str_replace('_', ' ', (string)($this->program ?? 'Tahfidz'))),
+        };
+    }
 }

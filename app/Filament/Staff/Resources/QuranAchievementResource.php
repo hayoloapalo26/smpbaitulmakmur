@@ -3,17 +3,20 @@
 namespace App\Filament\Staff\Resources;
 
 use App\Filament\Staff\Resources\QuranAchievementResource\Pages;
+use App\Models\Classroom;
 use App\Models\QuranAchievement;
 use App\Models\Student;
 use App\Models\TeacherSubjectClass;
+use App\Models\User;
+use Carbon\Carbon;
 use Filament\Forms;
 use Filament\Forms\Form;
+use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Auth;
-use Carbon\Carbon;
 
 class QuranAchievementResource extends Resource
 {
@@ -30,7 +33,8 @@ class QuranAchievementResource extends Resource
     protected static ?string $model = QuranAchievement::class;
     protected static ?string $navigationIcon = 'heroicon-o-book-open';
     protected static ?string $navigationGroup = 'Kesiswaan & Karakter';
-    protected static ?string $modelLabel = 'Capaian Quran';
+    protected static ?string $modelLabel = 'Capaian Quran & Setoran Hafalan';
+    protected static ?string $pluralModelLabel = 'Capaian Quran & Setoran Hafalan';
     protected static ?int $navigationSort = 1;
 
     public static function getNavigationGroup(): ?string
@@ -45,7 +49,7 @@ class QuranAchievementResource extends Resource
         return 'Kesiswaan & Karakter';
     }
 
-        public static function getSurahs(): array
+    public static function getSurahs(): array
     {
         return [
             '1' => 'Al-Fatihah', '2' => 'Al-Baqarah', '3' => 'Ali Imran', '4' => 'An-Nisa', '5' => 'Al-Maidah',
@@ -96,64 +100,145 @@ class QuranAchievementResource extends Resource
                 ->toArray();
         }
 
-        // List 114 Surahs
         $surahs = self::getSurahs();
 
         return $form
             ->schema([
                 Forms\Components\Hidden::make('teacher_id')
                     ->default($user->id),
+
+                Forms\Components\Select::make('classroom_id')
+                    ->label('1. Filter Kelas / Rombel (Opsional)')
+                    ->options(function () use ($user) {
+                        if ($user->hasAnyRole(['koordinator_madin', 'waka_kurikulum', 'superadmin', 'kepala_sekolah'])) {
+                            return Classroom::orderBy('name')->pluck('name', 'id');
+                        }
+                        $classroomIds = TeacherSubjectClass::where('teacher_id', $user->id)->pluck('classroom_id')->toArray();
+                        return Classroom::whereIn('id', $classroomIds)->orderBy('name')->pluck('name', 'id');
+                    })
+                    ->searchable()
+                    ->preload()
+                    ->live()
+                    ->afterStateUpdated(fn (Forms\Set $set) => $set('student_id', null))
+                    ->dehydrated(false)
+                    ->helperText('Pilih kelas untuk menyaring siswa per rombel.'),
+
                 Forms\Components\Select::make('student_id')
-                    ->label('Siswa')
-                    ->options(function () use ($user, $studentIds) {
+                    ->label('2. Nama Siswa')
+                    ->options(function (Forms\Get $get) use ($user, $studentIds) {
+                        $classroomId = $get('classroom_id');
+                        if ($classroomId) {
+                            return Student::where('classroom_id', $classroomId)
+                                ->orderBy('name')
+                                ->get()
+                                ->mapWithKeys(fn ($s) => [$s->id => "{$s->name}" . ($s->nis ? " (NIS: {$s->nis})" : '')]);
+                        }
                         if ($user->hasAnyRole(['koordinator_madin', 'waka_kurikulum', 'superadmin', 'kepala_sekolah'])) {
                             return Student::when($user->institution_id && !$user->hasRole('superadmin'), fn ($q) => $q->where('institution_id', $user->institution_id))
                                 ->orderBy('name')
-                                ->pluck('name', 'id');
+                                ->get()
+                                ->mapWithKeys(fn ($s) => [$s->id => "{$s->name}" . ($s->nis ? " (NIS: {$s->nis})" : '')]);
                         }
                         if (!empty($studentIds)) {
-                            return Student::whereIn('id', $studentIds)->orderBy('name')->pluck('name', 'id');
+                            return Student::whereIn('id', $studentIds)
+                                ->orderBy('name')
+                                ->get()
+                                ->mapWithKeys(fn ($s) => [$s->id => "{$s->name}" . ($s->nis ? " (NIS: {$s->nis})" : '')]);
                         }
                         return Student::when($user->institution_id, fn ($q) => $q->where('institution_id', $user->institution_id))
                             ->orderBy('name')
-                            ->pluck('name', 'id');
+                            ->get()
+                            ->mapWithKeys(fn ($s) => [$s->id => "{$s->name}" . ($s->nis ? " (NIS: {$s->nis})" : '')]);
                     })
                     ->searchable()
-                    ->live() // so we can react and show history
+                    ->live()
                     ->required(),
-                Forms\Components\CheckboxList::make('type')
-                    ->label('Tipe Capaian')
+
+                Forms\Components\Select::make('program')
+                    ->label('3. Rumpun Program Al-Qur\'an')
                     ->options([
-                        'ziyadah' => 'Ziyadah',
-                        'murajaah' => 'Muraja\'ah',
+                        'tahfidz_dasar'    => '1. Tahfidz Dasar (Juz 30 / Juz \'Amma)',
+                        'tahfidz_lanjutan' => '2. Tahfidz Lanjutan (Juz 1-29)',
+                        'tahfidz'          => '3. Tahfidz Al-Qur\'an (Umum)',
+                        'yanbua'           => '4. Yanbu\'a (Metode Baca Tulis Al-Qur\'an)',
+                        'tahsin'           => '5. Tahsin (Kualitas & Kaidah Tajwid)',
+                    ])
+                    ->default(function () use ($user) {
+                        if ($user->hasRole(User::ROLE_GURU_QURAN_TAHFIDZ_DASAR)) return 'tahfidz_dasar';
+                        if ($user->hasRole(User::ROLE_GURU_QURAN_TAHFIDZ_LANJUTAN)) return 'tahfidz_lanjutan';
+                        if ($user->hasRole(User::ROLE_GURU_QURAN_YANBUA)) return 'yanbua';
+                        if ($user->hasRole(User::ROLE_GURU_QURAN_TAHSIN)) return 'tahsin';
+                        return 'tahfidz_dasar';
+                    })
+                    ->required()
+                    ->live()
+                    ->helperText('Otomatis disesuaikan dengan peran spesialisasi guru Al-Qur\'an.'),
+
+                Forms\Components\CheckboxList::make('type')
+                    ->label('4. Tipe Capaian')
+                    ->options([
+                        'ziyadah'       => 'Ziyadah (Setoran Baru)',
+                        'murajaah'      => 'Muraja\'ah (Pengulangan)',
+                        'tasmi'         => 'Tasmi\' (Sekali Duduk)',
+                        'ujian_tahfidz' => 'Ujian Tahfidz / Mutqin',
                     ])
                     ->columns(2)
                     ->required(),
+
                 Forms\Components\Select::make('juz')
+                    ->label('5. Juz')
                     ->options(array_combine(range(1, 30), range(1, 30)))
+                    ->default(function () use ($user) {
+                        if ($user->hasRole(User::ROLE_GURU_QURAN_TAHFIDZ_DASAR)) return 30;
+                        return 1;
+                    })
                     ->searchable()
                     ->required(),
+
                 Forms\Components\Select::make('surah')
+                    ->label('6. Surah')
                     ->options($surahs)
                     ->searchable()
                     ->required(),
+
                 Forms\Components\TextInput::make('ayah')
-                    ->label('Ayat')
+                    ->label('7. Ayat')
+                    ->placeholder('Contoh: 1-15 / 1-Akhir')
                     ->required(),
+
+                Forms\Components\Select::make('predikat')
+                    ->label('8. Predikat Kelulusan / Kualitas Setoran')
+                    ->options([
+                        'Mumtaz'        => 'Mumtaz (Istimewa / Nilai 90-100)',
+                        'Jayyid Jiddan' => 'Jayyid Jiddan (Sangat Baik / Nilai 80-89)',
+                        'Jayyid'        => 'Jayyid (Baik / Nilai 70-79)',
+                        'Maqbul'        => 'Maqbul (Perlu Pembinaan / Nilai < 70)',
+                    ])
+                    ->default('Jayyid Jiddan')
+                    ->required(),
+
+                Forms\Components\TextInput::make('jilid_halaman')
+                    ->label('Jilid / Halaman (Opsional untuk Yanbu\'a/Tahsin)')
+                    ->placeholder('Contoh: Jilid 4 Hal. 20'),
+
                 Forms\Components\DatePicker::make('tanggal')
+                    ->label('Tanggal Setoran')
                     ->default(Carbon::now())
                     ->required(),
+
                 Forms\Components\Textarea::make('catatan')
-                    ->label('Catatan Tambahan')
+                    ->label('Catatan Tambahan Guru (Kelancaran & Mutqin)')
+                    ->placeholder('Contoh: Hafalan lancar mutqin, makharijul huruf tepat, dan waqaf ibtida sempurna.')
                     ->columnSpanFull(),
+
                 Forms\Components\Placeholder::make('riwayat_capaian')
-                    ->label('Riwayat Capaian Siswa')
+                    ->label('Riwayat Setoran Siswa Sebelumnya')
                     ->columnSpanFull()
                     ->content(function (Forms\Get $get) use ($surahs) {
                         $studentId = $get('student_id');
                         if (!$studentId) return new \Illuminate\Support\HtmlString('<span class="text-gray-500">Pilih siswa terlebih dahulu untuk melihat riwayat.</span>');
                         
-                        $history = \App\Models\QuranAchievement::where('student_id', $studentId)
+                        $history = QuranAchievement::where('student_id', $studentId)
                             ->orderBy('tanggal', 'desc')
                             ->orderBy('created_at', 'desc')
                             ->limit(5)
@@ -161,12 +246,13 @@ class QuranAchievementResource extends Resource
                             
                         if ($history->isEmpty()) return new \Illuminate\Support\HtmlString('<span class="text-gray-500">Belum ada riwayat capaian.</span>');
                         
-                        $html = '<ul class="list-disc pl-5 space-y-1 text-sm text-gray-700">';
+                        $html = '<ul class="list-disc pl-5 space-y-1 text-sm text-gray-700 dark:text-gray-300">';
                         foreach ($history as $item) {
                             $types = is_array($item->type) ? implode(', ', array_map('ucfirst', $item->type)) : ucfirst($item->type);
                             $surahName = $surahs[$item->surah] ?? $item->surah;
-                            $html .= "<li><strong>" . \Carbon\Carbon::parse($item->tanggal)->format('d M Y') . "</strong>: " 
-                                   . "Juz {$item->juz}, Surat {$surahName}, Ayat {$item->ayah} - <span class=\"text-emerald-600 font-semibold\">[{$types}]</span>"
+                            $predikatLabel = $item->predikat ? " [{$item->predikat}]" : '';
+                            $html .= "<li><strong>" . Carbon::parse($item->tanggal)->format('d M Y') . "</strong>: " 
+                                   . "Juz {$item->juz}, Surat {$surahName}, Ayat {$item->ayah} - <span class=\"text-emerald-600 font-semibold\">[{$types}]{$predikatLabel}</span>"
                                    . ($item->catatan ? " <em>({$item->catatan})</em>" : "")
                                    . "</li>";
                         }
@@ -180,21 +266,71 @@ class QuranAchievementResource extends Resource
     {
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('tanggal')->date()->sortable(),
-                Tables\Columns\TextColumn::make('student.name')->searchable()->label('Siswa'),
-                Tables\Columns\TextColumn::make('student.classroom.name')->label('Kelas')->badge()->color('gray'),
-                Tables\Columns\TextColumn::make('teacher.name')->label('Guru Penginput')->searchable()->badge()->color('info'),
+                Tables\Columns\TextColumn::make('tanggal')
+                    ->date('d M Y')
+                    ->sortable()
+                    ->label('Tanggal'),
+
+                Tables\Columns\TextColumn::make('student.name')
+                    ->searchable()
+                    ->label('Nama Siswa')
+                    ->weight('bold')
+                    ->description(fn (QuranAchievement $record) => 'NIS: ' . ($record->student?->nis ?? '-')),
+
+                Tables\Columns\TextColumn::make('student.classroom.name')
+                    ->label('Kelas')
+                    ->badge()
+                    ->color('gray'),
+
+                Tables\Columns\TextColumn::make('teacher.name')
+                    ->label('Guru Penginput')
+                    ->searchable()
+                    ->badge()
+                    ->color('info')
+                    ->description(fn (QuranAchievement $record) => $record->teacher?->getQuranSpecializationLabel() ? "[{$record->teacher->getQuranSpecializationLabel()}]" : null),
+
+                Tables\Columns\TextColumn::make('program')
+                    ->label('Program')
+                    ->badge()
+                    ->color(fn ($state) => match ($state) {
+                        'tahfidz_dasar'    => 'primary',
+                        'tahfidz_lanjutan' => 'purple',
+                        'yanbua'           => 'emerald',
+                        'tahsin'           => 'info',
+                        default            => 'gray',
+                    })
+                    ->formatStateUsing(fn ($state, QuranAchievement $record) => $record->program_label),
+
                 Tables\Columns\TextColumn::make('type')
                     ->label('Tipe')
                     ->badge()
                     ->formatStateUsing(fn ($state) => is_array($state) ? implode(', ', array_map('ucfirst', $state)) : ucfirst($state)),
-                Tables\Columns\TextColumn::make('juz')->label('Juz'),
+
+                Tables\Columns\TextColumn::make('juz')
+                    ->label('Juz')
+                    ->badge()
+                    ->color('gray'),
+
                 Tables\Columns\TextColumn::make('surah')
                     ->label('Surah')
                     ->formatStateUsing(function ($state) {
                         return self::getSurahs()[$state] ?? $state;
                     }),
-                Tables\Columns\TextColumn::make('ayah')->label('Ayat'),
+
+                Tables\Columns\TextColumn::make('ayah')
+                    ->label('Ayat'),
+
+                Tables\Columns\TextColumn::make('predikat')
+                    ->label('Predikat')
+                    ->badge()
+                    ->color(fn ($state) => match ($state) {
+                        'Mumtaz'        => 'success',
+                        'Jayyid Jiddan' => 'info',
+                        'Jayyid'        => 'warning',
+                        default         => 'danger',
+                    })
+                    ->placeholder('-'),
+
                 Tables\Columns\TextColumn::make('status_verifikasi')
                     ->label('Status')
                     ->badge()
@@ -203,9 +339,27 @@ class QuranAchievementResource extends Resource
                         'Perlu Perbaikan' => 'danger',
                         default => 'warning',
                     }),
-                Tables\Columns\TextColumn::make('catatan')->limit(25)->toggleable(),
             ])
             ->filters([
+                Tables\Filters\SelectFilter::make('program')
+                    ->label('Filter Program')
+                    ->options([
+                        'tahfidz_dasar'    => 'Tahfidz Dasar',
+                        'tahfidz_lanjutan' => 'Tahfidz Lanjutan',
+                        'tahfidz'          => 'Tahfidz (Umum)',
+                        'yanbua'           => 'Yanbu\'a',
+                        'tahsin'           => 'Tahsin',
+                    ]),
+
+                Tables\Filters\SelectFilter::make('predikat')
+                    ->label('Filter Predikat')
+                    ->options([
+                        'Mumtaz'        => 'Mumtaz',
+                        'Jayyid Jiddan' => 'Jayyid Jiddan',
+                        'Jayyid'        => 'Jayyid',
+                        'Maqbul'        => 'Maqbul',
+                    ]),
+
                 Tables\Filters\SelectFilter::make('status_verifikasi')
                     ->label('Status Verifikasi')
                     ->options([
@@ -213,6 +367,7 @@ class QuranAchievementResource extends Resource
                         'Diterima' => 'Diterima',
                         'Perlu Perbaikan' => 'Perlu Perbaikan',
                     ]),
+
                 Tables\Filters\SelectFilter::make('teacher_id')
                     ->label('Guru Penginput')
                     ->relationship('teacher', 'name'),
@@ -232,12 +387,14 @@ class QuranAchievementResource extends Resource
                             'verified_by' => auth()->id(),
                             'verified_at' => now(),
                         ]);
-                        \Filament\Notifications\Notification::make()
-                            ->title('Setoran Berhasil Diterima')
+                        Notification::make()
+                            ->title('Setoran Berhasil Diterima & Diverifikasi')
                             ->success()
                             ->send();
                     }),
+                Tables\Actions\ViewAction::make(),
                 Tables\Actions\EditAction::make(),
+                Tables\Actions\DeleteAction::make(),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
@@ -253,14 +410,15 @@ class QuranAchievementResource extends Resource
                                 'verified_by' => auth()->id(),
                                 'verified_at' => now(),
                             ]);
-                            \Filament\Notifications\Notification::make()
-                                ->title('Semua setoran hafalan terpilih berhasil diterima')
+                            Notification::make()
+                                ->title('Semua setoran hafalan terpilih berhasil diverifikasi')
                                 ->success()
                                 ->send();
                         }),
                     Tables\Actions\DeleteBulkAction::make(),
                 ]),
-            ]);
+            ])
+            ->defaultSort('created_at', 'desc');
     }
 
     public static function getPages(): array
@@ -269,10 +427,4 @@ class QuranAchievementResource extends Resource
             'index' => Pages\ManageQuranAchievements::route('/'),
         ];
     }
-
-    public static function getPluralModelLabel(): string
-    {
-        return static::getModelLabel();
-    }
 }
-
