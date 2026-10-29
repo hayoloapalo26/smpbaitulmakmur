@@ -65,23 +65,93 @@ class RppmResource extends Resource
     {
         return $form
             ->schema([
-                Forms\Components\Section::make('Informasi Dasar')
+                Forms\Components\Section::make('Informasi Dasar & Keterhubungan Perangkat Ajar')
+                    ->description('RPPM terhubung dengan Perangkat Ajar awal (CP, TP, dan ATP) yang telah dibuat.')
                     ->schema([
                         Forms\Components\Hidden::make('guru_id')
                             ->default(fn () => auth()->id()),
+
+                        Forms\Components\Select::make('capaian_pembelajaran_id')
+                            ->label('1. Rujukan Capaian Pembelajaran (CP)')
+                            ->options(function () {
+                                return \App\Models\CapaianPembelajaran::with('subject')->get()->mapWithKeys(function ($cp) {
+                                    $mapel = $cp->subject?->name ?? 'Mapel';
+                                    return [$cp->id => "[{$mapel} - Kelas {$cp->tingkat}] {$cp->elemen} - " . \Illuminate\Support\Str::limit($cp->deskripsi_cp, 60)];
+                                });
+                            })
+                            ->searchable()
+                            ->preload()
+                            ->live()
+                            ->afterStateUpdated(function ($state, Forms\Set $set) {
+                                if ($state) {
+                                    $cp = \App\Models\CapaianPembelajaran::with('subject')->find($state);
+                                    if ($cp) {
+                                        $set('content.capaian_pembelajaran', $cp->deskripsi_cp);
+                                        $set('kelas_fase', "Kelas {$cp->tingkat} / {$cp->fase}");
+                                        if ($cp->subject) {
+                                            $set('mata_pelajaran', $cp->subject->name);
+                                        }
+                                    }
+                                }
+                            })
+                            ->helperText('Pilih Capaian Pembelajaran dari Perangkat Ajar. Rumusan CP dan identitas akan terisi otomatis.'),
+
+                        Forms\Components\Select::make('alur_tujuan_pembelajaran_id')
+                            ->label('2. Rujukan Alur Tujuan Pembelajaran (ATP)')
+                            ->options(function () {
+                                return \App\Models\AlurTujuanPembelajaran::with('subject')->get()->mapWithKeys(function ($atp) {
+                                    $mapel = $atp->subject?->name ?? 'Mapel';
+                                    return [$atp->id => "[{$mapel} - Kelas {$atp->tingkat}] {$atp->judul_atp}"];
+                                });
+                            })
+                            ->searchable()
+                            ->preload()
+                            ->live()
+                            ->helperText('Pilih ATP untuk menghubungkan alur capaian pembelajaran yang diakumulasikan.'),
+
+                        Forms\Components\Select::make('selected_tp_ids')
+                            ->label('3. Pilih Tujuan Pembelajaran (TP) Terkait')
+                            ->multiple()
+                            ->options(function (Forms\Get $get) {
+                                $cpId = $get('capaian_pembelajaran_id');
+                                $query = \App\Models\TujuanPembelajaran::query();
+                                if ($cpId) {
+                                    $query->where('capaian_pembelajaran_id', $cpId);
+                                }
+                                return $query->orderBy('kode_tp')->get()->mapWithKeys(function ($tp) {
+                                    return [$tp->id => "[{$tp->kode_tp}] {$tp->materi} - " . \Illuminate\Support\Str::limit($tp->deskripsi_tp, 50)];
+                                });
+                            })
+                            ->searchable()
+                            ->preload()
+                            ->live()
+                            ->afterStateUpdated(function ($state, Forms\Set $set) {
+                                if (!empty($state)) {
+                                    $tps = \App\Models\TujuanPembelajaran::whereIn('id', $state)->get();
+                                    $tpItems = $tps->map(fn ($tp) => ['rumusan' => "[{$tp->kode_tp}] {$tp->deskripsi_tp}"])->toArray();
+                                    $set('content.tujuan_pembelajaran', $tpItems);
+                                }
+                            })
+                            ->helperText('Pilih satu atau beberapa TP yang akan dicapai pada pertemuan RPPM ini.')
+                            ->columnSpanFull(),
+
                         Forms\Components\TextInput::make('kelas_fase')
                             ->label('Kelas / Fase')
-                            ->placeholder('Contoh: XI / Fase F')
+                            ->placeholder('Contoh: VII / Fase D')
                             ->required(),
+
                         Forms\Components\TextInput::make('mata_pelajaran')
                             ->label('Mata Pelajaran')
                             ->required(),
+
                         Forms\Components\TextInput::make('topik')
-                            ->label('Topik / Materi')
+                            ->label('Topik / Materi Pokok')
                             ->required(),
+
                         Forms\Components\TextInput::make('alokasi_waktu')
                             ->label('Alokasi Waktu')
-                            ->placeholder('Contoh: 2 x 45 Menit (1 Pertemuan)'),
+                            ->placeholder('Contoh: 2 x 40 Menit (1 Pertemuan)')
+                            ->required(),
                     ])->columns(2),
 
                 Forms\Components\Tabs::make('RPPM Builder')
@@ -223,6 +293,16 @@ class RppmResource extends Resource
                 Tables\Columns\TextColumn::make('topik')
                     ->label('Topik/Materi')
                     ->searchable(),
+                Tables\Columns\TextColumn::make('capaianPembelajaran.elemen')
+                    ->label('Elemen CP')
+                    ->badge()
+                    ->color('primary')
+                    ->placeholder('-'),
+                Tables\Columns\TextColumn::make('tp_count')
+                    ->label('TP Terpilih')
+                    ->state(fn (Rppm $record) => count($record->selected_tp_ids ?? []) . ' TP')
+                    ->badge()
+                    ->color('success'),
                 Tables\Columns\TextColumn::make('guru.name')
                     ->label('Penyusun')
                     ->searchable(),

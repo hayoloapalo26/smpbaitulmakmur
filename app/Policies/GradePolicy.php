@@ -8,13 +8,21 @@ use Illuminate\Auth\Access\Response;
 
 class GradePolicy
 {
+    public function before(User $user, string $ability): ?bool
+    {
+        if ($user->hasRole('superadmin')) {
+            return true;
+        }
+        return null;
+    }
+
     /**
      * Determine whether the user can view any models.
      */
     public function viewAny($user): bool
     {
-        if ($user->hasRole('kepala_sekolah')) return true;
-        return $user->hasRole(['waka_kurikulum', 'guru_mapel']);
+        if ($user->hasRole(['kepala_sekolah', 'superadmin', 'waka_kurikulum'])) return true;
+        return $user->hasAnyRole(['guru_mapel', 'guru_kelas', 'guru_alquran', 'wali_kelas']);
     }
 
     /**
@@ -22,7 +30,8 @@ class GradePolicy
      */
     public function view($user, $model): bool
     {
-        return $user->hasRole(['waka_kurikulum', 'guru_mapel']);
+        if ($user->hasRole(['kepala_sekolah', 'superadmin', 'waka_kurikulum'])) return true;
+        return $user->hasAnyRole(['guru_mapel', 'guru_kelas', 'guru_alquran', 'wali_kelas']);
     }
 
     /**
@@ -30,7 +39,7 @@ class GradePolicy
      */
     public function create($user): bool
     {
-        return $user->hasRole(['guru_mapel']);
+        return $user->hasAnyRole(['guru_mapel', 'guru_kelas', 'guru_alquran', 'waka_kurikulum', 'superadmin']);
     }
 
     /**
@@ -38,7 +47,7 @@ class GradePolicy
      */
     public function update($user, $model): bool
     {
-        return $user->hasRole(['guru_mapel']);
+        return $user->hasAnyRole(['guru_mapel', 'guru_kelas', 'guru_alquran', 'waka_kurikulum', 'superadmin']);
     }
 
     /**
@@ -46,7 +55,7 @@ class GradePolicy
      */
     public function delete($user, $model): bool
     {
-        return $user->hasRole(['guru_mapel']);
+        return $user->hasAnyRole(['guru_mapel', 'guru_kelas', 'guru_alquran', 'waka_kurikulum', 'superadmin']);
     }
 
     /**
