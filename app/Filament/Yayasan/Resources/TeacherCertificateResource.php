@@ -11,6 +11,7 @@ use Filament\Forms\Form;
 use Filament\Infolists;
 use Filament\Infolists\Infolist;
 use Filament\Resources\Resource;
+use Filament\Support\Enums\IconPosition;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
@@ -68,7 +69,7 @@ class TeacherCertificateResource extends Resource
                     ->schema([
                         Forms\Components\Select::make('institution_id')
                             ->label('Lembaga')
-                            ->relationship('institution', 'name', modifyQueryUsing: fn ($q) => $q->where('id', '!=', 1))
+                            ->relationship('institution', 'name', modifyQueryUsing: fn (Builder $query) => $query->where('id', '!=', 1))
                             ->required(),
 
                         Forms\Components\Select::make('teacher_id')
@@ -240,7 +241,7 @@ class TeacherCertificateResource extends Resource
                     ->label('Sertifikat')
                     ->formatStateUsing(fn () => 'Buka Drive')
                     ->icon('heroicon-m-arrow-top-right-on-square')
-                    ->iconPosition(Tables\Columns\IconPosition::After)
+                    ->iconPosition(IconPosition::After)
                     ->color('primary')
                     ->url(fn ($record) => $record->drive_url, shouldOpenInNewTab: true),
             ])
@@ -248,7 +249,7 @@ class TeacherCertificateResource extends Resource
             ->filters([
                 Tables\Filters\SelectFilter::make('institution_id')
                     ->label('Filter Lembaga')
-                    ->relationship('institution', 'name', fn ($q) => $q->where('id', '!=', 1))
+                    ->relationship('institution', 'name', fn (Builder $query) => $query->where('id', '!=', 1))
                     ->searchable()
                     ->preload(),
 

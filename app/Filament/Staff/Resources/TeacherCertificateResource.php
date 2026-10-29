@@ -10,6 +10,7 @@ use Filament\Forms\Form;
 use Filament\Infolists;
 use Filament\Infolists\Infolist;
 use Filament\Resources\Resource;
+use Filament\Support\Enums\IconPosition;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
@@ -35,11 +36,16 @@ class TeacherCertificateResource extends Resource
 
     public static function canAccess(): bool
     {
-        return auth()->user()?->hasAnyRole([
+        return auth()->user()?->hasAnyRole(array_merge([
             'guru_kelas', 'guru_mapel', 'guru_alquran', 'wali_kelas',
             'guru_piket', 'bk', 'waka_kurikulum', 'waka_kesiswaan',
-            'kepala_sekolah', 'tata_usaha', 'superadmin'
-        ]) ?? false;
+            'kepala_sekolah', 'tata_usaha', 'superadmin', 'koordinator_madin'
+        ], \App\Models\User::QURAN_TEACHER_ROLES)) ?? false;
+    }
+
+    public static function shouldRegisterNavigation(): bool
+    {
+        return static::canAccess();
     }
 
     public static function getEloquentQuery(): Builder
@@ -73,19 +79,25 @@ class TeacherCertificateResource extends Resource
                                 if ($user && $user->institution_id && !$user->hasRole('superadmin')) {
                                     $query->where('institution_id', $user->institution_id);
                                 }
-                                $query->whereHas('roles', fn ($q) => $q->whereIn('name', [
-                                    'guru_kelas', 'guru_mapel', 'guru_alquran', 'wali_kelas', 'guru_piket', 'bk', 'waka_kurikulum', 'waka_kesiswaan'
-                                ]));
+                                $query->whereHas('roles', fn ($q) => $q->whereIn('name', array_merge([
+                                    'guru_kelas', 'guru_mapel', 'guru_alquran', 'wali_kelas', 'guru_piket', 'bk', 'waka_kurikulum', 'waka_kesiswaan', 'koordinator_madin'
+                                ], \App\Models\User::QURAN_TEACHER_ROLES)));
                             })
-                            ->default(Auth::id())
+                            ->default(fn () => Auth::id())
                             ->searchable()
                             ->preload()
                             ->visible(fn () => Auth::user()?->hasAnyRole(['kepala_sekolah', 'waka_kurikulum', 'superadmin']))
-                            ->dehydrated()
-                            ->required(),
+                            ->dehydrated(fn () => Auth::user()?->hasAnyRole(['kepala_sekolah', 'waka_kurikulum', 'superadmin']))
+                            ->required(fn () => Auth::user()?->hasAnyRole(['kepala_sekolah', 'waka_kurikulum', 'superadmin'])),
 
                         Forms\Components\Hidden::make('teacher_id')
-                            ->default(Auth::id())
+                            ->default(fn () => Auth::id())
+                            ->dehydrated(fn () => !Auth::user()?->hasAnyRole(['kepala_sekolah', 'waka_kurikulum', 'superadmin']))
+                            ->visible(fn () => !Auth::user()?->hasAnyRole(['kepala_sekolah', 'waka_kurikulum', 'superadmin'])),
+
+                        Forms\Components\Placeholder::make('nama_guru_info')
+                            ->label('Nama Guru')
+                            ->content(fn () => Auth::user()?->name . ' (' . (Auth::user()?->institution?->name ?? 'Lembaga') . ')')
                             ->visible(fn () => !Auth::user()?->hasAnyRole(['kepala_sekolah', 'waka_kurikulum', 'superadmin'])),
                     ]),
 
@@ -133,9 +145,16 @@ class TeacherCertificateResource extends Resource
                     ->schema([
                         Forms\Components\TextInput::make('drive_url')
                             ->label('Link Google Drive Sertifikat')
-                            ->url()
                             ->placeholder('https://drive.google.com/file/d/... atau https://drive.google.com/open?id=...')
                             ->required()
+                            ->dehydrateStateUsing(function (?string $state): ?string {
+                                if (!$state) return null;
+                                $state = trim($state);
+                                if (!preg_match('#^https?://#i', $state)) {
+                                    $state = 'https://' . $state;
+                                }
+                                return $state;
+                            })
                             ->columnSpanFull()
                             ->helperText('💡 Pastikan izin akses link diatur ke "Siapa saja yang memiliki link dapat melihat (Viewer)" agar dapat dilihat oleh Kepala Sekolah dan Yayasan.'),
 
@@ -257,7 +276,7 @@ class TeacherCertificateResource extends Resource
                     ->label('Sertifikat')
                     ->formatStateUsing(fn () => 'Buka Drive')
                     ->icon('heroicon-m-arrow-top-right-on-square')
-                    ->iconPosition(Tables\Columns\IconPosition::After)
+                    ->iconPosition(IconPosition::After)
                     ->color('primary')
                     ->url(fn ($record) => $record->drive_url, shouldOpenInNewTab: true),
             ])
