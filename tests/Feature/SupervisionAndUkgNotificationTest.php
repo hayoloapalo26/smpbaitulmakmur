@@ -198,4 +198,53 @@ class SupervisionAndUkgNotificationTest extends TestCase
         // Kepala Sekolah TIDAK menerima notifikasi jadwal tersebut
         $this->assertEquals(0, $this->kepalaSekolah->notifications()->count());
     }
+
+    public function test_supervision_by_principal_workflow(): void
+    {
+        // Kepala Sekolah menjadwalkan supervisi untuk Guru A
+        $supervision = TeacherSupervision::create([
+            'institution_id' => $this->institution->id,
+            'teacher_id' => $this->guruA->id,
+            'supervisor_id' => $this->kepalaSekolah->id,
+            'supervisor_name' => $this->kepalaSekolah->name,
+            'jalur_supervisi' => 'kepala_sekolah',
+            'status' => 'dijadwalkan',
+            'jadwal' => now()->addDays(2),
+            'mata_pelajaran' => 'Matematika',
+            'kelas_semester' => 'Kelas 7A',
+            'catatan' => 'Observasi pembelajaran diferensiasi oleh Kepala Sekolah',
+        ]);
+
+        // Guru A menerima notifikasi dari Kepala Sekolah
+        $notif = $this->guruA->notifications()->latest()->first();
+        $this->assertNotNull($notif);
+        $this->assertStringContainsString('Kepala Sekolah', $notif->data['title']);
+
+        // Di dashboard Guru A, jadwal terdaftar dengan penilai Kepala Sekolah
+        $this->actingAs($this->guruA);
+        $componentA = new Dashboard();
+        $schedules = $componentA->upcomingSchedules;
+        $this->assertCount(1, $schedules);
+        $this->assertEquals('Kepala Sekolah', $schedules->first()['jalur']);
+        $this->assertEquals($this->kepalaSekolah->name, $schedules->first()['assessor_name']);
+
+        // Kepala Sekolah menilai supervisi tersebut
+        $supervision->update([
+            'status' => 'dinilai',
+            'score' => 92.0,
+            'nilai_akhir' => 92.0,
+            'predikat' => 'Amat Baik',
+            'hasil' => 'Pembelajaran berjalan sangat interaktif dan menyenangkan.',
+        ]);
+
+        // Guru A menerima notifikasi hasil penilaian
+        $this->assertEquals(2, \Illuminate\Notifications\DatabaseNotification::where('notifiable_id', $this->guruA->id)->count());
+        $latestNotif = \Illuminate\Notifications\DatabaseNotification::where('notifiable_id', $this->guruA->id)->get()->last();
+        $this->assertNotNull($latestNotif);
+        $this->assertStringContainsString('Hasil Penilaian', $latestNotif->data['title']);
+
+        // Jadwal otomatis hilang dari upcomingSchedules karena sudah dinilai
+        $componentAfter = new Dashboard();
+        $this->assertCount(0, $componentAfter->upcomingSchedules);
+    }
 }

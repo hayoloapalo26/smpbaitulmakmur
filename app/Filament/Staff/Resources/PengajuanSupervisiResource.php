@@ -50,6 +50,94 @@ class PengajuanSupervisiResource extends Resource
 
     public static function form(Form $form): Form
     {
+        $isLeader = Auth::user()?->hasAnyRole(['superadmin', 'kepala_sekolah', 'waka_kurikulum']);
+
+        if ($isLeader) {
+            return $form
+                ->schema([
+                    Forms\Components\Section::make('Penjadwalan Supervisi oleh Kepala Sekolah / Waka')
+                        ->description('Form bagi Kepala Sekolah untuk menjadwalkan supervisi pembelajaran guru di lembaga ini')
+                        ->columns(2)
+                        ->schema([
+                            Forms\Components\Select::make('teacher_id')
+                                ->label('Nama Guru yang Disupervisi')
+                                ->options(function () {
+                                    $user = Auth::user();
+                                    $query = \App\Models\User::withoutGlobalScopes()
+                                        ->whereHas('roles', fn ($q) => $q->whereIn('name', [
+                                            'guru_kelas', 'guru_mapel', 'guru_alquran', 'wali_kelas',
+                                            'bk', 'guru_piket', 'waka_kurikulum', 'waka_kesiswaan',
+                                        ]));
+
+                                    if ($user && $user->institution_id) {
+                                        $query->where('institution_id', $user->institution_id);
+                                    }
+
+                                    return $query->orderBy('name')->pluck('name', 'id');
+                                })
+                                ->searchable()
+                                ->preload()
+                                ->required()
+                                ->columnSpan(1),
+
+                            Forms\Components\Select::make('unit_sekolah_program')
+                                ->label('Unit Sekolah / Program')
+                                ->options(TeacherSupervision::getUnitOptions())
+                                ->default('Reguler')
+                                ->required()
+                                ->columnSpan(1),
+
+                            Forms\Components\TextInput::make('mata_pelajaran')
+                                ->label('Mata Pelajaran / Bidang Studi')
+                                ->placeholder('Contoh: Matematika, Bahasa Arab, Al-Qur\'an, dll.')
+                                ->required()
+                                ->columnSpan(1),
+
+                            Forms\Components\TextInput::make('kelas_semester')
+                                ->label('Kelas / Semester')
+                                ->placeholder('Contoh: Kelas 7A / Semester Genap')
+                                ->required()
+                                ->columnSpan(1),
+
+                            Forms\Components\DatePicker::make('tanggal')
+                                ->label('Tanggal Penetapan Supervisi')
+                                ->default(now())
+                                ->required()
+                                ->columnSpan(1),
+
+                            Forms\Components\DateTimePicker::make('jadwal')
+                                ->label('Jadwal Pelaksanaan Observasi Kelas')
+                                ->default(now()->addDays(1)->setHour(8)->setMinute(0))
+                                ->required()
+                                ->columnSpan(1),
+
+                            Forms\Components\Textarea::make('catatan')
+                                ->label('Catatan / Arahan Supervisi dari Kepala Sekolah')
+                                ->placeholder('Contoh: Fokus observasi pada diferensiasi pembelajaran dan pengelolaan kelas...')
+                                ->rows(3)
+                                ->columnSpanFull(),
+
+                            Forms\Components\Hidden::make('jalur_supervisi')
+                                ->default('kepala_sekolah'),
+
+                            Forms\Components\Hidden::make('status')
+                                ->default('dijadwalkan'),
+
+                            Forms\Components\Hidden::make('supervisor_id')
+                                ->default(fn () => Auth::id()),
+
+                            Forms\Components\Hidden::make('supervisor_name')
+                                ->default(fn () => Auth::user()?->name ?? 'Kepala Sekolah'),
+
+                            Forms\Components\Hidden::make('institution_id')
+                                ->default(fn () => Auth::user()?->institution_id),
+
+                            Forms\Components\Hidden::make('hasil')
+                                ->default('-'),
+                        ]),
+                ]);
+        }
+
         return $form
             ->schema([
                 Forms\Components\Hidden::make('teacher_id')
@@ -88,13 +176,24 @@ class PengajuanSupervisiResource extends Resource
                     ->label('Jalur Supervisi')
                     ->badge()
                     ->formatStateUsing(fn (?string $state) => match ($state) {
-                        'penjamin_mutu' => '1. Dijadwalkan Penjamin Mutu',
-                        default => '2. Permintaan Guru',
+                        'kepala_sekolah' => '1. Kepala Sekolah',
+                        'penjamin_mutu' => '2. Penjamin Mutu Yayasan',
+                        default => '3. Permintaan Guru',
                     })
                     ->color(fn (?string $state) => match ($state) {
+                        'kepala_sekolah' => 'success',
                         'penjamin_mutu' => 'warning',
                         default => 'info',
                     }),
+                Tables\Columns\TextColumn::make('mata_pelajaran')
+                    ->label('Mata Pelajaran')
+                    ->placeholder('-')
+                    ->searchable()
+                    ->toggleable(),
+                Tables\Columns\TextColumn::make('kelas_semester')
+                    ->label('Kelas/Sem')
+                    ->placeholder('-')
+                    ->toggleable(),
                 Tables\Columns\TextColumn::make('tanggal')
                     ->label('Tgl Dibuat/Pengajuan')
                     ->date('d M Y')
@@ -121,10 +220,12 @@ class PengajuanSupervisiResource extends Resource
                     ->dateTime('d M Y, H:i')
                     ->placeholder('Belum Dijadwalkan'),
                 Tables\Columns\TextColumn::make('supervisor.name')
-                    ->label('Penjamin Mutu / Supervisor')
+                    ->label('Supervisor / Penilai')
+                    ->getStateUsing(fn (TeacherSupervision $record) => $record->supervisor_name ?: ($record->supervisor?->name ?? ($record->jalur_supervisi === 'kepala_sekolah' ? 'Kepala Sekolah' : '-')))
                     ->placeholder('-'),
                 Tables\Columns\TextColumn::make('catatan_yayasan')
-                    ->label('Catatan Penjamin Mutu')
+                    ->label('Catatan Supervisi')
+                    ->getStateUsing(fn (TeacherSupervision $record) => $record->catatan_yayasan ?: ($record->catatan ?: '-'))
                     ->limit(35)
                     ->placeholder('-'),
                 Tables\Columns\TextColumn::make('score')
@@ -146,8 +247,9 @@ class PengajuanSupervisiResource extends Resource
                 Tables\Filters\SelectFilter::make('jalur_supervisi')
                     ->label('Jalur Supervisi')
                     ->options([
-                        'penjamin_mutu' => '1. Dijadwalkan Penjamin Mutu',
-                        'pengajuan_guru' => '2. Permintaan Sendiri oleh Guru',
+                        'kepala_sekolah' => '1. Kepala Sekolah',
+                        'penjamin_mutu' => '2. Penjamin Mutu Yayasan',
+                        'pengajuan_guru' => '3. Permintaan Guru',
                     ]),
                 Tables\Filters\SelectFilter::make('status')
                     ->label('Status')
@@ -164,44 +266,79 @@ class PengajuanSupervisiResource extends Resource
                     ->icon('heroicon-o-pencil-square')
                     ->color('primary')
                     ->visible(fn () => $isSupervisor)
+                    ->modalHeading(fn (TeacherSupervision $record) => "Penilaian Supervisi Guru: " . ($record->teacher->name ?? '-'))
+                    ->modalWidth('2xl')
                     ->fillForm(fn (TeacherSupervision $record): array => [
                         'status' => $record->status ?? 'dijadwalkan',
                         'jadwal' => $record->jadwal,
                         'score' => $record->score,
+                        'praktik_baik' => $record->praktik_baik,
+                        'area_fokus_perbaikan' => $record->area_fokus_perbaikan,
+                        'rencana_coaching' => $record->rencana_coaching,
                         'hasil' => $record->hasil === '-' ? '' : $record->hasil,
                     ])
                     ->form([
-                        Forms\Components\Select::make('status')
-                            ->label('Status Supervisi')
-                            ->options([
-                                'menunggu' => 'Menunggu',
-                                'dijadwalkan' => 'Dijadwalkan',
-                                'dinilai' => 'Sudah Dinilai',
-                                'ditolak' => 'Ditolak',
-                            ])
-                            ->required(),
-                        Forms\Components\DateTimePicker::make('jadwal')
-                            ->label('Jadwal Pelaksanaan Supervisi'),
+                        Forms\Components\Grid::make(2)->schema([
+                            Forms\Components\Select::make('status')
+                                ->label('Status Supervisi')
+                                ->options([
+                                    'dijadwalkan' => 'Dijadwalkan',
+                                    'dinilai' => 'Sudah Dinilai (Selesai)',
+                                    'menunggu' => 'Menunggu Jadwal',
+                                    'ditolak' => 'Ditolak',
+                                ])
+                                ->required(),
+                            Forms\Components\DateTimePicker::make('jadwal')
+                                ->label('Jadwal Pelaksanaan Observasi'),
+                        ]),
                         Forms\Components\TextInput::make('score')
-                            ->label('Nilai Supervisi (0-100)')
+                            ->label('Nilai Supervisi (0 - 100)')
                             ->numeric()
                             ->minValue(0)
-                            ->maxValue(100),
+                            ->maxValue(100)
+                            ->helperText('Skor 90-100: Sangat Baik, 80-89: Baik, 70-79: Cukup, <70: Perlu Bimbingan'),
+                        Forms\Components\Textarea::make('praktik_baik')
+                            ->label('1. Praktik Baik (Best Practice)')
+                            ->placeholder('Kelebihan / hal positif yang ditemukan saat proses pembelajaran...')
+                            ->rows(2),
+                        Forms\Components\Textarea::make('area_fokus_perbaikan')
+                            ->label('2. Area Fokus Perbaikan')
+                            ->placeholder('Aspek yang perlu diperbaiki / ditingkatkan oleh guru...')
+                            ->rows(2),
+                        Forms\Components\Textarea::make('rencana_coaching')
+                            ->label('3. Tindak Lanjut / Rencana Coaching')
+                            ->placeholder('Rencana pendampingan klinis / pembinaan lanjutan...')
+                            ->rows(2),
                         Forms\Components\Textarea::make('hasil')
-                            ->label('Hasil Evaluasi / Masukan Supervisor')
-                            ->rows(3),
+                            ->label('Catatan Kesimpulan / Masukan Kepala Sekolah')
+                            ->placeholder('Kesimpulan evaluasi umum untuk guru...')
+                            ->rows(2),
                     ])
                     ->action(function (TeacherSupervision $record, array $data): void {
+                        $score = ($data['score'] !== null && $data['score'] !== '') ? (float) $data['score'] : null;
+                        $status = $data['status'];
+                        if ($score !== null && $status === 'dijadwalkan') {
+                            $status = 'dinilai';
+                        }
+                        $predikat = $score !== null ? TeacherSupervision::determinePredicate($score) : $record->predikat;
+
                         $record->update([
                             'supervisor_id' => $record->supervisor_id ?: Auth::id(),
-                            'status' => $data['status'],
+                            'supervisor_name' => $record->supervisor_name ?: (Auth::user()?->name ?? 'Kepala Sekolah'),
+                            'status' => $status,
                             'jadwal' => $data['jadwal'] ?? $record->jadwal,
-                            'score' => $data['score'] ?? $record->score,
-                            'hasil' => $data['hasil'] ?? $record->hasil,
+                            'score' => $score,
+                            'nilai_akhir' => $score,
+                            'predikat' => $predikat,
+                            'praktik_baik' => $data['praktik_baik'] ?? $record->praktik_baik,
+                            'area_fokus_perbaikan' => $data['area_fokus_perbaikan'] ?? $record->area_fokus_perbaikan,
+                            'rencana_coaching' => $data['rencana_coaching'] ?? $record->rencana_coaching,
+                            'hasil' => !empty($data['hasil']) ? $data['hasil'] : ($record->hasil ?: '-'),
                         ]);
 
                         Notification::make()
-                            ->title('Data Supervisi Diperbarui')
+                            ->title('Supervisi Berhasil Dinilai & Disimpan')
+                            ->body('Hasil supervisi telah tercatat dan dapat dicetak sebagai Raport Supervisi.')
                             ->success()
                             ->send();
                     }),

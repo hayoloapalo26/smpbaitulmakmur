@@ -385,10 +385,14 @@ class Dashboard extends BaseDashboard
                     'badge_color' => 'amber',
                     'title' => 'Supervisi Guru',
                     'teacher_name' => $sup->teacher?->name ?? $user->name,
-                    'assessor_name' => $sup->supervisor?->name ?? 'Supervisor Yayasan',
+                    'assessor_name' => $sup->supervisor?->name ?? ($sup->supervisor_name ?? ($sup->jalur_supervisi === 'kepala_sekolah' ? 'Kepala Sekolah' : 'Supervisor Yayasan')),
                     'jadwal_raw' => $sup->jadwal,
                     'jadwal_formatted' => $sup->jadwal ? \Carbon\Carbon::parse($sup->jadwal)->translatedFormat('d M Y, H:i') : '-',
-                    'jalur' => $sup->jalur_supervisi === 'penjamin_mutu' ? 'Penjamin Mutu' : 'Permintaan Guru',
+                    'jalur' => match($sup->jalur_supervisi) {
+                        'kepala_sekolah' => 'Kepala Sekolah',
+                        'penjamin_mutu' => 'Penjamin Mutu',
+                        default => 'Permintaan Guru',
+                    },
                     'catatan' => $sup->catatan_yayasan ?: ($sup->catatan ?: null),
                     'detail_url' => $supervisiUrl,
                 ];

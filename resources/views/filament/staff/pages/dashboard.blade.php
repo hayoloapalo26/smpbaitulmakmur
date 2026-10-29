@@ -38,7 +38,7 @@
                             <div class="flex flex-wrap items-center gap-2">
                                 @if($item['type'] === 'supervisi')
                                     <span class="px-2 py-0.5 text-[11px] font-bold rounded bg-amber-100 text-amber-800 dark:bg-amber-900/60 dark:text-amber-200 border border-amber-300 dark:border-amber-700">
-                                        Supervisi Guru
+                                        Supervisi Guru ({{ $item['jalur'] }})
                                     </span>
                                 @else
                                     <span class="px-2 py-0.5 text-[11px] font-bold rounded bg-indigo-100 text-indigo-800 dark:bg-indigo-900/60 dark:text-indigo-200 border border-indigo-300 dark:border-indigo-700">

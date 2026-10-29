@@ -347,6 +347,10 @@ class TeacherSupervision extends Model
                 }
             }
 
+            if ($supervision->supervisor_id && empty($supervision->supervisor_name)) {
+                $supervision->supervisor_name = User::withoutGlobalScopes()->where('id', $supervision->supervisor_id)->value('name');
+            }
+
             if (empty($supervision->jalur_supervisi)) {
                 $supervision->jalur_supervisi = 'penjamin_mutu';
             }
@@ -406,7 +410,20 @@ class TeacherSupervision extends Model
             ->whereHas('roles', fn ($q) => $q->whereIn('name', ['kepala_sekolah', 'waka_kurikulum']))
             ->get();
 
-        if ($this->jalur_supervisi === 'penjamin_mutu') {
+        if ($this->jalur_supervisi === 'kepala_sekolah') {
+            // Jalur Kepala Sekolah: Kepala Sekolah menjadwalkan supervisi -> Notifikasi ke Guru bersangkutan
+            $supervisorName = $this->supervisor?->name ?? ($this->supervisor_name ?? 'Kepala Sekolah');
+            Notification::make()
+                ->title('Jadwal Supervisi dari Kepala Sekolah')
+                ->body("Kepala Sekolah ({$supervisorName}) telah menjadwalkan agenda supervisi pembelajaran untuk Anda pada {$jadwalFormatted}. Catatan: {$catatanInfo}")
+                ->warning()
+                ->actions([
+                    NotificationAction::make('lihat')
+                        ->label('Lihat Jadwal Supervisi')
+                        ->url('/staff/pengajuan-supervisis'),
+                ])
+                ->sendToDatabase($teacher);
+        } elseif ($this->jalur_supervisi === 'penjamin_mutu') {
             // Jalur 1: Penjamin Mutu menjadwalkan supervisi -> Notifikasi jadwal HANYA dikirim ke Guru bersangkutan
             Notification::make()
                 ->title('Jadwal Supervisi dari Penjamin Mutu')
@@ -448,12 +465,13 @@ class TeacherSupervision extends Model
 
         $instId = $this->institution_id ?: $teacher->institution_id;
         $jadwalFormatted = $this->jadwal ? Carbon::parse($this->jadwal)->translatedFormat('d M Y, H:i') : '-';
+        $penilai = $this->jalur_supervisi === 'kepala_sekolah' ? 'Kepala Sekolah' : 'Penjamin Mutu';
 
         if ($this->wasChanged('status') && $this->status === 'dijadwalkan') {
             // Notifikasi jadwal HANYA dikirim ke Guru bersangkutan
             Notification::make()
-                ->title('Jadwal Supervisi Ditetapkan')
-                ->body("Supervisi Anda telah dijadwalkan pada {$jadwalFormatted}. Catatan: " . ($this->catatan_yayasan ?: '-'))
+                ->title("Jadwal Supervisi Ditetapkan ({$penilai})")
+                ->body("Supervisi Anda telah dijadwalkan pada {$jadwalFormatted}. Catatan: " . ($this->catatan_yayasan ?: ($this->catatan ?: '-')))
                 ->info()
                 ->actions([
                     NotificationAction::make('lihat')
@@ -462,9 +480,10 @@ class TeacherSupervision extends Model
                 ])
                 ->sendToDatabase($teacher);
         } elseif (($this->wasChanged('status') && $this->status === 'dinilai') || ($this->wasChanged('score') && $this->score !== null)) {
+            $penilai = $this->jalur_supervisi === 'kepala_sekolah' ? 'Kepala Sekolah' : 'Supervisor / Penjamin Mutu';
             Notification::make()
-                ->title('Hasil Penilaian Supervisi Keluar')
-                ->body("Supervisi Anda telah dinilai dengan skor {$this->score}. Hasil evaluasi: " . ($this->hasil ?: '-'))
+                ->title("Hasil Penilaian Supervisi ({$penilai})")
+                ->body("Supervisi Anda telah dinilai oleh {$penilai} dengan skor {$this->score}. Hasil evaluasi: " . ($this->hasil ?: '-'))
                 ->success()
                 ->actions([
                     NotificationAction::make('lihat')
@@ -472,22 +491,6 @@ class TeacherSupervision extends Model
                         ->url('/staff/pengajuan-supervisis'),
                 ])
                 ->sendToDatabase($teacher);
-
-            foreach ($schoolLeaders as $leader) {
-                if ($leader->id === $teacher->id) {
-                    continue;
-                }
-                Notification::make()
-                    ->title("Hasil Supervisi Guru: {$teacher->name}")
-                    ->body("Guru {$teacher->name} memperoleh nilai supervisi {$this->score}. Evaluasi: " . ($this->hasil ?: '-'))
-                    ->success()
-                    ->actions([
-                        NotificationAction::make('lihat')
-                            ->label('Lihat Hasil')
-                            ->url('/staff/pengajuan-supervisis'),
-                    ])
-                    ->sendToDatabase($leader);
-            }
         } elseif ($this->wasChanged('status') && $this->status === 'ditolak') {
             Notification::make()
                 ->title('Pengajuan Supervisi Ditolak')
