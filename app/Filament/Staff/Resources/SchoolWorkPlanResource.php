@@ -18,9 +18,9 @@ class SchoolWorkPlanResource extends Resource
     protected static ?string $model = SchoolWorkPlan::class;
 
     protected static ?string $navigationIcon = 'heroicon-o-document-chart-bar';
-    protected static ?string $navigationLabel = 'RKT & RKS';
-    protected static ?string $modelLabel = 'RKT & RKS';
-    protected static ?string $pluralModelLabel = 'RKT & RKS';
+    protected static ?string $navigationLabel = 'RKT & RKAS';
+    protected static ?string $modelLabel = 'RKAS (Rencana Kegiatan & Anggaran Sekolah)';
+    protected static ?string $pluralModelLabel = 'RKT & RKAS (Rencana Kegiatan & Anggaran Sekolah)';
     protected static ?string $navigationGroup = 'Manajemen Sekolah';
     protected static ?int $navigationSort = 2;
 
@@ -48,9 +48,10 @@ class SchoolWorkPlanResource extends Resource
                 Forms\Components\Select::make('document_type')
                     ->label('Tipe Dokumen')
                     ->options([
-                        'RKT' => 'RKT (Rencana Kerja Tahunan)',
-                        'RKS' => 'RKS (Rencana Kerja Sekolah)'
+                        'RKAS' => 'RKAS (Rencana Kegiatan & Anggaran Sekolah)',
+                        'RKT'  => 'RKT (Rencana Kerja Tahunan)',
                     ])
+                    ->default('RKAS')
                     ->required()
                     ->disabled(fn (?SchoolWorkPlan $record) => auth()->user()->hasRole('kepala_sekolah') && $record && !in_array($record->status, ['draft', 'revision_ketua', 'revision_pembina'])),
 
@@ -74,9 +75,18 @@ class SchoolWorkPlanResource extends Resource
                     ->visible(fn() => auth()->user()->hasAnyRole(['ketua_yayasan', 'pembina_yayasan', 'superadmin'])),
 
                 Tables\Columns\TextColumn::make('document_type')
-                    ->label('Tipe')
+                    ->label('Tipe Dokumen')
                     ->badge()
-                    ->color('info')
+                    ->formatStateUsing(fn ($state) => match ($state) {
+                        'RKAS', 'RKS' => 'RKAS',
+                        'RKT'         => 'RKT',
+                        default       => $state,
+                    })
+                    ->color(fn ($state) => match ($state) {
+                        'RKAS', 'RKS' => 'success',
+                        'RKT'         => 'info',
+                        default       => 'gray',
+                    })
                     ->sortable(),
 
                 Tables\Columns\TextColumn::make('drive_link')
@@ -125,6 +135,20 @@ class SchoolWorkPlanResource extends Resource
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
+                Tables\Filters\SelectFilter::make('document_type')
+                    ->label('Tipe Dokumen')
+                    ->options([
+                        'RKAS' => 'RKAS (Rencana Kegiatan & Anggaran Sekolah)',
+                        'RKT'  => 'RKT (Rencana Kerja Tahunan)',
+                    ])
+                    ->query(function (Builder $query, array $data) {
+                        if (($data['value'] ?? null) === 'RKAS') {
+                            $query->whereIn('document_type', ['RKAS', 'RKS']);
+                        } elseif (!empty($data['value'])) {
+                            $query->where('document_type', $data['value']);
+                        }
+                    }),
+
                 Tables\Filters\SelectFilter::make('institution_id')
                     ->label('Lembaga')
                     ->relationship('institution', 'name')
