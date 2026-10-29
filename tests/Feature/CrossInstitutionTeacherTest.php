@@ -182,4 +182,71 @@ class CrossInstitutionTeacherTest extends TestCase
         $this->assertEquals($supervisi->id, $schedules->first()['id']);
         $this->assertEquals($this->kepsekSmp->name, $schedules->first()['assessor_name']);
     }
+
+    public function test_grades_and_assessments_strictly_belong_to_student_institution_when_input_by_cross_institution_teacher(): void
+    {
+        $ta = \App\Models\AcademicYear::create([
+            'name' => '2026/2027',
+            'semester' => 'Ganjil',
+            'is_active' => true,
+        ]);
+
+        $siswaSmp = \App\Models\Student::create([
+            'name' => 'Ahmad Santoso (Siswa SMP)',
+            'nis' => '1001',
+            'jenis_kelamin' => 'L',
+            'tanggal_lahir' => '2012-05-10',
+            'institution_id' => $this->smp->id,
+            'classroom_id' => $this->kelasSmp->id,
+        ]);
+
+        // Kepala Sekolah MA
+        $kepsekMA = User::create([
+            'name' => 'Kepala Sekolah MA',
+            'email' => 'kepsek_ma@ma.com',
+            'password' => bcrypt('password'),
+            'institution_id' => $this->ma->id,
+            'is_active' => true,
+        ]);
+        $kepsekMA->assignRole('kepala_sekolah');
+
+        // Guru MA menginput nilai untuk Siswa SMP
+        $this->actingAs($this->guruMA);
+
+        $grade = \App\Models\Grade::create([
+            'student_id'       => $siswaSmp->id,
+            'classroom_id'     => $this->kelasSmp->id,
+            'subject_id'       => $this->mapelSmp->id,
+            'teacher_id'       => $this->guruMA->id,
+            'academic_year_id' => $ta->id,
+            'semester'         => 'Ganjil',
+            'type'             => 'pengetahuan',
+            'score'            => 88,
+        ]);
+
+        // 1. Verifikasi di database: institution_id nilai OTOMATIS = SMP (2), BUKAN MA (3)
+        $this->assertEquals($this->smp->id, $grade->institution_id);
+        $this->assertDatabaseHas('grades', [
+            'id'             => $grade->id,
+            'student_id'     => $siswaSmp->id,
+            'institution_id' => $this->smp->id,
+            'teacher_id'     => $this->guruMA->id,
+        ]);
+
+        // 2. Ketika Kepala Sekolah SMP login: Nilai ini MUNCUL di database SMP
+        $this->actingAs($this->kepsekSmp);
+        $smpGrades = \App\Models\Grade::all();
+        $this->assertTrue($smpGrades->contains('id', $grade->id));
+
+        // 3. Ketika Kepala Sekolah MA login: Nilai siswa SMP TIDAK PERNAH MUNCUL di MA
+        $this->actingAs($kepsekMA);
+        $maGrades = \App\Models\Grade::all();
+        $this->assertFalse($maGrades->contains('id', $grade->id));
+        $this->assertCount(0, $maGrades);
+
+        // 4. Ketika Guru MA login: Nilai tetap bisa dilihat guru bersangkutan untuk evaluasi mengajar
+        $this->actingAs($this->guruMA);
+        $guruGrades = \App\Models\Grade::where('teacher_id', $this->guruMA->id)->get();
+        $this->assertTrue($guruGrades->contains('id', $grade->id));
+    }
 }

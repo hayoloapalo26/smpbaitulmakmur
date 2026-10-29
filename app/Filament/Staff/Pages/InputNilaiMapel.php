@@ -203,7 +203,9 @@ class InputNilaiMapel extends Page
                             'type'             => $type,
                         ],
                         [
-                            'score' => $scoreVal,
+                            'score'        => $scoreVal,
+                            'classroom_id' => $this->selectedClassroomId,
+                            'teacher_id'   => Auth::id(),
                         ]
                     );
                     $savedCount++;
