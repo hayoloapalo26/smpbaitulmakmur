@@ -151,8 +151,12 @@ class ProgramKurikulumResource extends Resource
                             ->placeholder('Contoh: Setiap Semester / Juli 2026'),
                             
                         Forms\Components\TextInput::make('dokumen_terkait')
-                            ->label('Dokumen Terkait')
-                            ->placeholder('Contoh: SK, Silabus, RPP'),
+                            ->label('Link Google Drive Dokumentasi & Dokumen Pendukung')
+                            ->placeholder('https://drive.google.com/drive/folders/... atau https://docs.google.com/...')
+                            ->url()
+                            ->prefixIcon('heroicon-o-link')
+                            ->helperText('Tautkan link Google Drive dokumen atau foto kegiatan untuk dokumentasi & arsip.')
+                            ->maxLength(2048),
                             
                         Forms\Components\TextInput::make('estimasi_anggaran')
                             ->label('Estimasi Anggaran')

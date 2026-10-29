@@ -119,9 +119,9 @@ class ProgramSarprasResource extends Resource
                             ->placeholder('Contoh: Setiap Semester / Juli 2026'),
                             
                         Forms\Components\TextInput::make('dokumen_terkait')
-                            ->label('Dokumen Terkait (Link Google Drive)')
-                            ->placeholder('https://drive.google.com/...')
-                            ->helperText('Tempelkan link Google Drive dokumen pendukung (SK, proposal, foto bukti) demi efisiensi hosting server.')
+                            ->label('Link Google Drive Dokumentasi & Dokumen Pendukung')
+                            ->placeholder('https://drive.google.com/drive/folders/... atau https://docs.google.com/...')
+                            ->helperText('Tempelkan link Google Drive dokumen pendukung (SK, proposal, foto bukti, LPJ) demi efisiensi hosting server.')
                             ->suffixAction(
                                 Forms\Components\Actions\Action::make('openLink')
                                     ->icon('heroicon-m-arrow-top-right-on-square')

@@ -10,6 +10,8 @@ use App\Models\ProgramSarpras;
 use App\Models\ProgramHumas;
 use App\Models\BkWorkProgram;
 use App\Models\ClassProgram;
+use Filament\Notifications\Notification;
+use Illuminate\Support\Facades\Schema;
 
 class WorkProgramReportPage extends Page
 {
@@ -25,6 +27,78 @@ class WorkProgramReportPage extends Page
     protected static ?int $navigationSort = 3;
 
     protected static string $view = 'filament.staff.pages.work-program-report-page';
+
+    // State untuk Modal Input / Edit Link Google Drive
+    public bool $showDriveModal = false;
+    public ?string $modalModelType = null;
+    public ?int $modalModelId = null;
+    public string $modalProgramName = '';
+    public string $modalDriveUrl = '';
+
+    public function openDriveModal(string $modelType, int $modelId, string $programName, ?string $currentUrl = ''): void
+    {
+        $this->modalModelType = $modelType;
+        $this->modalModelId = $modelId;
+        $this->modalProgramName = $programName;
+        $this->modalDriveUrl = $currentUrl ?? '';
+        $this->showDriveModal = true;
+    }
+
+    public function closeDriveModal(): void
+    {
+        $this->showDriveModal = false;
+        $this->modalModelType = null;
+        $this->modalModelId = null;
+        $this->modalProgramName = '';
+        $this->modalDriveUrl = '';
+    }
+
+    public function saveDriveModal(): void
+    {
+        if (!$this->modalModelType || !$this->modalModelId) {
+            return;
+        }
+
+        $url = trim($this->modalDriveUrl);
+
+        try {
+            $class = $this->modalModelType;
+            if (class_exists($class)) {
+                $record = $class::find($this->modalModelId);
+                if ($record) {
+                    $table = $record->getTable();
+                    $updates = [];
+                    if (Schema::hasColumn($table, 'link_drive_dokumen')) {
+                        $updates['link_drive_dokumen'] = $url ?: null;
+                    }
+                    if (Schema::hasColumn($table, 'dokumen_terkait')) {
+                        $updates['dokumen_terkait'] = $url ?: null;
+                    }
+                    if (Schema::hasColumn($table, 'dokumen_pendukung')) {
+                        $updates['dokumen_pendukung'] = $url ?: null;
+                    }
+
+                    if (!empty($updates)) {
+                        $record->update($updates);
+                    }
+
+                    Notification::make()
+                        ->title('Link Drive Berhasil Disimpan')
+                        ->body("Tautan Google Drive untuk '{$this->modalProgramName}' telah berhasil diperbarui.")
+                        ->success()
+                        ->send();
+                }
+            }
+        } catch (\Throwable $e) {
+            Notification::make()
+                ->title('Gagal Menyimpan Link')
+                ->body($e->getMessage())
+                ->danger()
+                ->send();
+        }
+
+        $this->closeDriveModal();
+    }
 
     protected function getHeaderActions(): array
     {
@@ -96,6 +170,8 @@ class WorkProgramReportPage extends Page
         // 4. Daftar program kerja (flatten untuk monitoring tabel)
         $daftarProgram = collect();
         foreach($kepsek as $item) $daftarProgram->push((object)[
+            'id' => $item->id,
+            'model_type' => ProgramKepsek::class,
             'divisi' => 'Kepala Sekolah',
             'nama' => $item->nama_program,
             'status' => $item->status_pelaksanaan ?? 'Belum',
@@ -103,8 +179,12 @@ class WorkProgramReportPage extends Page
             'tipe' => $item->tipe_pelaksanaan ?? '-',
             'waktu' => $item->waktu_pelaksanaan ?? '-',
             'dokumen' => $item->dokumen_terkait ?? null,
+            'link_drive' => $item->link_drive_dokumen ?? $item->dokumen_terkait ?? null,
+            'url' => \App\Filament\Staff\Resources\ProgramKepsekResource::getUrl('index', ['tableSearch' => $item->nama_program]),
         ]);
         foreach($kurikulum as $item) $daftarProgram->push((object)[
+            'id' => $item->id,
+            'model_type' => ProgramKurikulum::class,
             'divisi' => 'Kurikulum',
             'nama' => $item->nama_program,
             'status' => $item->status_pelaksanaan ?? 'Belum',
@@ -112,8 +192,12 @@ class WorkProgramReportPage extends Page
             'tipe' => $item->tipe_pelaksanaan ?? '-',
             'waktu' => $item->waktu_pelaksanaan ?? '-',
             'dokumen' => $item->dokumen_terkait ?? null,
+            'link_drive' => $item->link_drive_dokumen ?? $item->dokumen_terkait ?? null,
+            'url' => \App\Filament\Staff\Resources\ProgramKurikulumResource::getUrl('view', ['record' => $item->id]),
         ]);
         foreach($kesiswaan as $item) $daftarProgram->push((object)[
+            'id' => $item->id,
+            'model_type' => ProgramKesiswaan::class,
             'divisi' => 'Kesiswaan',
             'nama' => $item->nama_program,
             'status' => $item->status_pelaksanaan ?? 'Belum',
@@ -121,8 +205,12 @@ class WorkProgramReportPage extends Page
             'tipe' => $item->tipe_pelaksanaan ?? '-',
             'waktu' => $item->waktu_pelaksanaan ?? '-',
             'dokumen' => $item->dokumen_terkait ?? null,
+            'link_drive' => $item->link_drive_dokumen ?? $item->dokumen_terkait ?? null,
+            'url' => \App\Filament\Staff\Resources\ProgramKesiswaanResource::getUrl('view', ['record' => $item->id]),
         ]);
         foreach($sarpras as $item) $daftarProgram->push((object)[
+            'id' => $item->id,
+            'model_type' => ProgramSarpras::class,
             'divisi' => 'Sarpras',
             'nama' => $item->nama_program,
             'status' => $item->status_pelaksanaan ?? 'Belum',
@@ -130,8 +218,12 @@ class WorkProgramReportPage extends Page
             'tipe' => $item->tipe_pelaksanaan ?? '-',
             'waktu' => $item->waktu_pelaksanaan ?? '-',
             'dokumen' => $item->dokumen_terkait ?? null,
+            'link_drive' => $item->link_drive_dokumen ?? $item->dokumen_terkait ?? null,
+            'url' => \App\Filament\Staff\Resources\ProgramSarprasResource::getUrl('index', ['tableSearch' => $item->nama_program]),
         ]);
         foreach($humas as $item) $daftarProgram->push((object)[
+            'id' => $item->id,
+            'model_type' => ProgramHumas::class,
             'divisi' => 'Humas',
             'nama' => $item->nama_program,
             'status' => $item->status_pelaksanaan ?? 'Belum',
@@ -139,24 +231,34 @@ class WorkProgramReportPage extends Page
             'tipe' => $item->tipe_pelaksanaan ?? '-',
             'waktu' => $item->waktu_pelaksanaan ?? '-',
             'dokumen' => $item->dokumen_terkait ?? null,
+            'link_drive' => $item->link_drive_dokumen ?? $item->dokumen_terkait ?? null,
+            'url' => \App\Filament\Staff\Resources\ProgramHumasResource::getUrl('index', ['tableSearch' => $item->nama_program]),
         ]);
         foreach($bk as $item) $daftarProgram->push((object)[
+            'id' => $item->id,
+            'model_type' => BkWorkProgram::class,
             'divisi' => 'Bimbingan Konseling',
             'nama' => $item->judul_program ?? 'Program BK',
             'status' => $item->status ?? 'Belum',
             'kategori' => 'BK',
             'tipe' => $item->jenis_layanan ?? '-',
             'waktu' => $item->tanggal ?? '-',
-            'dokumen' => null,
+            'dokumen' => $item->dokumen_terkait ?? null,
+            'link_drive' => $item->link_drive_dokumen ?? $item->dokumen_terkait ?? null,
+            'url' => \App\Filament\Staff\Resources\BkWorkProgramResource::getUrl('view', ['record' => $item->id]),
         ]);
         foreach($kelas as $item) $daftarProgram->push((object)[
+            'id' => $item->id,
+            'model_type' => ClassProgram::class,
             'divisi' => 'Wali Kelas (' . ($item->classroom?->name ?? '-') . ')',
             'nama' => $item->nama_program,
             'status' => ucfirst($item->status ?? 'Rencana'),
             'kategori' => 'Kelas',
             'tipe' => $item->jenis_program ?? '-',
             'waktu' => $item->waktu_pelaksanaan ?? '-',
-            'dokumen' => null,
+            'dokumen' => $item->dokumen_pendukung ?? null,
+            'link_drive' => $item->link_drive_dokumen ?? $item->dokumen_pendukung ?? null,
+            'url' => \App\Filament\Staff\Resources\ClassProgramResource::getUrl('index', ['tableSearch' => $item->nama_program]),
         ]);
 
         $totalProg = $daftarProgram->count();

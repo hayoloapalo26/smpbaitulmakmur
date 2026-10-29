@@ -128,9 +128,9 @@ class ProgramKesiswaanResource extends Resource
                             ->placeholder('Contoh: Setiap Bulan Muharram / Agustus 2026'),
                             
                         Forms\Components\TextInput::make('dokumen_terkait')
-                            ->label('Dokumen Terkait (Link Google Drive)')
-                            ->placeholder('https://drive.google.com/...')
-                            ->helperText('Tempelkan link Google Drive dokumen pendukung (Proposal, SK, foto kegiatan).')
+                            ->label('Link Google Drive Dokumentasi & Dokumen Pendukung')
+                            ->placeholder('https://drive.google.com/drive/folders/... atau https://docs.google.com/...')
+                            ->helperText('Tempelkan link Google Drive dokumen pendukung (Proposal, SK, foto kegiatan, LPJ).')
                             ->suffixAction(
                                 Forms\Components\Actions\Action::make('openLink')
                                     ->icon('heroicon-m-arrow-top-right-on-square')
