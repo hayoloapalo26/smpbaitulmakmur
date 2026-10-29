@@ -233,7 +233,14 @@ class ReadingQualityScoreResource extends Resource
                             });
                         }
 
-                        return $query->orderBy('name')->get()->mapWithKeys(function ($s) {
+                        $students = $query->orderBy('name')->get();
+
+                        // Fallback aman: jika filter masih kosong, tampilkan seluruh siswa agar proses tidak terblokir
+                        if ($students->isEmpty()) {
+                            $students = Student::with(['classroom', 'guruQuran'])->orderBy('name')->get();
+                        }
+
+                        return $students->mapWithKeys(function ($s) {
                             $quranLabel = $s->kelas_quran_label 
                                 ? " • [Kelas Al-Qur'an: {$s->kelas_quran_label}]" 
                                 : " • [⚠️ Belum Ada Kelas Al-Qur'an]";
@@ -243,7 +250,40 @@ class ReadingQualityScoreResource extends Resource
                             return [
                                 $s->id => "{$s->name}{$nis}{$quranLabel}{$guru}{$rombel}"
                             ];
-                        });
+                        })->toArray();
+                    })
+                    ->getSearchResultsUsing(function (string $search) {
+                        return Student::query()->with(['classroom', 'guruQuran'])
+                            ->where(function ($sq) use ($search) {
+                                $sq->where('name', 'like', "%{$search}%")
+                                   ->orWhere('nis', 'like', "%{$search}%");
+                            })
+                            ->orderBy('name')
+                            ->limit(50)
+                            ->get()
+                            ->mapWithKeys(function ($s) {
+                                $quranLabel = $s->kelas_quran_label 
+                                    ? " • [Kelas Al-Qur'an: {$s->kelas_quran_label}]" 
+                                    : " • [⚠️ Belum Ada Kelas Al-Qur'an]";
+                                $guru = $s->guruQuran?->name ? " (Guru: {$s->guruQuran->name})" : '';
+                                $rombel = $s->classroom?->name ? " [Rombel: {$s->classroom->name}]" : '';
+                                $nis = $s->nis ? " (NIS: {$s->nis})" : '';
+                                return [
+                                    $s->id => "{$s->name}{$nis}{$quranLabel}{$guru}{$rombel}"
+                                ];
+                            })->toArray();
+                    })
+                    ->getOptionLabelUsing(function ($value) {
+                        if (!$value) return null;
+                        $s = Student::with(['classroom', 'guruQuran'])->find($value);
+                        if (!$s) return null;
+                        $quranLabel = $s->kelas_quran_label 
+                            ? " • [Kelas Al-Qur'an: {$s->kelas_quran_label}]" 
+                            : " • [⚠️ Belum Ada Kelas Al-Qur'an]";
+                        $rombel = $s->classroom?->name ? " [Rombel: {$s->classroom->name}]" : '';
+                        $guru = $s->guruQuran?->name ? " (Guru: {$s->guruQuran->name})" : '';
+                        $nis = $s->nis ? " (NIS: {$s->nis})" : '';
+                        return "{$s->name}{$nis}{$quranLabel}{$guru}{$rombel}";
                     })
                     ->searchable()
                     ->preload()
