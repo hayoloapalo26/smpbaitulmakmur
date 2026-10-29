@@ -26,6 +26,17 @@ class WorkProgramReportPage extends Page
 
     protected static string $view = 'filament.staff.pages.work-program-report-page';
 
+    protected function getHeaderActions(): array
+    {
+        return [
+            \Filament\Actions\Action::make('buka_evaluasi')
+                ->label('Buka Evaluasi Program')
+                ->icon('heroicon-o-clipboard-document-check')
+                ->color('success')
+                ->url(\App\Filament\Staff\Resources\ProgramEvaluationResource::getUrl('index')),
+        ];
+    }
+
     public function getViewData(): array
     {
         // 1. Kumpulkan semua data dari berbagai program

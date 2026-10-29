@@ -28,4 +28,17 @@ class ProgramEvaluation extends Model
     {
         return $this->belongsTo(Institution::class, 'institution_id');
     }
+
+    public function reviewer(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'reviewed_by');
+    }
+
+    public function sourceProgram()
+    {
+        if ($this->program_source_type && class_exists($this->program_source_type) && $this->program_source_id) {
+            return $this->belongsTo($this->program_source_type, 'program_source_id');
+        }
+        return null;
+    }
 }

@@ -24,7 +24,15 @@ class ManageProgramEvaluations extends ManageRecords
         return [
             Actions\CreateAction::make()
                 ->label('Tambah Evaluasi Program')
-                ->icon('heroicon-o-plus'),
+                ->icon('heroicon-o-plus')
+                ->mutateFormDataUsing(function (array $data): array {
+                    $data['user_id'] = auth()->id();
+                    $data['institution_id'] = auth()->user()?->institution_id;
+                    if (empty($data['status'])) {
+                        $data['status'] = auth()->user()?->hasRole('kepala_sekolah') ? 'Disetujui KS' : 'Menunggu Review KS';
+                    }
+                    return $data;
+                }),
 
             Actions\Action::make('syncFromPrograms')
                 ->label('Tarik dari Program Kerja')
@@ -76,6 +84,8 @@ class ManageProgramEvaluations extends ManageRecords
                                     'user_id' => $user->id,
                                     'divisi' => $divisi,
                                     'nama_program' => $name,
+                                    'program_source_type' => get_class($item),
+                                    'program_source_id' => $item->id,
                                     'tahun_ajaran' => $item->tahun_ajaran ?? '2026/2027',
                                     'semester' => 'Semester Ganjil',
                                     'persentase_ketercapaian' => $pct,
@@ -83,8 +93,8 @@ class ManageProgramEvaluations extends ManageRecords
                                     'realisasi_kegiatan' => 'Status pelaksanaan program: ' . ucfirst($rawStatus),
                                     'kendala' => null,
                                     'solusi_tindak_lanjut' => 'Evaluasi berkala pelaksanaan program kerja.',
-                                    'catatan_kepsek' => null,
-                                    'status' => 'Final',
+                                    'catatan_kepsek' => $item->catatan_kepsek ?? null,
+                                    'status' => 'Menunggu Review KS',
                                 ]);
                                 $imported++;
                             }
