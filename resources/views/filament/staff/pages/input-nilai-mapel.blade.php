@@ -16,13 +16,21 @@
                     </p>
                 </div>
 
-                @if(auth()->user()->hasAnyRole(['waka_kurikulum', 'superadmin']))
-                    <a href="{{ route('filament.staff.resources.teacher-subject-classes.index') }}" 
-                       class="text-xs inline-flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg transition font-medium">
-                        <x-heroicon-o-link class="w-4 h-4 text-primary-500" />
-                        Kelola Routing Guru Mapel
+                <div class="flex flex-wrap items-center gap-2">
+                    <a href="{{ url('/staff/grades') }}" 
+                       class="text-xs inline-flex items-center gap-1.5 px-3 py-1.5 bg-primary-50 hover:bg-primary-100 dark:bg-primary-950/60 dark:hover:bg-primary-900/60 text-primary-700 dark:text-primary-300 rounded-lg transition font-semibold border border-primary-200 dark:border-primary-800 shadow-sm">
+                        <x-heroicon-o-academic-cap class="w-4 h-4 text-primary-600" />
+                        📋 Input Nilai Lengkap (TP, Remedial & Pengayaan)
                     </a>
-                @endif
+
+                    @if(auth()->user()->hasAnyRole(['waka_kurikulum', 'superadmin']))
+                        <a href="{{ route('filament.staff.resources.teacher-subject-classes.index') }}" 
+                           class="text-xs inline-flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg transition font-medium">
+                            <x-heroicon-o-link class="w-4 h-4 text-primary-500" />
+                            Kelola Routing Guru Mapel
+                        </a>
+                    @endif
+                </div>
             </div>
 
             {{-- Grid Tombol / Tab Mata Pelajaran --}}

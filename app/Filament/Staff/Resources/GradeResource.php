@@ -6,6 +6,7 @@ use App\Filament\Staff\Resources\GradeResource\Pages;
 use App\Models\AcademicYear;
 use App\Models\Classroom;
 use App\Models\Grade;
+use App\Models\Rppm;
 use App\Models\Student;
 use App\Models\Subject;
 use App\Models\TeacherSubjectClass;
@@ -18,6 +19,7 @@ use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Str;
 
 class GradeResource extends Resource
 {
@@ -49,10 +51,10 @@ class GradeResource extends Resource
     protected static ?string $model = Grade::class;
     protected static ?string $navigationIcon = 'heroicon-o-academic-cap';
     protected static ?string $navigationGroup = 'Akademik & Kurikulum';
-    protected static ?string $navigationLabel = 'Daftar Nilai Siswa';
+    protected static ?string $navigationLabel = 'Input & Daftar Nilai Siswa';
     protected static ?string $modelLabel = 'Nilai Siswa';
     protected static ?string $pluralModelLabel = 'Daftar Nilai Siswa';
-    protected static ?int $navigationSort = 5;
+    protected static ?int $navigationSort = 4;
 
     public static function getEloquentQuery(): Builder
     {
@@ -80,7 +82,7 @@ class GradeResource extends Resource
             });
         }
 
-        // Guru Mapel: Nilai pada mata pelajaran yang diampu
+        // Guru Mapel / Guru Kelas: Nilai pada mata pelajaran yang diampu
         $subjectIds = TeacherSubjectClass::where('teacher_id', $user->id)->pluck('subject_id')->toArray();
 
         // Wali Kelas: Nilai siswa-siswi di kelas binaannya
@@ -124,8 +126,8 @@ class GradeResource extends Resource
             $classroomIds = $tsc->pluck('classroom_id')->toArray();
 
             if ($isWaliKelas) {
-                $waliClassroomIds = Classroom::where('wali_kelas_id', $user->id)->pluck('id')->toArray();
-                $classroomIds = array_unique(array_merge($classroomIds, $waliClassroomIds));
+                $waliClassrooms = Classroom::where('wali_kelas_id', $user->id)->pluck('id')->toArray();
+                $classroomIds = array_unique(array_merge($classroomIds, $waliClassrooms));
             }
 
             $studentIds = Student::whereIn('classroom_id', $classroomIds)->pluck('id')->toArray();
@@ -133,8 +135,9 @@ class GradeResource extends Resource
 
         return $form
             ->schema([
-                Forms\Components\Section::make('📚 Identitas Kelas & Siswa')
-                    ->description('Pilih kelas terlebih dahulu untuk memunculkan daftar siswa yang berada di kelas tersebut.')
+                // 1. IDENTITAS KELAS, SISWA & PERIODE PEMBELAJARAN
+                Forms\Components\Section::make('📚 Identitas Pembelajaran & Siswa')
+                    ->description('Pilih kelas terlebih dahulu, kemudian daftar nama siswa akan otomatis dimuat sesuai kelas yang dipilih.')
                     ->schema([
                         Forms\Components\Hidden::make('teacher_id')
                             ->default(fn () => Auth::id()),
@@ -156,14 +159,19 @@ class GradeResource extends Resource
                             ->preload()
                             ->required()
                             ->live()
-                            ->afterStateUpdated(fn (Forms\Set $set) => $set('student_id', null)),
+                            ->afterStateUpdated(function (Forms\Set $set) {
+                                $set('student_id', null);
+                            }),
 
                         Forms\Components\Select::make('student_id')
                             ->label('2. Nama Siswa')
                             ->options(function (Forms\Get $get) use ($isPrivileged, $studentIds) {
                                 $classroomId = $get('classroom_id');
                                 if ($classroomId) {
-                                    return Student::where('classroom_id', $classroomId)->orderBy('name')->pluck('name', 'id');
+                                    return Student::where('classroom_id', $classroomId)
+                                        ->orderBy('name')
+                                        ->get()
+                                        ->mapWithKeys(fn ($s) => [$s->id => "{$s->name}" . ($s->nis ? " (NIS: {$s->nis})" : '')]);
                                 }
                                 if ($isPrivileged) {
                                     return Student::orderBy('name')->pluck('name', 'id');
@@ -207,57 +215,54 @@ class GradeResource extends Resource
                             ->label('6. Tanggal Penilaian')
                             ->default(now())
                             ->required()
-                            ->helperText('Tanggal otomatis disesuaikan dengan hari saat guru menginput.'),
+                            ->helperText('Tanggal saat penilaian dilaksanakan / diinput oleh guru.'),
                     ])->columns(3),
 
-                Forms\Components\Section::make('📝 Parameter Penilaian & Tujuan Pembelajaran (TP)')
-                    ->description('Tentukan tipe nilai, bentuk penilaian, lingkup materi, serta pilihan Tujuan Pembelajaran (TP).')
+                // 2. PENARIKAN TP OTOMATIS DARI RPPM & LINGKUP MATERI
+                Forms\Components\Section::make('🎯 Lingkup Materi & Penarikan TP dari RPPM')
+                    ->description('Tarik otomatis Tujuan Pembelajaran (TP) dari dokumen RPPM atau pilih manual dari TP yang telah disusun.')
                     ->schema([
-                        Forms\Components\Select::make('type')
-                            ->label('Tipe Nilai (5 Pilihan)')
-                            ->options([
-                                'formatif'     => '1. Nilai Formatif / Harian',
-                                'keterampilan' => '2. Keterampilan / Praktik',
-                                'sts'          => '3. STS (Sumatif Tengah Semester)',
-                                'sas'          => '4. SAS (Sumatif Akhir Semester)',
-                                'kustom'       => '5. Tipe Nilai Kustom (Input Sendiri)',
-                            ])
-                            ->default('formatif')
-                            ->required()
-                            ->live(),
-
-                        Forms\Components\TextInput::make('custom_type_name')
-                            ->label('Nama Tipe Nilai Kustom')
-                            ->placeholder('Contoh: Nilai Proyek Kolaboratif / Portofolio')
-                            ->visible(fn (Forms\Get $get) => $get('type') === 'kustom')
-                            ->required(fn (Forms\Get $get) => $get('type') === 'kustom')
-                            ->helperText('Isi nama tipe penilaian sesuai kebutuhan Anda.'),
-
-                        Forms\Components\Select::make('bentuk_penilaian')
-                            ->label('Bentuk Penilaian')
-                            ->options([
-                                'quiz'           => 'Quiz / Kuis Singkat',
-                                'diskusi'        => 'Diskusi & Keaktifan',
-                                'ulangan_harian' => 'Ulangan Harian',
-                                'presentasi'     => 'Presentasi / Unjuk Kerja',
-                                'kir'            => 'KIR (Karya Ilmiah Remaja)',
-                                'kustom'         => 'Bentuk Penilaian Sendiri (Kustom)',
-                            ])
-                            ->default('ulangan_harian')
-                            ->required()
-                            ->live(),
-
-                        Forms\Components\TextInput::make('custom_bentuk_penilaian')
-                            ->label('Nama Bentuk Penilaian Kustom')
-                            ->placeholder('Contoh: Praktikum Lapangan Mandiri')
-                            ->visible(fn (Forms\Get $get) => $get('bentuk_penilaian') === 'kustom')
-                            ->required(fn (Forms\Get $get) => $get('bentuk_penilaian') === 'kustom'),
+                        Forms\Components\Select::make('rppm_id')
+                            ->label('Tarik Otomatis dari Dokumen RPPM Guru (Opsional)')
+                            ->options(function (Forms\Get $get) {
+                                $subjectId = $get('subject_id');
+                                $query = Rppm::query();
+                                if (!auth()->user()?->hasAnyRole(['waka_kurikulum', 'superadmin', 'kepala_sekolah'])) {
+                                    $query->where('guru_id', auth()->id());
+                                }
+                                if ($subjectId) {
+                                    $subjectName = Subject::where('id', $subjectId)->value('name');
+                                    if ($subjectName) {
+                                        $query->where('mata_pelajaran', 'like', "%{$subjectName}%");
+                                    }
+                                }
+                                return $query->latest()->get()->mapWithKeys(function ($r) {
+                                    $tpCount = count($r->selected_tp_ids ?? []);
+                                    return [$r->id => "RPPM: {$r->topik} ({$r->kelas_fase} | {$tpCount} TP)"];
+                                });
+                            })
+                            ->searchable()
+                            ->preload()
+                            ->live()
+                            ->afterStateUpdated(function ($state, Forms\Set $set, Forms\Get $get) {
+                                if (!$state) return;
+                                $rppm = Rppm::find($state);
+                                if ($rppm) {
+                                    if (!empty($rppm->topik) && empty($get('materi'))) {
+                                        $set('materi', $rppm->topik);
+                                    }
+                                    if (!empty($rppm->selected_tp_ids)) {
+                                        $set('tp_ids', $rppm->selected_tp_ids);
+                                    }
+                                }
+                            })
+                            ->helperText('Pilih RPPM untuk otomatis mengisi Materi Pokok dan memilih Tujuan Pembelajaran yang sesuai.'),
 
                         Forms\Components\TextInput::make('materi')
                             ->label('Materi Pokok yang Dinilai')
-                            ->placeholder('Contoh: Operasi Aljabar dan Persamaan Linier Satu Variabel')
+                            ->placeholder('Contoh: Operasi Aljabar dan Persamaan Linier Satu Variabel / Membaca Gambar Kerja')
                             ->required()
-                            ->columnSpanFull(),
+                            ->helperText('Lingkup materi pokok yang diujikan dalam penilaian ini.'),
 
                         Forms\Components\Select::make('tp_ids')
                             ->label('Tujuan Pembelajaran (TP) Terkait [Multiple Choice]')
@@ -265,6 +270,14 @@ class GradeResource extends Resource
                             ->options(function (Forms\Get $get) {
                                 $subjectId = $get('subject_id');
                                 $classroomId = $get('classroom_id');
+                                $rppmId = $get('rppm_id');
+
+                                $rppmTpIds = [];
+                                if ($rppmId) {
+                                    $rppm = Rppm::find($rppmId);
+                                    $rppmTpIds = $rppm?->selected_tp_ids ?? [];
+                                }
+
                                 $query = TujuanPembelajaran::query();
                                 if ($subjectId) {
                                     $query->where('subject_id', $subjectId);
@@ -275,33 +288,200 @@ class GradeResource extends Resource
                                         $query->where('kelas_tingkat', $tingkat);
                                     }
                                 }
-                                return $query->get()->mapWithKeys(function ($tp) {
+
+                                return $query->get()->mapWithKeys(function ($tp) use ($rppmTpIds) {
+                                    $isRppm = in_array($tp->id, $rppmTpIds);
+                                    $tag = $isRppm ? '📌 [Dari RPPM] ' : '';
                                     $prefix = $tp->materi ? "[{$tp->materi}] " : '';
-                                    return [$tp->id => "{$prefix}" . \Illuminate\Support\Str::limit($tp->deskripsi_tp, 65)];
+                                    $kode = $tp->kode_tp ? "({$tp->kode_tp}) " : '';
+                                    return [$tp->id => "{$tag}{$kode}{$prefix}" . Str::limit($tp->deskripsi_tp, 70)];
                                 });
                             })
                             ->searchable()
                             ->preload()
-                            ->helperText('Pilih satu atau lebih TP yang diuji. Bersumber langsung dari Perangkat Ajar (TP).')
-                            ->columnSpanFull()
-                            ->required(),
+                            ->required()
+                            ->live()
+                            ->helperText('💡 Fitur Multiple Choice: Anda dapat memilih lebih dari satu TP sekaligus (misal TP 1 dan TP 2 dinilai bersamaan dengan satu skor nilai).')
+                            ->columnSpanFull(),
+                    ])->columns(2),
+
+                // 3. PARAMETER PENILAIAN, SKOR & CATATAN GURU PER-TP
+                Forms\Components\Section::make('📝 Bentuk Penilaian, Skor & Evaluasi Umpan Balik')
+                    ->description('Tentukan tipe nilai, bentuk penilaian, nilai perolehan siswa, serta catatan evaluasi guru per-TP.')
+                    ->schema([
+                        Forms\Components\Select::make('type')
+                            ->label('Tipe Nilai')
+                            ->options([
+                                'formatif'     => '1. Nilai Formatif / Harian',
+                                'keterampilan' => '2. Keterampilan / Praktik',
+                                'sts'          => '3. STS (Sumatif Tengah Semester)',
+                                'sas'          => '4. SAS (Sumatif Akhir Semester)',
+                                'kustom'       => '5. Input Sendiri (Kustom)',
+                            ])
+                            ->default('formatif')
+                            ->required()
+                            ->live(),
+
+                        Forms\Components\TextInput::make('custom_type_name')
+                            ->label('Nama Tipe Nilai (Input Sendiri)')
+                            ->placeholder('Contoh: Nilai Portofolio Kolaboratif / Proyek P5')
+                            ->visible(fn (Forms\Get $get) => $get('type') === 'kustom')
+                            ->required(fn (Forms\Get $get) => $get('type') === 'kustom'),
+
+                        Forms\Components\Select::make('bentuk_penilaian')
+                            ->label('Bentuk Penilaian')
+                            ->options([
+                                'kuis'           => 'Kuis / Quiz Singkat',
+                                'ulangan_harian' => 'Ulangan Harian',
+                                'presentasi'     => 'Presentasi / Unjuk Kerja',
+                                'kir'            => 'KIR (Karya Ilmiah Remaja)',
+                                'praktik'        => 'Praktik / Praktikum',
+                                'diskusi'        => 'Diskusi & Partisipasi Aktif',
+                                'kustom'         => 'Bentuk Lainnya (Input Sendiri)',
+                            ])
+                            ->default('ulangan_harian')
+                            ->required()
+                            ->live(),
+
+                        Forms\Components\TextInput::make('custom_bentuk_penilaian')
+                            ->label('Nama Bentuk Penilaian (Input Sendiri)')
+                            ->placeholder('Contoh: Praktikum Lapangan Mandiri')
+                            ->visible(fn (Forms\Get $get) => $get('bentuk_penilaian') === 'kustom')
+                            ->required(fn (Forms\Get $get) => $get('bentuk_penilaian') === 'kustom'),
 
                         Forms\Components\TextInput::make('score')
-                            ->label('Input Nilai Siswa (0 - 100)')
+                            ->label('Nilai Siswa (0 - 100)')
                             ->numeric()
                             ->minValue(0)
                             ->maxValue(100)
                             ->required()
                             ->prefix('Skor:')
-                            ->helperText('💡 Catatan: Siswa yang memperoleh nilai minimal 95 berhak mendapatkan program Pengayaan & Upgrade TP Level 2.')
+                            ->live()
+                            ->helperText(function (Forms\Get $get) {
+                                $score = (float)$get('score');
+                                if ($score === 0.0 && $get('score') === null) return 'Rentang nilai 0 - 100.';
+                                if ($score >= 75) {
+                                    return '✅ TUNTAS (Memenuhi KKM 75 - Siswa berhak mengikuti Program Pengayaan).';
+                                }
+                                return '⚠️ BELUM TUNTAS (< 75) - Siswa perlu mengikuti Program Remedial untuk TP yang belum tuntas.';
+                            })
+                            ->columnSpanFull(),
+
+                        Forms\Components\KeyValue::make('catatan_per_tp')
+                            ->label('Catatan Guru per-TP (Contoh: "Masih keliru membaca gambar kerja", "Sangat terampil menggunakan alat")')
+                            ->keyLabel('ID / Kode TP')
+                            ->valueLabel('Catatan Umpan Balik Guru per TP')
+                            ->helperText('Catatan spesifik capaian indikator per TP yang diujikan.')
                             ->columnSpanFull(),
 
                         Forms\Components\Textarea::make('catatan_guru')
-                            ->label('Catatan Guru per TP / Umpan Balik Siswa (Wajib)')
-                            ->placeholder('Contoh: Ananda Ahmad sangat baik dalam memahami konsep aljabar, namun perlu berlatih lebih teliti pada operasi perkalian pecahan dan penyelesaian soal cerita.')
+                            ->label('Rangkuman Catatan Guru / Evaluasi untuk Rapor (Wajib)')
+                            ->placeholder('Contoh: Ananda sangat terampil menggunakan alat praktikum, namun masih keliru membaca gambar kerja secara mandiri.')
                             ->rows(3)
                             ->required()
-                            ->helperText('Wajib diisi sebagai rekam evaluasi dan umpan balik perkembangan capaian belajar murid.')
+                            ->helperText('Wajib diisi sebagai catatan evaluasi guru untuk perkembangan belajar siswa.')
+                            ->columnSpanFull(),
+                    ])->columns(2),
+
+                // 4. BAGIAN COLLAPSIBLE TINDAK LANJUT: REMEDIAL
+                Forms\Components\Section::make('🔄 Fitur Tindak Lanjut: Remedial (Perbaikan Nilai)')
+                    ->description('Dapat diisi jika siswa belum tuntas pada TP yang diuji dan telah melaksanakan remedial.')
+                    ->collapsed()
+                    ->schema([
+                        Forms\Components\Toggle::make('is_remedial')
+                            ->label('Aktifkan Status Telah Melaksanakan Remedial')
+                            ->live(),
+
+                        Forms\Components\DatePicker::make('tanggal_remedial')
+                            ->label('Tanggal Pelaksanaan Remedial')
+                            ->default(now()),
+
+                        Forms\Components\TextInput::make('nilai_remedial')
+                            ->label('Nilai Ulang Remedial (0 - 100)')
+                            ->numeric()
+                            ->minValue(0)
+                            ->maxValue(100)
+                            ->prefix('Nilai Ulang:'),
+
+                        Forms\Components\Select::make('tp_remedial_ids')
+                            ->label('TP yang Diremedial')
+                            ->multiple()
+                            ->options(function (Forms\Get $get) {
+                                $tpIds = $get('tp_ids') ?? [];
+                                return TujuanPembelajaran::whereIn('id', $tpIds)->get()->mapWithKeys(function ($tp) {
+                                    return [$tp->id => "({$tp->kode_tp}) " . Str::limit($tp->deskripsi_tp, 50)];
+                                });
+                            }),
+
+                        Forms\Components\Textarea::make('catatan_remedial')
+                            ->label('Catatan Guru Remedial & Bentuk Perbaikan')
+                            ->placeholder('Contoh: Diberikan penjelasan ulang konsep membaca gambar kerja dan penugasan soal latihan terbimbing.')
+                            ->rows(2)
+                            ->columnSpanFull(),
+                    ])->columns(2),
+
+                // 5. BAGIAN COLLAPSIBLE TINDAK LANJUT: PENGAYAAN
+                Forms\Components\Section::make('⭐ Fitur Tindak Lanjut: Pengayaan (Upgrade TP)')
+                    ->description('Khusus bagi siswa yang nilai TP-nya sudah tuntas. Berikan bentuk penugasan pengayaan dan rumusan upgrade TP.')
+                    ->collapsed()
+                    ->schema([
+                        Forms\Components\Toggle::make('is_pengayaan')
+                            ->label('Aktifkan Status Telah Melaksanakan Pengayaan')
+                            ->live(),
+
+                        Forms\Components\Select::make('tp_pengayaan_id')
+                            ->label('TP yang Dikembangkan (Wajib sebagai Tautan ke Rapor)')
+                            ->options(function (Forms\Get $get) {
+                                $tpIds = $get('tp_ids') ?? [];
+                                return TujuanPembelajaran::whereIn('id', $tpIds)->get()->mapWithKeys(function ($tp) {
+                                    return [$tp->id => "({$tp->kode_tp}) " . Str::limit($tp->deskripsi_tp, 60)];
+                                });
+                            }),
+
+                        Forms\Components\Select::make('bentuk_pengayaan')
+                            ->label('Bentuk Pengayaan')
+                            ->options([
+                                'soal_tingkat_lanjut' => 'Soal Tingkat Lanjut (HOTS)',
+                                'projek_mini'        => 'Projek Mini',
+                                'tutor_sebaya'        => 'Tutor Sebaya',
+                                'studi_kasus'         => 'Studi Kasus',
+                                'praktik_lanjutan'    => 'Praktik Lanjutan',
+                                'kustom'              => 'Bentuk Lainnya (Input Sendiri)',
+                            ])
+                            ->default('projek_mini')
+                            ->live(),
+
+                        Forms\Components\TextInput::make('custom_bentuk_pengayaan')
+                            ->label('Nama Bentuk Pengayaan (Input Sendiri)')
+                            ->visible(fn (Forms\Get $get) => $get('bentuk_pengayaan') === 'kustom'),
+
+                        Forms\Components\TextInput::make('link_drive_pengayaan')
+                            ->label('Link Google Drive Berkas Pengayaan (Upload Drive)')
+                            ->placeholder('https://drive.google.com/file/d/.../view')
+                            ->url()
+                            ->prefixIcon('heroicon-o-link'),
+
+                        Forms\Components\DatePicker::make('tanggal_pengayaan')
+                            ->label('Tanggal Pelaksanaan Pengayaan')
+                            ->default(now()),
+
+                        Forms\Components\TextInput::make('nilai_pengayaan')
+                            ->label('Nilai Pengayaan (0 - 100)')
+                            ->numeric()
+                            ->minValue(0)
+                            ->maxValue(100)
+                            ->prefix('Skor:'),
+
+                        Forms\Components\Textarea::make('upgraded_tp_description')
+                            ->label('Upgrade TP Pengayaan (Manual / Rumusan Baru untuk Rapor)')
+                            ->placeholder('Contoh: Mampu merancang prosedur kerja mandiri dan menganalisis studi kasus nyata secara komprehensif.')
+                            ->rows(2)
+                            ->columnSpanFull(),
+
+                        Forms\Components\Textarea::make('catatan_pengayaan')
+                            ->label('Catatan Guru Pengayaan (Wajib isi, misal: "Mampu merancang prosedur kerja sendiri")')
+                            ->placeholder('Contoh: Mampu merancang prosedur kerja sendiri dan sangat aktif membantu rekan sebagai tutor sebaya.')
+                            ->rows(2)
                             ->columnSpanFull(),
                     ])->columns(2),
             ]);
@@ -356,44 +536,72 @@ class GradeResource extends Resource
 
                 Tables\Columns\TextColumn::make('bentuk_penilaian')
                     ->label('Bentuk')
-                    ->formatStateUsing(fn ($state, Grade $record) => $state === 'kustom' ? ($record->custom_bentuk_penilaian ?: 'Kustom') : ucfirst(str_replace('_', ' ', (string)$state)))
-                    ->toggleable(isToggledHiddenByDefault: true),
+                    ->badge()
+                    ->color('gray')
+                    ->formatStateUsing(fn ($state, Grade $record) => $state === 'kustom' ? ($record->custom_bentuk_penilaian ?: 'Kustom') : ucfirst(str_replace('_', ' ', (string)$state))),
 
-                Tables\Columns\TextColumn::make('score')
-                    ->label('Nilai')
+                Tables\Columns\TextColumn::make('nilai_akhir')
+                    ->label('Nilai Akhir')
                     ->weight('bold')
-                    ->sortable()
-                    ->color(function (float $state): string {
-                        if ($state >= 95) return 'warning'; // Bintang Pengayaan
-                        if ($state >= 75) return 'success';
+                    ->sortable(query: fn (Builder $query, string $direction) => $query->orderBy('score', $direction))
+                    ->color(function (Grade $record): string {
+                        if ($record->is_pengayaan) return 'warning'; // Emas Pengayaan
+                        if ($record->isTuntas()) return 'success';
                         return 'danger';
                     })
+                    ->formatStateUsing(function (Grade $record): string {
+                        if ($record->is_remedial && $record->nilai_remedial !== null) {
+                            return "{$record->nilai_remedial} (Awal: {$record->score})";
+                        }
+                        return (string)$record->score;
+                    })
                     ->description(function (Grade $record) {
-                        if ($record->score >= 95) {
-                            return $record->is_pengayaan ? '⭐ Pengayaan Selesai' : '⭐ Memenuhi Pengayaan';
+                        if ($record->is_pengayaan) {
+                            return '⭐ Pengayaan Selesai (' . ($record->nilai_pengayaan ?? $record->score) . ')';
                         }
                         if ($record->is_remedial) {
-                            return '🔄 Remedial: ' . $record->nilai_remedial;
+                            return '🔄 Remedial: ' . ($record->nilai_remedial >= 75 ? 'Tuntas' : 'Belum Tuntas');
                         }
-                        return null;
+                        return $record->isTuntas() ? '✅ Tuntas' : '⚠️ Belum Tuntas';
                     }),
 
                 Tables\Columns\TextColumn::make('tp_count')
                     ->label('TP Diuji')
                     ->state(fn (Grade $record) => count($record->tp_ids ?? []) . ' TP')
                     ->badge()
-                    ->color('gray'),
+                    ->color('primary')
+                    ->tooltip(function (Grade $record) {
+                        $tps = $record->selected_tps;
+                        if ($tps->isEmpty()) return 'Tidak ada TP terdata';
+                        return $tps->map(fn ($t) => "• [{$t->kode_tp}] {$t->deskripsi_tp}")->join("\n");
+                    }),
 
                 Tables\Columns\TextColumn::make('tanggal')
-                    ->label('Tgl Input')
+                    ->label('Tgl Penilaian')
                     ->date('d M Y')
                     ->sortable(),
 
                 Tables\Columns\TextColumn::make('catatan_guru')
                     ->label('Catatan Guru')
-                    ->limit(40)
+                    ->limit(35)
                     ->wrap()
                     ->tooltip(fn (Grade $record) => $record->catatan_guru),
+
+                Tables\Columns\TextColumn::make('status_tindak_lanjut')
+                    ->label('Tindak Lanjut')
+                    ->badge()
+                    ->color(fn (Grade $record) => match (true) {
+                        $record->is_pengayaan => 'warning',
+                        $record->is_remedial => 'info',
+                        $record->isTuntas() => 'success',
+                        default => 'danger',
+                    })
+                    ->state(function (Grade $record): string {
+                        if ($record->is_pengayaan) return '⭐ Pengayaan';
+                        if ($record->is_remedial) return '🔄 Remedial';
+                        if ($record->isTuntas()) return '✅ Tuntas (Siap Pengayaan)';
+                        return '⚠️ Perlu Remedial';
+                    }),
 
                 Tables\Columns\TextColumn::make('status_verifikasi')
                     ->label('Status')
@@ -434,11 +642,13 @@ class GradeResource extends Resource
                         'kustom'       => 'Kustom',
                     ]),
 
-                Tables\Filters\SelectFilter::make('semester')
-                    ->options([
-                        'Ganjil' => 'Ganjil',
-                        'Genap'  => 'Genap',
-                    ]),
+                Tables\Filters\Filter::make('perlu_remedial')
+                    ->label('Hanya Perlu Remedial (< 75)')
+                    ->query(fn (Builder $query): Builder => $query->where('score', '<', 75)->where('is_remedial', false)),
+
+                Tables\Filters\Filter::make('tuntas_pengayaan')
+                    ->label('Hanya Tuntas / Siap Pengayaan (>= 75)')
+                    ->query(fn (Builder $query): Builder => $query->where('score', '>=', 75)->orWhere(fn ($q) => $q->where('is_remedial', true)->where('nilai_remedial', '>=', 75))),
             ])
             ->actions([
                 Tables\Actions\Action::make('terima_nilai')
@@ -460,41 +670,61 @@ class GradeResource extends Resource
                             ->success()
                             ->send();
                     }),
+
                 Tables\Actions\ViewAction::make(),
                 Tables\Actions\EditAction::make(),
 
-                // 🔄 AKSI REMEDIAL: Untuk TP yang belum tuntas / perlu perbaikan nilai
+                // 🔄 FITUR REMEDIAL: Inputan tanggal dan nilai ulang untuk TP yang belum tuntas
                 Tables\Actions\Action::make('remedial')
                     ->label('Remedial')
                     ->icon('heroicon-o-arrow-path')
                     ->color('warning')
-                    ->modalHeading(fn (Grade $record) => "🔄 Remedial / Perbaikan Nilai Siswa: {$record->student?->name}")
-                    ->modalDescription('Inputkan tanggal dan nilai ulang bagi siswa yang belum tuntas pada Tujuan Pembelajaran (TP) terkait.')
+                    ->modalHeading(fn (Grade $record) => "🔄 Remedial / Perbaikan Nilai: {$record->student?->name} ({$record->subject?->name})")
+                    ->modalDescription('Inputkan tanggal dan nilai ulang bagi siswa pada Tujuan Pembelajaran (TP) yang belum tuntas.')
                     ->modalSubmitActionLabel('Simpan Nilai Remedial')
                     ->form([
+                        Forms\Components\Placeholder::make('info_nilai_awal')
+                            ->label('Informasi Nilai Awal')
+                            ->content(fn (Grade $record) => "Nilai Awal: {$record->score} | KKM: 75 | Status: " . ($record->isTuntas() ? 'Tuntas' : 'Belum Tuntas')),
+
+                        Forms\Components\Select::make('tp_remedial_ids')
+                            ->label('1. TP yang Belum Tuntas / Diremedial (Multiple Choice)')
+                            ->multiple()
+                            ->options(function (Grade $record) {
+                                $tpIds = $record->tp_ids ?? [];
+                                return TujuanPembelajaran::whereIn('id', $tpIds)->get()->mapWithKeys(function ($tp) {
+                                    $prefix = $tp->materi ? "[{$tp->materi}] " : '';
+                                    return [$tp->id => "({$tp->kode_tp}) {$prefix}" . Str::limit($tp->deskripsi_tp, 65)];
+                                });
+                            })
+                            ->default(fn (Grade $record) => $record->tp_remedial_ids ?? $record->tp_ids)
+                            ->required()
+                            ->helperText('Pilih TP mana yang diremedial oleh siswa ini.'),
+
                         Forms\Components\DatePicker::make('tanggal_remedial')
-                            ->label('Tanggal Pelaksanaan Remedial')
+                            ->label('2. Tanggal Pelaksanaan Remedial')
                             ->default(now())
                             ->required(),
 
                         Forms\Components\TextInput::make('nilai_remedial')
-                            ->label('Nilai Ulang Remedial (0 - 100)')
+                            ->label('3. Nilai Ulang Remedial (0 - 100)')
                             ->numeric()
                             ->minValue(0)
                             ->maxValue(100)
                             ->placeholder('Contoh: 78')
-                            ->prefix('Nilai:')
+                            ->prefix('Nilai Ulang:')
                             ->required(),
 
                         Forms\Components\Textarea::make('catatan_remedial')
-                            ->label('Catatan Guru Remedial & Bentuk Perbaikan (Wajib)')
-                            ->placeholder('Contoh: Siswa telah diberikan penjelasan ulang konsep dasar dan mengerjakan 5 soal latihan terbimbing dengan hasil tuntas.')
+                            ->label('4. Catatan Guru Remedial & Bentuk Perbaikan (Wajib)')
+                            ->placeholder('Contoh: Siswa telah diberikan penjelasan ulang konsep membaca gambar kerja dan penugasan soal terbimbing dengan hasil tuntas.')
                             ->rows(3)
                             ->required()
                             ->helperText('Wajib diisi sebagai bukti evaluasi tindak lanjut penuntasan TP.')
                             ->columnSpanFull(),
                     ])
                     ->fillForm(fn (Grade $record) => [
+                        'tp_remedial_ids'  => $record->tp_remedial_ids ?? $record->tp_ids,
                         'tanggal_remedial' => $record->tanggal_remedial ?? now(),
                         'nilai_remedial'   => $record->nilai_remedial,
                         'catatan_remedial' => $record->catatan_remedial,
@@ -502,30 +732,38 @@ class GradeResource extends Resource
                     ->action(function (Grade $record, array $data) {
                         $record->update([
                             'is_remedial'      => true,
+                            'tp_remedial_ids'  => $data['tp_remedial_ids'],
                             'tanggal_remedial' => $data['tanggal_remedial'],
                             'nilai_remedial'   => $data['nilai_remedial'],
                             'catatan_remedial' => $data['catatan_remedial'],
                         ]);
 
                         Notification::make()
-                            ->title('Nilai Remedial Disimpan')
+                            ->title('Nilai Remedial Berhasil Disimpan')
                             ->body("Data perbaikan nilai untuk {$record->student?->name} berhasil diperbarui.")
                             ->success()
                             ->send();
                     }),
 
-                // ⭐ AKSI PENGAYAAN: Khusus siswa yang telah mencapai TP dengan nilai tinggi MINIMAL 95
+                // ⭐ FITUR PENGAYAAN: Khusus siswa yang nilai TP-nya sudah tuntas
                 Tables\Actions\Action::make('pengayaan')
-                    ->label('Pengayaan (⭐ Min. 95)')
+                    ->label('Pengayaan')
                     ->icon('heroicon-o-sparkles')
                     ->color('success')
-                    ->visible(fn (Grade $record) => $record->score >= 95)
-                    ->modalHeading(fn (Grade $record) => "⭐ Program Pengayaan & Upgrade TP Level 2: {$record->student?->name}")
-                    ->modalDescription('Siswa telah mencapai nilai tinggi (minimal 95). Berikan penugasan pengayaan dan upgrade TP khusus ke level yang lebih berbobot (Level 2).')
+                    ->visible(fn (Grade $record) => $record->isTuntas())
+                    ->modalHeading(fn (Grade $record) => "⭐ Program Pengayaan & Upgrade TP: {$record->student?->name} ({$record->subject?->name})")
+                    ->modalDescription('Siswa telah mencapai nilai tuntas pada TP ini. Lengkapi bentuk pengayaan, link upload drive, dan upgrade rumusan TP untuk rapor.')
                     ->modalSubmitActionLabel('Simpan Program Pengayaan')
                     ->form([
+                        Forms\Components\Placeholder::make('info_siswa_tuntas')
+                            ->label('Nama Siswa & Nilai Tuntas Sebelumnya')
+                            ->content(function (Grade $record) {
+                                $nilaiTuntas = $record->nilai_akhir;
+                                return "Nama Siswa: {$record->student?->name} (Kelas: {$record->classroom?->name}) | Nilai Tuntas Sebelumnya: {$nilaiTuntas} (Otomatis dari nilai inputan / rekomendasi guru)";
+                            }),
+
                         Forms\Components\Select::make('tp_pengayaan_id')
-                            ->label('1. TP yang Dikembangkan (Dari TP yang Diinputkan)')
+                            ->label('1. TP yang Dikembangkan (Wajib, sebagai dasar tautan ke rapor)')
                             ->options(function (Grade $record) {
                                 $tpIds = $record->tp_ids ?? [];
                                 $query = TujuanPembelajaran::query();
@@ -536,47 +774,47 @@ class GradeResource extends Resource
                                 }
                                 return $query->get()->mapWithKeys(function ($tp) {
                                     $prefix = $tp->materi ? "[{$tp->materi}] " : '';
-                                    return [$tp->id => "{$prefix}" . \Illuminate\Support\Str::limit($tp->deskripsi_tp, 65)];
+                                    return [$tp->id => "({$tp->kode_tp}) {$prefix}" . Str::limit($tp->deskripsi_tp, 65)];
                                 });
                             })
                             ->searchable()
                             ->required()
-                            ->helperText('Pilih Tujuan Pembelajaran asal yang dicapai dengan skor tinggi.'),
+                            ->helperText('Pilih Tujuan Pembelajaran yang dikembangkan sebagai dasar tautan ke rapor.'),
 
                         Forms\Components\Textarea::make('upgraded_tp_description')
-                            ->label('2. Upgrade TP Khusus Siswa Ini (TP Level 2 Berbobot Lebih Tinggi)')
-                            ->placeholder("Contoh (TP Level 2):\nMenganalisis studi kasus nyata penerapan aljabar linier dalam pemodelan keuangan sederhana dan mempresentasikan rekomendasinya secara mandiri di hadapan kelas.")
+                            ->label('2. Upgrade TP Pengayaan (Manual / Rumusan Baru untuk Rapor)')
+                            ->placeholder("Contoh (Upgrade TP):\nMampu merancang prosedur kerja mandiri dan menganalisis studi kasus nyata penerapan aljabar linier dalam pemodelan data sederhana.")
                             ->rows(3)
                             ->required()
-                            ->helperText('Rumusan TP Level 2 khusus untuk siswa ini agar mendapatkan capaian kompetensi yang lebih mendalam dan aplikatif.')
+                            ->helperText('Rumusan kompetensi tingkat lanjut hasil upgrade TP untuk dicantumkan pada rapor / portofolio.')
                             ->columnSpanFull(),
 
                         Forms\Components\Select::make('bentuk_pengayaan')
                             ->label('3. Bentuk Pengayaan')
                             ->options([
                                 'soal_tingkat_lanjut' => 'Soal Tingkat Lanjut (HOTS)',
-                                'project_mini'        => 'Project Mini',
+                                'projek_mini'        => 'Projek Mini',
                                 'tutor_sebaya'        => 'Tutor Sebaya',
                                 'studi_kasus'         => 'Studi Kasus',
-                                'praktek_lanjutan'    => 'Praktek Lanjutan',
-                                'kustom'              => 'Bentuk Pengayaan Lainnya (Kustom)',
+                                'praktik_lanjutan'    => 'Praktik Lanjutan',
+                                'kustom'              => 'Bentuk Lainnya (Input Sendiri)',
                             ])
-                            ->default('project_mini')
+                            ->default('projek_mini')
                             ->required()
                             ->live(),
 
                         Forms\Components\TextInput::make('custom_bentuk_pengayaan')
-                            ->label('Nama Bentuk Pengayaan Kustom')
+                            ->label('Nama Bentuk Pengayaan (Input Sendiri)')
                             ->placeholder('Contoh: Karya Tulis Eksplorasi Mandiri')
                             ->visible(fn (Forms\Get $get) => $get('bentuk_pengayaan') === 'kustom')
                             ->required(fn (Forms\Get $get) => $get('bentuk_pengayaan') === 'kustom'),
 
                         Forms\Components\TextInput::make('link_drive_pengayaan')
-                            ->label('4. Tautan Link Google Drive Berkas Bentuk Pengayaan (Upload Drive)')
+                            ->label('4. Link Google Drive Berkas Pengayaan (Upload Drive)')
                             ->placeholder('https://drive.google.com/file/d/.../view?usp=sharing')
                             ->url()
                             ->prefixIcon('heroicon-o-link')
-                            ->helperText('Tautkan link Google Drive dokumen soal, panduan tugas, atau portofolio pengayaan siswa untuk menjaga kapasitas hosting.')
+                            ->helperText('Tersedia link drive untuk tautan berkas soal pengayaan, panduan penugasan, atau hasil portofolio siswa.')
                             ->maxLength(2048)
                             ->columnSpanFull(),
 
@@ -590,27 +828,27 @@ class GradeResource extends Resource
                             ->numeric()
                             ->minValue(0)
                             ->maxValue(100)
-                            ->placeholder('Contoh: 98')
+                            ->placeholder('Contoh: 95')
                             ->prefix('Skor:')
                             ->required(),
 
                         Forms\Components\Textarea::make('catatan_pengayaan')
-                            ->label('7. Catatan Guru Pengayaan (Wajib)')
-                            ->placeholder('Contoh: Ananda sangat antusias menyelesaikan project mini analisis data cuaca dan mampu menjelaskan hasilnya kepada rekan sebaya dengan sangat fasih.')
+                            ->label('7. Catatan Guru Pengayaan (Wajib Isi)')
+                            ->placeholder('Contoh: Mampu merancang prosedur kerja sendiri dengan tingkat inisiatif dan kemandirian yang sangat baik.')
                             ->rows(3)
                             ->required()
-                            ->helperText('Wajib diisi sebagai catatan apresiasi dan pembinaan kompetensi tingkat lanjut.')
+                            ->helperText('Wajib diisi, misalnya “Mampu merancang prosedur kerja sendiri”.')
                             ->columnSpanFull(),
                     ])
                     ->fillForm(fn (Grade $record) => [
                         'tp_pengayaan_id'         => $record->tp_pengayaan_id ?? (is_array($record->tp_ids) ? reset($record->tp_ids) : null),
                         'upgraded_tp_description' => $record->upgraded_tp_description,
-                        'bentuk_pengayaan'        => $record->bentuk_pengayaan ?? 'project_mini',
+                        'bentuk_pengayaan'        => $record->bentuk_pengayaan ?? 'projek_mini',
                         'custom_bentuk_pengayaan' => $record->custom_bentuk_pengayaan,
                         'link_drive_pengayaan'    => $record->link_drive_pengayaan,
                         'tanggal_pengayaan'       => $record->tanggal_pengayaan ?? now(),
-                        'nilai_pengayaan'         => $record->nilai_pengayaan ?? $record->score,
-                        'catatan_pengayaan'       => $record->catatan_pengayaan,
+                        'nilai_pengayaan'         => $record->nilai_pengayaan ?? $record->nilai_akhir,
+                        'catatan_pengayaan'       => $record->catatan_pengayaan ?? 'Mampu merancang prosedur kerja sendiri',
                     ])
                     ->action(function (Grade $record, array $data) {
                         $record->update([
@@ -627,7 +865,7 @@ class GradeResource extends Resource
 
                         Notification::make()
                             ->title('Program Pengayaan Disimpan')
-                            ->body("Upgrade TP Level 2 dan pengayaan untuk {$record->student?->name} berhasil dicatat.")
+                            ->body("Upgrade TP dan pengayaan untuk {$record->student?->name} berhasil dicatat.")
                             ->success()
                             ->send();
                     }),

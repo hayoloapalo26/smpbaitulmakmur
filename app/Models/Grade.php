@@ -11,10 +11,12 @@ class Grade extends Model
     protected $guarded = ['id'];
 
     protected $casts = [
-        'tp_ids'       => 'array',
-        'is_remedial'  => 'boolean',
-        'is_pengayaan' => 'boolean',
-        'tanggal'      => 'date',
+        'tp_ids'           => 'array',
+        'tp_remedial_ids'  => 'array',
+        'catatan_per_tp'   => 'array',
+        'is_remedial'      => 'boolean',
+        'is_pengayaan'     => 'boolean',
+        'tanggal'          => 'date',
         'tanggal_remedial'  => 'date',
         'tanggal_pengayaan' => 'date',
         'score'            => 'float',
@@ -48,6 +50,11 @@ class Grade extends Model
         return $this->belongsTo(Subject::class, 'subject_id');
     }
 
+    public function rppm()
+    {
+        return $this->belongsTo(Rppm::class, 'rppm_id');
+    }
+
     public function academicYear()
     {
         return $this->belongsTo(AcademicYear::class, 'academic_year_id');
@@ -56,6 +63,24 @@ class Grade extends Model
     public function tpPengayaan()
     {
         return $this->belongsTo(TujuanPembelajaran::class, 'tp_pengayaan_id');
+    }
+
+    public function isTuntas(): bool
+    {
+        if ($this->is_remedial && $this->nilai_remedial !== null) {
+            return (float)$this->nilai_remedial >= 75;
+        }
+
+        return (float)($this->score ?? 0) >= 75;
+    }
+
+    public function getNilaiAkhirAttribute(): float
+    {
+        if ($this->is_remedial && $this->nilai_remedial !== null) {
+            return (float)$this->nilai_remedial;
+        }
+
+        return (float)($this->score ?? 0);
     }
 
     public function getSelectedTpsAttribute()
