@@ -90,28 +90,31 @@ class QuranAchievementResource extends Resource
 
     public static function form(Form $form): Form
     {
-        $user = Auth::user();
-        $studentIds = [];
-
-        if (!$user->hasAnyRole(['koordinator_madin', 'waka_kurikulum', 'superadmin', 'kepala_sekolah'])) {
-            $studentIds = TeacherSubjectClass::where('teacher_id', $user->id)
-                ->join('students', 'students.classroom_id', '=', 'teacher_subject_classes.classroom_id')
-                ->pluck('students.id')
-                ->toArray();
-        }
-
         $surahs = self::getSurahs();
 
         return $form
             ->schema([
                 Forms\Components\Hidden::make('teacher_id')
-                    ->default($user->id),
+                    ->default(fn () => Auth::id()),
 
                 Forms\Components\Select::make('classroom_id')
                     ->label('1. Filter Kelas / Rombel (Opsional)')
-                    ->options(function () use ($user) {
+                    ->options(function () {
+                        $user = Auth::user();
+                        if (!$user) return [];
                         if ($user->hasAnyRole(['koordinator_madin', 'waka_kurikulum', 'superadmin', 'kepala_sekolah'])) {
                             return Classroom::orderBy('name')->pluck('name', 'id');
+                        }
+                        if ($user->isQuranTeacher()) {
+                            $assignedClassroomIds = Student::where('guru_quran_id', $user->id)
+                                ->whereNotNull('classroom_id')
+                                ->pluck('classroom_id')
+                                ->toArray();
+                            $teacherClassroomIds = TeacherSubjectClass::where('teacher_id', $user->id)->pluck('classroom_id')->toArray();
+                            $allIds = array_unique(array_merge($assignedClassroomIds, $teacherClassroomIds));
+                            if (!empty($allIds)) {
+                                return Classroom::whereIn('id', $allIds)->orderBy('name')->pluck('name', 'id');
+                            }
                         }
                         $classroomIds = TeacherSubjectClass::where('teacher_id', $user->id)->pluck('classroom_id')->toArray();
                         return Classroom::whereIn('id', $classroomIds)->orderBy('name')->pluck('name', 'id');
@@ -125,33 +128,106 @@ class QuranAchievementResource extends Resource
 
                 Forms\Components\Select::make('student_id')
                     ->label('2. Nama Siswa')
-                    ->options(function (Forms\Get $get) use ($user, $studentIds) {
+                    ->options(function (Forms\Get $get) {
+                        $user = Auth::user();
+                        if (!$user) return [];
                         $classroomId = $get('classroom_id');
+
+                        // 1. Jika akun adalah Guru Al-Qur'an, otomatis tampilkan siswa binaannya dari Penempatan Waka Kurikulum
+                        if ($user->isQuranTeacher()) {
+                            $specialization = match (true) {
+                                $user->hasRole(User::ROLE_GURU_QURAN_YANBUA) => 'yanbua',
+                                $user->hasRole(User::ROLE_GURU_QURAN_TAHSIN) => 'tahsin',
+                                $user->hasRole(User::ROLE_GURU_QURAN_TAHFIDZ_DASAR) => 'tahfidz_dasar',
+                                $user->hasRole(User::ROLE_GURU_QURAN_TAHFIDZ_LANJUTAN) => 'tahfidz_lanjutan',
+                                default => null,
+                            };
+
+                            $quranQuery = Student::query()
+                                ->where(function ($q) use ($user, $specialization) {
+                                    $q->where('guru_quran_id', $user->id);
+                                    if ($specialization) {
+                                        $q->orWhere('kelas_quran', $specialization);
+                                    }
+                                });
+
+                            if ($user->institution_id && $user->institution_id != 1 && !$user->hasRole('superadmin')) {
+                                if (\Illuminate\Support\Facades\Schema::hasColumn('students', 'institution_id')) {
+                                    $quranQuery->where('students.institution_id', $user->institution_id);
+                                } else {
+                                    $quranQuery->whereHas('classroom', fn ($cq) => $cq->where('institution_id', $user->institution_id));
+                                }
+                            }
+
+                            if ($classroomId) {
+                                $quranQuery->where('classroom_id', $classroomId);
+                            }
+
+                            $quranStudents = $quranQuery->orderBy('name')->get();
+                            if ($quranStudents->isNotEmpty()) {
+                                return $quranStudents->mapWithKeys(fn ($s) => [
+                                    $s->id => "{$s->name}" . ($s->nis ? " (NIS: {$s->nis})" : '') . ($s->kelas_quran_label ? " [{$s->kelas_quran_label}]" : '')
+                                ]);
+                            }
+                        }
+
+                        // 2. Jika filter kelas reguler dipilih
                         if ($classroomId) {
                             return Student::where('classroom_id', $classroomId)
                                 ->orderBy('name')
                                 ->get()
                                 ->mapWithKeys(fn ($s) => [$s->id => "{$s->name}" . ($s->nis ? " (NIS: {$s->nis})" : '')]);
                         }
+
+                        // 3. Manajemen / Pengawas
                         if ($user->hasAnyRole(['koordinator_madin', 'waka_kurikulum', 'superadmin', 'kepala_sekolah'])) {
-                            return Student::when($user->institution_id && !$user->hasRole('superadmin'), fn ($q) => $q->where('institution_id', $user->institution_id))
-                                ->orderBy('name')
+                            $mgmtQuery = Student::query();
+                            if ($user->institution_id && $user->institution_id != 1 && !$user->hasRole('superadmin')) {
+                                if (\Illuminate\Support\Facades\Schema::hasColumn('students', 'institution_id')) {
+                                    $mgmtQuery->where('students.institution_id', $user->institution_id);
+                                } else {
+                                    $mgmtQuery->whereHas('classroom', fn ($cq) => $cq->where('institution_id', $user->institution_id));
+                                }
+                            }
+                            return $mgmtQuery->orderBy('name')
                                 ->get()
                                 ->mapWithKeys(fn ($s) => [$s->id => "{$s->name}" . ($s->nis ? " (NIS: {$s->nis})" : '')]);
                         }
+
+                        $studentIds = TeacherSubjectClass::where('teacher_id', $user->id)
+                            ->join('students', 'students.classroom_id', '=', 'teacher_subject_classes.classroom_id')
+                            ->pluck('students.id')
+                            ->toArray();
+
                         if (!empty($studentIds)) {
                             return Student::whereIn('id', $studentIds)
                                 ->orderBy('name')
                                 ->get()
                                 ->mapWithKeys(fn ($s) => [$s->id => "{$s->name}" . ($s->nis ? " (NIS: {$s->nis})" : '')]);
                         }
-                        return Student::when($user->institution_id, fn ($q) => $q->where('institution_id', $user->institution_id))
-                            ->orderBy('name')
+
+                        $fallbackQuery = Student::query();
+                        if ($user->institution_id && $user->institution_id != 1 && !$user->hasRole('superadmin')) {
+                            if (\Illuminate\Support\Facades\Schema::hasColumn('students', 'institution_id')) {
+                                $fallbackQuery->where('students.institution_id', $user->institution_id);
+                            } else {
+                                $fallbackQuery->whereHas('classroom', fn ($cq) => $cq->where('institution_id', $user->institution_id));
+                            }
+                        }
+                        return $fallbackQuery->orderBy('name')
                             ->get()
                             ->mapWithKeys(fn ($s) => [$s->id => "{$s->name}" . ($s->nis ? " (NIS: {$s->nis})" : '')]);
                     })
                     ->searchable()
                     ->live()
+                    ->afterStateUpdated(function ($state, Forms\Set $set) {
+                        if ($state) {
+                            $student = Student::find($state);
+                            if ($student?->kelas_quran) {
+                                $set('program', $student->kelas_quran);
+                            }
+                        }
+                    })
                     ->required(),
 
                 Forms\Components\Select::make('program')
@@ -163,11 +239,12 @@ class QuranAchievementResource extends Resource
                         'yanbua'           => '4. Yanbu\'a (Metode Baca Tulis Al-Qur\'an)',
                         'tahsin'           => '5. Tahsin (Kualitas & Kaidah Tajwid)',
                     ])
-                    ->default(function () use ($user) {
-                        if ($user->hasRole(User::ROLE_GURU_QURAN_TAHFIDZ_DASAR)) return 'tahfidz_dasar';
-                        if ($user->hasRole(User::ROLE_GURU_QURAN_TAHFIDZ_LANJUTAN)) return 'tahfidz_lanjutan';
-                        if ($user->hasRole(User::ROLE_GURU_QURAN_YANBUA)) return 'yanbua';
-                        if ($user->hasRole(User::ROLE_GURU_QURAN_TAHSIN)) return 'tahsin';
+                    ->default(function () {
+                        $user = Auth::user();
+                        if ($user?->hasRole(User::ROLE_GURU_QURAN_TAHFIDZ_DASAR)) return 'tahfidz_dasar';
+                        if ($user?->hasRole(User::ROLE_GURU_QURAN_TAHFIDZ_LANJUTAN)) return 'tahfidz_lanjutan';
+                        if ($user?->hasRole(User::ROLE_GURU_QURAN_YANBUA)) return 'yanbua';
+                        if ($user?->hasRole(User::ROLE_GURU_QURAN_TAHSIN)) return 'tahsin';
                         return 'tahfidz_dasar';
                     })
                     ->required()
@@ -188,8 +265,9 @@ class QuranAchievementResource extends Resource
                 Forms\Components\Select::make('juz')
                     ->label('5. Juz')
                     ->options(array_combine(range(1, 30), range(1, 30)))
-                    ->default(function () use ($user) {
-                        if ($user->hasRole(User::ROLE_GURU_QURAN_TAHFIDZ_DASAR)) return 30;
+                    ->default(function () {
+                        $user = Auth::user();
+                        if ($user?->hasRole(User::ROLE_GURU_QURAN_TAHFIDZ_DASAR)) return 30;
                         return 1;
                     })
                     ->searchable()

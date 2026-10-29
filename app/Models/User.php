@@ -100,6 +100,11 @@ class User extends Authenticatable implements FilamentUser, HasAvatar
         return $this->belongsTo(Student::class, 'student_id');
     }
 
+    public function santriQuran()
+    {
+        return $this->hasMany(Student::class, 'guru_quran_id');
+    }
+
     public function guardian()
     {
         return $this->belongsTo(Guardian::class, 'guardian_id');

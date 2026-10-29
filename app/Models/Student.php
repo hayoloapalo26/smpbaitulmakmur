@@ -20,6 +20,29 @@ class Student extends Model
         return $this->belongsTo(Classroom::class, 'classroom_id');
     }
 
+    public function guruQuran()
+    {
+        return $this->belongsTo(User::class, 'guru_quran_id');
+    }
+
+    public function getKelasQuranLabelAttribute(): ?string
+    {
+        return match ($this->kelas_quran) {
+            'yanbua' => 'Yanbu\'a',
+            'tahsin' => 'Tahsin',
+            'tahfidz_dasar' => 'Tahfidz Dasar',
+            'tahfidz_lanjutan' => 'Tahfidz Lanjutan',
+            default => $this->kelas_quran ? ucfirst($this->kelas_quran) : null,
+        };
+    }
+
+    protected function casts(): array
+    {
+        return [
+            'tanggal_penempatan_quran' => 'date',
+        ];
+    }
+
     public function prayerAttendances()
     {
         return $this->hasMany(PrayerAttendance::class);

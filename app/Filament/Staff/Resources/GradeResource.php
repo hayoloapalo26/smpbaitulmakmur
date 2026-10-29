@@ -89,7 +89,13 @@ class GradeResource extends Resource
         $waliClassroomIds = Classroom::where('wali_kelas_id', $user->id)->pluck('id')->toArray();
         $waliStudentIds = Student::whereIn('classroom_id', $waliClassroomIds)->pluck('id')->toArray();
 
-        return $query->where(function ($q) use ($user, $subjectIds, $waliStudentIds) {
+        // Guru Al-Qur'an: Nilai siswa-siswi yang ditempatkan di bawah binaannya
+        $quranStudentIds = [];
+        if ($user->isQuranTeacher()) {
+            $quranStudentIds = Student::where('guru_quran_id', $user->id)->pluck('id')->toArray();
+        }
+
+        return $query->where(function ($q) use ($user, $subjectIds, $waliStudentIds, $quranStudentIds) {
             $hasCondition = false;
             if (!empty($subjectIds)) {
                 $q->whereIn('subject_id', $subjectIds);
@@ -100,6 +106,14 @@ class GradeResource extends Resource
                     $q->orWhereIn('student_id', $waliStudentIds);
                 } else {
                     $q->whereIn('student_id', $waliStudentIds);
+                }
+                $hasCondition = true;
+            }
+            if (!empty($quranStudentIds)) {
+                if ($hasCondition) {
+                    $q->orWhereIn('student_id', $quranStudentIds);
+                } else {
+                    $q->whereIn('student_id', $quranStudentIds);
                 }
                 $hasCondition = true;
             }
@@ -130,7 +144,17 @@ class GradeResource extends Resource
                 $classroomIds = array_unique(array_merge($classroomIds, $waliClassrooms));
             }
 
+            if ($user->isQuranTeacher()) {
+                $quranClassrooms = Student::where('guru_quran_id', $user->id)->whereNotNull('classroom_id')->pluck('classroom_id')->toArray();
+                $classroomIds = array_unique(array_merge($classroomIds, $quranClassrooms));
+            }
+
             $studentIds = Student::whereIn('classroom_id', $classroomIds)->pluck('id')->toArray();
+
+            if ($user->isQuranTeacher()) {
+                $quranStudents = Student::where('guru_quran_id', $user->id)->pluck('id')->toArray();
+                $studentIds = array_unique(array_merge($studentIds, $quranStudents));
+            }
         }
 
         return $form
@@ -153,6 +177,10 @@ class GradeResource extends Resource
                                     $waliClassrooms = Classroom::where('wali_kelas_id', $user->id)->pluck('id')->toArray();
                                     $tscClassrooms = array_unique(array_merge($tscClassrooms, $waliClassrooms));
                                 }
+                                if ($user->isQuranTeacher()) {
+                                    $quranClassrooms = Student::where('guru_quran_id', $user->id)->whereNotNull('classroom_id')->pluck('classroom_id')->toArray();
+                                    $tscClassrooms = array_unique(array_merge($tscClassrooms, $quranClassrooms));
+                                }
                                 return Classroom::whereIn('id', $tscClassrooms)->orderBy('name')->pluck('name', 'id');
                             })
                             ->searchable()
@@ -165,16 +193,28 @@ class GradeResource extends Resource
 
                         Forms\Components\Select::make('student_id')
                             ->label('2. Nama Siswa')
-                            ->options(function (Forms\Get $get) use ($isPrivileged, $studentIds) {
+                            ->options(function (Forms\Get $get) use ($isPrivileged, $studentIds, $user) {
                                 $classroomId = $get('classroom_id');
                                 if ($classroomId) {
-                                    return Student::where('classroom_id', $classroomId)
-                                        ->orderBy('name')
+                                    $stQuery = Student::where('classroom_id', $classroomId);
+                                    if ($user->isQuranTeacher()) {
+                                        $hasMyQuranInClass = (clone $stQuery)->where('guru_quran_id', $user->id)->exists();
+                                        if ($hasMyQuranInClass) {
+                                            $stQuery->where('guru_quran_id', $user->id);
+                                        }
+                                    }
+                                    return $stQuery->orderBy('name')
                                         ->get()
                                         ->mapWithKeys(fn ($s) => [$s->id => "{$s->name}" . ($s->nis ? " (NIS: {$s->nis})" : '')]);
                                 }
                                 if ($isPrivileged) {
                                     return Student::orderBy('name')->pluck('name', 'id');
+                                }
+                                if ($user->isQuranTeacher()) {
+                                    $myQuran = Student::where('guru_quran_id', $user->id)->orderBy('name')->get();
+                                    if ($myQuran->isNotEmpty()) {
+                                        return $myQuran->mapWithKeys(fn ($s) => [$s->id => "{$s->name}" . ($s->nis ? " (NIS: {$s->nis})" : '')]);
+                                    }
                                 }
                                 return Student::whereIn('id', $studentIds)->orderBy('name')->pluck('name', 'id');
                             })
