@@ -157,7 +157,7 @@ class RppmResource extends Resource
                                 ->color('success')
                                 ->button()
                                 ->modalHeading('Input & Simpan Tujuan Pembelajaran (TP) Baru')
-                                ->modalDescription('Tujuan Pembelajaran (TP) yang disimpan otomatis muncul pada menu dropdown TP dan terhubung ke fitur Input Nilai Siswa.')
+                                ->modalDescription('Pilih Capaian Pembelajaran (CP) dan rumuskan Tujuan Pembelajaran yang ingin dicapai.')
                                 ->modalSubmitActionLabel('Simpan Tujuan Pembelajaran (TP)')
                                 ->modalWidth('2xl')
                                 ->form([
@@ -172,36 +172,34 @@ class RppmResource extends Resource
                                         ->default(fn (Forms\Get $get) => $get('capaian_pembelajaran_id') ?? $get('content.capaian_pembelajaran_id'))
                                         ->searchable()
                                         ->preload()
-                                        ->required(),
+                                        ->required()
+                                        ->helperText('Pilih Capaian Pembelajaran (CP) yang menjadi dasar pembuatan Tujuan Pembelajaran ini.'),
 
-                                    Forms\Components\Grid::make(2)->schema([
-                                        Forms\Components\TextInput::make('modal_kode_tp')
-                                            ->label('Kode TP')
-                                            ->placeholder('Contoh: TP.7.1.1')
-                                            ->required(),
-                                        Forms\Components\TextInput::make('modal_materi')
-                                            ->label('Materi Pokok')
-                                            ->placeholder('Contoh: Operasi Bilangan Bulat')
-                                            ->required(),
-                                    ]),
+                                    Forms\Components\TextInput::make('modal_materi')
+                                        ->label('Lingkup Materi Pokok (Opsional)')
+                                        ->placeholder('Contoh: Operasi Bilangan Bulat, Aljabar, dll.'),
 
                                     Forms\Components\Textarea::make('modal_deskripsi_tp')
                                         ->label('Rumusan Tujuan Pembelajaran (TP)')
-                                        ->placeholder('Contoh: Peserta didik dapat menyelesaikan operasi perkalian pecahan aljabar...')
-                                        ->rows(3)
-                                        ->required(),
+                                        ->placeholder('Contoh: Peserta didik dapat memahami dan menyelesaikan operasi hitung pecahan aljabar...')
+                                        ->rows(4)
+                                        ->required()
+                                        ->helperText('Rumusan TP yang diturunkan langsung dari CP yang dipilih.'),
                                 ])
                                 ->action(function (array $data, Forms\Set $set, Forms\Get $get) {
                                     $cp = \App\Models\CapaianPembelajaran::find($data['modal_cp_id']);
+                                    $count = \App\Models\TujuanPembelajaran::where('capaian_pembelajaran_id', $data['modal_cp_id'])->count() + 1;
+                                    $tingkat = $cp?->tingkat ?? '7';
+
                                     $tp = \App\Models\TujuanPembelajaran::create([
                                         'institution_id' => auth()->user()?->institution_id,
                                         'guru_id' => auth()->id(),
                                         'capaian_pembelajaran_id' => $data['modal_cp_id'],
                                         'subject_id' => $cp?->subject_id ?? \App\Models\Subject::first()?->id,
-                                        'kode_tp' => $data['modal_kode_tp'],
+                                        'kode_tp' => "TP.{$tingkat}.{$count}",
                                         'deskripsi_tp' => $data['modal_deskripsi_tp'],
-                                        'materi' => $data['modal_materi'],
-                                        'kelas_tingkat' => $cp?->tingkat ?? '7',
+                                        'materi' => $data['modal_materi'] ?? null,
+                                        'kelas_tingkat' => $tingkat,
                                         'semester' => 'Ganjil',
                                     ]);
 
@@ -216,12 +214,15 @@ class RppmResource extends Resource
                                     $set('content.selected_tp_dropdown', $currentSelected);
 
                                     $tps = \App\Models\TujuanPembelajaran::whereIn('id', $currentSelected)->get();
-                                    $tpItems = $tps->map(fn ($item) => ['rumusan' => "[{$item->kode_tp}] {$item->deskripsi_tp}"])->toArray();
+                                    $tpItems = $tps->map(function ($item) {
+                                        $prefix = $item->materi ? "[{$item->materi}] " : '';
+                                        return ['rumusan' => "{$prefix}{$item->deskripsi_tp}"];
+                                    })->toArray();
                                     $set('content.tujuan_pembelajaran', $tpItems);
 
                                     \Filament\Notifications\Notification::make()
                                         ->title('Tujuan Pembelajaran (TP) Berhasil Disimpan!')
-                                        ->body("TP '{$tp->kode_tp}' tersimpan dan otomatis terpilih pada menu dropdown.")
+                                        ->body('Tujuan Pembelajaran telah tersimpan ke database dan otomatis terpilih pada menu dropdown.')
                                         ->success()
                                         ->send();
                                 }),
@@ -245,8 +246,9 @@ class RppmResource extends Resource
                                         ->label('Pilih TP yang Diakumulasikan dalam Alur Ini')
                                         ->multiple()
                                         ->options(function () {
-                                            return \App\Models\TujuanPembelajaran::orderBy('kode_tp')->get()->mapWithKeys(function ($tp) {
-                                                return [$tp->id => "[{$tp->kode_tp}] {$tp->materi} - " . \Illuminate\Support\Str::limit($tp->deskripsi_tp, 50)];
+                                            return \App\Models\TujuanPembelajaran::get()->mapWithKeys(function ($tp) {
+                                                $prefix = $tp->materi ? "[{$tp->materi}] " : '';
+                                                return [$tp->id => "{$prefix}" . \Illuminate\Support\Str::limit($tp->deskripsi_tp, 60)];
                                             });
                                         })
                                         ->searchable()
@@ -334,8 +336,9 @@ class RppmResource extends Resource
                                 if ($cpId && is_numeric($cpId)) {
                                     $query->where('capaian_pembelajaran_id', $cpId);
                                 }
-                                return $query->orderBy('kode_tp')->get()->mapWithKeys(function ($tp) {
-                                    return [$tp->id => "[{$tp->kode_tp}] {$tp->materi} - " . \Illuminate\Support\Str::limit($tp->deskripsi_tp, 55)];
+                                return $query->get()->mapWithKeys(function ($tp) {
+                                    $prefix = $tp->materi ? "[{$tp->materi}] " : '';
+                                    return [$tp->id => "{$prefix}" . \Illuminate\Support\Str::limit($tp->deskripsi_tp, 65)];
                                 });
                             })
                             ->searchable()
@@ -344,7 +347,10 @@ class RppmResource extends Resource
                             ->afterStateUpdated(function ($state, Forms\Set $set) {
                                 if (!empty($state)) {
                                     $tps = \App\Models\TujuanPembelajaran::whereIn('id', $state)->get();
-                                    $tpItems = $tps->map(fn ($tp) => ['rumusan' => "[{$tp->kode_tp}] {$tp->deskripsi_tp}"])->toArray();
+                                    $tpItems = $tps->map(function ($tp) {
+                                        $prefix = $tp->materi ? "[{$tp->materi}] " : '';
+                                        return ['rumusan' => "{$prefix}{$tp->deskripsi_tp}"];
+                                    })->toArray();
                                     $set('content.tujuan_pembelajaran', $tpItems);
                                     $set('content.selected_tp_dropdown', $state);
                                 }
@@ -447,8 +453,9 @@ class RppmResource extends Resource
                                         if ($cpId && is_numeric($cpId)) {
                                             $query->where('capaian_pembelajaran_id', $cpId);
                                         }
-                                        return $query->orderBy('kode_tp')->get()->mapWithKeys(function ($tp) {
-                                            return [$tp->id => "[{$tp->kode_tp}] {$tp->materi} - " . \Illuminate\Support\Str::limit($tp->deskripsi_tp, 55)];
+                                        return $query->get()->mapWithKeys(function ($tp) {
+                                            $prefix = $tp->materi ? "[{$tp->materi}] " : '';
+                                            return [$tp->id => "{$prefix}" . \Illuminate\Support\Str::limit($tp->deskripsi_tp, 65)];
                                         });
                                     })
                                     ->searchable()
@@ -457,7 +464,10 @@ class RppmResource extends Resource
                                     ->afterStateUpdated(function ($state, Forms\Set $set) {
                                         if (!empty($state)) {
                                             $tps = \App\Models\TujuanPembelajaran::whereIn('id', $state)->get();
-                                            $tpItems = $tps->map(fn ($tp) => ['rumusan' => "[{$tp->kode_tp}] {$tp->deskripsi_tp}"])->toArray();
+                                            $tpItems = $tps->map(function ($tp) {
+                                                $prefix = $tp->materi ? "[{$tp->materi}] " : '';
+                                                return ['rumusan' => "{$prefix}{$tp->deskripsi_tp}"];
+                                            })->toArray();
                                             $set('selected_tp_ids', $state);
                                             $set('content.tujuan_pembelajaran', $tpItems);
                                         }

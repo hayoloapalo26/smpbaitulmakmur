@@ -14,6 +14,17 @@ class TujuanPembelajaran extends Model
 
     protected $guarded = ['id'];
 
+    protected static function booted()
+    {
+        static::creating(function ($tp) {
+            if (empty($tp->kode_tp)) {
+                $count = static::where('capaian_pembelajaran_id', $tp->capaian_pembelajaran_id)->count() + 1;
+                $tingkat = $tp->kelas_tingkat ?? '7';
+                $tp->kode_tp = "TP.{$tingkat}.{$count}";
+            }
+        });
+    }
+
     public function capaianPembelajaran()
     {
         return $this->belongsTo(CapaianPembelajaran::class, 'capaian_pembelajaran_id');

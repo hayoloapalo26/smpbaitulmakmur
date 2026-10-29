@@ -257,8 +257,9 @@ class GradeResource extends Resource
                                         $query->where('kelas_tingkat', $tingkat);
                                     }
                                 }
-                                return $query->orderBy('kode_tp')->get()->mapWithKeys(function ($tp) {
-                                    return [$tp->id => "[{$tp->kode_tp}] {$tp->materi} - " . \Illuminate\Support\Str::limit($tp->deskripsi_tp, 55)];
+                                return $query->get()->mapWithKeys(function ($tp) {
+                                    $prefix = $tp->materi ? "[{$tp->materi}] " : '';
+                                    return [$tp->id => "{$prefix}" . \Illuminate\Support\Str::limit($tp->deskripsi_tp, 65)];
                                 });
                             })
                             ->searchable()
@@ -479,8 +480,9 @@ class GradeResource extends Resource
                                 } elseif ($record->subject_id) {
                                     $query->where('subject_id', $record->subject_id);
                                 }
-                                return $query->orderBy('kode_tp')->get()->mapWithKeys(function ($tp) {
-                                    return [$tp->id => "[{$tp->kode_tp}] {$tp->materi} - " . \Illuminate\Support\Str::limit($tp->deskripsi_tp, 50)];
+                                return $query->get()->mapWithKeys(function ($tp) {
+                                    $prefix = $tp->materi ? "[{$tp->materi}] " : '';
+                                    return [$tp->id => "{$prefix}" . \Illuminate\Support\Str::limit($tp->deskripsi_tp, 65)];
                                 });
                             })
                             ->searchable()

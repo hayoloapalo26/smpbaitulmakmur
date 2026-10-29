@@ -497,4 +497,39 @@ class PerangkatAjarAndGradeSystemTest extends TestCase
         $this->assertArrayNotHasKey('new_cp_deskripsi', $mutated);
         $this->assertArrayNotHasKey('new_tps', $mutated);
     }
+
+    public function test_tujuan_pembelajaran_auto_generates_kode_without_manual_input(): void
+    {
+        $cp = CapaianPembelajaran::create([
+            'institution_id' => $this->institution->id,
+            'guru_id' => $this->teacher->id,
+            'subject_id' => $this->subject->id,
+            'fase' => 'Fase D (SMP)',
+            'tingkat' => '7',
+            'tahun_ajaran' => '2026/2027',
+            'semester' => '1',
+            'elemen' => 'Bilangan',
+            'deskripsi_cp' => 'Capaian Bilangan',
+            'masa_berlaku' => '1 Tahun',
+        ]);
+
+        // Create TP without specifying kode_tp
+        $tp = TujuanPembelajaran::create([
+            'institution_id' => $this->institution->id,
+            'guru_id' => $this->teacher->id,
+            'capaian_pembelajaran_id' => $cp->id,
+            'subject_id' => $this->subject->id,
+            'deskripsi_tp' => 'Memahami bilangan desimal dan persen.',
+            'materi' => 'Bilangan Desimal',
+            'kelas_tingkat' => '7',
+            'semester' => 'Ganjil',
+        ]);
+
+        $this->assertNotEmpty($tp->kode_tp);
+        $this->assertStringStartsWith('TP.7.', $tp->kode_tp);
+        $this->assertDatabaseHas('tujuan_pembelajarans', [
+            'id' => $tp->id,
+            'deskripsi_tp' => 'Memahami bilangan desimal dan persen.',
+        ]);
+    }
 }
