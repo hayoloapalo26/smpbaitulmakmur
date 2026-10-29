@@ -375,15 +375,19 @@ class StudentQuranPlacementAndTeacherDropdownTest extends TestCase
         $this->assertArrayHasKey($this->santri2->id, $options);
         $this->assertStringContainsString('Kelas Al-Qur\'an: Tahsin', $options[$this->santri2->id]);
 
-        // Test when ONLY classroom_id is selected as "Tahsin" (without explicit filter_kelas_quran)
-        $livewire->setActionData([
-            'filter_kelas_quran' => null,
-            'classroom_id' => $classroomTahsin->id,
-        ]);
-        $form2 = $livewire->instance()->getMountedActionForm();
-        $studentComp2 = collect($form2->getFlatComponents())->first(fn ($c) => method_exists($c, 'getName') && $c->getName() === 'student_id');
-        $options2 = $studentComp2?->getOptions() ?? [];
+        // Test as guruTahsin: classroom_id must be hidden, and student_id must contain santri2 directly
+        $this->actingAs($this->guruTahsin);
+        $livewireTahsin = Livewire::test(GradeResource\Pages\ManageGrades::class);
+        $livewireTahsin->mountAction('create');
+        $formTahsin = $livewireTahsin->instance()->getMountedActionForm();
 
-        $this->assertArrayHasKey($this->santri2->id, $options2);
+        $classroomComp = collect($formTahsin->getFlatComponents())->first(fn ($c) => method_exists($c, 'getName') && $c->getName() === 'classroom_id');
+        $this->assertTrue($classroomComp?->isHidden() ?? true);
+
+        $studentCompTahsin = collect($formTahsin->getFlatComponents())->first(fn ($c) => method_exists($c, 'getName') && $c->getName() === 'student_id');
+        $optionsTahsin = $studentCompTahsin?->getOptions() ?? [];
+
+        $this->assertArrayHasKey($this->santri2->id, $optionsTahsin);
+        $this->assertStringContainsString('Kelas Al-Qur\'an: Tahsin', $optionsTahsin[$this->santri2->id]);
     }
 }
