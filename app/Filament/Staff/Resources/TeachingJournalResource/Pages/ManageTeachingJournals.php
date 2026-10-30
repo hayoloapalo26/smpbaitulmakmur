@@ -45,6 +45,12 @@ class ManageTeachingJournals extends ManageRecords
         }
 
         return [
+            Actions\Action::make('cetak_rekap_pdf')
+                ->label('🖨️ Cetak Rekap Jurnal (PDF)')
+                ->color('success')
+                ->icon('heroicon-o-printer')
+                ->url(fn (): string => route('academic.journal.rekap.pdf'))
+                ->openUrlInNewTab(),
             Actions\CreateAction::make()
                 ->label('Input Jurnal Mengajar Baru')
                 ->icon('heroicon-m-plus')

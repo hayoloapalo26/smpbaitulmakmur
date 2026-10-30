@@ -234,6 +234,12 @@ class TujuanPembelajaranResource extends Resource
                     ]),
             ])
             ->actions([
+                Tables\Actions\Action::make('cetak_rekap_pdf')
+                    ->label('Cetak PDF')
+                    ->icon('heroicon-o-printer')
+                    ->color('danger')
+                    ->url(fn (): string => route('academic.tp.rekap.pdf'))
+                    ->openUrlInNewTab(),
                 Tables\Actions\ViewAction::make(),
                 Tables\Actions\EditAction::make(),
                 Tables\Actions\DeleteAction::make(),

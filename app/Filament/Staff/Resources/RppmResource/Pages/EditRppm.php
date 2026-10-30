@@ -25,6 +25,12 @@ class EditRppm extends EditRecord
     protected function getHeaderActions(): array
     {
         return [
+            Actions\Action::make('cetak_pdf')
+                ->label('🖨️ Cetak PDF Modul Ajar')
+                ->color('danger')
+                ->icon('heroicon-o-printer')
+                ->url(fn (): string => route('academic.rppm.pdf', $this->record))
+                ->openUrlInNewTab(),
             Actions\Action::make('saveDraftHeader')
                 ->label('💾 Simpan Sementara (Draft)')
                 ->color('warning')

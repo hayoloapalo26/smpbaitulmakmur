@@ -503,6 +503,13 @@ class StudentCaseResource extends Resource
                     ]),
             ])
             ->actions([
+                Tables\Actions\Action::make('cetak_pdf')
+                    ->label('Cetak PDF')
+                    ->icon('heroicon-o-printer')
+                    ->color('danger')
+                    ->url(fn (StudentCase $record): string => route('academic.student-case.pdf', $record))
+                    ->openUrlInNewTab(),
+
                 // ── View detail ──────────────────────────────────────
                 Tables\Actions\ViewAction::make()
                     ->label('Detail'),

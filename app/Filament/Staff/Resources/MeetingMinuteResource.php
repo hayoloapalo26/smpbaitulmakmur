@@ -100,6 +100,12 @@ public static function canAccess(): bool
                     ->url(fn ($state) => filled($state) ? (str_starts_with($state, 'http') ? $state : asset('storage/' . $state)) : null, shouldOpenInNewTab: true),
             ])
             ->actions([
+                Tables\Actions\Action::make('cetak_pdf')
+                    ->label('Cetak PDF')
+                    ->icon('heroicon-o-printer')
+                    ->color('danger')
+                    ->url(fn (MeetingMinute $record): string => route('academic.meeting-minute.pdf', $record))
+                    ->openUrlInNewTab(),
                 Tables\Actions\ViewAction::make(),
                 Tables\Actions\EditAction::make(),
                 Tables\Actions\Action::make('acc_ks')

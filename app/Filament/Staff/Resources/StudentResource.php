@@ -802,6 +802,12 @@ class StudentResource extends Resource
                     ->label('Lihat Detail')
                     ->modalHeading(fn (Student $record) => "Detail & Ringkasan Data Siswa: {$record->name}")
                     ->modalWidth('4xl'),
+                Tables\Actions\Action::make('cetak_biodata_pdf')
+                    ->label('Cetak Biodata (PDF)')
+                    ->icon('heroicon-o-printer')
+                    ->color('danger')
+                    ->url(fn (Student $record) => route('academic.student.pdf', $record))
+                    ->openUrlInNewTab(),
                 Tables\Actions\EditAction::make(),
                 Tables\Actions\Action::make('download_pdf')
                     ->label('Rapor Karakter')

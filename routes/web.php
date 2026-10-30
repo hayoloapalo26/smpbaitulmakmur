@@ -102,6 +102,46 @@ Route::get('/ukg/report-card/{ukg}/print', [\App\Http\Controllers\UkgReportCardC
     ->name('ukg.report-card.print')
     ->middleware('auth');
 
+// =========================================================
+// FITUR CETAK DOKUMEN & INPUTAN RESMI (PDF ENGINE)
+// =========================================================
+Route::middleware('auth')->prefix('print')->name('academic.')->group(function () {
+    // 1. RPPM & Perangkat Pembelajaran (Modul Ajar)
+    Route::get('/rppm/{rppm}', [\App\Http\Controllers\AcademicPrintController::class, 'rppmPdf'])->name('rppm.pdf');
+
+    // 2. Jurnal Mengajar
+    Route::get('/journal/{journal}', [\App\Http\Controllers\AcademicPrintController::class, 'journalPdf'])->name('journal.pdf');
+    Route::get('/journal-rekap', [\App\Http\Controllers\AcademicPrintController::class, 'journalRekapPdf'])->name('journal.rekap.pdf');
+
+    // 3. Alur Tujuan Pembelajaran (ATP)
+    Route::get('/atp/{atp}', [\App\Http\Controllers\AcademicPrintController::class, 'atpPdf'])->name('atp.pdf');
+
+    // 4. Capaian Pembelajaran (CP)
+    Route::get('/cp/{cp}', [\App\Http\Controllers\AcademicPrintController::class, 'cpPdf'])->name('cp.pdf');
+    Route::get('/cp-rekap', [\App\Http\Controllers\AcademicPrintController::class, 'cpRekapPdf'])->name('cp.rekap.pdf');
+
+    // 5. Tujuan Pembelajaran (TP)
+    Route::get('/tp-rekap', [\App\Http\Controllers\AcademicPrintController::class, 'tpRekapPdf'])->name('tp.rekap.pdf');
+
+    // 6. Biodata Lengkap Siswa (Buku Induk)
+    Route::get('/student/{student}', [\App\Http\Controllers\AcademicPrintController::class, 'studentPdf'])->name('student.pdf');
+
+    // 7. Pengajuan Cuti / Izin Guru
+    Route::get('/leave-request/{leaveRequest}', [\App\Http\Controllers\AcademicPrintController::class, 'leaveRequestPdf'])->name('leave-request.pdf');
+
+    // 8. Notulen Rapat
+    Route::get('/meeting-minute/{meetingMinute}', [\App\Http\Controllers\AcademicPrintController::class, 'meetingMinutePdf'])->name('meeting-minute.pdf');
+
+    // 9. Lembar Kasus & Catatan Pembinaan Siswa
+    Route::get('/student-case/{studentCase}', [\App\Http\Controllers\AcademicPrintController::class, 'studentCasePdf'])->name('student-case.pdf');
+
+    // 10. Piagam / Bukti Prestasi Siswa
+    Route::get('/student-achievement/{studentAchievement}', [\App\Http\Controllers\AcademicPrintController::class, 'studentAchievementPdf'])->name('student-achievement.pdf');
+
+    // 11. Sertifikat & Portofolio Guru
+    Route::get('/certificate/{certificate}', [\App\Http\Controllers\AcademicPrintController::class, 'certificatePdf'])->name('certificate.pdf');
+});
+
 
 
 // =========================================================

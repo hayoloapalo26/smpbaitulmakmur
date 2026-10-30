@@ -783,6 +783,12 @@ class TeachingJournalResource extends Resource
             ])
             ->defaultSort('tanggal', 'desc')
             ->actions([
+                Tables\Actions\Action::make('cetak_pdf')
+                    ->label('Cetak PDF')
+                    ->icon('heroicon-o-printer')
+                    ->color('danger')
+                    ->url(fn (TeachingJournal $record): string => route('academic.journal.pdf', $record))
+                    ->openUrlInNewTab(),
                 Tables\Actions\EditAction::make()
                     ->modalWidth('5xl')
                     ->before(function (Tables\Actions\EditAction $action, TeachingJournal $record, array $data) {

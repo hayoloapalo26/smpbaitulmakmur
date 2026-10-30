@@ -674,6 +674,12 @@ class RppmResource extends Resource
                     ]),
             ])
             ->actions([
+                Tables\Actions\Action::make('cetak_pdf')
+                    ->label('Cetak PDF')
+                    ->icon('heroicon-o-printer')
+                    ->color('danger')
+                    ->url(fn (Rppm $record): string => route('academic.rppm.pdf', $record))
+                    ->openUrlInNewTab(),
                 Tables\Actions\Action::make('continue')
                     ->label('Lanjutkan Pengisian')
                     ->icon('heroicon-o-pencil-square')

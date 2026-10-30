@@ -294,6 +294,13 @@ class TeacherCertificateResource extends Resource
                     ->visible(fn () => Auth::user()?->hasAnyRole(['kepala_sekolah', 'waka_kurikulum', 'superadmin', 'tata_usaha'])),
             ])
             ->actions([
+                Tables\Actions\Action::make('cetak_pdf')
+                    ->label('Cetak PDF')
+                    ->icon('heroicon-o-printer')
+                    ->color('danger')
+                    ->url(fn (TeacherCertificate $record): string => route('academic.certificate.pdf', $record))
+                    ->openUrlInNewTab(),
+
                 Tables\Actions\Action::make('buka_drive')
                     ->label('Buka Drive')
                     ->icon('heroicon-m-arrow-top-right-on-square')

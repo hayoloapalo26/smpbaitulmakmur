@@ -405,6 +405,12 @@ class TeacherLeaveRequestResource extends Resource
             ])
             ->defaultSort('created_at', 'desc')
             ->actions([
+                Tables\Actions\Action::make('cetak_pdf')
+                    ->label('Cetak Surat (PDF)')
+                    ->icon('heroicon-o-printer')
+                    ->color('danger')
+                    ->url(fn (TeacherLeaveRequest $record): string => route('academic.leave-request.pdf', $record))
+                    ->openUrlInNewTab(),
                 Tables\Actions\ViewAction::make()
                     ->label('Lihat Detail')
                     ->icon('heroicon-o-eye')

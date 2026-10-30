@@ -340,6 +340,12 @@ class AlurTujuanPembelajaranResource extends Resource
                     ]),
             ])
             ->actions([
+                Tables\Actions\Action::make('cetak_pdf')
+                    ->label('Cetak PDF ATP')
+                    ->icon('heroicon-o-printer')
+                    ->color('danger')
+                    ->url(fn (AlurTujuanPembelajaran $record): string => route('academic.atp.pdf', $record))
+                    ->openUrlInNewTab(),
                 Tables\Actions\ViewAction::make(),
                 Tables\Actions\EditAction::make(),
                 Tables\Actions\DeleteAction::make(),
