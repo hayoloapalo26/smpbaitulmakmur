@@ -281,4 +281,37 @@ class QuranTeacherSpecialistAssessmentTest extends TestCase
             'status_verifikasi' => 'Menunggu Verifikasi',
         ]);
     }
+
+    /**
+     * Test 5: Guru Al-Qur'an tidak perlu memilih dropdown kelas (program otomatis terisi dari spesialisasi akun)
+     */
+    public function test_quran_teacher_auto_resolves_class_without_selecting_dropdown(): void
+    {
+        $this->actingAs($this->guruYanbua);
+
+        // Tanpa field 'program' dalam payload (karena dropdown kelas dihilangkan untuk guru Al-Qur'an)
+        $payload = [
+            'tanggal' => '2026-10-30',
+            'jilid_halaman' => 'Yanbu\'a Jilid 2 Hal 15',
+            'student_scores' => [
+                $this->santri3->id => [
+                    'score' => '88',
+                    'catatan' => 'Lancar membaca huruf hijaiyah berharakat.',
+                ],
+            ],
+        ];
+
+        Livewire::test(ManageReadingQualityScores::class)
+            ->callAction('input_skor_rombel', $payload)
+            ->assertHasNoActionErrors();
+
+        // Otomatis tersimpan dengan program 'yanbua' sesuai peran guru Yanbu'a
+        $this->assertDatabaseHas('reading_quality_scores', [
+            'student_id' => $this->santri3->id,
+            'teacher_id' => $this->guruYanbua->id,
+            'program' => 'yanbua',
+            'scale_score' => 88,
+            'jilid_halaman' => 'Yanbu\'a Jilid 2 Hal 15',
+        ]);
+    }
 }

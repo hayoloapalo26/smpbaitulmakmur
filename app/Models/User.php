@@ -61,6 +61,15 @@ class User extends Authenticatable implements FilamentUser, HasAvatar
         return null;
     }
 
+    public function getQuranSpecializationKey(): ?string
+    {
+        if ($this->hasRole(self::ROLE_GURU_QURAN_YANBUA)) return 'yanbua';
+        if ($this->hasRole(self::ROLE_GURU_QURAN_TAHSIN)) return 'tahsin';
+        if ($this->hasRole(self::ROLE_GURU_QURAN_TAHFIDZ_DASAR)) return 'tahfidz_dasar';
+        if ($this->hasRole(self::ROLE_GURU_QURAN_TAHFIDZ_LANJUTAN)) return 'tahfidz_lanjutan';
+        return null;
+    }
+
     public function institution()
     {
         return $this->belongsTo(Institution::class, 'institution_id');

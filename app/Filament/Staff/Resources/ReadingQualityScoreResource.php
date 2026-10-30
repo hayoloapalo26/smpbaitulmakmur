@@ -67,6 +67,24 @@ class ReadingQualityScoreResource extends Resource
                 Forms\Components\Hidden::make('teacher_id')
                     ->default(fn () => Auth::id()),
 
+                Forms\Components\Placeholder::make('info_kelas_otomatis')
+                    ->label('Kelompok / Kelas Al-Qur\'an Binaan')
+                    ->content(function () {
+                        $user = Auth::user();
+                        $label = $user?->getQuranSpecializationLabel() ?? 'Al-Qur\'an';
+                        $teacherName = $user?->name ?? 'Guru Pengampu';
+                        return new \Illuminate\Support\HtmlString("
+                            <div class='flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-800 text-amber-900 dark:text-amber-200 font-bold text-xs'>
+                                <span class='text-base'>📖</span>
+                                <div>
+                                    <div>Kelas {$label} • Dibina oleh: {$teacherName}</div>
+                                    <div class='text-[10px] text-amber-600 dark:text-amber-400 font-normal'>Daftar santri otomatis tersaring dari penempatan Waka Kurikulum (tanpa perlu memilih kelas).</div>
+                                </div>
+                            </div>
+                        ");
+                    })
+                    ->visible(fn () => Auth::user()?->isQuranTeacher() ?? false),
+
                 Forms\Components\Select::make('program')
                     ->label('1. Kelompok / Kelas Al-Qur\'an')
                     ->options([
@@ -78,14 +96,15 @@ class ReadingQualityScoreResource extends Resource
                     ])
                     ->default(function () {
                         $user = Auth::user();
-                        if ($user?->hasRole(User::ROLE_GURU_QURAN_TAHSIN)) return 'tahsin';
-                        if ($user?->hasRole(User::ROLE_GURU_QURAN_YANBUA)) return 'yanbua';
-                        if ($user?->hasRole(User::ROLE_GURU_QURAN_TAHFIDZ_DASAR)) return 'tahfidz_dasar';
-                        if ($user?->hasRole(User::ROLE_GURU_QURAN_TAHFIDZ_LANJUTAN)) return 'tahfidz_lanjutan';
+                        if ($user?->isQuranTeacher()) {
+                            return $user->getQuranSpecializationKey() ?? 'tahsin';
+                        }
                         return 'tahsin';
                     })
                     ->required()
                     ->live()
+                    ->dehydrated(true)
+                    ->hidden(fn () => Auth::user()?->isQuranTeacher() ?? false)
                     ->afterStateUpdated(fn (Forms\Set $set) => $set('student_id', null))
                     ->helperText('Pilih kelas Al-Qur\'an untuk memfilter siswa sesuai penempatan Waka Kurikulum.'),
 
@@ -100,21 +119,20 @@ class ReadingQualityScoreResource extends Resource
                         $classroomId = $get('classroom_id');
                         $selectedProgram = $get('program');
 
-                        if ($user->isQuranTeacher() && empty($selectedProgram)) {
-                            $selectedProgram = match (true) {
-                                $user->hasRole(User::ROLE_GURU_QURAN_TAHSIN) => 'tahsin',
-                                $user->hasRole(User::ROLE_GURU_QURAN_YANBUA) => 'yanbua',
-                                $user->hasRole(User::ROLE_GURU_QURAN_TAHFIDZ_DASAR) => 'tahfidz_dasar',
-                                $user->hasRole(User::ROLE_GURU_QURAN_TAHFIDZ_LANJUTAN) => 'tahfidz_lanjutan',
-                                default => null,
-                            };
+                        if ($user->isQuranTeacher()) {
+                            $selectedProgram = $user->getQuranSpecializationKey();
                         }
 
                         $query = Student::query()->with(['classroom', 'guruQuran']);
 
-                        // 1. UTAMA: Jika Program / Kelas Al-Qur'an dipilih (Tahsin / Yanbu'a / Tahfidz):
-                        // Ambil SELURUH siswa yang sudah ditempatkan oleh Waka Kurikulum di kelas ini (tanpa terikat Kelas 7!)
-                        if ($selectedProgram && in_array($selectedProgram, ['tahsin', 'yanbua', 'tahfidz_dasar', 'tahfidz_lanjutan'])) {
+                        if ($user->isQuranTeacher() && !$user->hasRole('superadmin')) {
+                            $query->where(function ($q) use ($user, $selectedProgram) {
+                                $q->where('guru_quran_id', $user->id);
+                                if ($selectedProgram) {
+                                    $q->orWhere('kelas_quran', $selectedProgram);
+                                }
+                            });
+                        } elseif ($selectedProgram && in_array($selectedProgram, ['tahsin', 'yanbua', 'tahfidz_dasar', 'tahfidz_lanjutan'])) {
                             $query->where('kelas_quran', $selectedProgram);
                         } elseif (!empty($classroomId)) {
                             $query->where('classroom_id', $classroomId);
@@ -126,9 +144,6 @@ class ReadingQualityScoreResource extends Resource
                         if ($students->isEmpty()) {
                             if ($user->isQuranTeacher()) {
                                 $students = Student::where('guru_quran_id', $user->id)->with(['classroom', 'guruQuran'])->orderBy('name')->get();
-                                if ($students->isEmpty()) {
-                                    $students = Student::with(['classroom', 'guruQuran'])->orderBy('name')->get();
-                                }
                             } else {
                                 $students = Student::with(['classroom', 'guruQuran'])->orderBy('name')->get();
                             }
@@ -146,12 +161,24 @@ class ReadingQualityScoreResource extends Resource
                         })->toArray();
                     })
                     ->getSearchResultsUsing(function (string $search) {
-                        return Student::query()->with(['classroom', 'guruQuran'])
+                        $user = Auth::user();
+                        $query = Student::query()->with(['classroom', 'guruQuran'])
                             ->where(function ($sq) use ($search) {
                                 $sq->where('name', 'like', "%{$search}%")
                                    ->orWhere('nis', 'like', "%{$search}%");
-                            })
-                            ->orderBy('name')
+                            });
+
+                        if ($user?->isQuranTeacher() && !$user->hasRole('superadmin')) {
+                            $spec = $user->getQuranSpecializationKey();
+                            $query->where(function ($q) use ($user, $spec) {
+                                $q->where('guru_quran_id', $user->id);
+                                if ($spec) {
+                                    $q->orWhere('kelas_quran', $spec);
+                                }
+                            });
+                        }
+
+                        return $query->orderBy('name')
                             ->limit(50)
                             ->get()
                             ->mapWithKeys(function ($s) {

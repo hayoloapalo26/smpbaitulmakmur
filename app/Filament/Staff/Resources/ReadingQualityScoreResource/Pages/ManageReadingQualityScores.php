@@ -34,18 +34,43 @@ class ManageReadingQualityScores extends ManageRecords
         return [
             Actions\Action::make('input_skor_rombel')
                 ->label('⚡ Input Skor Rombel Al-Qur\'an (Format Jurnal Mengajar)')
-                ->modalHeading('⭐ Input Skor Kualitas Bacaan Sekelompok Santri (Format Jurnal Mengajar)')
-                ->modalSubheading('Tentukan Kelompok Al-Qur\'an, Tanggal, dan Materi Jilid/Halaman satu kali di atas. Input skor kualitas bacaan (0-100) dan catatan evaluasi per santri di lembar bawah.')
+                ->modalHeading('⭐ Input Skor Kualitas Bacaan Santri Binaan (Format Jurnal Mengajar)')
+                ->modalSubheading('Data kelas dan santri binaan otomatis ditentukan sesuai pembagian Waka Kurikulum (tanpa perlu memilih kelas). Masukkan skor (0-100) dan catatan evaluasi per santri.')
                 ->color('primary')
                 ->icon('heroicon-o-user-group')
                 ->modalWidth('7xl')
                 ->modalSubmitActionLabel('💾 Simpan Skor Seluruh Santri')
                 ->form([
-                    Forms\Components\Section::make('📖 1. Parameter Kelompok Al-Qur\'an (Satu untuk Seluruh Santri)')
-                        ->description('Pilihan di bawah berlaku untuk seluruh santri yang dinilai dalam sesi ini.')
+                    Forms\Components\Section::make('📖 1. Parameter Penilaian Al-Qur\'an (Otomatis dari Waka Kurikulum)')
+                        ->description('Data santri binaan termuat otomatis sesuai penempatan kelas oleh Waka Kurikulum.')
                         ->schema([
-                            Forms\Components\Select::make('program')
+                            // 1. Informasi Otomatis untuk Guru Al-Qur'an (Tanpa Dropdown!)
+                            Forms\Components\Placeholder::make('info_kelas_otomatis')
                                 ->label('Kelompok / Kelas Al-Qur\'an')
+                                ->content(function () {
+                                    $user = Auth::user();
+                                    $label = $user?->getQuranSpecializationLabel() ?? 'Al-Qur\'an';
+                                    $teacherName = $user?->name ?? 'Guru Pengampu';
+                                    return new \Illuminate\Support\HtmlString("
+                                        <div class='flex items-center gap-2.5 px-3.5 py-2 rounded-xl bg-amber-50 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-800 text-amber-900 dark:text-amber-200 font-bold text-xs'>
+                                            <span class='text-base'>📖</span>
+                                            <div>
+                                                <div>Kelas {$label} • Dibina oleh: {$teacherName}</div>
+                                                <div class='text-[10px] text-amber-600 dark:text-amber-400 font-normal'>Daftar santri di bawah otomatis dimuat dari penempatan Waka Kurikulum</div>
+                                            </div>
+                                        </div>
+                                    ");
+                                })
+                                ->visible(fn () => (Auth::user()?->isQuranTeacher() && !Auth::user()?->hasAnyRole(['waka_kurikulum', 'superadmin'])) ?? true)
+                                ->columnSpan(fn () => 2),
+
+                            // Hidden input untuk menyimpan value program otomatis
+                            Forms\Components\Hidden::make('program_otomatis')
+                                ->default(fn () => Auth::user()?->getQuranSpecializationKey() ?? 'tahsin'),
+
+                            // Dropdown HANYA untuk Waka Kurikulum / Superadmin jika ingin memilih kelas lain
+                            Forms\Components\Select::make('program')
+                                ->label('Pilih Kelompok / Kelas Al-Qur\'an')
                                 ->options([
                                     'yanbua'           => '📖 Kelas Yanbu\'a (Metode Baca Tulis Al-Qur\'an)',
                                     'tahsin'           => '📖 Kelas Tahsin (Kualitas & Kaidah Tajwid)',
@@ -53,18 +78,11 @@ class ManageReadingQualityScores extends ManageRecords
                                     'tahfidz_lanjutan' => '📖 Kelas Tahfidz Lanjutan (Juz 1-29)',
                                     'tahfidz'          => '📖 Kelas Tahfidz Al-Qur\'an (Umum)',
                                 ])
-                                ->default(function () {
-                                    $user = Auth::user();
-                                    if (!$user) return 'tahsin';
-                                    if ($user->hasRole(User::ROLE_GURU_QURAN_TAHSIN)) return 'tahsin';
-                                    if ($user->hasRole(User::ROLE_GURU_QURAN_YANBUA)) return 'yanbua';
-                                    if ($user->hasRole(User::ROLE_GURU_QURAN_TAHFIDZ_DASAR)) return 'tahfidz_dasar';
-                                    if ($user->hasRole(User::ROLE_GURU_QURAN_TAHFIDZ_LANJUTAN)) return 'tahfidz_lanjutan';
-                                    return 'tahsin';
-                                })
+                                ->default(fn () => Auth::user()?->getQuranSpecializationKey() ?? 'tahsin')
                                 ->required()
                                 ->live()
-                                ->helperText('Pilih kelompok Al-Qur\'an untuk memuat santri binaan sesuai pembagian Waka Kurikulum.'),
+                                ->visible(fn () => Auth::user()?->hasAnyRole(['waka_kurikulum', 'superadmin']) ?? false)
+                                ->columnSpan(fn () => 2),
 
                             Forms\Components\DatePicker::make('tanggal')
                                 ->label('Tanggal Penilaian')
@@ -78,38 +96,36 @@ class ManageReadingQualityScores extends ManageRecords
                                 ->columnSpan(fn () => 2),
                         ])->columns(4),
 
-                    Forms\Components\Section::make('👥 2. Lembar Nilai Kualitas Bacaan Santri (Per Santri Sendiri-Sendiri)')
-                        ->description('Format interaktif seperti Jurnal Mengajar. Masukkan skor kualitas (0-100) dan catatan evaluasi per santri.')
+                    Forms\Components\Section::make('👥 2. Lembar Nilai Kualitas Bacaan Santri (Otomatis Termuat Seluruh Santri Binaan)')
+                        ->description('Format interaktif seperti Jurnal Mengajar. Seluruh santri binaan sudah siap diinput skor kualitasnya (0-100) dan catatan evaluasi per santri.')
                         ->schema([
                             Forms\Components\ViewField::make('student_scores')
                                 ->view('filament.staff.forms.components.quran-reading-score-batch-selector')
                                 ->viewData(function (Forms\Get $get) {
                                     $user = Auth::user();
-                                    $program = $get('program');
-
-                                    if (empty($program) && $user?->isQuranTeacher()) {
-                                        $program = match (true) {
-                                            $user->hasRole(User::ROLE_GURU_QURAN_TAHSIN) => 'tahsin',
-                                            $user->hasRole(User::ROLE_GURU_QURAN_YANBUA) => 'yanbua',
-                                            $user->hasRole(User::ROLE_GURU_QURAN_TAHFIDZ_DASAR) => 'tahfidz_dasar',
-                                            $user->hasRole(User::ROLE_GURU_QURAN_TAHFIDZ_LANJUTAN) => 'tahfidz_lanjutan',
-                                            default => null,
-                                        };
+                                    
+                                    // Deteksi program otomatis dari akun guru
+                                    $program = null;
+                                    if ($user?->isQuranTeacher()) {
+                                        $program = $user->getQuranSpecializationKey();
+                                    }
+                                    if (empty($program)) {
+                                        $program = $get('program') ?? $get('program_otomatis') ?? 'tahsin';
                                     }
 
                                     $query = Student::query()->with(['classroom', 'guruQuran']);
-                                    if (!empty($program)) {
-                                        $query->where('kelas_quran', $program);
+
+                                    // Otomatisasi data santri binaan dari Waka Kurikulum
+                                    if ($user?->isQuranTeacher() && !$user?->hasRole('superadmin')) {
+                                        $query->where(function ($q) use ($user, $program) {
+                                            $q->where('guru_quran_id', $user->id)
+                                              ->orWhere('kelas_quran', $program);
+                                        });
                                     } else {
-                                        $query->whereRaw('1 = 0');
+                                        $query->where('kelas_quran', $program);
                                     }
 
                                     $students = $query->orderBy('name')->get();
-
-                                    // Fallback jika belum ada santri di kelas_quran: ambil santri asuhan guru ini
-                                    if ($students->isEmpty() && $user?->isQuranTeacher()) {
-                                        $students = Student::where('guru_quran_id', $user->id)->with(['classroom', 'guruQuran'])->orderBy('name')->get();
-                                    }
 
                                     return [
                                         'students' => $students,
@@ -121,7 +137,7 @@ class ManageReadingQualityScores extends ManageRecords
                         ]),
                 ])
                 ->action(function (array $data) {
-                    $program = $data['program'];
+                    $program = $data['program'] ?? $data['program_otomatis'] ?? Auth::user()?->getQuranSpecializationKey() ?? 'tahsin';
                     $tanggal = $data['tanggal'] ?? Carbon::now();
                     $jilidHalaman = $data['jilid_halaman'] ?? null;
                     $studentScores = $data['student_scores'] ?? [];
@@ -130,7 +146,7 @@ class ManageReadingQualityScores extends ManageRecords
                     if (empty($studentScores) || !is_array($studentScores)) {
                         Notification::make()
                             ->title('Gagal Menyimpan')
-                            ->body('Lembar skor belum terisi. Silakan pilih kelompok dan isi skor santri.')
+                            ->body('Lembar skor belum terisi. Silakan isi skor kualitas santri.')
                             ->warning()
                             ->send();
                         return;
@@ -180,7 +196,7 @@ class ManageReadingQualityScores extends ManageRecords
                     if ($savedCount > 0) {
                         Notification::make()
                             ->title('Skor Kualitas Bacaan Berhasil Disimpan!')
-                            ->body("Alhamdulillah, sebanyak {$savedCount} skor santri telah tersimpan dan siap diverifikasi oleh Koordinator Madin.")
+                            ->body("Alhamdulillah, sebanyak {$savedCount} skor santri binaan telah tersimpan otomatis dan siap diverifikasi oleh Koordinator Madin.")
                             ->success()
                             ->send();
                     } else {

@@ -3,23 +3,14 @@
 @endphp
 
 <x-dynamic-component :component="$getFieldWrapperView()" :field="$field">
-    @if(empty($program))
-        <div class="rounded-2xl border-2 border-dashed border-gray-300 dark:border-gray-700 p-8 text-center bg-gray-50/60 dark:bg-gray-800/40">
-            <div class="w-12 h-12 mx-auto mb-3 rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 flex items-center justify-center">
-                <x-heroicon-o-book-open class="w-7 h-7" />
-            </div>
-            <h4 class="text-sm font-bold text-gray-800 dark:text-gray-100">
-                Pilih Kelompok / Kelas Al-Qur'an Terlebih Dahulu di Atas
-            </h4>
-            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1 max-w-md mx-auto">
-                Setelah Kelompok Al-Qur'an dipilih (Tahfidz / Tahsin / Yanbu'a), seluruh santri binaan akan otomatis termuat. Anda dapat menginput setoran hafalan (Juz, Surat, Ayat, Predikat & Catatan) untuk seluruh santri sekaligus.
-            </p>
-        </div>
-    @elseif($students->isEmpty())
+    @if($students->isEmpty())
         <div class="rounded-2xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30 p-6 text-center">
             <x-heroicon-o-exclamation-triangle class="w-8 h-8 text-amber-500 mx-auto mb-2" />
-            <p class="text-xs font-semibold text-amber-800 dark:text-amber-300">
-                Belum ada data santri yang ditempatkan di kelompok Al-Qur'an ini oleh Waka Kurikulum.
+            <h5 class="text-xs font-bold text-amber-900 dark:text-amber-200">
+                Belum Ada Santri yang Ditempatkan di Kelompok Al-Qur'an Ini
+            </h5>
+            <p class="text-[11px] text-amber-700 dark:text-amber-400 mt-1 max-w-md mx-auto">
+                Daftar santri akan otomatis termuat begitu Waka Kurikulum menempatkan santri ke kelompok Al-Qur'an Anda. Silakan hubungi Waka Kurikulum jika santri belum muncul.
             </p>
         </div>
     @else
