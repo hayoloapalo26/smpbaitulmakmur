@@ -255,6 +255,57 @@ class StudentImporter extends Importer
         if (!empty($this->record->jumlah_saudara_kandung) && empty($this->record->jumlah_saudara)) {
             $this->record->jumlah_saudara = $this->record->jumlah_saudara_kandung;
         }
+
+        // Resolusi Kelas Otomatis jika kolom Kelas pada berkas kosong / tidak ada:
+        if (empty($this->record->classroom_id)) {
+            // 1. Dari opsi dropdown target kelas wizard jika dipilih oleh pengguna
+            if (!empty($this->options['target_classroom_id'])) {
+                $this->record->classroom_id = (int) $this->options['target_classroom_id'];
+            }
+
+            // 2. Dari nama berkas impor (contoh: "Kelas 8.xlsx", "Data_Kelas_8", "8.xlsx")
+            if (empty($this->record->classroom_id) && !empty($this->import?->file_name)) {
+                $fn = strtoupper($this->import->file_name);
+                $tingkat = match (true) {
+                    str_contains($fn, '8') || str_contains($fn, 'VIII') => '8',
+                    str_contains($fn, '7') || str_contains($fn, 'VII') => '7',
+                    str_contains($fn, '9') || str_contains($fn, 'IX') => '9',
+                    default => null,
+                };
+                if ($tingkat) {
+                    $cls = \App\Models\Classroom::withoutGlobalScopes()
+                        ->where('institution_id', 2)
+                        ->where('tingkat', $tingkat)
+                        ->first();
+                    if ($cls) {
+                        $this->record->classroom_id = $cls->id;
+                    }
+                }
+            }
+
+            // 3. Fallback cerdas berdasarkan rentang NIS resmi SMP
+            if (empty($this->record->classroom_id) && !empty($this->record->nis)) {
+                $nis = trim($this->record->nis);
+                $k8Nis = ['0285','0286','0287','0288','0289','0290','0291','0293','0294','0295','0296','0297','0298','0299','0300','0301','0302','0304','0305','0306','0307','0308','0309','0310','0311','0312','0313','0314','0315','0319'];
+                $k7Nis = ['0320','0321','0322','0323','0324','0325','0326','0327','0328','0329','0330','0331','0332','0333','0334','0335','0336','0337','0338','0339','0340','0341','0342','0343','0344','0345','0346','0347','0348','0349'];
+                $k9Nis = ['0262','0282','0264','0265','0266','0268','0269','0280','0281','0270','0271','0272','0274','0275','0276','0277','0316','0317','0318'];
+
+                $tingkat = null;
+                if (in_array($nis, $k8Nis)) $tingkat = '8';
+                elseif (in_array($nis, $k7Nis)) $tingkat = '7';
+                elseif (in_array($nis, $k9Nis)) $tingkat = '9';
+
+                if ($tingkat) {
+                    $cls = \App\Models\Classroom::withoutGlobalScopes()
+                        ->where('institution_id', 2)
+                        ->where('tingkat', $tingkat)
+                        ->first();
+                    if ($cls) {
+                        $this->record->classroom_id = $cls->id;
+                    }
+                }
+            }
+        }
     }
 
     public static function parseDateValue($raw): ?string

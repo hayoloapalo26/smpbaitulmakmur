@@ -43,7 +43,26 @@ class ManageStudents extends ManageRecords
                 ->label('Import Siswa (Excel / CSV)')
                 ->importer(StudentImporter::class)
                 ->icon('heroicon-o-arrow-down-tray')
-                ->color('success'),
+                ->color('success')
+                ->options([
+                    \Filament\Forms\Components\Select::make('target_classroom_id')
+                        ->label('Kelas Sasaran (Wajib dipilih jika berkas tidak memiliki kolom KELAS)')
+                        ->helperText('Contoh: Pilih "Kelas 8" jika Anda mengimpor berkas Kelas 8 yang tidak memiliki kolom kelas.')
+                        ->options(function () {
+                            $instId = auth()->user()?->institution_id;
+                            if (empty($instId) || $instId == 1) $instId = 2;
+                            return \App\Models\Classroom::withoutGlobalScopes()
+                                ->where(function ($q) use ($instId) {
+                                    $q->where('institution_id', $instId)
+                                      ->orWhere('institution_id', 1)
+                                      ->orWhereNull('institution_id');
+                                })
+                                ->orderBy('name')
+                                ->pluck('name', 'id');
+                        })
+                        ->searchable()
+                        ->nullable(),
+                ]),
 
             // 2. Unduh Format Template CSV Resmi 34 Kolom
             Actions\Action::make('unduh_template_csv')

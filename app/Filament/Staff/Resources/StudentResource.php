@@ -327,7 +327,12 @@ class StudentResource extends Resource
                     ->sortable()
                     ->searchable()
                     ->visible(fn () => auth()->user()->hasRole('superadmin')),
-                Tables\Columns\TextColumn::make('classroom.name')->label('Kelas'),
+                Tables\Columns\TextColumn::make('classroom.name')
+                    ->label('Kelas')
+                    ->placeholder('Belum Diatur')
+                    ->badge()
+                    ->color(fn ($state) => $state ? 'info' : 'warning')
+                    ->sortable(),
                 Tables\Columns\TextColumn::make('status_siswa')
                     ->label('Status')
                     ->state(function (Student $record): string {
@@ -876,6 +881,41 @@ class StudentResource extends Resource
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
                     Tables\Actions\DeleteBulkAction::make(),
+                    Tables\Actions\BulkAction::make('atur_kelas_massal')
+                        ->label('Atur / Pindahkan Kelas Siswa Terpilih')
+                        ->icon('heroicon-o-academic-cap')
+                        ->color('primary')
+                        ->form([
+                            Forms\Components\Select::make('classroom_id')
+                                ->label('Pilih Kelas Tujuan')
+                                ->options(function () {
+                                    $instId = auth()->user()?->institution_id;
+                                    if (empty($instId) || $instId == 1) $instId = 2;
+                                    return \App\Models\Classroom::withoutGlobalScopes()
+                                        ->where(function ($q) use ($instId) {
+                                            $q->where('institution_id', $instId)
+                                              ->orWhere('institution_id', 1)
+                                              ->orWhereNull('institution_id');
+                                        })
+                                        ->orderBy('name')
+                                        ->pluck('name', 'id');
+                                })
+                                ->required(),
+                        ])
+                        ->action(function (\Illuminate\Database\Eloquent\Collection $records, array $data) {
+                            $count = 0;
+                            $classId = (int) $data['classroom_id'];
+                            foreach ($records as $record) {
+                                $record->update(['classroom_id' => $classId]);
+                                $count++;
+                            }
+                            Notification::make()
+                                ->title("Berhasil Memperbarui Kelas")
+                                ->body("{$count} siswa terpilih berhasil dimasukkan ke kelas sasaran.")
+                                ->success()
+                                ->send();
+                        })
+                        ->deselectRecordsAfterCompletion(),
                     Tables\Actions\BulkAction::make('jadikan_alumni_massal')
                         ->label('Jadikan Alumni & Masukkan ke Tracer Study')
                         ->icon('heroicon-o-academic-cap')
