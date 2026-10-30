@@ -11,7 +11,7 @@
     $isYayasan = str_starts_with($path, 'yayasan');
     $isPiketDuty = $user->isPiketToday() || $user->hasAnyRole(['waka_kesiswaan', 'kepala_sekolah', 'superadmin', 'guru_piket']);
     $isPiketPage = str_contains($currentRoute, 'piket') || 
-                   str_contains($currentRoute, 'scanner-presensi') || 
+                   str_contains($currentRoute, 'daily-attendances') || 
                    str_contains($currentRoute, 'absensi-manual') || 
                    str_contains($currentRoute, 'attribute-violations') ||
                    str_contains($currentRoute, 'duty-schedule') ||
@@ -74,22 +74,22 @@
                 <span class="text-[10px] tracking-tight mt-0.5 truncate">Dasbor</span>
             </a>
 
-            {{-- 2. Presensi Manual --}}
-            <a href="{{ route('filament.staff.pages.absensi-manual') }}" 
-               class="flex flex-col items-center justify-center flex-1 py-1 px-1 transition-all group active:scale-90 {{ str_contains($currentRoute, 'absensi-manual') ? 'text-emerald-600 dark:text-emerald-400 font-bold' : 'text-gray-500 dark:text-gray-400' }}">
-                <div class="p-1 rounded-xl transition-all {{ str_contains($currentRoute, 'absensi-manual') ? 'bg-emerald-50 dark:bg-emerald-950/60' : '' }}">
-                    <x-filament::icon icon="heroicon-o-clipboard-document-check" class="w-5 h-5 {{ str_contains($currentRoute, 'absensi-manual') ? 'text-emerald-600' : '' }}" />
+            {{-- 2. Presensi Harian (Fingerprint & Rekap) --}}
+            <a href="{{ route('filament.staff.resources.daily-attendances.index') }}" 
+               class="flex flex-col items-center justify-center flex-1 py-1 px-1 transition-all group active:scale-90 {{ str_contains($currentRoute, 'daily-attendances') ? 'text-primary-600 dark:text-primary-400 font-bold' : 'text-gray-500 dark:text-gray-400' }}">
+                <div class="p-1 rounded-xl transition-all {{ str_contains($currentRoute, 'daily-attendances') ? 'bg-primary-50 dark:bg-primary-950/60' : '' }}">
+                    <x-filament::icon icon="heroicon-o-finger-print" class="w-5 h-5 {{ str_contains($currentRoute, 'daily-attendances') ? 'text-primary-600' : '' }}" />
                 </div>
-                <span class="text-[10px] tracking-tight mt-0.5 truncate">Manual</span>
+                <span class="text-[10px] tracking-tight mt-0.5 truncate">Presensi</span>
             </a>
 
-            {{-- 3. Center Elevated: Scan QR Siswa --}}
-            <a href="{{ route('filament.staff.pages.scanner-presensi') }}" 
+            {{-- 3. Center Elevated: Presensi Manual --}}
+            <a href="{{ route('filament.staff.pages.absensi-manual') }}" 
                class="flex flex-col items-center justify-center -mt-5 relative z-10 group active:scale-90 transition-transform">
-                <div class="w-13 h-13 rounded-full flex items-center justify-center shadow-lg transition-transform duration-150 {{ str_contains($currentRoute, 'scanner-presensi') ? 'bg-gradient-to-tr from-primary-600 to-amber-500 text-white ring-4 ring-primary-100 dark:ring-primary-950/80 shadow-primary-500/30' : 'bg-gradient-to-tr from-emerald-600 to-teal-500 text-white ring-4 ring-white dark:ring-gray-900 shadow-emerald-500/30' }}">
-                    <x-filament::icon icon="heroicon-o-qr-code" class="w-7 h-7" />
+                <div class="w-13 h-13 rounded-full flex items-center justify-center shadow-lg transition-transform duration-150 {{ str_contains($currentRoute, 'absensi-manual') ? 'bg-gradient-to-tr from-emerald-600 to-teal-500 text-white ring-4 ring-emerald-100 dark:ring-emerald-950/80 shadow-emerald-500/30' : 'bg-gradient-to-tr from-emerald-600 to-teal-500 text-white ring-4 ring-white dark:ring-gray-900 shadow-emerald-500/30' }}">
+                    <x-filament::icon icon="heroicon-o-clipboard-document-check" class="w-7 h-7" />
                 </div>
-                <span class="text-[10px] font-bold tracking-tight mt-1 text-gray-800 dark:text-gray-200 truncate">Scan QR</span>
+                <span class="text-[10px] font-bold tracking-tight mt-1 text-gray-800 dark:text-gray-200 truncate">Manual</span>
             </a>
 
             {{-- 4. Pelanggaran Atribut --}}

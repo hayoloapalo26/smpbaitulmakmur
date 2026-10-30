@@ -121,6 +121,15 @@ class DailyAttendanceResource extends Resource
                     ->default('hadir')
                     ->required(),
 
+                Forms\Components\Select::make('metode_absen')
+                    ->label('Metode Presensi')
+                    ->options([
+                        'manual' => '✍️ Input Manual',
+                        'fingerprint' => '👆 Sidik Jari (Fingerprint)',
+                    ])
+                    ->default('manual')
+                    ->required(),
+
                 Forms\Components\Toggle::make('is_late')
                     ->label('Terlambat Masuk Sekolah?'),
 
@@ -170,6 +179,21 @@ class DailyAttendanceResource extends Resource
                     })
                     ->sortable(),
 
+                Tables\Columns\TextColumn::make('metode_absen')
+                    ->label('Metode Presensi')
+                    ->badge()
+                    ->color(fn (?string $state): string => match ($state) {
+                        'fingerprint' => 'success',
+                        'manual' => 'info',
+                        default => 'gray',
+                    })
+                    ->formatStateUsing(fn (?string $state): string => match ($state) {
+                        'fingerprint' => '👆 Fingerprint',
+                        'manual' => '✍️ Manual',
+                        default => ucfirst(str_replace('_', ' ', $state ?? 'Manual')),
+                    })
+                    ->sortable(),
+
                 Tables\Columns\IconColumn::make('is_late')
                     ->label('Terlambat?')
                     ->boolean()
@@ -193,6 +217,13 @@ class DailyAttendanceResource extends Resource
                         'izin' => 'Izin',
                         'sakit' => 'Sakit',
                         'alpa' => 'Alpa',
+                    ]),
+
+                Tables\Filters\SelectFilter::make('metode_absen')
+                    ->label('Metode Presensi')
+                    ->options([
+                        'fingerprint' => '👆 Sidik Jari (Fingerprint)',
+                        'manual' => '✍️ Input Manual',
                     ]),
 
                 Tables\Filters\TernaryFilter::make('is_late')

@@ -252,7 +252,6 @@ class DutyScheduleSemesterGeneratorTest extends TestCase
 
         $this->assertTrue(\App\Filament\Staff\Pages\PiketDashboard::canAccess());
         $this->assertTrue(\App\Filament\Staff\Pages\AbsensiManual::canAccess());
-        $this->assertTrue(\App\Filament\Staff\Pages\ScannerPresensi::canAccess());
         $this->assertTrue(\App\Filament\Staff\Resources\DailyAttendanceResource::canAccess());
         $this->assertTrue(\App\Filament\Staff\Resources\AttributeViolationResource::canAccess());
         $this->assertTrue(\App\Filament\Staff\Resources\DutySwapRequestResource::canAccess());
@@ -271,9 +270,6 @@ class DutyScheduleSemesterGeneratorTest extends TestCase
 
         $this->assertFalse(\App\Filament\Staff\Pages\AbsensiManual::canAccess());
         $this->assertFalse(\App\Filament\Staff\Pages\AbsensiManual::shouldRegisterNavigation());
-
-        $this->assertFalse(\App\Filament\Staff\Pages\ScannerPresensi::canAccess());
-        $this->assertFalse(\App\Filament\Staff\Pages\ScannerPresensi::shouldRegisterNavigation());
 
         $this->assertFalse(\App\Filament\Staff\Resources\DailyAttendanceResource::canAccess());
         $this->assertFalse(\App\Filament\Staff\Resources\DailyAttendanceResource::shouldRegisterNavigation());

@@ -118,13 +118,13 @@
         </x-slot>
 
         <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-2.5 sm:gap-3 pt-2">
-            {{-- 1. Scan QR --}}
-            <a href="{{ route('filament.staff.pages.scanner-presensi') }}" class="flex flex-col items-center justify-center p-3 text-center rounded-xl border border-gray-200 dark:border-gray-800 hover:border-primary-500 hover:bg-primary-50/50 dark:hover:bg-primary-950/20 active:scale-95 transition-all select-none group">
+            {{-- 1. Presensi Fingerprint / Data Harian --}}
+            <a href="{{ route('filament.staff.resources.daily-attendances.index') }}" class="flex flex-col items-center justify-center p-3 text-center rounded-xl border border-gray-200 dark:border-gray-800 hover:border-primary-500 hover:bg-primary-50/50 dark:hover:bg-primary-950/20 active:scale-95 transition-all select-none group">
                 <span class="p-2 sm:p-2.5 rounded-xl bg-primary-100 dark:bg-primary-900/50 text-primary-600 dark:text-primary-400 group-hover:scale-105 transition-transform">
-                    <x-filament::icon icon="heroicon-o-qr-code" class="w-5 h-5 sm:w-6 sm:h-6" />
+                    <x-filament::icon icon="heroicon-o-finger-print" class="w-5 h-5 sm:w-6 sm:h-6" />
                 </span>
-                <span class="mt-2 text-xs font-bold text-gray-800 dark:text-gray-200 group-hover:text-primary-600 dark:group-hover:text-primary-400">Scan QR Siswa</span>
-                <span class="text-[10px] text-gray-400 mt-0.5">Gerbang Pagi</span>
+                <span class="mt-2 text-xs font-bold text-gray-800 dark:text-gray-200 group-hover:text-primary-600 dark:group-hover:text-primary-400">Presensi Fingerprint</span>
+                <span class="text-[10px] text-gray-400 mt-0.5">Data Masuk Pagi</span>
             </a>
 
             {{-- 2. Input Absensi Manual --}}

@@ -22,7 +22,9 @@ class AbsensiManual extends Page
 
         $isPiketToday = $user->isPiketToday();
 
-        return $isPiketToday || $user->hasAnyRole(['guru_piket', 'tata_usaha', 'waka_kesiswaan', 'kepala_sekolah', 'superadmin']);
+        return $isPiketToday || $user->hasAnyRole([
+            'guru_piket', 'tata_usaha', 'waka_kesiswaan', 'kepala_sekolah', 'superadmin'
+        ]);
     }
 
     public static function shouldRegisterNavigation(): bool
@@ -45,14 +47,12 @@ class AbsensiManual extends Page
     // Attendance state: [student_id => status]
     public array $attendanceData = [];
 
-    
-
     public function mount(): void
     {
         $this->selectedDate = Carbon::today()->toDateString();
 
-        // Default: kelas pertama
-        $firstClass = Classroom::orderBy('name')->first();
+        // Default: kelas pertama berdasarkan hak akses/institusi
+        $firstClass = $this->getClassrooms()->first();
         $this->selectedClassroomId = $firstClass?->id;
 
         $this->loadAttendance();
@@ -110,16 +110,20 @@ class AbsensiManual extends Page
     }
 
     /**
-     * Simpan semua data presensi
+     * Simpan semua data presensi manual
      */
     public function simpan(): void
     {
         $savedCount  = 0;
         $updatedCount = 0;
         $now = Carbon::now()->format('H:i:s');
+        $currentUser = Auth::user();
 
         foreach ($this->attendanceData as $studentId => $status) {
             if ($status === null || $status === '') continue;
+
+            $student = Student::find($studentId);
+            $institutionId = $student?->classroom?->institution_id ?? ($currentUser?->institution_id ?? 1);
 
             $existing = DailyAttendance::where('student_id', $studentId)
                 ->where('tanggal', $this->selectedDate)
@@ -128,20 +132,18 @@ class AbsensiManual extends Page
 
             $data = [
                 'student_id'     => $studentId,
-                'teacher_id'     => Auth::id(),
+                'institution_id' => $institutionId,
+                'teacher_id'     => $currentUser?->id ?? 1,
                 'tanggal'        => $this->selectedDate,
                 'tipe_absen'     => $this->tipeAbsen,
                 'metode_absen'   => 'manual',
                 'status'         => $status,
                 'is_late'        => ($this->tipeAbsen === 'masuk' && $status === 'hadir' && $now > '07:15:00'),
-                'catatan'        => 'Input manual oleh ' . Auth::user()->name,
+                'keterangan'     => 'Input manual oleh ' . ($currentUser?->name ?? 'Guru Piket'),
             ];
 
             if ($this->tipeAbsen === 'masuk' && $status === 'hadir') {
                 $data['waktu_kedatangan'] = $now;
-            }
-            if ($this->tipeAbsen === 'pulang' && $status === 'hadir') {
-                $data['waktu_kepulangan'] = $now;
             }
 
             if ($existing) {
@@ -154,8 +156,8 @@ class AbsensiManual extends Page
         }
 
         Notification::make()
-            ->title("✅ Absensi Tersimpan")
-            ->body("{$savedCount} data baru, {$updatedCount} data diperbarui.")
+            ->title("✅ Presensi Manual Berhasil Disimpan")
+            ->body("{$savedCount} data baru tersimpan, {$updatedCount} data diperbarui.")
             ->success()
             ->send();
 
@@ -177,7 +179,14 @@ class AbsensiManual extends Page
 
     public function getClassrooms()
     {
-        return Classroom::orderBy('name')->get();
+        $user = Auth::user();
+        $query = Classroom::orderBy('name');
+
+        if ($user && $user->institution_id && !$user->hasRole('superadmin') && $user->institution_id != 1) {
+            $query->where('institution_id', $user->institution_id);
+        }
+
+        return $query->get();
     }
 
     public function getStudents()

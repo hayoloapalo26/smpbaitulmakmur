@@ -8,7 +8,7 @@
         </svg>
         <div>
             <p class="font-bold text-xs sm:text-sm text-amber-900 dark:text-amber-200">Mode Input Presensi Kolektif</p>
-            <p class="text-xs text-amber-700 dark:text-amber-400 mt-0.5">Gunakan halaman ini untuk memasukkan data izin/sakit/alpa/halangan siswa secara manual atau saat alat scanner bermasalah.</p>
+            <p class="text-xs text-amber-700 dark:text-amber-400 mt-0.5">Gunakan halaman ini untuk memasukkan data kehadiran, izin, sakit, alpa, atau halangan siswa secara manual per kelas.</p>
         </div>
     </div>
 
