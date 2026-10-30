@@ -57,7 +57,34 @@ class ManageTeachingJournals extends ManageRecords
 
                     $isAdminOrWaka = auth()->user()?->hasAnyRole(['waka_kurikulum', 'superadmin']);
 
-                    // Cek batas waktu pengisian 24 jam
+                    // 1. Validasi guru hanya bisa mengisi hari ini
+                    if (!$isAdminOrWaka && $tanggal !== now()->toDateString()) {
+                        \Filament\Notifications\Notification::make()
+                            ->title('Pengisian Jurnal Ditolak')
+                            ->body('Pengisian jurnal mengajar otomatis dikunci hanya untuk jadwal hari ini (' . now()->translatedFormat('d F Y') . ').')
+                            ->danger()
+                            ->persistent()
+                            ->send();
+
+                        $action->halt();
+                    }
+
+                    // 2. Validasi jadwal harus sesuai dengan hari ini
+                    if ($schedule) {
+                        $hariIni = Schedule::getIndonesianDayName($tanggal);
+                        if ($schedule->hari !== $hariIni) {
+                            \Filament\Notifications\Notification::make()
+                                ->title('Jadwal Tidak Sesuai')
+                                ->body("Jadwal yang dipilih merupakan jadwal hari {$schedule->hari}, sedangkan pengisian jurnal hari ini adalah hari {$hariIni}.")
+                                ->danger()
+                                ->persistent()
+                                ->send();
+
+                            $action->halt();
+                        }
+                    }
+
+                    // 3. Cek batas waktu pengisian 24 jam
                     if (!$isAdminOrWaka && TeachingJournal::isPastDeadline($tanggal, $jamKe)) {
                         $deadline = TeachingJournal::getJournalDeadline($tanggal, $jamKe)->translatedFormat('d M Y, H:i');
                         \Filament\Notifications\Notification::make()

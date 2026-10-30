@@ -105,8 +105,42 @@ class TeachingJournalResource extends Resource
         return $form
             ->schema([
                 Forms\Components\Section::make('Jadwal & Jam Mengajar (Otomatis Mencatat Presensi Guru)')
-                    ->description('Pilih tanggal dan jam mengajar sesuai Jadwal Pelajaran yang telah diatur oleh Waka Kurikulum. Input jurnal ini otomatis mencatat Presensi Kehadiran Guru (Status Masuk) pada jam pelajaran tersebut. Batas pengisian jurnal adalah 24 jam setelah jadwal pelajaran berakhir.')
+                    ->description('Pilih jadwal mengajar hari ini yang telah diatur oleh Waka Kurikulum. Input jurnal ini otomatis mencatat Presensi Kehadiran Guru (Status Masuk) pada jam pelajaran tersebut.')
                     ->schema([
+                        Forms\Components\Placeholder::make('jadwal_hari_ini_alert')
+                            ->label('')
+                            ->content(function (Forms\Get $get) use ($isAdminOrWaka) {
+                                $teacherId = $get('teacher_id') ?: Auth::id();
+                                $tanggal = $get('tanggal') ?: Carbon::today()->format('Y-m-d');
+                                $hari = Schedule::getIndonesianDayName($tanggal);
+                                $count = Schedule::where('teacher_id', $teacherId)->where('hari', $hari)->count();
+
+                                if ($count === 0) {
+                                    return new \Illuminate\Support\HtmlString("
+                                        <div class='flex items-center gap-3 p-3.5 text-sm rounded-lg bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-200 border border-amber-200 dark:border-amber-800/60'>
+                                            <span class='text-xl'>⚠️</span>
+                                            <div>
+                                                <div class='font-bold'>Tidak Ada Jadwal Mengajar Hari Ini ({$hari})</div>
+                                                <div class='text-xs mt-0.5'>Anda tidak memiliki jadwal mengajar pada hari <strong>{$hari}</strong> berdasarkan Jadwal Pelajaran Kurikulum. Pengisian jurnal mengajar otomatis disesuaikan dengan jadwal aktif hari ini.</div>
+                                            </div>
+                                        </div>
+                                    ");
+                                }
+
+                                return new \Illuminate\Support\HtmlString("
+                                    <div class='flex items-center justify-between p-3 text-sm rounded-lg bg-blue-50 dark:bg-blue-950/40 text-blue-800 dark:text-blue-200 border border-blue-200 dark:border-blue-800/60'>
+                                        <div class='flex items-center gap-2.5'>
+                                            <span class='text-lg'>📅</span>
+                                            <div>
+                                                <span class='font-bold'>Jadwal Kurikulum Hari Ini:</span> Hari <strong>{$hari}</strong> ({$count} jam pelajaran terjadwal).
+                                            </div>
+                                        </div>
+                                        <span class='text-xs font-semibold px-2.5 py-1 bg-blue-100 dark:bg-blue-900 rounded-full text-blue-700 dark:text-blue-300'>Otomatis Hari Ini</span>
+                                    </div>
+                                ");
+                            })
+                            ->columnSpanFull(),
+
                         Forms\Components\Select::make('teacher_id')
                             ->label('Guru Pengajar')
                             ->relationship('teacher', 'name', modifyQueryUsing: function (Builder $query) use ($user) {
@@ -139,16 +173,17 @@ class TeachingJournalResource extends Resource
                         Forms\Components\DatePicker::make('tanggal')
                             ->label('Tanggal Mengajar')
                             ->default(Carbon::today()->format('Y-m-d'))
-                            ->minDate(fn () => $isAdminOrWaka ? null : now()->subHours(24)->startOfDay())
-                            ->maxDate(now()->toDateString())
+                            ->minDate(fn (?TeachingJournal $record) => $isAdminOrWaka ? null : ($record ? $record->tanggal : Carbon::today()->format('Y-m-d')))
+                            ->maxDate(fn (?TeachingJournal $record) => $isAdminOrWaka ? null : ($record ? $record->tanggal : Carbon::today()->format('Y-m-d')))
+                            ->disabled(fn () => !$isAdminOrWaka)
+                            ->dehydrated()
                             ->helperText(function (Forms\Get $get) use ($isAdminOrWaka) {
                                 $tanggal = $get('tanggal') ?: Carbon::today();
                                 $hari = Schedule::getIndonesianDayName($tanggal);
-                                $info = 'Hari: ' . $hari;
-                                if (!$isAdminOrWaka) {
-                                    $info .= ' • ⏰ Batas pengisian: Maksimal 24 jam setelah jam pelajaran berakhir.';
+                                if ($isAdminOrWaka) {
+                                    return "📅 Hari: {$hari} (Mode Admin/Waka Kurikulum: Dapat memilih tanggal).";
                                 }
-                                return $info;
+                                return "📅 Hari ini: {$hari}, " . Carbon::today()->translatedFormat('d F Y') . " • Pengisian jurnal mengajar otomatis dikunci hanya untuk jadwal hari ini.";
                             })
                             ->live()
                             ->afterStateUpdated(function (Forms\Set $set) {
@@ -165,16 +200,22 @@ class TeachingJournalResource extends Resource
                             ->required(),
 
                         Forms\Components\Select::make('schedule_id')
-                            ->label('Pilih Jadwal Mengajar (Sesuai Hari & Jam Ke-)')
+                            ->label('Pilih Jadwal Mengajar Hari Ini (Jadwal Kurikulum)')
+                            ->placeholder(function (Forms\Get $get) {
+                                $tanggal = $get('tanggal') ?: Carbon::today()->format('Y-m-d');
+                                $hari = Schedule::getIndonesianDayName($tanggal);
+                                return "Pilih jadwal mengajar hari {$hari}...";
+                            })
                             ->options(function (Forms\Get $get, ?TeachingJournal $record) use ($isAdminOrWaka) {
                                 $teacherId = $get('teacher_id') ?: Auth::id();
                                 $tanggal = $get('tanggal') ?: Carbon::today()->format('Y-m-d');
                                 $hari = Schedule::getIndonesianDayName($tanggal);
 
-                                // Jadwal reguler guru
+                                // Jadwal reguler kurikulum milik guru yang bersangkutan pada hari tersebut
                                 $regularSchedules = Schedule::with(['classroom', 'subject', 'teacher'])
                                     ->where('teacher_id', $teacherId)
                                     ->where('hari', $hari)
+                                    ->orderBy('jam_ke')
                                     ->get();
 
                                 // Jadwal di mana guru ini ditugaskan sebagai Guru Pengganti (Inval) pada tanggal tersebut
@@ -199,6 +240,7 @@ class TeachingJournalResource extends Resource
                                     ? Schedule::with(['classroom', 'subject', 'teacher'])
                                         ->whereIn('id', $substituteScheduleIds)
                                         ->where('hari', $hari)
+                                        ->orderBy('jam_ke')
                                         ->get()
                                     : collect();
 
@@ -214,7 +256,7 @@ class TeachingJournalResource extends Resource
 
                                     $statusText = '';
                                     if ($alreadyFilled) {
-                                        $statusText = ' ✅ [Sudah Diisi]';
+                                        $statusText = ' ✅ [Sudah Diisi Hari Ini]';
                                     }
 
                                     if (!$isSubstituteForThis) {
@@ -224,12 +266,7 @@ class TeachingJournalResource extends Resource
                                             $statusText = " 🚫 [Izin ACC: {$onLeave->waktu_izin_label}]";
                                         }
                                     } else {
-                                        $statusText = " 🔄 [TUGAS INVAL / PENGGANTI dari {$s->teacher?->name}]" . $statusText;
-                                    }
-
-                                    // Cek apakah telah kedaluwarsa (> 24 jam)
-                                    if (!$isAdminOrWaka && TeachingJournal::isPastDeadline($tanggal, $s->jam_ke)) {
-                                        $statusText = ' ⏰ [Kedaluwarsa (>24 Jam)]';
+                                        $statusText = " 🔄 [TUGAS INVAL DARI {$s->teacher?->name}]" . $statusText;
                                     }
 
                                     $jamText = \App\Models\Schedule::getJamLabelWithTime($s->jam_ke);
@@ -246,21 +283,16 @@ class TeachingJournalResource extends Resource
 
                                 $isSubstituteForThis = ($schedule->teacher_id != $teacherId);
 
-                                // 1. Kunci opsi jika guru reguler memiliki izin yang telah di-ACC pada jam ini (Kecuali guru pengganti)
+                                // 1. Kunci opsi jika guru reguler memiliki izin yang telah di-ACC pada jam ini
                                 if (!$isSubstituteForThis && \App\Models\TeacherLeaveRequest::isTeacherOnLeave($teacherId, $tanggal, $schedule->jam_ke)) {
                                     return true;
                                 }
 
-                                // 2. Kunci opsi jika sudah diisi sebelumnya
+                                // 2. Kunci opsi jika sudah diisi sebelumnya pada hari ini
                                 if (TeachingJournal::where('schedule_id', $schedule->id)
                                     ->whereDate('tanggal', $tanggal)
                                     ->when($record, fn ($q) => $q->where('id', '!=', $record->id))
                                     ->exists()) {
-                                    return true;
-                                }
-
-                                // 3. Kunci opsi jika telah melewati batas waktu 24 jam
-                                if (!$isAdminOrWaka && TeachingJournal::isPastDeadline($tanggal, $schedule->jam_ke)) {
                                     return true;
                                 }
 
@@ -271,17 +303,27 @@ class TeachingJournalResource extends Resource
                                     return function (string $attribute, $value, \Closure $fail) use ($get, $isAdminOrWaka) {
                                         $teacherId = $get('teacher_id') ?: Auth::id();
                                         $tanggal = $get('tanggal') ?: Carbon::today()->format('Y-m-d');
+                                        $hari = Schedule::getIndonesianDayName($tanggal);
+
+                                        if (!$isAdminOrWaka && $tanggal !== Carbon::today()->toDateString()) {
+                                            $fail("Pengisian jurnal mengajar hanya dapat dilakukan pada hari ini (" . Carbon::today()->translatedFormat('d F Y') . ").");
+                                            return;
+                                        }
+
                                         $schedule = Schedule::find($value);
-                                        if (!$schedule) return;
+                                        if (!$schedule) {
+                                            $fail("Jadwal mengajar tidak ditemukan.");
+                                            return;
+                                        }
+
+                                        if ($schedule->hari !== $hari) {
+                                            $fail("Jadwal yang dipilih merupakan jadwal hari {$schedule->hari}, bukan jadwal hari {$hari}.");
+                                            return;
+                                        }
 
                                         if ($schedule->teacher_id == $teacherId && \App\Models\TeacherLeaveRequest::isTeacherOnLeave($teacherId, $tanggal, $schedule->jam_ke)) {
                                             $leave = \App\Models\TeacherLeaveRequest::getActiveLeaveFor($teacherId, $tanggal, $schedule->jam_ke);
-                                            $fail("Tidak dapat mengisi jurnal mengajar! Anda tercatat memiliki perizinan yang telah disetujui (ACC) pada tanggal {$tanggal} (" . ($leave?->waktu_izin_label ?? "Jam Ke-{$schedule->jam_ke}") . ").");
-                                        }
-
-                                        if (!$isAdminOrWaka && TeachingJournal::isPastDeadline($tanggal, $schedule->jam_ke)) {
-                                            $deadline = TeachingJournal::getJournalDeadline($tanggal, $schedule->jam_ke)->translatedFormat('d M Y, H:i');
-                                            $fail("Tidak dapat mengisi jurnal mengajar! Batas pengisian telah terlampaui (maksimal 24 jam setelah jadwal pelajaran selesai: {$deadline} WIB).");
+                                            $fail("Tidak dapat mengisi jurnal mengajar! Anda tercatat memiliki perizinan yang telah disetujui (ACC) pada hari ini (" . ($leave?->waktu_izin_label ?? "Jam Ke-{$schedule->jam_ke}") . ").");
                                         }
                                     };
                                 }
@@ -293,14 +335,14 @@ class TeachingJournalResource extends Resource
 
                                 $leaveToday = \App\Models\TeacherLeaveRequest::getActiveLeaveFor($teacherId, $tanggal);
                                 if ($leaveToday) {
-                                    return "⛔ PERHATIAN: Terdapat perizinan guru yang telah di-ACC pada tanggal ini ({$leaveToday->waktu_izin_label} — Alasan: {$leaveToday->alasan}). Jadwal jam pelajaran yang bertepatan dengan izin otomatis terkunci dan tidak dapat diisi jurnal.";
+                                    return "⛔ PERHATIAN: Terdapat perizinan guru yang telah di-ACC pada hari ini ({$leaveToday->waktu_izin_label} — Alasan: {$leaveToday->alasan}). Jadwal jam pelajaran yang bertepatan dengan izin otomatis terkunci.";
                                 }
 
                                 $count = Schedule::where('teacher_id', $teacherId)->where('hari', $hari)->count();
                                 if ($count === 0) {
-                                    return "⚠️ Anda tidak memiliki jadwal mengajar pada hari {$hari} berdasarkan Jadwal Pelajaran Waka Kurikulum.";
+                                    return "⚠️ Anda tidak memiliki jadwal mengajar pada hari {$hari} berdasarkan Jadwal Pelajaran Kurikulum. Pengisian jurnal hanya dapat dilakukan saat Anda memiliki jadwal pada hari ini.";
                                 }
-                                return "Terdapat {$count} jam mengajar terjadwal untuk Anda pada hari {$hari}.";
+                                return "📋 Terdapat {$count} jam mengajar terjadwal untuk Anda pada hari {$hari}. Silakan pilih jadwal untuk mengisi jurnal mengajar.";
                             })
                             ->live()
                             ->afterStateUpdated(function (Forms\Set $set, Forms\Get $get, $state) {
@@ -328,7 +370,14 @@ class TeachingJournalResource extends Resource
                                 $subjectName = $schedule->subject?->name;
                                 $matchingRppm = Rppm::query()
                                     ->where('guru_id', $teacherId)
-                                    ->when($subjectName, fn ($q) => $q->where('mata_pelajaran', 'like', "%{$subjectName}%"))
+                                    ->where(function ($q) use ($schedule, $subjectName) {
+                                        if ($schedule->subject_id) {
+                                            $q->whereHas('capaianPembelajaran', fn ($cp) => $cp->where('subject_id', $schedule->subject_id));
+                                        }
+                                        if ($subjectName) {
+                                            $q->orWhere('mata_pelajaran', 'like', "%{$subjectName}%");
+                                        }
+                                    })
                                     ->latest()
                                     ->first();
 
