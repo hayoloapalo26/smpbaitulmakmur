@@ -56,7 +56,7 @@ class DutyScheduleResource extends Resource
         return $form
             ->schema([
                 Forms\Components\Section::make('Informasi Penugasan Guru Piket')
-                    ->description('Penugasan jadwal guru piket dirouting oleh Waka Kesiswaan selama 1 semester.')
+                    ->description('Penugasan jadwal guru piket disetting oleh Waka Kesiswaan selama 1 semester.')
                     ->schema([
                         Forms\Components\Select::make('teacher_id')
                             ->label('Guru yang Bertugas')

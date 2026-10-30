@@ -278,7 +278,7 @@ class InputNilaiMapel extends Page
 
         $subjects = Subject::whereIn('id', $assignedSubjectIds)->orderBy('name')->get();
 
-        // Fallback jika belum di-routing oleh kurikulum
+        // Fallback jika belum disetting oleh kurikulum
         if ($subjects->isEmpty()) {
             if ($user->isQuranTeacher() && !$user->hasAnyRole(['guru_mapel', 'waka_kurikulum', 'superadmin'])) {
                 $quranSubject = Subject::where('name', 'Al-Qur’an')
@@ -385,12 +385,12 @@ class InputNilaiMapel extends Page
         // Cari siapa guru yang ditugaskan mengajar mapel ini di kelas ini
         $assignedTeacher = null;
         if ($this->selectedSubjectId && $this->selectedClassroomId) {
-            $routing = TeacherSubjectClass::where([
+            $setting = TeacherSubjectClass::where([
                 'subject_id'   => $this->selectedSubjectId,
                 'classroom_id' => $this->selectedClassroomId,
             ])->with('teacher')->first();
 
-            $assignedTeacher = $routing?->teacher;
+            $assignedTeacher = $setting?->teacher;
         }
 
         // Ambil daftar siswa

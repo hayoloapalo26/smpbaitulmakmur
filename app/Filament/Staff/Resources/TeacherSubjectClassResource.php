@@ -25,9 +25,9 @@ class TeacherSubjectClassResource extends Resource
     protected static ?string $model = TeacherSubjectClass::class;
     protected static ?string $navigationGroup = 'Akademik & Kurikulum';
     protected static ?string $navigationIcon = 'heroicon-o-link';
-    protected static ?string $navigationLabel = 'Routing Guru Mapel';
-    protected static ?string $modelLabel = 'Routing Guru Mapel';
-    protected static ?string $pluralModelLabel = 'Routing Guru Mapel';
+    protected static ?string $navigationLabel = 'Setting Guru Mapel';
+    protected static ?string $modelLabel = 'Setting Guru Mapel';
+    protected static ?string $pluralModelLabel = 'Setting Guru Mapel';
     protected static ?int $navigationSort = 3;
 
     public static function getNavigationSort(): ?int

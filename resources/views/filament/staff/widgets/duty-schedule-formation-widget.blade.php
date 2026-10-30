@@ -11,7 +11,7 @@
                             Formasi Rutin Piket — Semester {{ $semester }} ({{ $academicYearName }})
                         </h2>
                         <p class="text-[11px] sm:text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                            Routing oleh <span class="font-semibold text-primary-600 dark:text-primary-400">Waka Kesiswaan</span> • 1 Semester Penuh (Diacak ulang tiap semester)
+                            Setting oleh <span class="font-semibold text-primary-600 dark:text-primary-400">Waka Kesiswaan</span> • 1 Semester Penuh (Diacak ulang tiap semester)
                         </p>
                     </div>
                 </div>

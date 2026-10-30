@@ -39,7 +39,7 @@ class ClassroomResource extends Resource
     public static function getNavigationLabel(): string
     {
         if (auth()->user()?->hasRole('waka_kurikulum')) {
-            return 'Routing Wali Kelas & Rombel';
+            return 'Setting Wali Kelas & Rombel';
         }
         return 'Data Kelas / Rombel';
     }

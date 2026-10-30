@@ -27,7 +27,7 @@
                         <a href="{{ route('filament.staff.resources.teacher-subject-classes.index') }}" 
                            class="text-xs inline-flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg transition font-medium">
                             <x-heroicon-o-link class="w-4 h-4 text-primary-500" />
-                            Kelola Routing Guru Mapel
+                            Kelola Setting Guru Mapel
                         </a>
                     @endif
                 </div>

@@ -16,8 +16,8 @@ class ManageSchedules extends ManageRecords
     protected function getHeaderActions(): array
     {
         return [
-            Actions\Action::make('routing_guru_mapel')
-                ->label('Routing Guru Mapel')
+            Actions\Action::make('setting_guru_mapel')
+                ->label('Setting Guru Mapel')
                 ->icon('heroicon-o-link')
                 ->color('info')
                 ->visible(fn () => auth()->user()?->hasAnyRole(['waka_kurikulum', 'superadmin']) ?? false)
