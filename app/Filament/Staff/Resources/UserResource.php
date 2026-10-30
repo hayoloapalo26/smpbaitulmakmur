@@ -33,7 +33,10 @@ class UserResource extends Resource
         
         if (!$user->hasRole('superadmin')) {
             if ($user->institution_id) {
-                $query->where('institution_id', $user->institution_id);
+                $query->where(function ($q) use ($user) {
+                    $q->where('institution_id', $user->institution_id)
+                      ->orWhereHas('institutions', fn ($iq) => $iq->where('institutions.id', $user->institution_id));
+                });
             }
         }
         
@@ -98,11 +101,13 @@ class UserResource extends Resource
 
                 Forms\Components\Section::make('Otorisasi & Unit')
                     ->schema([
-                        Forms\Components\Select::make('institution_id')
-                            ->label('Unit / Lembaga')
-                            ->relationship('institution', 'name')
+                        Forms\Components\Select::make('institutions')
+                            ->label('Unit / Lembaga (Multiple Choice)')
+                            ->relationship('institutions', 'name')
+                            ->multiple()
                             ->searchable()
                             ->preload()
+                            ->helperText('Bisa memilih lebih dari satu unit/lembaga (contoh: Yayasan dan SMP jika menjabat di Yayasan sekaligus mengajar di SMP).')
                             ->disabled(fn () => !auth()->user()->hasRole('superadmin')),
                         Forms\Components\Select::make('roles')
                             ->label('Role / Hak Akses')
@@ -130,7 +135,12 @@ class UserResource extends Resource
                 Tables\Columns\TextColumn::make('name')->searchable(),
                 Tables\Columns\TextColumn::make('username')->searchable(),
                 Tables\Columns\TextColumn::make('email')->searchable(),
-                Tables\Columns\TextColumn::make('institution.name')->label('Unit')->badge()->color('info'),
+                Tables\Columns\TextColumn::make('institutions.name')
+                    ->label('Unit / Lembaga')
+                    ->badge()
+                    ->color('info')
+                    ->searchable()
+                    ->default(fn (User $record) => $record->institution?->name ? [$record->institution->name] : '-'),
                 Tables\Columns\TextColumn::make('roles.name')
                     ->label('Role / Hak Akses')
                     ->badge()
@@ -140,9 +150,9 @@ class UserResource extends Resource
                     ->boolean(),
             ])
             ->filters([
-                Tables\Filters\SelectFilter::make('institution_id')
+                Tables\Filters\SelectFilter::make('institutions')
                     ->label('Unit / Lembaga')
-                    ->relationship('institution', 'name'),
+                    ->relationship('institutions', 'name'),
                 Tables\Filters\SelectFilter::make('roles')
                     ->label('Role / Hak Akses')
                     ->relationship('roles', 'name')

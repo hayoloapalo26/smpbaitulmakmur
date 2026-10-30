@@ -105,4 +105,93 @@ class PakRomliDualRoleYayasanAndTahfidzTest extends TestCase
         $this->assertStringContainsString('Tahfidz Lanjutan', $options[$this->pakRomli->id]);
         $this->assertStringContainsString('Yayasan / Lintas Lembaga', $options[$this->pakRomli->id]);
     }
+
+    public function test_pak_romli_can_be_assigned_multiple_institutions(): void
+    {
+        // Ustadz Romli dapat memiliki multiple units (Yayasan = 1 dan SMP = 2)
+        $this->pakRomli->syncInstitutions([$this->yayasan->id, $this->smpi->id]);
+
+        $this->assertTrue($this->pakRomli->belongsToInstitution(1));
+        $this->assertTrue($this->pakRomli->belongsToInstitution(2));
+        $this->assertContains(1, $this->pakRomli->institution_ids);
+        $this->assertContains(2, $this->pakRomli->institution_ids);
+        $this->assertCount(2, $this->pakRomli->institutions);
+    }
+
+    public function test_quran_score_input_by_pak_romli_for_smp_student_belongs_to_smp_not_yayasan(): void
+    {
+        // Setup santri di SMP (institution_id = 2)
+        $studentSmp = \App\Models\Student::create([
+            'name' => 'Santri SMP Binaan',
+            'nis' => '12345',
+            'jenis_kelamin' => 'L',
+            'institution_id' => 2,
+            'kelas_quran' => 'tahfidz_lanjutan',
+            'guru_quran_id' => $this->pakRomli->id,
+        ]);
+
+        $this->actingAs($this->pakRomli);
+
+        // Pak Romli (user institusi primer 1 / Yayasan) menginput nilai capaian Al-Qur'an santri SMP
+        $achievement = \App\Models\QuranAchievement::create([
+            'student_id' => $studentSmp->id,
+            'teacher_id' => $this->pakRomli->id,
+            'tanggal' => now()->toDateString(),
+            'program' => 'tahfidz_lanjutan',
+            'juz' => 1,
+            'surah' => '1',
+            'ayah' => '1-10',
+            'scale_score' => 95,
+            'predikat' => 'Mumtaz',
+            'catatan' => 'Hafalan lancar mutqin',
+        ]);
+
+        // Verifikasi hasil inputan masuk ke rumahnya (SMP ID = 2), BUKAN ke Yayasan (ID = 1)
+        $this->assertEquals(2, $achievement->institution_id, 'Capaian Al-Qur\'an santri SMP harus masuk ke unit SMP (institution_id = 2), bukan Yayasan.');
+
+        // Verifikasi reading_quality_scores yang tersinkronisasi juga masuk ke unit SMP (institution_id = 2)
+        $readingScore = \App\Models\ReadingQualityScore::where('student_id', $studentSmp->id)->first();
+        $this->assertNotNull($readingScore);
+        $this->assertEquals(2, $readingScore->institution_id, 'Reading quality score santri SMP harus masuk ke unit SMP (institution_id = 2).');
+    }
+
+    public function test_teaching_journal_input_by_pak_romli_for_smp_class_belongs_to_smp_not_yayasan(): void
+    {
+        $classroomSmp = \App\Models\Classroom::create([
+            'name' => 'Kelas 8A SMP',
+            'tingkat' => '8',
+            'institution_id' => 2,
+        ]);
+
+        $subjectTahfidz = \App\Models\Subject::create([
+            'name' => 'Tahfidz Al-Qur\'an',
+            'kode' => 'TFZ-SMP',
+            'institution_id' => 2,
+        ]);
+
+        $scheduleSmp = \App\Models\Schedule::create([
+            'classroom_id' => $classroomSmp->id,
+            'subject_id' => $subjectTahfidz->id,
+            'teacher_id' => $this->pakRomli->id,
+            'hari' => 'Senin',
+            'jam_ke' => 1,
+            'institution_id' => 2,
+        ]);
+
+        $this->actingAs($this->pakRomli);
+
+        // Pak Romli menginput jurnal mengajar di kelas SMP
+        $journal = \App\Models\TeachingJournal::create([
+            'schedule_id' => $scheduleSmp->id,
+            'classroom_id' => $classroomSmp->id,
+            'subject_id' => $subjectTahfidz->id,
+            'teacher_id' => $this->pakRomli->id,
+            'tanggal' => now()->toDateString(),
+            'jam_ke' => 1,
+            'materi' => 'Ziyadah Juz 2',
+        ]);
+
+        // Verifikasi jurnal mengajar masuk ke unit SMP (ID = 2), bukan Yayasan (ID = 1)
+        $this->assertEquals(2, $journal->institution_id, 'Jurnal mengajar kelas SMP harus masuk ke unit SMP (institution_id = 2).');
+    }
 }

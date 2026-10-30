@@ -86,7 +86,8 @@ class StudentQuranPlacementResource extends Resource
             ->when($institutionId && $institutionId != 1, fn ($q) => $q->where(function ($sub) use ($institutionId) {
                 $sub->where('institution_id', $institutionId)
                     ->orWhere('institution_id', 1)
-                    ->orWhereNull('institution_id');
+                    ->orWhereNull('institution_id')
+                    ->orWhereHas('institutions', fn ($iq) => $iq->where('institutions.id', $institutionId));
             }))
             ->where(function ($q) {
                 $q->whereHas('roles', fn ($r) => $r->whereIn('name', User::QURAN_TEACHER_ROLES))

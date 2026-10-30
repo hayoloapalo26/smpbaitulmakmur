@@ -13,5 +13,10 @@ class Institution extends Model
             ->withPivot('is_completed', 'notes')
             ->withTimestamps();
     }
+
+    public function users()
+    {
+        return $this->belongsToMany(User::class, 'institution_user')->withTimestamps();
+    }
 }
 

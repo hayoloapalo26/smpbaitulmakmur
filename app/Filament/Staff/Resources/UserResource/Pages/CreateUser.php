@@ -40,13 +40,32 @@ class CreateUser extends CreateRecord
             }
         }
 
-        // Handle institution_id for tata_usaha (jika tata_usaha buat user, otomatis masuk ke institusinya)
+        // Handle institutions for superadmin and non-superadmin
         if (!$authUser->hasRole('superadmin')) {
+            if (empty($data['institutions'])) {
+                $data['institutions'] = $authUser->institution_id ? [$authUser->institution_id] : [];
+            }
             if (empty($data['institution_id'])) {
                 $data['institution_id'] = $authUser->institution_id;
+            }
+        } else {
+            if (!empty($data['institutions']) && is_array($data['institutions'])) {
+                if (empty($data['institution_id']) || !in_array($data['institution_id'], $data['institutions'])) {
+                    $data['institution_id'] = reset($data['institutions']);
+                }
             }
         }
 
         return $data;
+    }
+
+    protected function afterCreate(): void
+    {
+        $institutions = $this->data['institutions'] ?? [];
+        if (!empty($institutions)) {
+            $this->record->institutions()->sync($institutions);
+        } elseif ($this->record->institution_id) {
+            $this->record->institutions()->sync([$this->record->institution_id]);
+        }
     }
 }

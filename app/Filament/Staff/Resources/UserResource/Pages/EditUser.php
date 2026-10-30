@@ -88,6 +88,20 @@ class EditUser extends EditRecord
             }
         }
 
+        if (isset($data['institutions']) && is_array($data['institutions']) && !empty($data['institutions'])) {
+            if (empty($data['institution_id']) || !in_array($data['institution_id'], $data['institutions'])) {
+                $data['institution_id'] = reset($data['institutions']);
+            }
+        }
+
         return $data;
+    }
+
+    protected function afterSave(): void
+    {
+        $institutions = $this->data['institutions'] ?? [];
+        if (!empty($institutions)) {
+            $this->record->institutions()->sync($institutions);
+        }
     }
 }

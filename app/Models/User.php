@@ -198,6 +198,47 @@ class User extends Authenticatable implements FilamentUser, HasAvatar
         return $this->belongsTo(Institution::class, 'institution_id');
     }
 
+    public function institutions()
+    {
+        return $this->belongsToMany(Institution::class, 'institution_user')->withTimestamps();
+    }
+
+    public function getInstitutionIdsAttribute(): array
+    {
+        $ids = [];
+        try {
+            if (\Illuminate\Support\Facades\Schema::hasTable('institution_user')) {
+                if ($this->relationLoaded('institutions')) {
+                    $ids = $this->institutions->pluck('id')->toArray();
+                } else {
+                    $ids = $this->institutions()->pluck('institutions.id')->toArray();
+                }
+            }
+        } catch (\Throwable $e) {}
+
+        if ($this->institution_id && !in_array($this->institution_id, $ids)) {
+            $ids[] = $this->institution_id;
+        }
+
+        return array_values(array_unique(array_filter($ids)));
+    }
+
+    public function belongsToInstitution($institutionId): bool
+    {
+        if ($this->hasRole('superadmin')) {
+            return true;
+        }
+        return in_array($institutionId, $this->institution_ids);
+    }
+
+    public function syncInstitutions(array $institutionIds): void
+    {
+        $this->institutions()->sync($institutionIds);
+        if (!empty($institutionIds) && (!in_array($this->institution_id, $institutionIds) || empty($this->institution_id))) {
+            $this->update(['institution_id' => reset($institutionIds)]);
+        }
+    }
+
     public function classroomsAsWali()
     {
         return $this->hasMany(Classroom::class, 'wali_kelas_id')->where(function ($q) {
@@ -229,6 +270,17 @@ class User extends Authenticatable implements FilamentUser, HasAvatar
         static::saving(function (User $user) {
             if (!empty($user->email) && !str_contains($user->email, '@placeholder.local') && !empty($user->username)) {
                 $user->has_account = true;
+            }
+        });
+
+        static::saved(function (User $user) {
+            if ($user->institution_id && \Illuminate\Support\Facades\Schema::hasTable('institution_user')) {
+                try {
+                    \Illuminate\Support\Facades\DB::table('institution_user')->updateOrInsert(
+                        ['user_id' => $user->id, 'institution_id' => $user->institution_id],
+                        ['created_at' => now(), 'updated_at' => now()]
+                    );
+                } catch (\Throwable $e) {}
             }
         });
     }

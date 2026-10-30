@@ -78,6 +78,23 @@ class RedirectPortalUsers
 
                 // Staff / Teachers
                 if ($isStaff) {
+                    $instMap = [
+                        1 => 'yayasan*',
+                        2 => 'staff*',
+                        3 => 'kbtk*',
+                        4 => 'sd*',
+                        5 => 'smk*',
+                        6 => 'ma*',
+                        7 => 'ponpes*',
+                    ];
+
+                    $userInstIds = $user->institution_ids;
+                    foreach ($userInstIds as $instId) {
+                        if (isset($instMap[$instId]) && $request->is($instMap[$instId])) {
+                            return $next($request);
+                        }
+                    }
+
                     $targetPath = '/staff'; // Default to SMPI if no institution ID
                     
                     if ($user->institution_id == 3) $targetPath = '/kbtk';
@@ -86,6 +103,7 @@ class RedirectPortalUsers
                     elseif ($user->institution_id == 5) $targetPath = '/smk';
                     elseif ($user->institution_id == 6) $targetPath = '/ma';
                     elseif ($user->institution_id == 7) $targetPath = '/ponpes';
+                    elseif ($user->institution_id == 1) $targetPath = '/yayasan';
                     else {
                         // If null, allow them to stay on whichever staff panel they accessed, else default to /staff
                         $validStaffPanels = ['kbtk*', 'sd*', 'staff*', 'smk*', 'ma*', 'ponpes*'];

@@ -53,7 +53,8 @@ class TeacherSubjectClassResource extends Resource
             $query->where(function ($q) use ($user) {
                 $q->where('institution_id', $user->institution_id)
                   ->orWhereNull('institution_id')
-                  ->orWhere('institution_id', 1);
+                  ->orWhere('institution_id', 1)
+                  ->orWhereHas('institutions', fn ($iq) => $iq->where('institutions.id', $user->institution_id));
             });
         }
 
