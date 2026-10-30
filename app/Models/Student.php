@@ -39,6 +39,7 @@ class Student extends Model
     protected function casts(): array
     {
         return [
+            'tanggal_lahir' => 'date',
             'tanggal_penempatan_quran' => 'date',
         ];
     }

@@ -198,21 +198,21 @@ class StudentResource extends Resource
                     ])->columns(2),
 
                 Forms\Components\Section::make('Data Orang Tua / Wali')
-                    ->description('Pastikan memasukkan No Telepon Orang Tua yang valid')
+                    ->description('Pastikan memasukkan data orang tua / wali yang valid sesuai Kartu Keluarga')
                     ->schema([
-                        Forms\Components\TextInput::make('no_telepon_orang_tua')
-                            ->label('No Telepon Orang Tua')
-                            ->tel()
-                            ->maxLength(255)
-                            ->columnSpanFull(),
-
                         Forms\Components\Fieldset::make('Data Keluarga')
                             ->schema([
-                                Forms\Components\TextInput::make('jumlah_saudara')
-                                    ->label('Jumlah Anak')
-                                    ->numeric(),
+                                Forms\Components\TextInput::make('no_kk')
+                                    ->label('Nomer KK (Kartu Keluarga)')
+                                    ->maxLength(255),
+                                Forms\Components\TextInput::make('agama')
+                                    ->label('Agama')
+                                    ->maxLength(100),
                                 Forms\Components\TextInput::make('anak_ke')
                                     ->label('Anak Ke-')
+                                    ->numeric(),
+                                Forms\Components\TextInput::make('jumlah_saudara_kandung')
+                                    ->label('Jumlah Saudara Kandung')
                                     ->numeric(),
                             ])->columns(2),
                             
@@ -222,12 +222,22 @@ class StudentResource extends Resource
                                     ->label('Nama Ayah')
                                     ->maxLength(255),
                                 Forms\Components\TextInput::make('tempat_lahir_ayah')
-                                    ->label('Tempat Lahir Ayah')
+                                    ->label('Tempat Lahir (Ayah)')
                                     ->maxLength(255),
                                 Forms\Components\DatePicker::make('tanggal_lahir_ayah')
-                                    ->label('Tanggal Lahir Ayah'),
+                                    ->label('Tanggal Lahir (Ayah)'),
+                                Forms\Components\TextInput::make('no_hp_ayah')
+                                    ->label('No. Telp/HP (Ayah)')
+                                    ->tel()
+                                    ->maxLength(255),
+                                Forms\Components\TextInput::make('pendidikan_ayah')
+                                    ->label('Pendidikan (Ayah)')
+                                    ->maxLength(255),
                                 Forms\Components\TextInput::make('pekerjaan_ayah')
-                                    ->label('Pekerjaan Ayah')
+                                    ->label('Pekerjaan (Ayah)')
+                                    ->maxLength(255),
+                                Forms\Components\TextInput::make('penghasilan_ayah')
+                                    ->label('Rata-rata Penghasilan (Ayah)')
                                     ->maxLength(255),
                             ])->columns(2),
 
@@ -237,12 +247,42 @@ class StudentResource extends Resource
                                     ->label('Nama Ibu')
                                     ->maxLength(255),
                                 Forms\Components\TextInput::make('tempat_lahir_ibu')
-                                    ->label('Tempat Lahir Ibu')
+                                    ->label('Tempat Lahir (Ibu)')
                                     ->maxLength(255),
                                 Forms\Components\DatePicker::make('tanggal_lahir_ibu')
-                                    ->label('Tanggal Lahir Ibu'),
+                                    ->label('Tanggal Lahir (Ibu)'),
+                                Forms\Components\TextInput::make('no_hp_ibu')
+                                    ->label('No. Telp/HP (Ibu)')
+                                    ->tel()
+                                    ->maxLength(255),
+                                Forms\Components\TextInput::make('pendidikan_ibu')
+                                    ->label('Pendidikan (Ibu)')
+                                    ->maxLength(255),
                                 Forms\Components\TextInput::make('pekerjaan_ibu')
-                                    ->label('Pekerjaan Ibu')
+                                    ->label('Pekerjaan (Ibu)')
+                                    ->maxLength(255),
+                                Forms\Components\TextInput::make('penghasilan_ibu')
+                                    ->label('Rata-rata Penghasilan (Ibu)')
+                                    ->maxLength(255),
+                            ])->columns(2),
+
+                        Forms\Components\Fieldset::make('Data Wali')
+                            ->schema([
+                                Forms\Components\TextInput::make('nama_wali')
+                                    ->label('Nama Wali')
+                                    ->maxLength(255),
+                                Forms\Components\TextInput::make('no_hp_wali')
+                                    ->label('No. Telp/HP (Wali)')
+                                    ->tel()
+                                    ->maxLength(255),
+                                Forms\Components\TextInput::make('pendidikan_wali')
+                                    ->label('Pendidikan (Wali)')
+                                    ->maxLength(255),
+                                Forms\Components\TextInput::make('pekerjaan_wali')
+                                    ->label('Pekerjaan (Wali)')
+                                    ->maxLength(255),
+                                Forms\Components\TextInput::make('penghasilan_wali')
+                                    ->label('Rata-rata Penghasilan (Wali)')
                                     ->maxLength(255),
                             ])->columns(2),
                             
