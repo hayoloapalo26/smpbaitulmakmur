@@ -17,17 +17,11 @@ use Carbon\Carbon;
 
 class CharacterScoreLogResource extends Resource
 {
+    protected static bool $shouldRegisterNavigation = false;
+
     public static function shouldRegisterNavigation(): bool
     {
-        $user = auth()->user();
-        if (!$user || $user->isQuranTeacher()) return false;
-
-        // Roles that already have 'Rekapitulasi & Input Karakter' (CharacterScoreReport) in their sidebar do not need a duplicate menu
-        if ($user->hasAnyRole(['wali_kelas', 'guru_kelas', 'waka_kesiswaan', 'kepala_sekolah', 'superadmin'])) {
-            return false;
-        }
-
-        return $user->hasAnyRole(['guru_mapel']);
+        return false;
     }
 
     public static function canAccess(): bool
