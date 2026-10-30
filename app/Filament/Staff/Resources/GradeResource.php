@@ -422,12 +422,46 @@ class GradeResource extends Resource
                                     if (!empty($rppm->topik) && empty($get('materi'))) {
                                         $set('materi', $rppm->topik);
                                     }
+                                    if (!empty($rppm->capaian_pembelajaran_id)) {
+                                        $set('capaian_pembelajaran_id', $rppm->capaian_pembelajaran_id);
+                                    }
                                     if (!empty($rppm->selected_tp_ids)) {
                                         $set('tp_ids', $rppm->selected_tp_ids);
                                     }
                                 }
                             })
-                            ->helperText('Pilih RPPM untuk otomatis mengisi Materi Pokok dan memilih Tujuan Pembelajaran yang sesuai.'),
+                            ->helperText('Pilih RPPM untuk otomatis mengisi CP, Materi Pokok, dan Tujuan Pembelajaran.'),
+
+                        Forms\Components\Select::make('capaian_pembelajaran_id')
+                            ->label('Capaian Pembelajaran (CP) [Otomatis dari RPPM]')
+                            ->options(function (Forms\Get $get) {
+                                $subjectId = $get('subject_id');
+                                $classroomId = $get('classroom_id');
+                                $query = \App\Models\CapaianPembelajaran::query();
+                                if ($subjectId) {
+                                    $query->where('subject_id', $subjectId);
+                                }
+                                if ($classroomId) {
+                                    $tingkat = Classroom::where('id', $classroomId)->value('tingkat');
+                                    if ($tingkat) {
+                                        $query->where('tingkat', $tingkat);
+                                    }
+                                }
+                                return $query->latest()->get()->mapWithKeys(function ($cp) {
+                                    return [$cp->id => $cp->display_title];
+                                });
+                            })
+                            ->searchable()
+                            ->preload()
+                            ->live()
+                            ->afterStateUpdated(function ($state, Forms\Set $set, Forms\Get $get) {
+                                if (!$state) return;
+                                $cp = \App\Models\CapaianPembelajaran::find($state);
+                                if ($cp && empty($get('materi')) && !empty($cp->elemen)) {
+                                    $set('materi', $cp->elemen);
+                                }
+                            })
+                            ->helperText('Pilih CP yang dinilai. Terisi otomatis jika memilih dokumen RPPM.'),
 
                         Forms\Components\TextInput::make('materi')
                             ->label('Materi Pokok yang Dinilai')
@@ -442,6 +476,7 @@ class GradeResource extends Resource
                                 $subjectId = $get('subject_id');
                                 $classroomId = $get('classroom_id');
                                 $rppmId = $get('rppm_id');
+                                $cpId = $get('capaian_pembelajaran_id');
 
                                 $rppmTpIds = [];
                                 if ($rppmId) {
@@ -453,14 +488,21 @@ class GradeResource extends Resource
                                 if ($subjectId) {
                                     $query->where('subject_id', $subjectId);
                                 }
-                                if ($classroomId) {
+                                if ($cpId) {
+                                    $query->where('capaian_pembelajaran_id', $cpId);
+                                } elseif ($classroomId) {
                                     $tingkat = Classroom::where('id', $classroomId)->value('tingkat');
                                     if ($tingkat) {
                                         $query->where('kelas_tingkat', $tingkat);
                                     }
                                 }
 
-                                return $query->get()->mapWithKeys(function ($tp) use ($rppmTpIds) {
+                                $tps = $query->get();
+                                if ($tps->isEmpty() && $subjectId) {
+                                    $tps = TujuanPembelajaran::where('subject_id', $subjectId)->get();
+                                }
+
+                                return $tps->mapWithKeys(function ($tp) use ($rppmTpIds) {
                                     $isRppm = in_array($tp->id, $rppmTpIds);
                                     $tag = $isRppm ? '📌 [Dari RPPM] ' : '';
                                     $prefix = $tp->materi ? "[{$tp->materi}] " : '';

@@ -50,6 +50,11 @@ class Grade extends Model
         return $this->belongsTo(Subject::class, 'subject_id');
     }
 
+    public function capaianPembelajaran()
+    {
+        return $this->belongsTo(CapaianPembelajaran::class, 'capaian_pembelajaran_id');
+    }
+
     public function rppm()
     {
         return $this->belongsTo(Rppm::class, 'rppm_id');

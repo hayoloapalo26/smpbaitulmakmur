@@ -17,10 +17,16 @@
                 </div>
 
                 <div class="flex flex-wrap items-center gap-2">
+                    <a href="{{ url('/staff/grades?action=input_nilai_rombel') }}" 
+                       class="text-xs inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-primary-600 hover:bg-primary-500 text-white rounded-lg transition font-bold shadow-sm">
+                        <x-heroicon-o-user-group class="w-4 h-4 text-white" />
+                        ⚡ Input Nilai Rombel (1 Form Sekelas Seperti Jurnal Mengajar)
+                    </a>
+
                     <a href="{{ url('/staff/grades') }}" 
                        class="text-xs inline-flex items-center gap-1.5 px-3 py-1.5 bg-primary-50 hover:bg-primary-100 dark:bg-primary-950/60 dark:hover:bg-primary-900/60 text-primary-700 dark:text-primary-300 rounded-lg transition font-semibold border border-primary-200 dark:border-primary-800 shadow-sm">
                         <x-heroicon-o-academic-cap class="w-4 h-4 text-primary-600" />
-                        📋 Input Nilai Lengkap (TP, Remedial & Pengayaan)
+                        📋 Daftar Nilai Siswa
                     </a>
 
                     @if(auth()->user()->hasAnyRole(['waka_kurikulum', 'superadmin']))
