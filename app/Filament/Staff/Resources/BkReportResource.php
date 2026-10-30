@@ -37,7 +37,7 @@ class BkReportResource extends Resource
         }
 
         if ($user->hasRole('wali_kelas')) {
-            $waliKelasClassroomIds = Classroom::where('wali_kelas_id', $user->id)->pluck('id')->toArray();
+            $waliKelasClassroomIds = Classroom::reguler()->where('wali_kelas_id', $user->id)->pluck('id')->toArray();
             return $query->whereHas('student', function ($q) use ($waliKelasClassroomIds) {
                 $q->whereIn('classroom_id', $waliKelasClassroomIds);
             });

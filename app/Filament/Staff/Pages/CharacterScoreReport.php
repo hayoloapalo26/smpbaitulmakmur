@@ -58,11 +58,11 @@ class CharacterScoreReport extends Page
     public function mount(): void
     {
         $user = Auth::user();
-        $myClass = Classroom::where('wali_kelas_id', $user->id)->first();
+        $myClass = Classroom::reguler()->where('wali_kelas_id', $user->id)->first();
         if ($myClass) {
             $this->selectedClassroomId = $myClass->id;
         } else {
-            $firstClass = Classroom::orderBy('name')->first();
+            $firstClass = Classroom::reguler()->orderBy('name')->first() ?? Classroom::orderBy('name')->first();
             $this->selectedClassroomId = $firstClass?->id;
         }
     }
@@ -129,11 +129,11 @@ class CharacterScoreReport extends Page
         $user = Auth::user();
 
         $availableClasses = $user->hasAnyRole(['kepala_sekolah', 'superadmin'])
-            ? Classroom::orderBy('name')->get()
-            : Classroom::where('wali_kelas_id', $user->id)->get();
+            ? Classroom::reguler()->orderBy('name')->get()
+            : Classroom::reguler()->where('wali_kelas_id', $user->id)->get();
 
         if ($availableClasses->isEmpty()) {
-            $availableClasses = Classroom::orderBy('name')->get();
+            $availableClasses = Classroom::reguler()->orderBy('name')->get();
         }
 
         $selectedClass = Classroom::find($this->selectedClassroomId);

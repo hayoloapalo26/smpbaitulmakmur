@@ -342,12 +342,12 @@ class InputNilaiMapel extends Page
         }
 
         // Jika Wali Kelas
-        $myClass = Classroom::where('wali_kelas_id', $user->id)->get();
+        $myClass = Classroom::reguler()->where('wali_kelas_id', $user->id)->get();
         if ($myClass->isNotEmpty()) {
             return $myClass;
         }
 
-        return Classroom::orderBy('name')->get();
+        return Classroom::reguler()->orderBy('name')->get();
     }
 
     public function calculateFinalScore($p, $k, $u): ?float

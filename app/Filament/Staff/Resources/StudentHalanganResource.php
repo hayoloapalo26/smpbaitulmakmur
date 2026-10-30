@@ -41,8 +41,8 @@ public static function canAccess(): bool
             return $query;
         }
 
-        // Wali kelas hanya melihat siswi kelasnya
-        $classroomIds = Classroom::where('wali_kelas_id', $user->id)->pluck('id');
+        // Wali kelas hanya melihat siswi kelasnya (kelas akademik)
+        $classroomIds = Classroom::reguler()->where('wali_kelas_id', $user->id)->pluck('id');
         $studentIds = Student::whereIn('classroom_id', $classroomIds)
             ->where('jenis_kelamin', 'P')
             ->pluck('id');
@@ -62,7 +62,7 @@ public static function canAccess(): bool
                     ->get()
                     ->mapWithKeys(fn ($s) => [$s->id => "{$s->name} — {$s->classroom->name}"]);
             }
-            $classroomIds = Classroom::where('wali_kelas_id', $user->id)->pluck('id');
+            $classroomIds = Classroom::reguler()->where('wali_kelas_id', $user->id)->pluck('id');
             return Student::whereIn('classroom_id', $classroomIds)
                 ->where('jenis_kelamin', 'P')
                 ->with('classroom')

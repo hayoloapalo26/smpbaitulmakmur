@@ -198,6 +198,18 @@ class User extends Authenticatable implements FilamentUser, HasAvatar
         return $this->belongsTo(Institution::class, 'institution_id');
     }
 
+    public function classroomsAsWali()
+    {
+        return $this->hasMany(Classroom::class, 'wali_kelas_id')->where(function ($q) {
+            $q->where('tipe', Classroom::TIPE_REGULER)->orWhereNull('tipe');
+        });
+    }
+
+    public function quranClassesAsPengampu()
+    {
+        return $this->hasMany(Classroom::class, 'wali_kelas_id')->where('tipe', Classroom::TIPE_QURAN);
+    }
+
     public function getFilamentAvatarUrl(): ?string
     {
         return $this->avatar_url ? Storage::url($this->avatar_url) : null;

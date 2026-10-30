@@ -86,7 +86,7 @@ class PrayerAttendanceReport extends Page
             $user->hasAnyRole(['wali_kelas', 'guru_kelas']) &&
             !$user->hasAnyRole(['waka_kesiswaan', 'kepala_sekolah', 'tata_usaha', 'superadmin'])
         ) {
-            $query->where('wali_kelas_id', $user->id);
+            $query->reguler()->where('wali_kelas_id', $user->id);
         }
 
         return $query->get();
@@ -111,7 +111,7 @@ class PrayerAttendanceReport extends Page
             $user->hasAnyRole(['wali_kelas', 'guru_kelas']) &&
             !$user->hasAnyRole(['waka_kesiswaan', 'kepala_sekolah', 'tata_usaha', 'superadmin'])
         ) {
-            $waliClassIds = Classroom::withoutGlobalScopes()->where('wali_kelas_id', $user->id)->pluck('id')->toArray();
+            $waliClassIds = Classroom::withoutGlobalScopes()->reguler()->where('wali_kelas_id', $user->id)->pluck('id')->toArray();
             $studentsQuery->whereIn('classroom_id', $waliClassIds);
         }
 

@@ -90,8 +90,8 @@ class StudentResource extends Resource
             return $query;
         }
 
-        // Wali Kelas classes
-        $waliKelasClassroomIds = \App\Models\Classroom::where('wali_kelas_id', $user->id)->pluck('id')->toArray();
+        // Wali Kelas classes (khusus kelas akademik reguler)
+        $waliKelasClassroomIds = \App\Models\Classroom::reguler()->where('wali_kelas_id', $user->id)->pluck('id')->toArray();
 
         // Teacher subject classes
         $teacherClassroomIds = TeacherSubjectClass::where('teacher_id', $user->id)->pluck('classroom_id')->toArray();

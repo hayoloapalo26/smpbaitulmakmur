@@ -11,21 +11,27 @@ class EditClassroom extends EditRecord
 {
     protected static string $resource = ClassroomResource::class;
 
+    protected ?int $oldWaliKelasId = null;
+
+    protected function beforeSave(): void
+    {
+        $this->oldWaliKelasId = $this->record->wali_kelas_id;
+    }
+
     protected function getHeaderActions(): array
     {
         return [
-            Actions\DeleteAction::make(),
+            Actions\DeleteAction::make()
+                ->after(function () {
+                    if ($this->record->wali_kelas_id) {
+                        ClassroomResource::syncTeacherRoles($this->record, $this->record->wali_kelas_id);
+                    }
+                }),
         ];
     }
 
     protected function afterSave(): void
     {
-        $record = $this->record;
-        if ($record->wali_kelas_id) {
-            $user = User::find($record->wali_kelas_id);
-            if ($user && !$user->hasRole('wali_kelas')) {
-                $user->assignRole('wali_kelas');
-            }
-        }
+        ClassroomResource::syncTeacherRoles($this->record, $this->oldWaliKelasId);
     }
 }

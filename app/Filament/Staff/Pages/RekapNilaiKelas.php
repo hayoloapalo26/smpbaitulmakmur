@@ -106,12 +106,12 @@ class RekapNilaiKelas extends Page
     {
         $user = Auth::user();
 
-        // Cari kelas yang dibina wali kelas ini
-        $myClass = Classroom::where('wali_kelas_id', $user->id)->first();
+        // Cari kelas yang dibina wali kelas ini (khusus kelas akademik)
+        $myClass = Classroom::reguler()->where('wali_kelas_id', $user->id)->first();
         if ($myClass) {
             $this->selectedClassroomId = $myClass->id;
         } else {
-            $firstClass = Classroom::orderBy('name')->first();
+            $firstClass = Classroom::reguler()->orderBy('name')->first() ?? Classroom::orderBy('name')->first();
             $this->selectedClassroomId = $firstClass?->id;
         }
 
@@ -212,14 +212,14 @@ class RekapNilaiKelas extends Page
     {
         $user = Auth::user();
 
-        // Daftar kelas yang dapat dipilih
+        // Daftar kelas akademik yang dapat dipilih
         $availableClasses = $user->hasAnyRole(['waka_kurikulum', 'kepala_sekolah', 'superadmin'])
-            ? Classroom::orderBy('name')->get()
-            : Classroom::where('wali_kelas_id', $user->id)->get();
+            ? Classroom::reguler()->orderBy('name')->get()
+            : Classroom::reguler()->where('wali_kelas_id', $user->id)->get();
 
-        // Jika wali kelas belum memiliki kelas yang terdaftar, ambil semua kelas agar tidak kosong
+        // Jika wali kelas belum memiliki kelas yang terdaftar, ambil semua kelas reguler agar tidak kosong
         if ($availableClasses->isEmpty()) {
-            $availableClasses = Classroom::orderBy('name')->get();
+            $availableClasses = Classroom::reguler()->orderBy('name')->get();
         }
 
         $academicYears = AcademicYear::orderByDesc('id')->get();

@@ -21,12 +21,6 @@ class CreateClassroom extends CreateRecord
 
     protected function afterCreate(): void
     {
-        $record = $this->record;
-        if ($record->wali_kelas_id) {
-            $user = User::find($record->wali_kelas_id);
-            if ($user && !$user->hasRole('wali_kelas')) {
-                $user->assignRole('wali_kelas');
-            }
-        }
+        ClassroomResource::syncTeacherRoles($this->record);
     }
 }
