@@ -17,7 +17,7 @@ class ListPenempatanSarpras extends ListRecords
             Actions\CreateAction::make()
                 ->label('Catat Penempatan Ruangan')
                 ->icon('heroicon-m-plus')
-                ->visible(fn () => auth()->user()?->hasAnyRole(['sarpras', 'tata_usaha', 'superadmin'])),
+                ->visible(fn () => auth()->user()?->hasAnyRole(['sarpras', 'superadmin'])),
         ];
     }
 

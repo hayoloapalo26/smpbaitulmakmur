@@ -58,14 +58,28 @@ class TeacherAttendanceResource extends Resource
 
     public static function getNavigationGroup(): ?string
     {
-        return auth()->user()?->hasRole('kepala_sekolah')
-            ? 'Manajemen Sekolah'
-            : 'Akademik & Kurikulum';
+        if (auth()->user()?->hasRole('kepala_sekolah')) {
+            return 'Manajemen Sekolah';
+        }
+
+        if (auth()->user()?->hasRole('tata_usaha')) {
+            return 'Administrasi & Data Induk';
+        }
+
+        return 'Akademik & Kurikulum';
     }
 
     public static function getNavigationSort(): ?int
     {
-        return auth()->user()?->hasRole('kepala_sekolah') ? 10 : 5;
+        if (auth()->user()?->hasRole('kepala_sekolah')) {
+            return 10;
+        }
+
+        if (auth()->user()?->hasRole('tata_usaha')) {
+            return 4;
+        }
+
+        return 5;
     }
 
     public static function getEloquentQuery(): Builder

@@ -37,13 +37,13 @@ class ManagePresensiIzinSiswa extends ManageRecords
                 ->icon('heroicon-o-chart-bar-square')
                 ->color('warning')
                 ->url(fn () => \App\Filament\Staff\Pages\PrayerAttendanceReport::getUrl())
-                ->visible(fn () => auth()->user()->hasAnyRole(['waka_kesiswaan', 'kepala_sekolah', 'wali_kelas', 'guru_kelas', 'tata_usaha', 'superadmin'])),
+                ->visible(fn () => auth()->user()->hasAnyRole(['waka_kesiswaan', 'kepala_sekolah', 'wali_kelas', 'guru_kelas', 'superadmin'])),
             Actions\Action::make('absensi_kolektif')
                 ->label('Input Presensi Kolektif Per Kelas')
                 ->icon('heroicon-o-clipboard-document-check')
                 ->color('info')
                 ->url(fn () => \App\Filament\Staff\Pages\AbsensiManual::getUrl())
-                ->visible(fn () => auth()->user()->hasAnyRole(['guru_piket', 'tata_usaha', 'waka_kesiswaan', 'kepala_sekolah', 'superadmin'])),
+                ->visible(fn () => auth()->user()->hasAnyRole(['guru_piket', 'waka_kesiswaan', 'kepala_sekolah', 'superadmin'])),
             Actions\CreateAction::make()
                 ->label('Catat Hadir / Izin / Sakit / Alpha')
                 ->icon('heroicon-o-plus-circle'),

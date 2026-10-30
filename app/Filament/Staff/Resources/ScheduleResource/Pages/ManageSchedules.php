@@ -24,7 +24,7 @@ class ManageSchedules extends ManageRecords
                 ->url(fn () => TeacherSubjectClassResource::getUrl()),
             Actions\CreateAction::make()
                 ->modalWidth('3xl')
-                ->visible(fn () => auth()->user()?->hasAnyRole(['waka_kurikulum', 'tata_usaha', 'kepala_sekolah', 'superadmin']) ?? false)
+                ->visible(fn () => auth()->user()?->hasAnyRole(['waka_kurikulum', 'kepala_sekolah', 'superadmin']) ?? false)
                 ->using(function (array $data, string $model): \Illuminate\Database\Eloquent\Model {
                     $days = is_array($data['hari']) ? $data['hari'] : [$data['hari']];
                     $jams = is_array($data['jam_ke']) ? $data['jam_ke'] : [$data['jam_ke']];

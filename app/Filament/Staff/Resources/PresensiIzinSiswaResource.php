@@ -31,7 +31,7 @@ class PresensiIzinSiswaResource extends Resource
         if ($user?->hasRole('kepala_sekolah')) {
             return 'Perencanaan Administrasi Pembelajaran';
         }
-        if ($user && $user->hasAnyRole(['wali_kelas', 'guru_kelas']) && !$user->hasAnyRole(['waka_kesiswaan', 'tata_usaha', 'superadmin', 'kepala_sekolah'])) {
+        if ($user && $user->hasAnyRole(['wali_kelas', 'guru_kelas']) && !$user->hasAnyRole(['waka_kesiswaan', 'superadmin', 'kepala_sekolah'])) {
             return 'Fitur Wali Kelas';
         }
         return 'Kesiswaan & Karakter';
@@ -75,7 +75,7 @@ class PresensiIzinSiswaResource extends Resource
         $user = Auth::user();
         if (!$user || $user->isQuranTeacher()) return false;
         return $user->hasAnyRole([
-            'wali_kelas', 'guru_kelas', 'guru_piket', 'tata_usaha', 'waka_kesiswaan', 'kepala_sekolah', 'superadmin',
+            'wali_kelas', 'guru_kelas', 'guru_piket', 'waka_kesiswaan', 'kepala_sekolah', 'superadmin',
         ]);
     }
 
@@ -89,7 +89,7 @@ class PresensiIzinSiswaResource extends Resource
             $query->where('institution_id', $user->institution_id);
         }
 
-        if ($user->hasAnyRole(['kepala_sekolah', 'waka_kesiswaan', 'tata_usaha', 'guru_piket', 'superadmin']) || $user->isPiketToday()) {
+        if ($user->hasAnyRole(['kepala_sekolah', 'waka_kesiswaan', 'guru_piket', 'superadmin']) || $user->isPiketToday()) {
             return $query;
         }
 
@@ -106,7 +106,7 @@ class PresensiIzinSiswaResource extends Resource
     public static function form(Form $form): Form
     {
         $user = Auth::user();
-        $isWaliKelasOnly = $user->hasAnyRole(['wali_kelas', 'guru_kelas']) && !$user->hasAnyRole(['superadmin', 'kepala_sekolah', 'waka_kesiswaan', 'tata_usaha', 'guru_piket']) && !$user->isPiketToday();
+        $isWaliKelasOnly = $user->hasAnyRole(['wali_kelas', 'guru_kelas']) && !$user->hasAnyRole(['superadmin', 'kepala_sekolah', 'waka_kesiswaan', 'guru_piket']) && !$user->isPiketToday();
 
         $studentIds = [];
         if ($isWaliKelasOnly) {

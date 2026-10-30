@@ -20,7 +20,7 @@ class DutySwapRequestResource extends Resource
     {
         return auth()->user()?->hasAnyRole(array_merge([
             'waka_kesiswaan', 'kepala_sekolah', 'superadmin', 'guru_piket', 
-            'guru_mapel', 'koordinator_madin', 'wali_kelas', 'guru_kelas', 'bk', 'tata_usaha'
+            'guru_mapel', 'koordinator_madin', 'wali_kelas', 'guru_kelas', 'bk'
         ], \App\Models\User::QURAN_TEACHER_ROLES)) ?? false;
     }
 

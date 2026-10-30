@@ -20,7 +20,7 @@ class AbsensiManual extends Page
             return false;
         }
 
-        if ($user->hasAnyRole(['waka_kesiswaan', 'kepala_sekolah', 'superadmin', 'tata_usaha'])) {
+        if ($user->hasAnyRole(['waka_kesiswaan', 'kepala_sekolah', 'superadmin'])) {
             return true;
         }
 

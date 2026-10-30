@@ -24,7 +24,7 @@ class DailyAttendanceResource extends Resource
             return false;
         }
 
-        if ($user->hasAnyRole(['waka_kesiswaan', 'kepala_sekolah', 'superadmin', 'tata_usaha'])) {
+        if ($user->hasAnyRole(['waka_kesiswaan', 'kepala_sekolah', 'superadmin'])) {
             return true;
         }
 
@@ -66,7 +66,7 @@ class DailyAttendanceResource extends Resource
             });
         }
 
-        if ($user->hasAnyRole(['kepala_sekolah', 'waka_kesiswaan', 'guru_piket', 'tata_usaha']) || $user->isPiketToday()) {
+        if ($user->hasAnyRole(['kepala_sekolah', 'waka_kesiswaan', 'guru_piket']) || $user->isPiketToday()) {
             return $query;
         }
 

@@ -140,7 +140,9 @@
         elseif (
             str_contains($labelLower, 'tata usaha') ||
             str_contains($labelLower, 'perizinan') ||
-            str_contains($labelLower, 'kepegawaian')
+            str_contains($labelLower, 'kepegawaian') ||
+            str_contains($labelLower, 'administrasi & data induk') ||
+            (str_contains($labelLower, 'administrasi') && !str_contains($labelLower, 'sarpras') && !str_contains($labelLower, 'inventarisasi'))
         ) {
             $tupoksiType = 'jabatan';
             $tupoksiBadge = 'TUGAS JABATAN (TATA USAHA)';

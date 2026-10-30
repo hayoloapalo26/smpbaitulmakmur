@@ -38,7 +38,6 @@ class EvaluasiProgramSarprasResource extends Resource
     {
         return auth()->user()?->hasAnyRole([
             'sarpras',
-            'tata_usaha',
             'kepala_sekolah',
             'superadmin',
             'yayasan',
@@ -53,7 +52,6 @@ class EvaluasiProgramSarprasResource extends Resource
     {
         return auth()->user()?->hasAnyRole([
             'sarpras',
-            'tata_usaha',
             'kepala_sekolah',
             'superadmin',
             'yayasan',
@@ -80,12 +78,12 @@ class EvaluasiProgramSarprasResource extends Resource
 
     public static function canCreate(): bool
     {
-        return auth()->user()?->hasAnyRole(['sarpras', 'tata_usaha', 'superadmin']) ?? false;
+        return auth()->user()?->hasAnyRole(['sarpras', 'superadmin']) ?? false;
     }
 
     public static function canEdit(Model $record): bool
     {
-        return auth()->user()?->hasAnyRole(['sarpras', 'tata_usaha', 'kepala_sekolah', 'superadmin']) ?? false;
+        return auth()->user()?->hasAnyRole(['sarpras', 'kepala_sekolah', 'superadmin']) ?? false;
     }
 
     public static function canDelete(Model $record): bool

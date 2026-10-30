@@ -17,7 +17,7 @@ class ListEvaluasiProgramSarpras extends ListRecords
             Actions\CreateAction::make()
                 ->label('Input Evaluasi Program')
                 ->icon('heroicon-m-plus')
-                ->visible(fn () => auth()->user()?->hasAnyRole(['sarpras', 'tata_usaha', 'superadmin'])),
+                ->visible(fn () => auth()->user()?->hasAnyRole(['sarpras', 'superadmin'])),
         ];
     }
 

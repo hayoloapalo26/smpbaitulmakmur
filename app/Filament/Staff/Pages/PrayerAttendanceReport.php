@@ -31,7 +31,7 @@ class PrayerAttendanceReport extends Page
     public static function canAccess(): bool
     {
         return auth()->user()->hasAnyRole([
-            'waka_kesiswaan', 'kepala_sekolah', 'wali_kelas', 'guru_kelas', 'tata_usaha', 'superadmin',
+            'waka_kesiswaan', 'kepala_sekolah', 'wali_kelas', 'guru_kelas', 'superadmin',
         ]);
     }
 
@@ -84,7 +84,7 @@ class PrayerAttendanceReport extends Page
 
         if (
             $user->hasAnyRole(['wali_kelas', 'guru_kelas']) &&
-            !$user->hasAnyRole(['waka_kesiswaan', 'kepala_sekolah', 'tata_usaha', 'superadmin'])
+            !$user->hasAnyRole(['waka_kesiswaan', 'kepala_sekolah', 'superadmin'])
         ) {
             $query->reguler()->where('wali_kelas_id', $user->id);
         }
@@ -109,7 +109,7 @@ class PrayerAttendanceReport extends Page
 
         if (
             $user->hasAnyRole(['wali_kelas', 'guru_kelas']) &&
-            !$user->hasAnyRole(['waka_kesiswaan', 'kepala_sekolah', 'tata_usaha', 'superadmin'])
+            !$user->hasAnyRole(['waka_kesiswaan', 'kepala_sekolah', 'superadmin'])
         ) {
             $waliClassIds = Classroom::withoutGlobalScopes()->reguler()->where('wali_kelas_id', $user->id)->pluck('id')->toArray();
             $studentsQuery->whereIn('classroom_id', $waliClassIds);

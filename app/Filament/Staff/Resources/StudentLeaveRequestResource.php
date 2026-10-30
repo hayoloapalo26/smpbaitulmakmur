@@ -17,7 +17,7 @@ class StudentLeaveRequestResource extends Resource
 {
 public static function canAccess(): bool
     {
-        return auth()->user()->hasAnyRole(['waka_kesiswaan', 'tata_usaha', 'superadmin']);
+        return auth()->user()->hasAnyRole(['waka_kesiswaan', 'superadmin']);
     }
 
     protected static bool $shouldRegisterNavigation = false;

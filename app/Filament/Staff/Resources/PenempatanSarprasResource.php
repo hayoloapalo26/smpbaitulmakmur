@@ -42,22 +42,22 @@ class PenempatanSarprasResource extends Resource
 
     public static function shouldRegisterNavigation(): bool
     {
-        return auth()->user()?->hasAnyRole(['sarpras', 'tata_usaha', 'kepala_sekolah', 'superadmin']) ?? false;
+        return auth()->user()?->hasAnyRole(['sarpras', 'kepala_sekolah', 'superadmin']) ?? false;
     }
 
     public static function canAccess(): bool
     {
-        return auth()->user()?->hasAnyRole(['sarpras', 'tata_usaha', 'kepala_sekolah', 'superadmin']) ?? false;
+        return auth()->user()?->hasAnyRole(['sarpras', 'kepala_sekolah', 'superadmin']) ?? false;
     }
 
     public static function canCreate(): bool
     {
-        return auth()->user()?->hasAnyRole(['sarpras', 'tata_usaha', 'superadmin']) ?? false;
+        return auth()->user()?->hasAnyRole(['sarpras', 'superadmin']) ?? false;
     }
 
     public static function canEdit(Model $record): bool
     {
-        return auth()->user()?->hasAnyRole(['sarpras', 'tata_usaha', 'superadmin']) ?? false;
+        return auth()->user()?->hasAnyRole(['sarpras', 'superadmin']) ?? false;
     }
 
     public static function canDelete(Model $record): bool
@@ -589,7 +589,7 @@ class PenempatanSarprasResource extends Resource
                     ->color('info')
                     ->icon('heroicon-m-eye'),
                 Tables\Actions\EditAction::make()
-                    ->visible(fn () => auth()->user()?->hasAnyRole(['sarpras', 'tata_usaha', 'superadmin'])),
+                    ->visible(fn () => auth()->user()?->hasAnyRole(['sarpras', 'superadmin'])),
                 Tables\Actions\DeleteAction::make()
                     ->visible(fn () => auth()->user()?->hasAnyRole(['sarpras', 'superadmin'])),
             ])

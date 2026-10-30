@@ -17,7 +17,7 @@ class TeacherAbsenceReportResource extends Resource
 {
 public static function canAccess(): bool
     {
-        return auth()->user()->hasAnyRole(['waka_kurikulum', 'tata_usaha', 'superadmin']);
+        return auth()->user()->hasAnyRole(['waka_kurikulum', 'superadmin']);
     }
 
     protected static bool $shouldRegisterNavigation = false;

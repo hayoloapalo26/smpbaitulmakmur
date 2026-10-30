@@ -17,7 +17,7 @@ class ListPerbaikanPenggantianSarpras extends ListRecords
             Actions\CreateAction::make()
                 ->label('Lapor Kerusakan / Penggantian')
                 ->icon('heroicon-m-plus')
-                ->visible(fn () => auth()->user()?->hasAnyRole(['sarpras', 'tata_usaha', 'superadmin'])),
+                ->visible(fn () => auth()->user()?->hasAnyRole(['sarpras', 'superadmin'])),
         ];
     }
 

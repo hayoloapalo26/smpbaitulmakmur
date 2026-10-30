@@ -77,7 +77,7 @@ class ViewPerawatanBerkalaSarpras extends ViewRecord
                 ->visible(fn () => !empty($this->record->link_drive_dokumentasi)),
 
             Actions\EditAction::make()
-                ->visible(fn () => auth()->user()?->hasAnyRole(['sarpras', 'tata_usaha', 'superadmin'])),
+                ->visible(fn () => auth()->user()?->hasAnyRole(['sarpras', 'superadmin'])),
 
             Actions\DeleteAction::make()
                 ->visible(fn () => auth()->user()?->hasAnyRole(['sarpras', 'superadmin'])),

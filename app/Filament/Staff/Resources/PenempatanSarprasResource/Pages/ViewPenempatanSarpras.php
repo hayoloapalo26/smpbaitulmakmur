@@ -14,7 +14,7 @@ class ViewPenempatanSarpras extends ViewRecord
     {
         return [
             Actions\EditAction::make()
-                ->visible(fn () => auth()->user()?->hasAnyRole(['sarpras', 'tata_usaha', 'superadmin'])),
+                ->visible(fn () => auth()->user()?->hasAnyRole(['sarpras', 'superadmin'])),
             Actions\DeleteAction::make()
                 ->visible(fn () => auth()->user()?->hasAnyRole(['sarpras', 'superadmin'])),
         ];

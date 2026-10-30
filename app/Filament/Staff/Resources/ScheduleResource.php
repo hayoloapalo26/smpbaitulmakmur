@@ -23,7 +23,7 @@ class ScheduleResource extends Resource
     public static function canAccess(): bool
     {
         return auth()->user()->hasAnyRole(array_merge([
-            'waka_kurikulum', 'superadmin', 'kepala_sekolah', 'tata_usaha',
+            'waka_kurikulum', 'superadmin', 'kepala_sekolah',
             'guru_mapel', 'guru_kelas', 'koordinator_madin', 'wali_kelas'
         ], \App\Models\User::QURAN_TEACHER_ROLES));
     }
@@ -44,7 +44,7 @@ class ScheduleResource extends Resource
         $query = parent::getEloquentQuery();
         $user = Auth::user();
 
-        if ($user->hasAnyRole(['waka_kurikulum', 'kepala_sekolah', 'tata_usaha', 'superadmin'])) {
+        if ($user->hasAnyRole(['waka_kurikulum', 'kepala_sekolah', 'superadmin'])) {
             return $query;
         }
 
