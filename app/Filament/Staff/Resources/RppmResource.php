@@ -48,12 +48,26 @@ class RppmResource extends Resource
 
     public static function getNavigationGroup(): ?string
     {
+        if (auth()->user()?->hasRole('kepala_sekolah')) {
+            return 'Perencanaan Administrasi Pembelajaran';
+        }
         return 'Akademik & Kurikulum';
     }
 
     public static function getNavigationLabel(): string
     {
+        if (auth()->user()?->hasRole('kepala_sekolah')) {
+            return 'RPPM';
+        }
         return 'RPPM & Perangkat Ajar';
+    }
+
+    public static function getNavigationSort(): ?int
+    {
+        if (auth()->user()?->hasRole('kepala_sekolah')) {
+            return 2;
+        }
+        return static::$navigationSort;
     }
 
     public static function getNavigationBadge(): ?string
@@ -64,14 +78,6 @@ class RppmResource extends Resource
     public static function getNavigationBadgeColor(): ?string
     {
         return 'info';
-    }
-
-    public static function getNavigationSort(): ?int
-    {
-        if (auth()->user()?->hasRole('kepala_sekolah')) {
-            return 2;
-        }
-        return 6;
     }
 
     

@@ -28,6 +28,9 @@ class PresensiIzinSiswaResource extends Resource
     public static function getNavigationGroup(): ?string
     {
         $user = Auth::user();
+        if ($user?->hasRole('kepala_sekolah')) {
+            return 'Perencanaan Administrasi Pembelajaran';
+        }
         if ($user && $user->hasAnyRole(['wali_kelas', 'guru_kelas']) && !$user->hasAnyRole(['waka_kesiswaan', 'tata_usaha', 'superadmin', 'kepala_sekolah'])) {
             return 'Fitur Wali Kelas';
         }
@@ -36,6 +39,9 @@ class PresensiIzinSiswaResource extends Resource
 
     public static function getNavigationLabel(): string
     {
+        if (Auth::user()?->hasRole('kepala_sekolah')) {
+            return 'Rekap Presensi Siswa';
+        }
         return 'Presensi & Izin Harian Siswa';
     }
 

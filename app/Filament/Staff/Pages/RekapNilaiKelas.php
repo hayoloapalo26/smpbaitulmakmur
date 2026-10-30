@@ -39,6 +39,9 @@ class RekapNilaiKelas extends Page
     public static function getNavigationGroup(): ?string
     {
         $user = Auth::user();
+        if ($user?->hasRole('kepala_sekolah')) {
+            return 'Perencanaan Administrasi Pembelajaran';
+        }
         if ($user && $user->hasAnyRole(['wali_kelas', 'guru_kelas']) && !$user->hasAnyRole(['waka_kurikulum', 'superadmin', 'kepala_sekolah'])) {
             return 'Fitur Wali Kelas';
         }
@@ -47,6 +50,9 @@ class RekapNilaiKelas extends Page
 
     public static function getNavigationLabel(): string
     {
+        if (Auth::user()?->hasRole('kepala_sekolah')) {
+            return 'Rekap & Input Nilai';
+        }
         return 'Rekap & Input Nilai Kelas';
     }
 
