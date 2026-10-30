@@ -24,7 +24,7 @@ class DutyScheduleResource extends Resource
     public static function canAccess(): bool
     {
         $user = auth()->user();
-        if (!$user) {
+        if (!$user || $user->isQuranTeacher()) {
             return false;
         }
 
@@ -33,13 +33,11 @@ class DutyScheduleResource extends Resource
             return true;
         }
 
-        // Untuk guru: dapat diakses jika bertugas piket hari ini, memiliki penugasan jadwal piket, atau memiliki riwayat/permohonan tukar jadwal piket
-        return $user->isPiketToday() ||
-            DutySchedule::where('teacher_id', $user->id)->exists() ||
-            DutySwapRequest::where(function ($q) use ($user) {
-                $q->where('requester_id', $user->id)
-                  ->orWhere('substitute_teacher_id', $user->id);
-            })->whereIn('status', ['diajukan', 'menunggu', 'disetujui'])->exists();
+        // Untuk guru: hanya dapat diakses dan muncul ketika bertugas piket hari ini atau memiliki riwayat/permohonan tukar jadwal piket
+        return $user->isPiketToday() || DutySwapRequest::where(function ($q) use ($user) {
+            $q->where('requester_id', $user->id)
+              ->orWhere('substitute_teacher_id', $user->id);
+        })->whereIn('status', ['diajukan', 'menunggu', 'disetujui'])->exists();
     }
 
     public static function shouldRegisterNavigation(): bool

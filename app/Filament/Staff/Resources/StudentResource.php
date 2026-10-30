@@ -67,11 +67,11 @@ class StudentResource extends Resource
         if ($user?->hasRole('waka_kesiswaan')) {
             return 'Kesiswaan & Karakter';
         }
-        if ($user?->hasAnyRole(['wali_kelas', 'guru_kelas'])) {
-            return 'Fitur Wali Kelas';
-        }
         if ($user?->isQuranTeacher() || $user?->hasRole('koordinator_madin')) {
             return 'Fitur Guru Al-Qur\'an';
+        }
+        if ($user?->hasAnyRole(['wali_kelas', 'guru_kelas'])) {
+            return 'Fitur Wali Kelas';
         }
         if ($user?->hasRole('guru_mapel')) {
             return 'Akademik & Kurikulum';

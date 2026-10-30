@@ -306,8 +306,10 @@ class RoleBasedNavigationIsolationTest extends TestCase
         // 8 Fitur Wali Kelas
         $this->assertFalse(RekapNilaiKelas::canAccess());
         $this->assertFalse(RekapNilaiKelas::shouldRegisterNavigation());
-        $this->assertFalse(StudentResource::canAccess());
-        $this->assertFalse(StudentResource::shouldRegisterNavigation());
+        // Data Siswa (StudentResource) sesuai request user #8 dapat diakses seluruh role lembaga (termasuk guru al-qur'an),
+        // namun pada guru al-qur'an dikelompokkan ke 'Fitur Guru Al-Qur\'an', BUKAN 'Fitur Wali Kelas'
+        $this->assertTrue(StudentResource::canAccess());
+        $this->assertEquals('Fitur Guru Al-Qur\'an', StudentResource::getNavigationGroup());
         $this->assertFalse(StudentCaseResource::canAccess());
         $this->assertFalse(StudentCaseResource::shouldRegisterNavigation());
         $this->assertFalse(CharacterScoreReport::canAccess());
@@ -334,7 +336,9 @@ class RoleBasedNavigationIsolationTest extends TestCase
         $this->assertFalse(RppmResource::shouldRegisterNavigation());
         $this->assertFalse(RekapNilaiKelas::canAccess());
         $this->assertFalse(RekapNilaiKelas::shouldRegisterNavigation());
-        $this->assertFalse(StudentResource::canAccess());
-        $this->assertFalse(StudentResource::shouldRegisterNavigation());
+        // Data Siswa (StudentResource) sesuai request user #8 dapat diakses seluruh role lembaga (termasuk guru al-qur'an),
+        // namun pada guru al-qur'an dikelompokkan ke 'Fitur Guru Al-Qur\'an', BUKAN 'Fitur Wali Kelas'
+        $this->assertTrue(StudentResource::canAccess());
+        $this->assertEquals('Fitur Guru Al-Qur\'an', StudentResource::getNavigationGroup());
     }
 }

@@ -14,7 +14,10 @@ class CharacterScoreReport extends Page
     public static function shouldRegisterNavigation(): bool
     {
         $user = Auth::user();
-        if (!$user || $user->isQuranTeacher()) return false;
+        if (!$user || $user->isQuranTeacher()) {
+            return false;
+        }
+
         return static::canAccess();
     }
 
@@ -26,14 +29,14 @@ class CharacterScoreReport extends Page
         }
 
         return $user->hasAnyRole([
-            'guru_piket', 'wali_kelas', 'guru_kelas', 'waka_kesiswaan', 'kepala_sekolah', 'superadmin'
-        ]) || $user->isPiketToday();
+            'waka_kesiswaan', 'kepala_sekolah', 'superadmin', 'wali_kelas', 'guru_kelas'
+        ]);
     }
 
     protected static ?string $navigationIcon = 'heroicon-o-chart-bar';
     protected static string $view = 'filament.staff.pages.character-score-report';
-    protected static ?string $title = 'Penilaian & Rekapitulasi Karakter Siswa';
-    protected static ?string $navigationLabel = 'Penilaian & Rekap Karakter';
+    protected static ?string $title = 'Rekapitulasi Skor Karakter Siswa';
+    protected static ?string $navigationLabel = 'Rekapitulasi Skor Karakter Siswa';
     protected static ?int $navigationSort = 4;
 
     public static function getNavigationGroup(): ?string
@@ -42,33 +45,51 @@ class CharacterScoreReport extends Page
         if ($user && $user->hasAnyRole(['wali_kelas', 'guru_kelas']) && !$user->hasAnyRole(['waka_kesiswaan', 'kepala_sekolah', 'superadmin'])) {
             return 'Fitur Wali Kelas';
         }
+
         return 'Kesiswaan & Karakter';
     }
 
     public ?int $selectedClassroomId = null;
     public ?int $viewStudentId = null;
 
-    // Form Tambah Penilaian Karakter oleh Guru Kelas
-    public bool $showAddModal = false;
-    public ?int $newStudentId = null;
-    public string $newCategory = 'Kedisiplinan';
-    public string $newDescription = '';
-    public int $newPointChange = 5; // default +5
-
     public function mount(): void
     {
         $user = Auth::user();
-        $myClass = Classroom::reguler()->where('wali_kelas_id', $user->id)->first();
-        if ($myClass) {
-            $this->selectedClassroomId = $myClass->id;
+        if (!$user) {
+            return;
+        }
+
+        $isRestrictedWaliKelas = $user->hasAnyRole(['wali_kelas', 'guru_kelas']) && !$user->hasAnyRole(['waka_kesiswaan', 'kepala_sekolah', 'superadmin']);
+
+        if ($isRestrictedWaliKelas) {
+            $myClass = Classroom::reguler()->where('wali_kelas_id', $user->id)->first()
+                ?? Classroom::where('wali_kelas_id', $user->id)->first();
+            $this->selectedClassroomId = $myClass?->id;
         } else {
-            $firstClass = Classroom::reguler()->orderBy('name')->first() ?? Classroom::orderBy('name')->first();
+            // Waka Kesiswaan, Kepala Sekolah, Superadmin: pilih kelas pertama dari seluruh kelas
+            $query = Classroom::reguler()->orderBy('name');
+            if (!$user->hasRole('superadmin') && $user->institution_id && $user->institution_id != 1) {
+                $query->where('institution_id', $user->institution_id);
+            }
+            $firstClass = $query->first() ?? Classroom::orderBy('name')->first();
             $this->selectedClassroomId = $firstClass?->id;
         }
     }
 
     public function openDetailModal(int $studentId): void
     {
+        $user = Auth::user();
+        $isRestrictedWaliKelas = $user && $user->hasAnyRole(['wali_kelas', 'guru_kelas']) && !$user->hasAnyRole(['waka_kesiswaan', 'kepala_sekolah', 'superadmin']);
+
+        if ($isRestrictedWaliKelas) {
+            $myClassIds = Classroom::where('wali_kelas_id', $user->id)->pluck('id')->all();
+            $student = Student::find($studentId);
+            if (!$student || !in_array($student->classroom_id, $myClassIds)) {
+                Notification::make()->title('Akses ditolak: Anda hanya dapat melihat rincian siswa pada kelas binaan Anda.')->danger()->send();
+                return;
+            }
+        }
+
         $this->viewStudentId = $studentId;
     }
 
@@ -77,80 +98,67 @@ class CharacterScoreReport extends Page
         $this->viewStudentId = null;
     }
 
-    public function openAddModal(?int $studentId = null): void
-    {
-        $this->newStudentId = $studentId;
-        $this->newCategory = 'Kedisiplinan';
-        $this->newDescription = '';
-        $this->newPointChange = 5;
-        $this->showAddModal = true;
-    }
-
-    public function closeAddModal(): void
-    {
-        $this->showAddModal = false;
-        $this->newStudentId = null;
-    }
-
-    public function saveCharacterLog(): void
-    {
-        if (!$this->newStudentId || empty($this->newDescription)) {
-            Notification::make()->title('Harap lengkapi siswa dan uraian penilaian')->danger()->send();
-            return;
-        }
-
-        $student = Student::find($this->newStudentId);
-        if (!$student) return;
-
-        CharacterScoreLog::create([
-            'student_id'   => $this->newStudentId,
-            'source'       => 'guru_kelas',
-            'category'     => $this->newCategory,
-            'description'  => $this->newDescription,
-            'point_change' => $this->newPointChange,
-            'tanggal'      => now()->toDateString(),
-            'institution_id' => $student->institution_id ?? Auth::user()->institution_id,
-        ]);
-
-        // Update score agregat siswa
-        $student->increment('character_score', $this->newPointChange);
-
-        $this->closeAddModal();
-
-        Notification::make()
-            ->title('✅ Penilaian Karakter Berhasil Dicatat')
-            ->body("Poin karakter untuk {$student->name} berhasil diperbarui.")
-            ->success()
-            ->send();
-    }
-
     protected function getViewData(): array
     {
         $user = Auth::user();
+        $isRestrictedWaliKelas = $user && $user->hasAnyRole(['wali_kelas', 'guru_kelas']) && !$user->hasAnyRole(['waka_kesiswaan', 'kepala_sekolah', 'superadmin']);
 
-        $availableClasses = $user->hasAnyRole(['kepala_sekolah', 'superadmin'])
-            ? Classroom::reguler()->orderBy('name')->get()
-            : Classroom::reguler()->where('wali_kelas_id', $user->id)->get();
+        if ($isRestrictedWaliKelas) {
+            // Wali kelas HANYA melihat kelas yang dibinanya
+            $availableClasses = Classroom::reguler()->where('wali_kelas_id', $user->id)->orderBy('name')->get();
+            if ($availableClasses->isEmpty()) {
+                $availableClasses = Classroom::where('wali_kelas_id', $user->id)->orderBy('name')->get();
+            }
 
-        if ($availableClasses->isEmpty()) {
-            $availableClasses = Classroom::reguler()->orderBy('name')->get();
+            $myClassIds = $availableClasses->pluck('id')->all();
+            if (empty($myClassIds)) {
+                $this->selectedClassroomId = null;
+            } elseif (!in_array($this->selectedClassroomId, $myClassIds)) {
+                $this->selectedClassroomId = $myClassIds[0];
+            }
+        } else {
+            // Waka Kesiswaan, Kepala Sekolah, Superadmin melihat SELURUH KELAS
+            $query = Classroom::reguler()->orderBy('name');
+            if ($user && !$user->hasRole('superadmin') && $user->institution_id && $user->institution_id != 1) {
+                $query->where('institution_id', $user->institution_id);
+            }
+            $availableClasses = $query->get();
+            if ($availableClasses->isEmpty()) {
+                $availableClasses = Classroom::orderBy('name')->get();
+            }
+
+            if ($this->selectedClassroomId && !$availableClasses->contains('id', $this->selectedClassroomId)) {
+                $this->selectedClassroomId = $availableClasses->first()?->id;
+            } elseif (!$this->selectedClassroomId) {
+                $this->selectedClassroomId = $availableClasses->first()?->id;
+            }
         }
 
-        $selectedClass = Classroom::find($this->selectedClassroomId);
+        $selectedClass = $this->selectedClassroomId ? Classroom::find($this->selectedClassroomId) : null;
 
         $studentsQuery = Student::with('characterScoreLogs');
-        if ($this->selectedClassroomId) {
-            $studentsQuery->where('classroom_id', $this->selectedClassroomId);
+        if ($isRestrictedWaliKelas) {
+            $myClassIds = $availableClasses->pluck('id')->all();
+            if (empty($myClassIds)) {
+                $studentsQuery->whereRaw('1 = 0');
+            } else {
+                $studentsQuery->where('classroom_id', $this->selectedClassroomId);
+            }
+        } else {
+            if ($this->selectedClassroomId) {
+                $studentsQuery->where('classroom_id', $this->selectedClassroomId);
+            }
         }
+
         $students = $studentsQuery->orderBy('name')->get();
 
         $report = [];
         foreach ($students as $student) {
-            $guruKelasLogs = $student->characterScoreLogs->where('source', 'guru_kelas');
+            $guruMapelLogs = $student->characterScoreLogs->whereIn('source', ['guru_mapel', 'guru_kelas']);
             $guruPiketLogs = $student->characterScoreLogs->where('source', 'guru_piket');
             $orangTuaLogs  = $student->characterScoreLogs->where('source', 'orang_tua');
 
-            $guruKelas = $guruKelasLogs->sum('point_change');
+            $guruMapel = $guruMapelLogs->sum('point_change');
             $guruPiket = $guruPiketLogs->sum('point_change');
             $orangTua  = $orangTuaLogs->sum('point_change');
             $totalScore = $student->character_score ?? 100;
@@ -168,7 +176,7 @@ class CharacterScoreReport extends Page
                 'name'       => $student->name,
                 'total'      => $totalScore,
                 'predikat'   => $predikat,
-                'guru_kelas' => $guruKelas,
+                'guru_mapel' => $guruMapel,
                 'guru_piket' => $guruPiket,
                 'orang_tua'  => $orangTua,
                 'logs_count' => $student->characterScoreLogs->count(),
@@ -179,12 +187,21 @@ class CharacterScoreReport extends Page
             $q->orderByDesc('tanggal')->orderByDesc('id');
         }])->find($this->viewStudentId) : null;
 
+        $reportCollection = collect($report);
+        $avgScore = $reportCollection->count() > 0 ? round($reportCollection->avg('total'), 1) : 0;
+        $countSangatBaik = $reportCollection->where('total', '>=', 90)->count();
+        $countPerluBina = $reportCollection->where('total', '<', 60)->count();
+
         return [
+            'isRestrictedWaliKelas'    => $isRestrictedWaliKelas,
             'availableClasses'         => $availableClasses,
             'selectedClass'            => $selectedClass,
-            'report'                   => collect($report)->sortByDesc('total')->values()->all(),
+            'report'                   => $reportCollection->sortByDesc('total')->values()->all(),
             'selectedStudentForDetail' => $selectedStudentForDetail,
             'classStudents'            => $students,
+            'avgScore'                 => $avgScore,
+            'countSangatBaik'          => $countSangatBaik,
+            'countPerluBina'           => $countPerluBina,
         ];
     }
 }
