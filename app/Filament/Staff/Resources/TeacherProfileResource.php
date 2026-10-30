@@ -20,7 +20,10 @@ class TeacherProfileResource extends Resource
 {
     public static function canAccess(): bool
     {
-        return auth()->user()->hasAnyRole(['tata_usaha', 'superadmin', 'kepala_sekolah', 'waka_kurikulum', 'waka_kesiswaan', 'humas', 'sarpras', 'bk', 'guru_mapel', 'guru_alquran', 'wali_kelas']);
+        return auth()->user()->hasAnyRole(array_merge([
+            'tata_usaha', 'superadmin', 'kepala_sekolah', 'waka_kurikulum', 'waka_kesiswaan',
+            'humas', 'sarpras', 'bk', 'guru_mapel', 'wali_kelas'
+        ], \App\Models\User::QURAN_TEACHER_ROLES));
     }
 
     public static function getEloquentQuery(): Builder
@@ -142,6 +145,7 @@ class TeacherProfileResource extends Resource
                             ->label('Hak Akses / Role Guru')
                             ->multiple()
                             ->relationship('roles', 'name')
+                            ->getOptionLabelFromRecordUsing(fn ($record) => \App\Models\User::getRoleDisplayName($record->name))
                             ->preload(),
                         Forms\Components\Toggle::make('is_active')
                             ->label('Akun Aktif')
@@ -333,6 +337,7 @@ class TeacherProfileResource extends Resource
                             ->label('Role / Hak Akses')
                             ->multiple()
                             ->relationship('roles', 'name')
+                            ->getOptionLabelFromRecordUsing(fn ($record) => \App\Models\User::getRoleDisplayName($record->name))
                             ->preload(),
                         Forms\Components\Toggle::make('is_active')
                             ->label('Akun Aktif')

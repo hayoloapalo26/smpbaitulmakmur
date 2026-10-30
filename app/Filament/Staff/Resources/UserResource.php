@@ -105,12 +105,14 @@ class UserResource extends Resource
                             ->preload()
                             ->disabled(fn () => !auth()->user()->hasRole('superadmin')),
                         Forms\Components\Select::make('roles')
+                            ->label('Role / Hak Akses')
                             ->multiple()
                             ->relationship('roles', 'name', modifyQueryUsing: function (Builder $query) use ($protectedRoles) {
                                 if (!auth()->user()->hasRole('superadmin')) {
                                     $query->whereNotIn('name', $protectedRoles);
                                 }
                             })
+                            ->getOptionLabelFromRecordUsing(fn ($record) => User::getRoleDisplayName($record->name))
                             ->disabled(function (?User $record) use ($protectedRoles) {
                                 if (!$record) return false;
                                 if (auth()->user()->hasRole('superadmin')) return false;
@@ -129,7 +131,10 @@ class UserResource extends Resource
                 Tables\Columns\TextColumn::make('username')->searchable(),
                 Tables\Columns\TextColumn::make('email')->searchable(),
                 Tables\Columns\TextColumn::make('institution.name')->label('Unit')->badge()->color('info'),
-                Tables\Columns\TextColumn::make('roles.name')->badge(),
+                Tables\Columns\TextColumn::make('roles.name')
+                    ->label('Role / Hak Akses')
+                    ->badge()
+                    ->formatStateUsing(fn ($state) => User::getRoleDisplayName($state)),
                 Tables\Columns\IconColumn::make('is_active')
                     ->label('Aktif')
                     ->boolean(),
@@ -140,7 +145,8 @@ class UserResource extends Resource
                     ->relationship('institution', 'name'),
                 Tables\Filters\SelectFilter::make('roles')
                     ->label('Role / Hak Akses')
-                    ->relationship('roles', 'name'),
+                    ->relationship('roles', 'name')
+                    ->getOptionLabelFromRecordUsing(fn ($record) => User::getRoleDisplayName($record->name)),
             ])
             ->actions([
                 Tables\Actions\Action::make('reset_password')

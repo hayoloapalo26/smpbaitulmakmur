@@ -27,11 +27,11 @@ class TeacherEvaluationResource extends Resource
         return parent::getEloquentQuery()
             ->withoutGlobalScopes()
             ->whereHas('roles', function ($q) {
-                $q->whereIn('name', [
-                    'guru_kelas', 'guru_mapel', 'guru_alquran', 'wali_kelas',
+                $q->whereIn('name', array_merge([
+                    'guru_kelas', 'guru_mapel', 'wali_kelas',
                     'bk', 'guru_piket', 'waka_kurikulum', 'waka_kesiswaan',
                     'sarpras', 'humas',
-                ]);
+                ], \App\Models\User::QURAN_TEACHER_ROLES));
             });
     }
 

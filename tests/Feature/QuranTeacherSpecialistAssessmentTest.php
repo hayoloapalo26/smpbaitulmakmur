@@ -41,8 +41,11 @@ class QuranTeacherSpecialistAssessmentTest extends TestCase
 
         Role::firstOrCreate(['name' => 'superadmin', 'guard_name' => 'web']);
         Role::firstOrCreate(['name' => 'guru_mapel', 'guard_name' => 'web']);
+        Role::firstOrCreate(['name' => 'guru_alquran', 'guard_name' => 'web']);
         Role::firstOrCreate(['name' => 'guru_quran_tahsin', 'guard_name' => 'web']);
         Role::firstOrCreate(['name' => 'guru_quran_yanbua', 'guard_name' => 'web']);
+        Role::firstOrCreate(['name' => 'guru_quran_tahfidz_dasar', 'guard_name' => 'web']);
+        Role::firstOrCreate(['name' => 'guru_quran_tahfidz_lanjutan', 'guard_name' => 'web']);
         Role::firstOrCreate(['name' => 'koordinator_madin', 'guard_name' => 'web']);
 
         $this->institution = Institution::firstOrCreate(

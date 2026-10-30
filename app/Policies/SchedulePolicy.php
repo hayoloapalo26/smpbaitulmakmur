@@ -9,7 +9,7 @@ class SchedulePolicy
 {
     public function viewAny(User $user): bool
     {
-        return $user->hasAnyRole(['superadmin', 'kepala_sekolah', 'waka_kurikulum', 'guru_mapel', 'guru_alquran', 'wali_kelas', 'tata_usaha']);
+        return $user->hasAnyRole(array_merge(['superadmin', 'kepala_sekolah', 'waka_kurikulum', 'guru_mapel', 'wali_kelas', 'tata_usaha'], User::QURAN_TEACHER_ROLES));
     }
 
     public function view(User $user, Schedule $model): bool

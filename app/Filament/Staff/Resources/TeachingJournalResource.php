@@ -178,7 +178,7 @@ class TeachingJournalResource extends Resource
                                 if ($user->institution_id && !$user->hasRole('superadmin')) {
                                     $query->where('institution_id', $user->institution_id);
                                 }
-                                $query->whereHas('roles', fn ($q) => $q->whereIn('name', ['guru_mapel', 'guru_alquran', 'koordinator_madin', 'wali_kelas']));
+                                $query->whereHas('roles', fn ($q) => $q->whereIn('name', array_merge(['guru_mapel', 'koordinator_madin', 'wali_kelas'], \App\Models\User::QURAN_TEACHER_ROLES)));
                             })
                             ->default(Auth::id())
                             ->visible($isAdminOrWaka)

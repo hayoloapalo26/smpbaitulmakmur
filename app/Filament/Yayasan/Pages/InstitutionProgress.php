@@ -132,7 +132,7 @@ class InstitutionProgress extends Page
     public function getTeacherCountProperty()
     {
         $count = \App\Models\User::where('institution_id', $this->institution->id)->whereHas('roles', function($q) {
-            $q->whereIn('name', ['guru_mapel', 'guru_alquran', 'wali_kelas']);
+            $q->whereIn('name', array_merge(['guru_mapel', 'wali_kelas'], \App\Models\User::QURAN_TEACHER_ROLES));
         })->count();
         return $count > 0 ? $count : 24; // Fallback to 24 if user db is missing teachers
     }

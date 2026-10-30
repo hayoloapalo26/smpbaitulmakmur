@@ -13,10 +13,10 @@ class StudentPolicy
      */
     public function viewAny($user): bool
     {
-        return $user->hasAnyRole([
+        return $user->hasAnyRole(array_merge([
             'yayasan', 'ketua_yayasan', 'wakil_ketua_yayasan', 'sekretaris_yayasan', 'tim_pengembang_penjamin_mutu_yayasan', 'pembina_yayasan', 'pegawai_keuangan_yayasan', 'pegawai_keuangan',
-            'kepala_sekolah', 'waka_kurikulum', 'waka_kesiswaan', 'tata_usaha', 'wali_kelas', 'guru_mapel', 'guru_alquran', 'bk'
-        ]);
+            'kepala_sekolah', 'waka_kurikulum', 'waka_kesiswaan', 'tata_usaha', 'wali_kelas', 'guru_mapel', 'bk'
+        ], User::QURAN_TEACHER_ROLES));
     }
 
     public function view($user, $model): bool

@@ -26,13 +26,12 @@ class DutyScheduleGeneratorService
             ->where('email', 'not like', '%@smp.com')
             ->where(function ($q) {
                 $q->whereHas('roles', function ($r) {
-                    $r->whereIn('name', [
+                    $r->whereIn('name', array_merge([
                         'guru_mapel',
-                        'guru_alquran',
                         'wali_kelas',
                         'guru_kelas',
                         'bk',
-                    ]);
+                    ], User::QURAN_TEACHER_ROLES));
                 })->orWhereHas('schedules');
             });
 

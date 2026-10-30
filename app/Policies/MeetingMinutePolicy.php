@@ -14,7 +14,9 @@ class MeetingMinutePolicy
     public function viewAny($user): bool
     {
         if ($user->hasRole('kepala_sekolah')) return true;
-        return $user->hasRole(['kepala_sekolah', 'waka_kurikulum', 'waka_kesiswaan', 'tata_usaha', 'wali_kelas', 'guru_mapel', 'guru_alquran']);
+        return $user->hasRole(array_merge([
+            'kepala_sekolah', 'waka_kurikulum', 'waka_kesiswaan', 'tata_usaha', 'wali_kelas', 'guru_mapel'
+        ], User::QURAN_TEACHER_ROLES));
     }
 
     /**
@@ -22,7 +24,9 @@ class MeetingMinutePolicy
      */
     public function view($user, $model): bool
     {
-        return $user->hasRole(['kepala_sekolah', 'waka_kurikulum', 'waka_kesiswaan', 'tata_usaha', 'wali_kelas', 'guru_mapel', 'guru_alquran']);
+        return $user->hasRole(array_merge([
+            'kepala_sekolah', 'waka_kurikulum', 'waka_kesiswaan', 'tata_usaha', 'wali_kelas', 'guru_mapel'
+        ], User::QURAN_TEACHER_ROLES));
     }
 
     /**

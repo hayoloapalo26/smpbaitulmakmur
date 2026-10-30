@@ -29,7 +29,7 @@ class TeacherCommitment extends Page
         $today = Carbon::today()->toDateString();
         
         $teachers = User::whereHas('roles', function($q) {
-            $q->whereIn('name', ['guru_mapel', 'guru_alquran', 'wali_kelas']);
+            $q->whereIn('name', array_merge(['guru_mapel', 'wali_kelas'], User::QURAN_TEACHER_ROLES));
         })->get();
         
         $filledTeacherIds = CharacterScoreLog::whereDate('tanggal', $today)

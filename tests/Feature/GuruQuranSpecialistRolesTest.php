@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Filament\Staff\Pages\DailyTodoList;
 use App\Filament\Staff\Pages\InputNilaiMapel;
 use App\Filament\Staff\Pages\PenerimaanNilaiMadin;
 use App\Filament\Staff\Pages\TahfidzRanking;
@@ -14,7 +15,13 @@ use App\Filament\Staff\Resources\TujuanPembelajaranResource;
 use App\Filament\Staff\Resources\AlurTujuanPembelajaranResource;
 use App\Filament\Staff\Resources\TeachingJournalResource;
 use App\Filament\Staff\Resources\ScheduleResource;
+use App\Filament\Staff\Resources\TeacherAttendanceResource;
+use App\Filament\Staff\Resources\TeacherCertificateResource;
+use App\Filament\Staff\Resources\TeacherLeaveRequestResource;
+use App\Filament\Staff\Resources\TeacherProfileResource;
 use App\Filament\Staff\Resources\TeacherSubjectClassResource;
+use App\Filament\Staff\Resources\PengajuanSupervisiResource;
+use App\Filament\Staff\Resources\PengajuanUkgResource;
 use App\Models\AcademicYear;
 use App\Models\Classroom;
 use App\Models\Grade;
@@ -394,5 +401,98 @@ class GuruQuranSpecialistRolesTest extends TestCase
 
         $this->assertEquals('Diterima', $rqsTahsin->fresh()->status_verifikasi);
         $this->assertEquals($this->koordinatorMadin->id, $rqsTahsin->fresh()->verified_by);
+    }
+
+    /**
+     * Test 5: Penugasan salah satu dari 4 role spesialis Al-Qur'an otomatis menyertakan role payung guru_alquran
+     */
+    public function test_assigning_specialist_role_automatically_syncs_guru_alquran_umbrella_role(): void
+    {
+        // 1. Assign role spesialis Yanbu'a
+        $testUser1 = User::create([
+            'name' => 'Guru Yanbua Test',
+            'username' => 'yanbua_test',
+            'email' => 'yanbua.test@smpi.com',
+            'password' => bcrypt('password'),
+            'institution_id' => $this->institution->id,
+        ]);
+        $testUser1->assignRole('guru_quran_yanbua');
+        $this->assertTrue($testUser1->hasRole('guru_quran_yanbua'));
+        $this->assertTrue($testUser1->hasRole('guru_alquran'));
+
+        // 2. Sync roles spesialis Tahsin
+        $testUser2 = User::create([
+            'name' => 'Guru Tahsin Test',
+            'username' => 'tahsin_test',
+            'email' => 'tahsin.test@smpi.com',
+            'password' => bcrypt('password'),
+            'institution_id' => $this->institution->id,
+        ]);
+        $testUser2->syncRoles(['guru_quran_tahsin']);
+        $this->assertTrue($testUser2->hasRole('guru_quran_tahsin'));
+        $this->assertTrue($testUser2->hasRole('guru_alquran'));
+
+        // 3. Sync roles spesialis Tahfidz Dasar
+        $testUser3 = User::create([
+            'name' => 'Guru Tahfidz Dasar Test',
+            'username' => 'tfzdasar_test',
+            'email' => 'tfzdasar.test@smpi.com',
+            'password' => bcrypt('password'),
+            'institution_id' => $this->institution->id,
+        ]);
+        $testUser3->syncRoles(['guru_quran_tahfidz_dasar']);
+        $this->assertTrue($testUser3->hasRole('guru_quran_tahfidz_dasar'));
+        $this->assertTrue($testUser3->hasRole('guru_alquran'));
+
+        // 4. Sync roles spesialis Tahfidz Lanjutan
+        $testUser4 = User::create([
+            'name' => 'Guru Tahfidz Lanjutan Test',
+            'username' => 'tfzlanjutan_test',
+            'email' => 'tfzlanjutan.test@smpi.com',
+            'password' => bcrypt('password'),
+            'institution_id' => $this->institution->id,
+        ]);
+        $testUser4->syncRoles(['guru_quran_tahfidz_lanjutan']);
+        $this->assertTrue($testUser4->hasRole('guru_quran_tahfidz_lanjutan'));
+        $this->assertTrue($testUser4->hasRole('guru_alquran'));
+    }
+
+    /**
+     * Test 6: Ke-4 guru spesialis Al-Qur'an terintegrasi dan dapat mengakses seluruh fitur umum guru
+     */
+    public function test_specialist_quran_teachers_can_access_general_teacher_features(): void
+    {
+        $teachers = [
+            $this->guruYanbua,
+            $this->guruTahsin,
+            $this->guruTfzDasar,
+            $this->guruTfzLanjutan,
+        ];
+
+        foreach ($teachers as $teacher) {
+            $this->actingAs($teacher);
+
+            // Fitur umum guru harus dapat diakses secara mulus
+            $this->assertTrue(TeacherAttendanceResource::canAccess(), "Teacher {$teacher->name} can access TeacherAttendance");
+            $this->assertTrue(TeacherLeaveRequestResource::canAccess(), "Teacher {$teacher->name} can access TeacherLeaveRequest");
+            $this->assertTrue(TeacherProfileResource::canAccess(), "Teacher {$teacher->name} can access TeacherProfile");
+            $this->assertTrue(TeachingJournalResource::canAccess(), "Teacher {$teacher->name} can access TeachingJournal");
+            $this->assertTrue(PengajuanSupervisiResource::canAccess(), "Teacher {$teacher->name} can access PengajuanSupervisi");
+            $this->assertTrue(PengajuanUkgResource::canAccess(), "Teacher {$teacher->name} can access PengajuanUkg");
+            $this->assertTrue(TeacherCertificateResource::canAccess(), "Teacher {$teacher->name} can access TeacherCertificate");
+            $this->assertTrue(ScheduleResource::canAccess(), "Teacher {$teacher->name} can access ScheduleResource");
+        }
+    }
+
+    /**
+     * Test 7: Label display name peran Al-Qur'an rapi dan representatif
+     */
+    public function test_quran_role_display_names(): void
+    {
+        $this->assertStringContainsString('Yanbu\'a', User::getRoleDisplayName('guru_quran_yanbua'));
+        $this->assertStringContainsString('Tahsin', User::getRoleDisplayName('guru_quran_tahsin'));
+        $this->assertStringContainsString('Tahfidz Dasar', User::getRoleDisplayName('guru_quran_tahfidz_dasar'));
+        $this->assertStringContainsString('Tahfidz Lanjutan', User::getRoleDisplayName('guru_quran_tahfidz_lanjutan'));
+        $this->assertStringContainsString('Guru Al-Qur\'an (Umum)', User::getRoleDisplayName('guru_alquran'));
     }
 }

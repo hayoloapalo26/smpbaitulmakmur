@@ -103,11 +103,11 @@ class PermintaanUkgResource extends Resource
                             ->options(function (Forms\Get $get) {
                                 $instId = $get('institution_id');
                                 $query = User::withoutGlobalScopes()
-                                    ->whereHas('roles', fn ($q) => $q->whereIn('name', [
-                                        'guru_kelas', 'guru_mapel', 'guru_alquran', 'wali_kelas',
+                                    ->whereHas('roles', fn ($q) => $q->whereIn('name', array_merge([
+                                        'guru_kelas', 'guru_mapel', 'wali_kelas',
                                         'bk', 'guru_piket', 'waka_kurikulum', 'waka_kesiswaan',
                                         'sarpras', 'humas',
-                                    ]));
+                                    ], \App\Models\User::QURAN_TEACHER_ROLES)));
                                 if ($instId) {
                                     $query->where('institution_id', $instId);
                                 }

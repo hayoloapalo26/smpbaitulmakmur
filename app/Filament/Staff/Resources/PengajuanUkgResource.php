@@ -43,7 +43,9 @@ class PengajuanUkgResource extends Resource
 
     public static function canAccess(): bool
     {
-        return Auth::user()->hasAnyRole(['superadmin', 'kepala_sekolah', 'guru_mapel', 'guru_alquran', 'wali_kelas']);
+        return Auth::user()->hasAnyRole(array_merge([
+            'superadmin', 'kepala_sekolah', 'guru_mapel', 'wali_kelas'
+        ], \App\Models\User::QURAN_TEACHER_ROLES));
     }
 
     public static function form(Form $form): Form

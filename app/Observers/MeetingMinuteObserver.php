@@ -26,7 +26,7 @@ class MeetingMinuteObserver
     {
         if ($meetingMinute->visibility === 'umum') {
             $teachers = User::whereHas('roles', function($q) {
-                $q->whereIn('name', ['guru_mapel', 'guru_alquran', 'wali_kelas', 'kepala_sekolah', 'waka_kurikulum', 'waka_kesiswaan']);
+                $q->whereIn('name', array_merge(['guru_mapel', 'wali_kelas', 'kepala_sekolah', 'waka_kurikulum', 'waka_kesiswaan'], User::QURAN_TEACHER_ROLES));
             })->get();
             
             foreach ($teachers as $teacher) {

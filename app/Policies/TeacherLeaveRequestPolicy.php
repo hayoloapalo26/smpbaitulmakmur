@@ -57,7 +57,7 @@ class TeacherLeaveRequestPolicy
             return false;
         }
 
-        return $user->hasRole(['waka_kurikulum', 'guru_mapel', 'guru_alquran', 'wali_kelas', 'superadmin']);
+        return $user->hasRole(array_merge(['waka_kurikulum', 'guru_mapel', 'wali_kelas', 'superadmin'], \App\Models\User::QURAN_TEACHER_ROLES));
     }
 
     /**
@@ -69,7 +69,7 @@ class TeacherLeaveRequestPolicy
             return false;
         }
 
-        return $user->hasRole(['waka_kurikulum', 'guru_mapel', 'guru_alquran', 'wali_kelas', 'superadmin']);
+        return $user->hasRole(array_merge(['waka_kurikulum', 'guru_mapel', 'wali_kelas', 'superadmin'], \App\Models\User::QURAN_TEACHER_ROLES));
     }
 
     /**
@@ -81,6 +81,6 @@ class TeacherLeaveRequestPolicy
             return false;
         }
 
-        return $user->hasRole(['waka_kurikulum', 'guru_mapel', 'guru_alquran', 'wali_kelas', 'superadmin']);
+        return $user->hasRole(array_merge(['waka_kurikulum', 'guru_mapel', 'wali_kelas', 'superadmin'], \App\Models\User::QURAN_TEACHER_ROLES));
     }
 }

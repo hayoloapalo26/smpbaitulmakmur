@@ -381,9 +381,9 @@ class StudentQuranPlacementAndTeacherDropdownTest extends TestCase
         $this->assertArrayHasKey($this->santri2->id, $options);
         $this->assertStringContainsString('Kelas Al-Qur\'an: Tahsin', $options[$this->santri2->id]);
 
-        // Test as guruTahsin: classroom_id must be hidden, and student_id must contain santri2 directly
+        // Test as guruTahsin: classroom_id must be hidden in ReadingQualityScoreResource, and student_id must contain santri2 directly
         $this->actingAs($this->guruTahsin);
-        $livewireTahsin = Livewire::test(GradeResource\Pages\ManageGrades::class);
+        $livewireTahsin = Livewire::test(ReadingQualityScoreResource\Pages\ManageReadingQualityScores::class);
         $livewireTahsin->mountAction('create');
         $formTahsin = $livewireTahsin->instance()->getMountedActionForm();
 

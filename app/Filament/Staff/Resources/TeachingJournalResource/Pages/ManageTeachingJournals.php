@@ -135,7 +135,7 @@ class ManageTeachingJournals extends ManageRecords
         $date = $this->selectedDate ?: now()->toDateString();
         $dayName = Schedule::getIndonesianDayName($date);
 
-        $teachers = User::role(['guru_mapel', 'guru_kelas', 'guru_alquran', 'wali_kelas'])
+        $teachers = User::role(array_merge(['guru_mapel', 'guru_kelas', 'wali_kelas'], User::QURAN_TEACHER_ROLES))
             ->when($this->search, function ($q) {
                 $q->where('name', 'like', '%' . $this->search . '%');
             })

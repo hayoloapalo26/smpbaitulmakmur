@@ -151,6 +151,26 @@ class DailyTodoList extends Page implements HasForms, HasTable
             $roles[] = 'wali_kelas';
         }
 
+        // Sinkronisasi integrasi Guru Al-Qur'an umum & 4 spesialis (Yanbu'a, Tahsin, Tahfidz Dasar, Tahfidz Lanjutan)
+        $quranSpecialists = [
+            'guru_quran_yanbua',
+            'guru_quran_tahsin',
+            'guru_quran_tahfidz_dasar',
+            'guru_quran_tahfidz_lanjutan',
+        ];
+        if (!empty(array_intersect($quranSpecialists, $roles)) && !in_array('guru_alquran', $roles)) {
+            $roles[] = 'guru_alquran';
+        }
+        if (in_array('guru_alquran', $roles)) {
+            $specKey = $user->getQuranSpecializationKey();
+            if ($specKey) {
+                $specRole = 'guru_quran_' . $specKey;
+                if (!in_array($specRole, $roles)) {
+                    $roles[] = $specRole;
+                }
+            }
+        }
+
         $institutionId = $user->institution_id;
 
         $candidateTasks = MandatoryTask::withoutGlobalScopes()

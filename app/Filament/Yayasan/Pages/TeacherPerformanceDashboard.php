@@ -61,7 +61,7 @@ class TeacherPerformanceDashboard extends Page
 
         $teachers = User::where('institution_id', $this->selectedInstitutionId)
             ->whereHas('roles', function($q) {
-                $q->whereIn('name', ['guru_mapel', 'guru_alquran', 'wali_kelas', 'guru_kelas']);
+                $q->whereIn('name', array_merge(['guru_mapel', 'wali_kelas', 'guru_kelas'], \App\Models\User::QURAN_TEACHER_ROLES));
             })->get();
 
         $leaderboard = collect();

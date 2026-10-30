@@ -10,11 +10,11 @@ class TeacherProfilePolicy
 {
     public function viewAny(User $user): bool
     {
-        return $user->hasAnyRole([
+        return $user->hasAnyRole(array_merge([
             'kepala_sekolah', 'yayasan', 'ketua_yayasan', 'wakil_ketua_yayasan', 
             'sekretaris_yayasan', 'pembina_yayasan', 'tim_pengembang_penjamin_mutu_yayasan', 'pegawai_keuangan_yayasan', 'pegawai_keuangan', 'tata_usaha', 
-            'waka_kurikulum', 'waka_kesiswaan', 'sarpras', 'humas', 'bk', 'superadmin', 'guru_mapel', 'guru_alquran', 'wali_kelas'
-        ]);
+            'waka_kurikulum', 'waka_kesiswaan', 'sarpras', 'humas', 'bk', 'superadmin', 'guru_mapel', 'wali_kelas'
+        ], User::QURAN_TEACHER_ROLES));
     }
 
     public function view(User $user, TeacherProfile $model): bool

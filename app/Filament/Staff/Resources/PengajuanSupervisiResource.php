@@ -45,7 +45,9 @@ class PengajuanSupervisiResource extends Resource
 
     public static function canAccess(): bool
     {
-        return Auth::user()->hasAnyRole(['superadmin', 'kepala_sekolah', 'waka_kurikulum', 'guru_kelas', 'guru_mapel', 'guru_alquran', 'wali_kelas']);
+        return Auth::user()->hasAnyRole(array_merge([
+            'superadmin', 'kepala_sekolah', 'waka_kurikulum', 'guru_kelas', 'guru_mapel', 'wali_kelas'
+        ], \App\Models\User::QURAN_TEACHER_ROLES));
     }
 
     public static function form(Form $form): Form
@@ -84,10 +86,10 @@ class PengajuanSupervisiResource extends Resource
                                                   ->orWhereIn('id', $crossTeacherIds);
                                             }
                                         })
-                                        ->whereHas('roles', fn ($q) => $q->whereIn('name', [
-                                            'guru_kelas', 'guru_mapel', 'guru_alquran', 'wali_kelas',
+                                        ->whereHas('roles', fn ($q) => $q->whereIn('name', array_merge([
+                                            'guru_kelas', 'guru_mapel', 'wali_kelas',
                                             'bk', 'guru_piket', 'waka_kurikulum', 'waka_kesiswaan',
-                                        ]));
+                                        ], \App\Models\User::QURAN_TEACHER_ROLES)));
 
                                     return $query->get()->sortBy(function ($t) use ($currentInstId) {
                                         $isSame = ($t->institution_id == $currentInstId);

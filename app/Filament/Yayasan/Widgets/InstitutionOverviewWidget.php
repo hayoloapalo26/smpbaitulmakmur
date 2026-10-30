@@ -33,7 +33,7 @@ class InstitutionOverviewWidget extends Widget
             $studentCount = \App\Models\Student::withoutGlobalScopes()->where('institution_id', $instId)->count();
             
             $teacherCount = \App\Models\User::withoutGlobalScopes()->where('institution_id', $instId)->whereHas('roles', function($q) {
-                $q->whereIn('name', ['guru_mapel', 'guru_alquran', 'wali_kelas']);
+                $q->whereIn('name', array_merge(['guru_mapel', 'wali_kelas'], \App\Models\User::QURAN_TEACHER_ROLES));
             })->count();
 
             // Real Percentage (Calculate from Pillar Tasks)

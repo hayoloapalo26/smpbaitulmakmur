@@ -28,10 +28,10 @@ class TeacherAttendanceResource extends Resource
 
     public static function canAccess(): bool
     {
-        return auth()->user()->hasAnyRole([
+        return auth()->user()->hasAnyRole(array_merge([
             'tata_usaha', 'waka_kurikulum', 'kepala_sekolah', 'superadmin',
-            'guru_kelas', 'guru_mapel', 'guru_alquran', 'wali_kelas'
-        ]);
+            'guru_kelas', 'guru_mapel', 'wali_kelas'
+        ], \App\Models\User::QURAN_TEACHER_ROLES));
     }
 
     public static function canCreate(): bool
@@ -95,7 +95,7 @@ class TeacherAttendanceResource extends Resource
                 Forms\Components\Select::make('teacher_id')
                     ->label('Guru Utama (Yang Berhalangan / Mengajar)')
                     ->relationship('teacher', 'name', modifyQueryUsing: function (Builder $query) {
-                        $query->whereHas('roles', fn ($q) => $q->whereIn('name', ['guru_mapel', 'guru_alquran', 'wali_kelas', 'guru_kelas', 'waka_kurikulum']));
+                        $query->whereHas('roles', fn ($q) => $q->whereIn('name', array_merge(['guru_mapel', 'wali_kelas', 'guru_kelas', 'waka_kurikulum'], \App\Models\User::QURAN_TEACHER_ROLES)));
                     })
                     ->searchable()
                     ->preload()
@@ -362,7 +362,7 @@ class TeacherAttendanceResource extends Resource
                     ->label('Guru Utama')
                     ->options(fn () => \App\Models\User::withoutGlobalScopes()
                         ->where(function ($q) {
-                            $q->whereHas('roles', fn ($r) => $r->whereIn('name', ['guru_mapel', 'guru_alquran', 'wali_kelas', 'guru_kelas', 'waka_kurikulum']))
+                            $q->whereHas('roles', fn ($r) => $r->whereIn('name', array_merge(['guru_mapel', 'wali_kelas', 'guru_kelas', 'waka_kurikulum'], \App\Models\User::QURAN_TEACHER_ROLES)))
                               ->orWhereHas('schedules');
                         })
                         ->where('name', 'not like', '%piket%')

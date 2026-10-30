@@ -20,7 +20,10 @@ use Illuminate\Support\Facades\Storage;
 class User extends Authenticatable implements FilamentUser, HasAvatar
 {
     /** @use HasFactory<UserFactory> */
-    use HasFactory, Notifiable, HasRoles;
+    use HasFactory, Notifiable, HasRoles {
+        syncRoles as traitSyncRoles;
+        assignRole as traitAssignRole;
+    }
 
     public const ROLE_GURU_QURAN_YANBUA = 'guru_quran_yanbua';
     public const ROLE_GURU_QURAN_TAHSIN = 'guru_quran_tahsin';
@@ -46,6 +49,93 @@ class User extends Authenticatable implements FilamentUser, HasAvatar
         ];
     }
 
+    public static function getRoleDisplayName(string $role): string
+    {
+        return match ($role) {
+            'superadmin' => '⚡ Superadmin',
+            'kepala_sekolah' => '🎓 Kepala Sekolah',
+            'waka_kurikulum' => '📋 Waka Kurikulum',
+            'waka_kesiswaan' => '🎯 Waka Kesiswaan',
+            'guru_mapel' => '📘 Guru Mata Pelajaran',
+            'wali_kelas' => '👨‍🏫 Wali Kelas',
+            'guru_kelas' => '👩‍🏫 Guru Kelas',
+            'koordinator_madin' => '🕌 Koordinator Madin & Al-Qur\'an',
+            'guru_alquran' => '🕋 Guru Al-Qur\'an (Umum)',
+            'guru_quran_yanbua' => '📖 Guru Al-Qur\'an: Yanbu\'a',
+            'guru_quran_tahsin' => '⭐ Guru Al-Qur\'an: Tahsin',
+            'guru_quran_tahfidz_dasar' => '🌱 Guru Al-Qur\'an: Tahfidz Dasar (Juz 30)',
+            'guru_quran_tahfidz_lanjutan' => '🌳 Guru Al-Qur\'an: Tahfidz Lanjutan (Juz 1-29)',
+            'guru_piket' => '📌 Guru Piket',
+            'tata_usaha' => '📁 Tata Usaha',
+            'sarpras' => '🏢 Sarana Prasarana',
+            'humas' => '🤝 Hubungan Masyarakat',
+            'bk' => '💬 Bimbingan Konseling',
+            'orang_tua' => '👨‍👩‍👧 Orang Tua Siswa',
+            'siswa' => '🎒 Siswa',
+            default => ucwords(str_replace('_', ' ', $role)),
+        };
+    }
+
+    public function assignRole(...$roles)
+    {
+        $flattened = collect($roles)->flatten()->all();
+        $converted = [];
+        foreach ($flattened as $r) {
+            if (is_numeric($r)) {
+                $name = \Spatie\Permission\Models\Role::find($r)?->name;
+                if ($name) $converted[] = $name;
+            } elseif (is_string($r)) {
+                $converted[] = $r;
+            } elseif ($r instanceof \Spatie\Permission\Models\Role) {
+                $converted[] = $r->name;
+            }
+        }
+
+        $specialists = [
+            self::ROLE_GURU_QURAN_YANBUA,
+            self::ROLE_GURU_QURAN_TAHSIN,
+            self::ROLE_GURU_QURAN_TAHFIDZ_DASAR,
+            self::ROLE_GURU_QURAN_TAHFIDZ_LANJUTAN,
+        ];
+
+        // Jika salah satu dari 4 role spesialis Al-Qur'an ditambahkan, pastikan guru_alquran terpasang
+        if (!empty(array_intersect($converted, $specialists)) && !in_array('guru_alquran', $converted)) {
+            $converted[] = 'guru_alquran';
+        }
+
+        return $this->traitAssignRole($converted);
+    }
+
+    public function syncRoles(...$roles)
+    {
+        $flattened = collect($roles)->flatten()->all();
+        $converted = [];
+        foreach ($flattened as $r) {
+            if (is_numeric($r)) {
+                $name = \Spatie\Permission\Models\Role::find($r)?->name;
+                if ($name) $converted[] = $name;
+            } elseif (is_string($r)) {
+                $converted[] = $r;
+            } elseif ($r instanceof \Spatie\Permission\Models\Role) {
+                $converted[] = $r->name;
+            }
+        }
+
+        $specialists = [
+            self::ROLE_GURU_QURAN_YANBUA,
+            self::ROLE_GURU_QURAN_TAHSIN,
+            self::ROLE_GURU_QURAN_TAHFIDZ_DASAR,
+            self::ROLE_GURU_QURAN_TAHFIDZ_LANJUTAN,
+        ];
+
+        // Jika salah satu dari 4 role spesialis Al-Qur'an disertakan, otomatis integrasikan dengan role guru_alquran
+        if (!empty(array_intersect($converted, $specialists)) && !in_array('guru_alquran', $converted)) {
+            $converted[] = 'guru_alquran';
+        }
+
+        return $this->traitSyncRoles($converted);
+    }
+
     public function isQuranTeacher(): bool
     {
         return $this->hasAnyRole(self::QURAN_TEACHER_ROLES);
@@ -57,7 +147,27 @@ class User extends Authenticatable implements FilamentUser, HasAvatar
         if ($this->hasRole(self::ROLE_GURU_QURAN_TAHSIN)) return 'Tahsin';
         if ($this->hasRole(self::ROLE_GURU_QURAN_TAHFIDZ_DASAR)) return 'Tahfidz Dasar';
         if ($this->hasRole(self::ROLE_GURU_QURAN_TAHFIDZ_LANJUTAN)) return 'Tahfidz Lanjutan';
-        if ($this->hasRole('guru_alquran')) return 'Al-Qur\'an';
+
+        if ($this->hasRole('guru_alquran')) {
+            $jabatan = strtolower($this->jabatan ?? '');
+            if (str_contains($jabatan, 'yanbua')) return 'Yanbu\'a';
+            if (str_contains($jabatan, 'tahsin')) return 'Tahsin';
+            if (str_contains($jabatan, 'dasar')) return 'Tahfidz Dasar';
+            if (str_contains($jabatan, 'lanjutan')) return 'Tahfidz Lanjutan';
+
+            // Cek subject yang diampu pada TeacherSubjectClass jika ada
+            if ($this->relationLoaded('teacherSubjectClasses') || $this->exists) {
+                $subjectNames = $this->teacherSubjectClasses()->with('subject')->get()->pluck('subject.name')->filter()->map(fn ($s) => strtolower($s))->toArray();
+                foreach ($subjectNames as $sn) {
+                    if (str_contains($sn, 'yanbua')) return 'Yanbu\'a';
+                    if (str_contains($sn, 'tahsin')) return 'Tahsin';
+                    if (str_contains($sn, 'dasar')) return 'Tahfidz Dasar';
+                    if (str_contains($sn, 'lanjutan')) return 'Tahfidz Lanjutan';
+                }
+            }
+
+            return 'Al-Qur\'an';
+        }
         return null;
     }
 
@@ -67,6 +177,17 @@ class User extends Authenticatable implements FilamentUser, HasAvatar
         if ($this->hasRole(self::ROLE_GURU_QURAN_TAHSIN)) return 'tahsin';
         if ($this->hasRole(self::ROLE_GURU_QURAN_TAHFIDZ_DASAR)) return 'tahfidz_dasar';
         if ($this->hasRole(self::ROLE_GURU_QURAN_TAHFIDZ_LANJUTAN)) return 'tahfidz_lanjutan';
+
+        if ($this->hasRole('guru_alquran')) {
+            $label = $this->getQuranSpecializationLabel();
+            return match ($label) {
+                'Yanbu\'a' => 'yanbua',
+                'Tahsin' => 'tahsin',
+                'Tahfidz Dasar' => 'tahfidz_dasar',
+                'Tahfidz Lanjutan' => 'tahfidz_lanjutan',
+                default => null,
+            };
+        }
         return null;
     }
 

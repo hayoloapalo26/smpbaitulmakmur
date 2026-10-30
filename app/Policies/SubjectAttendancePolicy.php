@@ -54,7 +54,7 @@ class SubjectAttendancePolicy
      */
     public function restore($user, $model): bool
     {
-        return $user->hasRole(['waka_kurikulum', 'guru_mapel', 'guru_alquran']);
+        return $user->hasRole(array_merge(['waka_kurikulum', 'guru_mapel'], \App\Models\User::QURAN_TEACHER_ROLES));
     }
 
     /**
@@ -62,6 +62,6 @@ class SubjectAttendancePolicy
      */
     public function forceDelete($user, $model): bool
     {
-        return $user->hasRole(['waka_kurikulum', 'guru_mapel', 'guru_alquran']);
+        return $user->hasRole(array_merge(['waka_kurikulum', 'guru_mapel'], \App\Models\User::QURAN_TEACHER_ROLES));
     }
 }

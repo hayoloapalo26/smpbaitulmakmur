@@ -187,10 +187,11 @@ class GuruAlquranSystemFeaturesTest extends TestCase
         $this->assertEquals(2, $data['rankings']['7A']->first()->ziyadah_count);
     }
 
-    public function test_guru_alquran_can_access_grade_resource(): void
+    public function test_guru_alquran_does_not_access_general_grade_resource(): void
     {
         $this->actingAs($this->guruAlquran);
-        $this->assertTrue(GradeResource::canAccess());
-        $this->assertTrue(GradeResource::shouldRegisterNavigation());
+        // Khusus guru Al-Qur'an, tidak ada inputan CP, TP, ATP, dan Nilai Mapel umum
+        $this->assertFalse(GradeResource::canAccess());
+        $this->assertFalse(GradeResource::shouldRegisterNavigation());
     }
 }

@@ -9,7 +9,7 @@ class TeacherAttendancePolicy
 {
     public function viewAny(User $user): bool
     {
-        return $user->hasAnyRole(['superadmin', 'kepala_sekolah', 'waka_kurikulum', 'tata_usaha', 'guru_mapel', 'guru_alquran', 'wali_kelas']);
+        return $user->hasAnyRole(array_merge(['superadmin', 'kepala_sekolah', 'waka_kurikulum', 'tata_usaha', 'guru_mapel', 'wali_kelas'], User::QURAN_TEACHER_ROLES));
     }
 
     public function view(User $user, TeacherAttendance $model): bool

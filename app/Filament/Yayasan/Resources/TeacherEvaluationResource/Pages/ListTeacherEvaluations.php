@@ -15,11 +15,11 @@ class ListTeacherEvaluations extends ListRecords
 
     public function getTabs(): array
     {
-        $teacherRoles = [
-            'guru_kelas', 'guru_mapel', 'guru_alquran', 'wali_kelas',
+        $teacherRoles = array_merge([
+            'guru_kelas', 'guru_mapel', 'wali_kelas',
             'bk', 'guru_piket', 'waka_kurikulum', 'waka_kesiswaan',
             'sarpras', 'humas',
-        ];
+        ], \App\Models\User::QURAN_TEACHER_ROLES);
 
         $tabs = [
             'all' => Tab::make('Semua Lembaga')
