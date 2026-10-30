@@ -46,17 +46,17 @@ class ProgramHumasResource extends Resource
 
     public static function canCreate(): bool
     {
-        return auth()->user()->hasAnyRole(['humas', 'kepala_sekolah', 'superadmin']);
+        return auth()->user()?->hasAnyRole(['humas', 'superadmin']) ?? false;
     }
 
     public static function canEdit(\Illuminate\Database\Eloquent\Model $record): bool
     {
-        return auth()->user()->hasAnyRole(['humas', 'kepala_sekolah', 'superadmin']);
+        return auth()->user()?->hasAnyRole(['humas', 'superadmin']) ?? false;
     }
 
     public static function canDelete(\Illuminate\Database\Eloquent\Model $record): bool
     {
-        return auth()->user()->hasAnyRole(['humas', 'kepala_sekolah', 'superadmin']);
+        return auth()->user()?->hasAnyRole(['humas', 'superadmin']) ?? false;
     }
 
     public static function getEloquentQuery(): \Illuminate\Database\Eloquent\Builder
@@ -233,6 +233,12 @@ class ProgramHumasResource extends Resource
                         'Ditolak' => 'heroicon-m-x-circle',
                         default => 'heroicon-m-clock',
                     }),
+                Tables\Columns\TextColumn::make('catatan_kepsek')
+                    ->label('Catatan Kepala Sekolah')
+                    ->placeholder('-')
+                    ->wrap()
+                    ->limit(60)
+                    ->tooltip(fn ($record) => $record->catatan_kepsek),
                 Tables\Columns\TextColumn::make('status_pelaksanaan')
                     ->label('Status')
                     ->badge()
@@ -265,6 +271,8 @@ class ProgramHumasResource extends Resource
             ])
             ->actions([
                 Tables\Actions\ViewAction::make()
+                    ->label('Detail')
+                    ->button()
                     ->modalHeading(fn ($record) => 'Ringkasan Program Kerja: ' . ($record->nama_program ?? 'Program Kerja Humas'))
                     ->modalWidth('4xl'),
 
@@ -299,7 +307,7 @@ class ProgramHumasResource extends Resource
 
                 // Aksi Kepala Sekolah: Minta Perbaikan
                 Tables\Actions\Action::make('perbaiki')
-                    ->label('Perbaiki')
+                    ->label('Revisi')
                     ->icon('heroicon-m-pencil-square')
                     ->color('warning')
                     ->button()
@@ -349,12 +357,15 @@ class ProgramHumasResource extends Resource
                             ->send();
                     }),
 
-                Tables\Actions\EditAction::make(),
-                Tables\Actions\DeleteAction::make(),
+                Tables\Actions\EditAction::make()
+                    ->visible(fn ($record) => !auth()->user()?->hasRole('kepala_sekolah')),
+                Tables\Actions\DeleteAction::make()
+                    ->visible(fn ($record) => !auth()->user()?->hasRole('kepala_sekolah')),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\DeleteBulkAction::make(),
+                    Tables\Actions\DeleteBulkAction::make()
+                        ->visible(fn () => !auth()->user()?->hasRole('kepala_sekolah')),
                 ]),
             ])
             ->defaultSort('created_at', 'desc');

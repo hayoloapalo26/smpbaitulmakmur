@@ -47,17 +47,17 @@ class ProgramKesiswaanResource extends Resource
 
     public static function canCreate(): bool
     {
-        return auth()->user()->hasAnyRole(['waka_kesiswaan', 'kepala_sekolah', 'superadmin']);
+        return auth()->user()->hasAnyRole(['waka_kesiswaan', 'superadmin']);
     }
 
     public static function canEdit(\Illuminate\Database\Eloquent\Model $record): bool
     {
-        return auth()->user()->hasAnyRole(['waka_kesiswaan', 'kepala_sekolah', 'superadmin']);
+        return auth()->user()->hasAnyRole(['waka_kesiswaan', 'superadmin']);
     }
 
     public static function canDelete(\Illuminate\Database\Eloquent\Model $record): bool
     {
-        return auth()->user()->hasAnyRole(['waka_kesiswaan', 'kepala_sekolah', 'superadmin']);
+        return auth()->user()->hasAnyRole(['waka_kesiswaan', 'superadmin']);
     }
 
     public static function form(Form $form): Form
@@ -245,6 +245,13 @@ class ProgramKesiswaanResource extends Resource
                         'danger' => 'Perlu Perbaikan',
                         'gray' => 'Ditolak',
                     ]),
+                Tables\Columns\TextColumn::make('catatan_kepsek')
+                    ->label('Catatan Kepala Sekolah')
+                    ->wrap()
+                    ->limit(50)
+                    ->tooltip(fn ($record) => $record->catatan_kepsek)
+                    ->color('warning')
+                    ->placeholder('-'),
             ])
             ->filters([
                 Tables\Filters\SelectFilter::make('status_persetujuan')
@@ -337,8 +344,10 @@ class ProgramKesiswaanResource extends Resource
                             ->send();
                     }),
 
-                Tables\Actions\EditAction::make(),
-                Tables\Actions\DeleteAction::make(),
+                Tables\Actions\EditAction::make()
+                    ->visible(fn () => auth()->user()?->hasAnyRole(['waka_kesiswaan', 'superadmin'])),
+                Tables\Actions\DeleteAction::make()
+                    ->visible(fn () => auth()->user()?->hasAnyRole(['waka_kesiswaan', 'superadmin'])),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([

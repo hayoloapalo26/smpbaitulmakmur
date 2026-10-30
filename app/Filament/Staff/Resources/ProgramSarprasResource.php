@@ -46,17 +46,17 @@ class ProgramSarprasResource extends Resource
 
     public static function canCreate(): bool
     {
-        return auth()->user()->hasAnyRole(['sarpras', 'kepala_sekolah', 'superadmin']);
+        return auth()->user()->hasAnyRole(['sarpras', 'superadmin']);
     }
 
     public static function canEdit(\Illuminate\Database\Eloquent\Model $record): bool
     {
-        return auth()->user()->hasAnyRole(['sarpras', 'kepala_sekolah', 'superadmin']);
+        return auth()->user()->hasAnyRole(['sarpras', 'superadmin']);
     }
 
     public static function canDelete(\Illuminate\Database\Eloquent\Model $record): bool
     {
-        return auth()->user()->hasAnyRole(['sarpras', 'kepala_sekolah', 'superadmin']);
+        return auth()->user()->hasAnyRole(['sarpras', 'superadmin']);
     }
 
     public static function form(Form $form): Form
@@ -246,6 +246,13 @@ class ProgramSarprasResource extends Resource
                         'danger' => 'Perlu Perbaikan',
                         'gray' => 'Ditolak',
                     ]),
+                Tables\Columns\TextColumn::make('catatan_kepsek')
+                    ->label('Catatan Kepala Sekolah')
+                    ->wrap()
+                    ->limit(50)
+                    ->tooltip(fn ($record) => $record->catatan_kepsek)
+                    ->color('warning')
+                    ->placeholder('-'),
             ])
             ->filters([
                 Tables\Filters\SelectFilter::make('kategori')
@@ -270,15 +277,21 @@ class ProgramSarprasResource extends Resource
             ])
             ->actions([
                 Tables\Actions\ViewAction::make()
+                    ->label('Detail')
+                    ->button()
+                    ->color('info')
+                    ->icon('heroicon-m-eye')
                     ->modalHeading(fn ($record) => 'Ringkasan Program Kerja: ' . ($record->nama_program ?? 'Program Kerja Sarpras'))
                     ->modalWidth('4xl'),
-                Tables\Actions\EditAction::make(),
+                Tables\Actions\EditAction::make()
+                    ->visible(fn () => auth()->user()?->hasAnyRole(['sarpras', 'superadmin'])),
 
                 // Aksi Cepat Kepala Sekolah: ACC / Setujui
                 Tables\Actions\Action::make('setujui_cepat')
                     ->label('ACC')
                     ->icon('heroicon-m-check-circle')
                     ->color('success')
+                    ->button()
                     ->visible(fn (ProgramSarpras $record) => 
                         auth()->user()?->hasAnyRole(['kepala_sekolah', 'superadmin']) && 
                         $record->status_persetujuan !== 'Disetujui'
@@ -310,6 +323,7 @@ class ProgramSarprasResource extends Resource
                     ->label('Revisi')
                     ->icon('heroicon-m-pencil-square')
                     ->color('warning')
+                    ->button()
                     ->visible(fn (ProgramSarpras $record) => 
                         auth()->user()?->hasAnyRole(['kepala_sekolah', 'superadmin']) && 
                         in_array($record->status_persetujuan, ['Menunggu Persetujuan', 'Disetujui'])
@@ -334,7 +348,8 @@ class ProgramSarprasResource extends Resource
                             ->send();
                     }),
 
-                Tables\Actions\DeleteAction::make(),
+                Tables\Actions\DeleteAction::make()
+                    ->visible(fn () => auth()->user()?->hasAnyRole(['sarpras', 'superadmin'])),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([

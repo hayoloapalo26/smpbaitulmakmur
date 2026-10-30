@@ -39,6 +39,27 @@ class ClassProgramResource extends Resource
         return $user->hasAnyRole(['wali_kelas', 'guru_kelas', 'kepala_sekolah', 'superadmin']);
     }
 
+    public static function canCreate(): bool
+    {
+        $user = Auth::user();
+        if (!$user) return false;
+        return $user->hasAnyRole(['wali_kelas', 'guru_kelas', 'superadmin']);
+    }
+
+    public static function canEdit($record): bool
+    {
+        $user = Auth::user();
+        if (!$user) return false;
+        return $user->hasAnyRole(['wali_kelas', 'guru_kelas', 'superadmin']);
+    }
+
+    public static function canDelete($record): bool
+    {
+        $user = Auth::user();
+        if (!$user) return false;
+        return $user->hasAnyRole(['wali_kelas', 'guru_kelas', 'superadmin']);
+    }
+
     public static function getNavigationBadge(): ?string
     {
         if (Auth::user()?->hasRole('kepala_sekolah')) {
@@ -315,6 +336,13 @@ class ClassProgramResource extends Resource
                     })
                     ->default('Menunggu Persetujuan'),
 
+                Tables\Columns\TextColumn::make('catatan_kepsek')
+                    ->label('Catatan Kepala Sekolah')
+                    ->placeholder('-')
+                    ->wrap()
+                    ->limit(60)
+                    ->tooltip(fn ($record) => $record->catatan_kepsek),
+
                 Tables\Columns\TextColumn::make('dokumen_pendukung')
                     ->label('Dokumen Drive')
                     ->formatStateUsing(fn ($state) => filled($state) ? 'Buka Drive' : '-')
@@ -357,12 +385,15 @@ class ClassProgramResource extends Resource
             ])
             ->actions([
                 Tables\Actions\ViewAction::make()
+                    ->label('Detail')
+                    ->button()
                     ->modalHeading(fn ($record) => 'Ringkasan Program Kerja: ' . ($record->nama_program ?? 'Program Kerja Kelas'))
                     ->modalWidth('4xl'),
                 Tables\Actions\Action::make('setuju')
                     ->label('ACC')
                     ->icon('heroicon-o-check-circle')
                     ->color('success')
+                    ->button()
                     ->visible(fn ($record) => Auth::user()?->hasAnyRole(['kepala_sekolah', 'superadmin']) && $record->status_persetujuan !== 'Disetujui')
                     ->requiresConfirmation()
                     ->modalHeading('Persetujuan Program Kerja Kelas')
@@ -386,9 +417,10 @@ class ClassProgramResource extends Resource
                             ->send();
                     }),
                 Tables\Actions\Action::make('perbaiki')
-                    ->label('Catatan/Revisi')
+                    ->label('Revisi')
                     ->icon('heroicon-o-pencil-square')
                     ->color('warning')
+                    ->button()
                     ->visible(fn ($record) => Auth::user()?->hasAnyRole(['kepala_sekolah', 'superadmin']))
                     ->form([
                         Forms\Components\Textarea::make('catatan_kepsek')
@@ -408,18 +440,19 @@ class ClassProgramResource extends Resource
                             ->warning()
                             ->send();
                     }),
-                Tables\Actions\EditAction::make(),
+                Tables\Actions\EditAction::make()
+                    ->visible(fn ($record) => !Auth::user()?->hasRole('kepala_sekolah')),
                 Tables\Actions\Action::make('tandai_berjalan')
                     ->label('Jalankan')
                     ->icon('heroicon-o-play')
                     ->color('warning')
-                    ->visible(fn (ClassProgram $record) => $record->status === 'rencana')
+                    ->visible(fn (ClassProgram $record) => !Auth::user()?->hasRole('kepala_sekolah') && $record->status === 'rencana')
                     ->action(fn (ClassProgram $record) => $record->update(['status' => 'berjalan'])),
                 Tables\Actions\Action::make('tandai_selesai')
                     ->label('Selesai')
                     ->icon('heroicon-o-check-circle')
                     ->color('success')
-                    ->visible(fn (ClassProgram $record) => in_array($record->status, ['rencana', 'berjalan']))
+                    ->visible(fn (ClassProgram $record) => !Auth::user()?->hasRole('kepala_sekolah') && in_array($record->status, ['rencana', 'berjalan']))
                     ->form([
                         Forms\Components\Textarea::make('evaluasi_catatan')
                             ->label('Catatan Hasil / Evaluasi Ketercapaian')
@@ -432,11 +465,13 @@ class ClassProgramResource extends Resource
                             'evaluasi_catatan' => $data['evaluasi_catatan'],
                         ]);
                     }),
-                Tables\Actions\DeleteAction::make(),
+                Tables\Actions\DeleteAction::make()
+                    ->visible(fn ($record) => !Auth::user()?->hasRole('kepala_sekolah')),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\DeleteBulkAction::make(),
+                    Tables\Actions\DeleteBulkAction::make()
+                        ->visible(fn () => !Auth::user()?->hasRole('kepala_sekolah')),
                 ]),
             ]);
     }

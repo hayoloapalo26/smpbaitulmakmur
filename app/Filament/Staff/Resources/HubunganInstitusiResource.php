@@ -321,9 +321,11 @@ class HubunganInstitusiResource extends Resource
                     }),
 
                 Tables\Columns\TextColumn::make('catatan_kepsek')
-                    ->label('Catatan KS')
-                    ->limit(25)
-                    ->toggleable(isToggledHiddenByDefault: true),
+                    ->label('Catatan Kepala Sekolah')
+                    ->placeholder('-')
+                    ->wrap()
+                    ->limit(60)
+                    ->tooltip(fn ($record) => $record->catatan_kepsek),
 
                 Tables\Columns\TextColumn::make('approver.name')
                     ->label('Di-ACC Oleh')

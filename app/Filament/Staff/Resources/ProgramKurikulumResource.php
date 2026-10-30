@@ -263,6 +263,13 @@ class ProgramKurikulumResource extends Resource
                         'Batal' => 'danger',
                         default => 'gray',
                     }),
+                Tables\Columns\TextColumn::make('catatan_kepsek')
+                    ->label('Catatan Kepala Sekolah')
+                    ->wrap()
+                    ->limit(50)
+                    ->tooltip(fn ($record) => $record->catatan_kepsek)
+                    ->color('warning')
+                    ->placeholder('-'),
             ])
             ->filters([
                 Tables\Filters\SelectFilter::make('kategori')

@@ -298,4 +298,44 @@ class KepalaSekolahWorkProgramAccessAndApprovalTest extends TestCase
         $this->assertEquals('Disetujui', $prokerHumas->fresh()->status_persetujuan);
         $this->assertEquals($this->principal->id, $prokerHumas->fresh()->approved_by);
     }
+
+    public function test_kepala_sekolah_cannot_create_edit_or_delete_other_roles_work_programs(): void
+    {
+        $this->actingAs($this->principal);
+
+        // Kepala sekolah cannot create, edit, or delete kurikulum proker
+        $this->assertFalse(ProgramKurikulumResource::canCreate());
+        $this->assertFalse(ProgramKurikulumResource::canEdit(new ProgramKurikulum()));
+        $this->assertFalse(ProgramKurikulumResource::canDelete(new ProgramKurikulum()));
+
+        // Kepala sekolah cannot create, edit, or delete kesiswaan proker
+        $this->assertFalse(ProgramKesiswaanResource::canCreate());
+        $this->assertFalse(ProgramKesiswaanResource::canEdit(new ProgramKesiswaan()));
+        $this->assertFalse(ProgramKesiswaanResource::canDelete(new ProgramKesiswaan()));
+
+        // Kepala sekolah cannot create, edit, or delete sarpras proker
+        $this->assertFalse(ProgramSarprasResource::canCreate());
+        $this->assertFalse(ProgramSarprasResource::canEdit(new ProgramSarpras()));
+        $this->assertFalse(ProgramSarprasResource::canDelete(new ProgramSarpras()));
+
+        // Kepala sekolah cannot create, edit, or delete bk proker
+        $this->assertFalse(BkWorkProgramResource::canCreate());
+        $this->assertFalse(BkWorkProgramResource::canEdit(new BkWorkProgram()));
+        $this->assertFalse(BkWorkProgramResource::canDelete(new BkWorkProgram()));
+
+        // Kepala sekolah cannot create, edit, or delete osis proker
+        $this->assertFalse(OsisProgramResource::canCreate());
+        $this->assertFalse(OsisProgramResource::canEdit(new OsisProgram()));
+        $this->assertFalse(OsisProgramResource::canDelete(new OsisProgram()));
+
+        // Kepala sekolah cannot create, edit, or delete class proker
+        $this->assertFalse(ClassProgramResource::canCreate());
+        $this->assertFalse(ClassProgramResource::canEdit(new ClassProgram()));
+        $this->assertFalse(ClassProgramResource::canDelete(new ClassProgram()));
+
+        // Kepala sekolah cannot create, edit, or delete humas proker
+        $this->assertFalse(ProgramHumasResource::canCreate());
+        $this->assertFalse(ProgramHumasResource::canEdit(new ProgramHumas()));
+        $this->assertFalse(ProgramHumasResource::canDelete(new ProgramHumas()));
+    }
 }

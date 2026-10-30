@@ -57,7 +57,7 @@ class BkWorkProgramResource extends Resource
 
     public static function canEdit(\Illuminate\Database\Eloquent\Model $record): bool
     {
-        return auth()->user()->hasAnyRole(['bk', 'kepala_sekolah', 'superadmin']);
+        return auth()->user()->hasAnyRole(['bk', 'superadmin']);
     }
 
     public static function canDelete(\Illuminate\Database\Eloquent\Model $record): bool
@@ -247,6 +247,13 @@ class BkWorkProgramResource extends Resource
                         default => 'gray',
                     })
                     ->default('Menunggu Persetujuan'),
+                Tables\Columns\TextColumn::make('catatan_kepsek')
+                    ->label('Catatan Kepala Sekolah')
+                    ->wrap()
+                    ->limit(50)
+                    ->tooltip(fn ($record) => $record->catatan_kepsek)
+                    ->color('warning')
+                    ->placeholder('-'),
                 Tables\Columns\TextColumn::make('user.name')
                     ->label('Penyusun')
                     ->searchable()
@@ -278,12 +285,17 @@ class BkWorkProgramResource extends Resource
             ])
             ->actions([
                 Tables\Actions\ViewAction::make()
+                    ->label('Detail')
+                    ->button()
+                    ->color('info')
+                    ->icon('heroicon-m-eye')
                     ->modalHeading(fn ($record) => 'Ringkasan Program Kerja: ' . ($record->judul_program ?? 'Program Kerja BK'))
                     ->modalWidth('4xl'),
                 Tables\Actions\Action::make('setuju')
                     ->label('ACC')
-                    ->icon('heroicon-o-check-circle')
+                    ->icon('heroicon-m-check-circle')
                     ->color('success')
+                    ->button()
                     ->visible(fn ($record) => auth()->user()?->hasAnyRole(['kepala_sekolah', 'superadmin']) && $record->status_persetujuan !== 'Disetujui')
                     ->requiresConfirmation()
                     ->modalHeading('Persetujuan Program Kerja BK')
@@ -307,9 +319,10 @@ class BkWorkProgramResource extends Resource
                             ->send();
                     }),
                 Tables\Actions\Action::make('perbaiki')
-                    ->label('Catatan/Revisi')
-                    ->icon('heroicon-o-pencil-square')
+                    ->label('Revisi')
+                    ->icon('heroicon-m-pencil-square')
                     ->color('warning')
+                    ->button()
                     ->visible(fn ($record) => auth()->user()?->hasAnyRole(['kepala_sekolah', 'superadmin']))
                     ->form([
                         Forms\Components\Textarea::make('catatan_kepsek')
@@ -329,8 +342,10 @@ class BkWorkProgramResource extends Resource
                             ->warning()
                             ->send();
                     }),
-                Tables\Actions\EditAction::make(),
-                Tables\Actions\DeleteAction::make(),
+                Tables\Actions\EditAction::make()
+                    ->visible(fn () => auth()->user()?->hasAnyRole(['bk', 'superadmin'])),
+                Tables\Actions\DeleteAction::make()
+                    ->visible(fn () => auth()->user()?->hasAnyRole(['bk', 'superadmin'])),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([

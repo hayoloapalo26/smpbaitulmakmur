@@ -463,9 +463,11 @@ class EvaluasiProgramKerjaResource extends Resource
                     ->badge(fn ($state) => (bool) $state),
 
                 Tables\Columns\TextColumn::make('catatan_kepsek')
-                    ->label('Catatan KS')
-                    ->limit(25)
-                    ->toggleable(isToggledHiddenByDefault: true),
+                    ->label('Catatan Kepala Sekolah')
+                    ->placeholder('-')
+                    ->wrap()
+                    ->limit(60)
+                    ->tooltip(fn ($record) => $record->catatan_kepsek),
             ])
             ->filters([
                 Tables\Filters\SelectFilter::make('kategori_program')

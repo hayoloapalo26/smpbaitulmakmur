@@ -90,7 +90,7 @@ class PerawatanBerkalaSarprasResource extends Resource
 
     public static function canEdit(Model $record): bool
     {
-        return auth()->user()?->hasAnyRole(['sarpras', 'kepala_sekolah', 'superadmin']) ?? false;
+        return auth()->user()?->hasAnyRole(['sarpras', 'superadmin']) ?? false;
     }
 
     public static function canDelete(Model $record): bool
@@ -487,6 +487,13 @@ class PerawatanBerkalaSarprasResource extends Resource
                         'gray' => 'Ditolak',
                     ]),
 
+                Tables\Columns\TextColumn::make('catatan_kepsek')
+                    ->label('Catatan Kepala Sekolah')
+                    ->placeholder('-')
+                    ->wrap()
+                    ->limit(60)
+                    ->tooltip(fn ($record) => $record->catatan_kepsek),
+
                 Tables\Columns\TextColumn::make('link_drive_dokumentasi')
                     ->label('Dokumen / Foto')
                     ->icon('heroicon-m-arrow-top-right-on-square')
@@ -533,14 +540,18 @@ class PerawatanBerkalaSarprasResource extends Resource
                     ]),
             ])
             ->actions([
-                Tables\Actions\ViewAction::make(),
-                Tables\Actions\EditAction::make(),
+                Tables\Actions\ViewAction::make()
+                    ->label('Detail')
+                    ->button(),
+                Tables\Actions\EditAction::make()
+                    ->visible(fn ($record) => !auth()->user()?->hasRole('kepala_sekolah')),
 
                 // Aksi Cepat Kepala Sekolah: ACC / Setujui
                 Tables\Actions\Action::make('setujui_cepat')
                     ->label('ACC')
                     ->icon('heroicon-m-check-circle')
                     ->color('success')
+                    ->button()
                     ->visible(fn (PerawatanBerkalaSarpras $record) => 
                         auth()->user()?->hasAnyRole(['kepala_sekolah', 'superadmin']) && 
                         $record->status_persetujuan !== 'Disetujui'
@@ -572,6 +583,7 @@ class PerawatanBerkalaSarprasResource extends Resource
                     ->label('Revisi')
                     ->icon('heroicon-m-pencil-square')
                     ->color('warning')
+                    ->button()
                     ->visible(fn (PerawatanBerkalaSarpras $record) => 
                         auth()->user()?->hasAnyRole(['kepala_sekolah', 'superadmin']) && 
                         in_array($record->status_persetujuan, ['Menunggu Persetujuan', 'Disetujui'])
@@ -596,7 +608,8 @@ class PerawatanBerkalaSarprasResource extends Resource
                             ->send();
                     }),
 
-                Tables\Actions\DeleteAction::make(),
+                Tables\Actions\DeleteAction::make()
+                    ->visible(fn ($record) => !auth()->user()?->hasRole('kepala_sekolah')),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
