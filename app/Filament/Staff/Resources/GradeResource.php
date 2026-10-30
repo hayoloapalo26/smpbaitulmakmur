@@ -591,13 +591,6 @@ class GradeResource extends Resource
                             })
                             ->columnSpanFull(),
 
-                        Forms\Components\KeyValue::make('catatan_per_tp')
-                            ->label('Catatan Guru per-TP (Contoh: "Masih keliru membaca gambar kerja", "Sangat terampil menggunakan alat")')
-                            ->keyLabel('ID / Kode TP')
-                            ->valueLabel('Catatan Umpan Balik Guru per TP')
-                            ->helperText('Catatan spesifik capaian indikator per TP yang diujikan.')
-                            ->columnSpanFull(),
-
                         Forms\Components\Textarea::make('catatan_guru')
                             ->label('Rangkuman Catatan Guru / Evaluasi untuk Rapor (Wajib)')
                             ->placeholder('Contoh: Ananda sangat terampil menggunakan alat praktikum, namun masih keliru membaca gambar kerja secara mandiri.')
