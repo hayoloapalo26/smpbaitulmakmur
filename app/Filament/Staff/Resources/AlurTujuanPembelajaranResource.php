@@ -24,13 +24,21 @@ class AlurTujuanPembelajaranResource extends Resource
 
     public static function canAccess(): bool
     {
-        return auth()->user()?->hasAnyRole(array_merge([
+        $user = auth()->user();
+        if (!$user) return false;
+
+        // Role khusus Guru Al-Qur'an: tidak ada akses dan tidak ada inputan ATP
+        if ($user->isQuranTeacher() && !$user->hasAnyRole(['guru_mapel', 'guru_kelas', 'waka_kurikulum', 'kepala_sekolah', 'superadmin'])) {
+            return false;
+        }
+
+        return $user->hasAnyRole([
             'guru_mapel',
             'guru_kelas',
             'waka_kurikulum',
             'kepala_sekolah',
             'superadmin',
-        ], \App\Models\User::QURAN_TEACHER_ROLES)) ?? false;
+        ]);
     }
 
     protected static ?string $model = AlurTujuanPembelajaran::class;

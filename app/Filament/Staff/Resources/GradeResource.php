@@ -34,19 +34,20 @@ class GradeResource extends Resource
             return false;
         }
 
-        return $user->hasAnyRole(array_merge([
-            'guru_mapel',
-            'koordinator_madin',
-            'guru_kelas',
-            'waka_kurikulum',
-            'kepala_sekolah',
-            'superadmin',
-        ], \App\Models\User::QURAN_TEACHER_ROLES)) ?? false;
+        return static::canAccess();
     }
 
     public static function canAccess(): bool
     {
-        return auth()->user()?->hasAnyRole(array_merge([
+        $user = auth()->user();
+        if (!$user) return false;
+
+        // Guru Al-Qur'an memiliki sistem penilaian khusus (Tahfidz & Mutu Bacaan) tanpa CP, TP, dan ATP
+        if ($user->isQuranTeacher() && !$user->hasAnyRole(['guru_mapel', 'guru_kelas', 'waka_kurikulum', 'kepala_sekolah', 'superadmin', 'wali_kelas'])) {
+            return false;
+        }
+
+        return $user->hasAnyRole([
             'guru_mapel',
             'koordinator_madin',
             'guru_kelas',
@@ -54,7 +55,7 @@ class GradeResource extends Resource
             'waka_kurikulum',
             'kepala_sekolah',
             'superadmin',
-        ], \App\Models\User::QURAN_TEACHER_ROLES)) ?? false;
+        ]);
     }
 
     protected static ?string $model = Grade::class;

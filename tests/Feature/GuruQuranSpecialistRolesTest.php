@@ -9,6 +9,10 @@ use App\Filament\Staff\Resources\GradeResource;
 use App\Filament\Staff\Resources\QuranAchievementResource;
 use App\Filament\Staff\Resources\ReadingQualityScoreResource;
 use App\Filament\Staff\Resources\RppmResource;
+use App\Filament\Staff\Resources\CapaianPembelajaranResource;
+use App\Filament\Staff\Resources\TujuanPembelajaranResource;
+use App\Filament\Staff\Resources\AlurTujuanPembelajaranResource;
+use App\Filament\Staff\Resources\TeachingJournalResource;
 use App\Filament\Staff\Resources\ScheduleResource;
 use App\Filament\Staff\Resources\TeacherSubjectClassResource;
 use App\Models\AcademicYear;
@@ -182,7 +186,7 @@ class GuruQuranSpecialistRolesTest extends TestCase
     }
 
     /**
-     * Test 1: 4 Role baru guru Al-Qur'an memiliki akses ke seluruh fitur Al-Qur'an & Kurikulum
+     * Test 1: 4 Role spesialis guru Al-Qur'an memiliki akses ke fitur Al-Qur'an dan TIDAK ada inputan CP, TP, ATP, RPPM
      */
     public function test_all_4_quran_teacher_roles_have_access_to_relevant_features(): void
     {
@@ -196,13 +200,20 @@ class GuruQuranSpecialistRolesTest extends TestCase
         foreach ($teachers as $teacher) {
             $this->actingAs($teacher);
 
+            // Fitur Al-Qur'an & Penjadwalan: Bisa diakses
             $this->assertTrue(QuranAchievementResource::canAccess());
             $this->assertTrue(ReadingQualityScoreResource::canAccess());
             $this->assertTrue(TahfidzRanking::canAccess());
-            $this->assertTrue(InputNilaiMapel::canAccess());
-            $this->assertTrue(GradeResource::canAccess());
             $this->assertTrue(ScheduleResource::canAccess());
-            $this->assertTrue(RppmResource::canAccess());
+            $this->assertTrue(TeachingJournalResource::canAccess());
+
+            // Role khusus Guru Al-Qur'an: TIDAK ada inputan CP, TP, ATP, dan RPPM
+            $this->assertFalse(CapaianPembelajaranResource::canAccess());
+            $this->assertFalse(TujuanPembelajaranResource::canAccess());
+            $this->assertFalse(AlurTujuanPembelajaranResource::canAccess());
+            $this->assertFalse(RppmResource::canAccess());
+            $this->assertFalse(GradeResource::canAccess());
+            $this->assertFalse(InputNilaiMapel::canAccess());
 
             $this->assertTrue($teacher->isQuranTeacher());
             $this->assertNotNull($teacher->getQuranSpecializationLabel());

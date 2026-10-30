@@ -5,6 +5,8 @@ namespace App\Filament\Staff\Resources;
 use App\Filament\Staff\Resources\TeachingJournalResource\Pages;
 use App\Models\TeachingJournal;
 use App\Models\Schedule;
+use App\Models\Subject;
+use App\Models\User;
 use App\Models\Rppm;
 use App\Models\TujuanPembelajaran;
 use Filament\Forms;
@@ -47,6 +49,35 @@ class TeachingJournalResource extends Resource
     public static function canDelete(\Illuminate\Database\Eloquent\Model $record): bool
     {
         return ! (auth()->user()?->hasRole('kepala_sekolah') ?? false);
+    }
+
+    public static function isQuranContext(Forms\Get $get): bool
+    {
+        $user = Auth::user();
+        if ($user && $user->isQuranTeacher() && !$user->hasAnyRole(['guru_mapel', 'guru_kelas', 'waka_kurikulum', 'kepala_sekolah', 'superadmin'])) {
+            return true;
+        }
+
+        $teacherId = $get('teacher_id');
+        if ($teacherId) {
+            $teacher = User::find($teacherId);
+            if ($teacher && $teacher->isQuranTeacher() && !$teacher->hasAnyRole(['guru_mapel', 'guru_kelas'])) {
+                return true;
+            }
+        }
+
+        $subjectId = $get('subject_id');
+        if ($subjectId) {
+            $subject = Subject::find($subjectId);
+            if ($subject) {
+                $name = strtolower($subject->name);
+                if (str_contains($name, 'qur') || str_contains($name, 'tahfidz') || str_contains($name, 'yanbua') || str_contains($name, 'tahsin')) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     protected static ?string $model = TeachingJournal::class;
@@ -370,29 +401,46 @@ class TeachingJournalResource extends Resource
                                 $set('subject_id', $schedule->subject_id);
                                 $set('jam_ke', $schedule->jam_ke);
 
-                                // Auto pre-fill RPPM & TP jika guru memiliki dokumen RPPM untuk mapel ini
+                                // Auto pre-fill RPPM & TP jika BUKAN konteks Al-Qur'an dan guru memiliki dokumen RPPM untuk mapel ini
                                 $teacherId = $get('teacher_id') ?: Auth::id();
+                                $teacher = User::find($teacherId);
                                 $subjectName = $schedule->subject?->name;
-                                $matchingRppm = Rppm::query()
-                                    ->where('guru_id', $teacherId)
-                                    ->where(function ($q) use ($schedule, $subjectName) {
-                                        if ($schedule->subject_id) {
-                                            $q->whereHas('capaianPembelajaran', fn ($cp) => $cp->where('subject_id', $schedule->subject_id));
-                                        }
-                                        if ($subjectName) {
-                                            $q->orWhere('mata_pelajaran', 'like', "%{$subjectName}%");
-                                        }
-                                    })
-                                    ->latest()
-                                    ->first();
+                                $isQuran = ($teacher && $teacher->isQuranTeacher() && !$teacher->hasAnyRole(['guru_mapel', 'guru_kelas']))
+                                    || ($subjectName && (
+                                        str_contains(strtolower($subjectName), 'qur')
+                                        || str_contains(strtolower($subjectName), 'tahfidz')
+                                        || str_contains(strtolower($subjectName), 'yanbua')
+                                        || str_contains(strtolower($subjectName), 'tahsin')
+                                    ));
 
-                                if ($matchingRppm) {
-                                    $set('rppm_id', $matchingRppm->id);
-                                    if (!empty($matchingRppm->topik) && empty($get('materi'))) {
-                                        $set('materi', $matchingRppm->topik);
+                                if ($isQuran) {
+                                    $set('rppm_id', null);
+                                    $set('tp_ids', []);
+                                    if (empty($get('materi')) && $subjectName) {
+                                        $set('materi', "Pembelajaran {$subjectName}");
                                     }
-                                    if (!empty($matchingRppm->selected_tp_ids) && empty($get('tp_ids'))) {
-                                        $set('tp_ids', $matchingRppm->selected_tp_ids);
+                                } else {
+                                    $matchingRppm = Rppm::query()
+                                        ->where('guru_id', $teacherId)
+                                        ->where(function ($q) use ($schedule, $subjectName) {
+                                            if ($schedule->subject_id) {
+                                                $q->whereHas('capaianPembelajaran', fn ($cp) => $cp->where('subject_id', $schedule->subject_id));
+                                            }
+                                            if ($subjectName) {
+                                                $q->orWhere('mata_pelajaran', 'like', "%{$subjectName}%");
+                                            }
+                                        })
+                                        ->latest()
+                                        ->first();
+
+                                    if ($matchingRppm) {
+                                        $set('rppm_id', $matchingRppm->id);
+                                        if (!empty($matchingRppm->topik) && empty($get('materi'))) {
+                                            $set('materi', $matchingRppm->topik);
+                                        }
+                                        if (!empty($matchingRppm->selected_tp_ids) && empty($get('tp_ids'))) {
+                                            $set('tp_ids', $matchingRppm->selected_tp_ids);
+                                        }
                                     }
                                 }
 
@@ -437,11 +485,14 @@ class TeachingJournalResource extends Resource
                             ->required(),
                     ])->columns(3),
 
-                Forms\Components\Section::make('🎯 Lingkup Materi & Penarikan TP dari RPPM & Perangkat Pembelajaran')
-                    ->description('Tarik otomatis Tujuan Pembelajaran (TP) yang sudah di-inputkan di RPPM atau pilih langsung dari Tujuan Pembelajaran mapel terkait.')
+                Forms\Components\Section::make(fn (Forms\Get $get) => static::isQuranContext($get) ? '📖 Lingkup Materi Pembelajaran Al-Qur\'an' : '🎯 Lingkup Materi & Penarikan TP dari RPPM & Perangkat Pembelajaran')
+                    ->description(fn (Forms\Get $get) => static::isQuranContext($get)
+                        ? 'Inputkan materi pokok atau capaian pembelajaran Al-Qur\'an (Surat/Ayat/Jilid/Halaman) yang diajarkan pada jam ini tanpa perlu input CP/TP/ATP.'
+                        : 'Tarik otomatis Tujuan Pembelajaran (TP) yang sudah di-inputkan di RPPM atau pilih langsung dari Tujuan Pembelajaran mapel terkait.')
                     ->schema([
                         Forms\Components\Select::make('rppm_id')
                             ->label('Tarik Dokumen RPPM Guru (Opsional)')
+                            ->hidden(fn (Forms\Get $get) => static::isQuranContext($get))
                             ->options(function (Forms\Get $get) {
                                 $subjectId = $get('subject_id');
                                 $teacherId = $get('teacher_id') ?: Auth::id();
@@ -479,13 +530,15 @@ class TeachingJournalResource extends Resource
                             ->helperText('Pilih RPPM untuk otomatis mengisi Materi Pokok dan mencentang Tujuan Pembelajaran (TP) yang diajarkan.'),
 
                         Forms\Components\TextInput::make('materi')
-                            ->label('Topik / Materi Pokok Pembelajaran')
-                            ->placeholder('Contoh: Operasi Aljabar / Teks Deskripsi / Mengenal Perangkat Komputer')
+                            ->label(fn (Forms\Get $get) => static::isQuranContext($get) ? 'Materi Pokok / Capaian Surat & Ayat' : 'Topik / Materi Pokok Pembelajaran')
+                            ->placeholder(fn (Forms\Get $get) => static::isQuranContext($get) ? 'Contoh: QS. Al-Baqarah ayat 1-15 / Yanbu\'a Jilid 3 Hal. 10-15 / Makharijul Huruf' : 'Contoh: Operasi Aljabar / Teks Deskripsi / Mengenal Perangkat Komputer')
                             ->required()
-                            ->helperText('Lingkup materi pokok yang disampaikan pada jam mengajar ini.'),
+                            ->helperText(fn (Forms\Get $get) => static::isQuranContext($get) ? 'Lingkup materi atau capaian Al-Qur\'an yang disampaikan pada jam mengajar ini.' : 'Lingkup materi pokok yang disampaikan pada jam mengajar ini.'),
 
                         Forms\Components\Select::make('tp_ids')
                             ->label('Tujuan Pembelajaran (TP) Terkait [Multiple Choice]')
+                            ->hidden(fn (Forms\Get $get) => static::isQuranContext($get))
+                            ->dehydrated(fn (Forms\Get $get) => !static::isQuranContext($get))
                             ->multiple()
                             ->options(function (Forms\Get $get) {
                                 $subjectId = $get('subject_id');

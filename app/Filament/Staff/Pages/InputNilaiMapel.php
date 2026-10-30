@@ -30,7 +30,15 @@ class InputNilaiMapel extends Page
 
     public static function canAccess(): bool
     {
-        return Auth::user()?->hasAnyRole(array_merge([
+        $user = Auth::user();
+        if (!$user) return false;
+
+        // Guru Al-Qur'an memiliki sistem penilaian khusus (Tahfidz & Mutu Bacaan) tanpa CP, TP, dan ATP
+        if ($user->isQuranTeacher() && !$user->hasAnyRole(['guru_mapel', 'guru_kelas', 'waka_kurikulum', 'kepala_sekolah', 'superadmin', 'wali_kelas'])) {
+            return false;
+        }
+
+        return $user->hasAnyRole([
             'guru_mapel',
             'guru_kelas',
             'koordinator_madin',
@@ -38,7 +46,7 @@ class InputNilaiMapel extends Page
             'waka_kurikulum',
             'kepala_sekolah',
             'superadmin',
-        ], \App\Models\User::QURAN_TEACHER_ROLES)) ?? false;
+        ]);
     }
 
     protected static ?string $navigationIcon = 'heroicon-o-pencil-square';

@@ -12,9 +12,30 @@ use Filament\Tables\Table;
 
 class RppmResource extends Resource
 {
+    public static function shouldRegisterNavigation(): bool
+    {
+        $user = auth()->user();
+        if (!$user) return false;
+
+        // Role khusus Guru Al-Qur'an: tidak ada inputan CP, TP, dan ATP (RPPM)
+        if ($user->isQuranTeacher() && !$user->hasAnyRole(['guru_mapel', 'guru_kelas', 'waka_kurikulum', 'kepala_sekolah', 'superadmin'])) {
+            return false;
+        }
+
+        return static::canAccess();
+    }
+
     public static function canAccess(): bool
     {
-        return auth()->user()->hasAnyRole(array_merge(['guru_mapel', 'guru_kelas', 'waka_kurikulum', 'kepala_sekolah', 'superadmin'], \App\Models\User::QURAN_TEACHER_ROLES));
+        $user = auth()->user();
+        if (!$user) return false;
+
+        // Role khusus Guru Al-Qur'an: tidak ada inputan CP, TP, dan ATP (RPPM)
+        if ($user->isQuranTeacher() && !$user->hasAnyRole(['guru_mapel', 'guru_kelas', 'waka_kurikulum', 'kepala_sekolah', 'superadmin'])) {
+            return false;
+        }
+
+        return $user->hasAnyRole(['guru_mapel', 'guru_kelas', 'waka_kurikulum', 'kepala_sekolah', 'superadmin']);
     }
 
     protected static ?string $model = Rppm::class;

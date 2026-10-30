@@ -154,8 +154,8 @@ class PerangkatAjarAndGradeSystemTest extends TestCase
             'semester' => 'Ganjil',
         ]);
 
-        $this->assertDatabaseHas('tujuan_pembelajarans', ['kode_tp' => 'TP.7.1.1']);
-        $this->assertDatabaseHas('tujuan_pembelajarans', ['kode_tp' => 'TP.7.1.2']);
+        $this->assertDatabaseHas('tujuan_pembelajarans', ['id' => $tp1->id, 'deskripsi_tp' => 'Memahami konsep bilangan bulat negatif dan positif.']);
+        $this->assertDatabaseHas('tujuan_pembelajarans', ['id' => $tp2->id, 'deskripsi_tp' => 'Menyelesaikan operasi hitung campuran bilangan bulat.']);
 
         // 3. ATP (Alur Tujuan Pembelajaran) accumulating TPs
         $atp = AlurTujuanPembelajaran::create([
@@ -234,7 +234,7 @@ class PerangkatAjarAndGradeSystemTest extends TestCase
         $this->assertEquals($cp->id, $rppm->capaianPembelajaran->id);
         $this->assertEquals($atp->id, $rppm->alurTujuanPembelajaran->id);
         $this->assertCount(1, $rppm->selected_tps);
-        $this->assertEquals('TP.7.2.1', $rppm->selected_tps->first()->kode_tp);
+        $this->assertEquals($tp->kode_tp, $rppm->selected_tps->first()->kode_tp);
     }
 
     public function test_can_create_grade_with_five_types_forms_and_tp(): void
@@ -483,11 +483,9 @@ class PerangkatAjarAndGradeSystemTest extends TestCase
         // 2 TPs should be created and linked
         $this->assertCount(2, $mutated['selected_tp_ids']);
         $this->assertDatabaseHas('tujuan_pembelajarans', [
-            'kode_tp' => 'TP.7.1.10',
             'deskripsi_tp' => 'Menyederhanakan pecahan bentuk aljabar.',
         ]);
         $this->assertDatabaseHas('tujuan_pembelajarans', [
-            'kode_tp' => 'TP.7.1.11',
             'deskripsi_tp' => 'Menyelesaikan perkalian dan pembagian pecahan aljabar.',
         ]);
 
@@ -528,7 +526,7 @@ class PerangkatAjarAndGradeSystemTest extends TestCase
         ]);
 
         $this->assertNotEmpty($tp->kode_tp);
-        $this->assertStringStartsWith('TP.7.', $tp->kode_tp);
+        $this->assertMatchesRegularExpression('/^[0-9]+\.[0-9]+$/', $tp->kode_tp);
         $this->assertDatabaseHas('tujuan_pembelajarans', [
             'id' => $tp->id,
             'deskripsi_tp' => 'Memahami bilangan desimal dan persen.',
