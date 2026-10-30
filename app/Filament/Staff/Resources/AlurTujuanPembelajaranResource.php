@@ -78,6 +78,50 @@ class AlurTujuanPembelajaranResource extends Resource
                         Forms\Components\Hidden::make('guru_id')
                             ->default(fn () => Auth::id()),
 
+                        Forms\Components\TextInput::make('kode_atp')
+                            ->label('Kode ATP')
+                            ->placeholder('Contoh: 1, 2, dst. (Otomatis)')
+                            ->helperText('Kode urut ATP (ATP 1, ATP 2, dst.). Otomatis terisi jika dikosongkan.')
+                            ->nullable(),
+
+                        Forms\Components\Select::make('capaian_pembelajaran_id')
+                            ->label('Rujukan Capaian Pembelajaran (CP)')
+                            ->options(function (Forms\Get $get) {
+                                $subjectId = $get('subject_id');
+                                $tingkat = $get('tingkat');
+                                $query = \App\Models\CapaianPembelajaran::query();
+                                if ($subjectId) {
+                                    $query->where('subject_id', $subjectId);
+                                }
+                                if ($tingkat) {
+                                    $query->where('tingkat', $tingkat);
+                                }
+                                return $query->orderBy('tingkat')->orderBy('id')->get()->mapWithKeys(function ($cp) {
+                                    $kode = $cp->kode_cp ? "[CP {$cp->kode_cp}] " : '';
+                                    return [$cp->id => "{$kode}[Kelas {$cp->tingkat} - {$cp->elemen}] " . \Illuminate\Support\Str::limit($cp->deskripsi_cp, 60)];
+                                });
+                            })
+                            ->searchable()
+                            ->preload()
+                            ->live()
+                            ->afterStateUpdated(function ($state, Forms\Set $set, Forms\Get $get) {
+                                if ($state) {
+                                    $cp = \App\Models\CapaianPembelajaran::with('subject')->find($state);
+                                    if ($cp) {
+                                        $set('tingkat', $cp->tingkat);
+                                        $set('kode_atp', $cp->kode_cp ?: '1');
+                                        $subjectName = $cp->subject?->name ?? 'Mapel';
+                                        $set('judul_atp', "Alur Tujuan Pembelajaran (ATP {$cp->kode_cp}) - {$subjectName} Kelas {$cp->tingkat} [CP {$cp->kode_cp}]");
+
+                                        $tps = \App\Models\TujuanPembelajaran::where('capaian_pembelajaran_id', $cp->id)->pluck('id')->toArray();
+                                        if (!empty($tps)) {
+                                            $set('tp_ids', $tps);
+                                        }
+                                    }
+                                }
+                            })
+                            ->helperText('Pilih rujukan CP untuk ATP ini (Otomatis mengisi Kode ATP dan TP terkait).'),
+
                         Forms\Components\TextInput::make('judul_atp')
                             ->label('Judul / Dokumen ATP')
                             ->placeholder('Contoh: Alur Tujuan Pembelajaran Matematika Kelas 7 Semester Ganjil')
@@ -222,6 +266,21 @@ class AlurTujuanPembelajaranResource extends Resource
     {
         return $table
             ->columns([
+                Tables\Columns\TextColumn::make('kode_atp')
+                    ->label('Kode ATP')
+                    ->badge()
+                    ->color('primary')
+                    ->formatStateUsing(fn ($state) => $state ? "ATP {$state}" : '-')
+                    ->sortable()
+                    ->searchable(),
+
+                Tables\Columns\TextColumn::make('capaianPembelajaran.kode_cp')
+                    ->label('Rujukan CP')
+                    ->badge()
+                    ->color('info')
+                    ->formatStateUsing(fn ($state) => $state ? "CP {$state}" : 'Semua CP')
+                    ->sortable(),
+
                 Tables\Columns\TextColumn::make('judul_atp')
                     ->label('Judul ATP')
                     ->weight('bold')

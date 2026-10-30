@@ -262,7 +262,7 @@ class RppmResource extends Resource
                             ->searchable()
                             ->preload()
                             ->live()
-                            ->afterStateUpdated(function ($state, Forms\Set $set) {
+                            ->afterStateUpdated(function ($state, Forms\Set $set, Forms\Get $get) {
                                 if ($state) {
                                     $cp = \App\Models\CapaianPembelajaran::with('subject')->find($state);
                                     if ($cp) {
@@ -277,10 +277,28 @@ class RppmResource extends Resource
                                         $atp = \App\Models\AlurTujuanPembelajaran::syncForTeacherAndSubject(
                                             auth()->id(),
                                             $cp->subject_id,
-                                            $cp->tingkat
+                                            $cp->tingkat,
+                                            '2026/2027',
+                                            'Ganjil',
+                                            $cp->id
                                         );
-                                        if ($atp) {
+                                        if ($atp && $get('alur_tujuan_pembelajaran_id') != $atp->id) {
                                             $set('alur_tujuan_pembelajaran_id', $atp->id);
+                                            $set('content.alur_tujuan_pembelajaran_id', $atp->id);
+
+                                            // Otomatis pre-select TP dari CP dan ATP ini
+                                            if (!empty($atp->tp_ids)) {
+                                                $set('selected_tp_ids', $atp->tp_ids);
+                                                $set('content.selected_tp_dropdown', $atp->tp_ids);
+                                                $tps = \App\Models\TujuanPembelajaran::whereIn('id', $atp->tp_ids)->get()->sort(function ($a, $b) {
+                                                    return strnatcmp($a->kode_tp ?? '', $b->kode_tp ?? '');
+                                                });
+                                                $tpItems = $tps->map(function ($tp) {
+                                                    $prefix = $tp->materi ? "({$tp->materi}) " : '';
+                                                    return ['rumusan' => "[{$tp->kode_tp}] {$prefix}{$tp->deskripsi_tp}"];
+                                                })->values()->toArray();
+                                                $set('content.tujuan_pembelajaran', $tpItems);
+                                            }
                                         }
                                     }
                                 }
@@ -288,7 +306,7 @@ class RppmResource extends Resource
                             ->helperText('Pilih CP yang telah disimpan atau klik tombol "+ Input & Simpan CP Baru" di atas untuk menambah.'),
 
                         Forms\Components\Select::make('alur_tujuan_pembelajaran_id')
-                            ->label('2. Alur Tujuan Pembelajaran (ATP) [Otomatis Terakumulasi]')
+                            ->label('2. Alur Tujuan Pembelajaran (ATP) [Otomatis Sesuai CP & ATP Terkait]')
                             ->options(function (Forms\Get $get) {
                                 $guruId = auth()->id();
                                 $cpId = $get('capaian_pembelajaran_id') ?? $get('content.capaian_pembelajaran_id');
@@ -304,11 +322,24 @@ class RppmResource extends Resource
                                         ?? \App\Models\Subject::first()?->id;
                                 }
                                 if ($guruId && $subjectId) {
-                                    \App\Models\AlurTujuanPembelajaran::syncForTeacherAndSubject($guruId, $subjectId, $tingkat);
+                                    \App\Models\AlurTujuanPembelajaran::syncForTeacherAndSubject($guruId, $subjectId, $tingkat, '2026/2027', 'Ganjil', $cpId);
                                 }
 
-                                return \App\Models\AlurTujuanPembelajaran::where('guru_id', $guruId)->get()->mapWithKeys(function ($atp) {
-                                    return [$atp->id => "[Otomatis] {$atp->judul_atp}"];
+                                $query = \App\Models\AlurTujuanPembelajaran::with(['capaianPembelajaran', 'subject'])
+                                    ->where('guru_id', $guruId);
+                                if ($subjectId) {
+                                    $query->where('subject_id', $subjectId);
+                                }
+                                if ($tingkat) {
+                                    $query->where('tingkat', $tingkat);
+                                }
+
+                                return $query->get()->mapWithKeys(function ($atp) {
+                                    $atpKode = $atp->kode_atp ? "ATP {$atp->kode_atp}" : "ATP";
+                                    $cp = $atp->capaianPembelajaran;
+                                    $cpKode = $cp ? ($cp->kode_cp ? "CP {$cp->kode_cp}" : "CP") : "Semua CP";
+                                    $tpSummary = $atp->tp_codes_summary !== 'Belum ada TP' ? " [{$atp->tp_codes_summary}]" : "";
+                                    return [$atp->id => "[{$atpKode}] [{$cpKode}] {$atp->judul_atp}"];
                                 });
                             })
                             ->default(function (Forms\Get $get) {
@@ -326,15 +357,37 @@ class RppmResource extends Resource
                                         ?? \App\Models\Subject::first()?->id;
                                 }
                                 if ($guruId && $subjectId) {
-                                    $atp = \App\Models\AlurTujuanPembelajaran::syncForTeacherAndSubject($guruId, $subjectId, $tingkat);
+                                    $atp = \App\Models\AlurTujuanPembelajaran::syncForTeacherAndSubject($guruId, $subjectId, $tingkat, '2026/2027', 'Ganjil', $cpId);
                                     return $atp?->id;
                                 }
                                 return null;
                             })
+                            ->afterStateUpdated(function ($state, Forms\Set $set, Forms\Get $get) {
+                                if ($state) {
+                                    $atp = \App\Models\AlurTujuanPembelajaran::find($state);
+                                    if ($atp) {
+                                        if ($atp->capaian_pembelajaran_id && $get('capaian_pembelajaran_id') != $atp->capaian_pembelajaran_id) {
+                                            $set('capaian_pembelajaran_id', $atp->capaian_pembelajaran_id);
+                                        }
+                                        if (!empty($atp->tp_ids)) {
+                                            $set('selected_tp_ids', $atp->tp_ids);
+                                            $set('content.selected_tp_dropdown', $atp->tp_ids);
+                                            $tps = \App\Models\TujuanPembelajaran::whereIn('id', $atp->tp_ids)->get()->sort(function ($a, $b) {
+                                                return strnatcmp($a->kode_tp ?? '', $b->kode_tp ?? '');
+                                            });
+                                            $tpItems = $tps->map(function ($tp) {
+                                                $prefix = $tp->materi ? "({$tp->materi}) " : '';
+                                                return ['rumusan' => "[{$tp->kode_tp}] {$prefix}{$tp->deskripsi_tp}"];
+                                            })->values()->toArray();
+                                            $set('content.tujuan_pembelajaran', $tpItems);
+                                        }
+                                    }
+                                }
+                            })
                             ->searchable()
                             ->preload()
                             ->live()
-                            ->helperText('ATP diakumulasikan secara otomatis dari seluruh inputan TP oleh guru mapel yang bersangkutan.'),
+                            ->helperText('ATP memetakan alur pembelajaran sesuai rujukan CP dan TP yang bersangkutan.'),
 
                         Forms\Components\Select::make('selected_tp_ids')
                             ->label('3. Tujuan Pembelajaran (TP) Terkait [Menu Dropdown Multi-Select]')

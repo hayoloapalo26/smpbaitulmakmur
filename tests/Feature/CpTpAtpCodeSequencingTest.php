@@ -145,7 +145,7 @@ class CpTpAtpCodeSequencingTest extends TestCase
     }
 
     /**
-     * Test 3: ATP mengumpulkan seluruh TP dan mewarisi kode yang sesuai dengan CP & TP
+     * Test 3: ATP mengumpulkan TP sesuai CP dan mewarisi kode yang sesuai dengan CP & ATP (ATP 1 untuk CP 1, ATP 2 untuk CP 2)
      */
     public function test_atp_accumulates_all_tps_with_correct_codes_and_order(): void
     {
@@ -191,30 +191,35 @@ class CpTpAtpCodeSequencingTest extends TestCase
             ]);
         }
 
-        // ATP otomatis dibuat dan disinkronkan
-        $atp = AlurTujuanPembelajaran::where('guru_id', $this->guru->id)
+        // ATP untuk CP 1
+        $atp1 = AlurTujuanPembelajaran::where('guru_id', $this->guru->id)
             ->where('subject_id', $this->subject->id)
-            ->where('tingkat', '7')
+            ->where('capaian_pembelajaran_id', $cp1->id)
             ->first();
 
-        $this->assertNotNull($atp, 'ATP harus otomatis tersinkronisasi');
-        $this->assertCount(7, $atp->tp_ids, 'ATP harus mengumpulkan seluruh 7 TP');
+        $this->assertNotNull($atp1, 'ATP untuk CP 1 harus otomatis tersinkronisasi');
+        $this->assertEquals('1', $atp1->kode_atp, 'Kode ATP harus sesuai nomor CP 1');
+        $this->assertCount(5, $atp1->tp_ids, 'ATP 1 harus mengumpulkan 5 TP dari CP 1');
+        $this->assertEquals(['1.1', '1.2', '1.3', '1.4', '1.5'], $atp1->accumulated_tps->pluck('kode_tp')->toArray());
+        $this->assertStringContainsString('1.1, 1.2, 1.3, 1.4, 1.5', $atp1->tp_codes_summary);
 
-        $accumulated = $atp->accumulated_tps;
-        $codes = $accumulated->pluck('kode_tp')->toArray();
+        // ATP untuk CP 2
+        $atp2 = AlurTujuanPembelajaran::where('guru_id', $this->guru->id)
+            ->where('subject_id', $this->subject->id)
+            ->where('capaian_pembelajaran_id', $cp2->id)
+            ->first();
 
-        $expectedCodes = ['1.1', '1.2', '1.3', '1.4', '1.5', '2.1', '2.2'];
-        $this->assertEquals($expectedCodes, $codes, 'Daftar kode TP pada ATP harus terurut rapi sesuai CP & TP');
+        $this->assertNotNull($atp2, 'ATP untuk CP 2 harus otomatis tersinkronisasi');
+        $this->assertEquals('2', $atp2->kode_atp, 'Kode ATP harus sesuai nomor CP 2');
+        $this->assertCount(2, $atp2->tp_ids, 'ATP 2 harus mengumpulkan 2 TP dari CP 2');
+        $this->assertEquals(['2.1', '2.2'], $atp2->accumulated_tps->pluck('kode_tp')->toArray());
 
-        $this->assertStringContainsString('1.1, 1.2, 1.3, 1.4, 1.5, 2.1, 2.2', $atp->tp_codes_summary);
-
-        // Verifikasi urutan_alur
-        $this->assertIsArray($atp->urutan_alur);
-        $this->assertCount(7, $atp->urutan_alur);
-        $this->assertEquals('1.1', $atp->urutan_alur[0]['kode_tp']);
-        $this->assertEquals('1', $atp->urutan_alur[0]['kode_cp']);
-        $this->assertEquals('2.2', $atp->urutan_alur[6]['kode_tp']);
-        $this->assertEquals('2', $atp->urutan_alur[6]['kode_cp']);
+        // Verifikasi urutan_alur pada ATP 1
+        $this->assertIsArray($atp1->urutan_alur);
+        $this->assertCount(5, $atp1->urutan_alur);
+        $this->assertEquals('1.1', $atp1->urutan_alur[0]['kode_tp']);
+        $this->assertEquals('1', $atp1->urutan_alur[0]['kode_cp']);
+        $this->assertEquals('1.5', $atp1->urutan_alur[4]['kode_tp']);
     }
 
     /**
@@ -298,5 +303,45 @@ class CpTpAtpCodeSequencingTest extends TestCase
         Livewire::test(AlurTujuanPembelajaranResource\Pages\ManageAlurTujuanPembelajarans::class)
             ->assertSuccessful()
             ->assertSee('1.1');
+    }
+
+    /**
+     * Test 6: RPPM form dropdown menampilkan kode ATP dan kode CP yang bersangkutan secara otomatis
+     */
+    public function test_rppm_dropdown_displays_atp_and_cp_codes_and_auto_selects(): void
+    {
+        $this->actingAs($this->guru);
+
+        $cp1 = CapaianPembelajaran::create([
+            'institution_id' => $this->institution->id,
+            'guru_id' => $this->guru->id,
+            'subject_id' => $this->subject->id,
+            'tingkat' => '7',
+            'elemen' => 'Bilangan',
+            'deskripsi_cp' => 'Peserta didik memahami bilangan bulat.',
+        ]);
+
+        for ($i = 1; $i <= 3; $i++) {
+            TujuanPembelajaran::create([
+                'institution_id' => $this->institution->id,
+                'guru_id' => $this->guru->id,
+                'subject_id' => $this->subject->id,
+                'capaian_pembelajaran_id' => $cp1->id,
+                'kelas_tingkat' => '7',
+                'materi' => "Materi {$i}",
+                'deskripsi_tp' => "Deskripsi TP 1.{$i}",
+            ]);
+        }
+
+        $atp1 = AlurTujuanPembelajaran::where('capaian_pembelajaran_id', $cp1->id)->first();
+        $this->assertNotNull($atp1);
+        $this->assertEquals('1', $atp1->kode_atp);
+
+        // Uji form RPPM Create
+        Livewire::test(\App\Filament\Staff\Resources\RppmResource\Pages\CreateRppm::class)
+            ->set('data.capaian_pembelajaran_id', $cp1->id)
+            ->assertSet('data.alur_tujuan_pembelajaran_id', $atp1->id)
+            ->assertSee('[ATP 1]')
+            ->assertSee('[CP 1]');
     }
 }
