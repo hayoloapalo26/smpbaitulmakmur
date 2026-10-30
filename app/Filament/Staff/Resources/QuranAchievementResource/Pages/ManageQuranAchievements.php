@@ -90,19 +90,6 @@ class ManageQuranAchievements extends ManageRecords
                                 ->default(Carbon::now())
                                 ->required(),
 
-                            Forms\Components\Select::make('type')
-                                ->label('Tipe Capaian')
-                                ->options([
-                                    'ziyadah'          => 'Ziyadah (Setoran Baru)',
-                                    'murajaah'         => 'Muraja\'ah (Pengulangan)',
-                                    'tasmi'            => 'Tasmi\' (Sekali Duduk)',
-                                    'ujian_tahfidz'    => 'Ujian Tahfidz / Mutqin',
-                                    'bimbingan_tahsin' => 'Bimbingan Tahsin / Yanbu\'a',
-                                ])
-                                ->default('ziyadah')
-                                ->required()
-                                ->live(),
-
                             Forms\Components\TextInput::make('default_scale_score')
                                 ->label('Skor Default (0 - 100)')
                                 ->numeric()
@@ -113,28 +100,50 @@ class ManageQuranAchievements extends ManageRecords
                                 ->live(),
 
                             Forms\Components\Select::make('default_juz')
-                                ->label('Juz Default')
+                                ->label('Juz Ziyadah Default')
                                 ->options(array_combine(range(1, 30), range(1, 30)))
                                 ->default(30)
                                 ->live()
                                 ->searchable(),
 
                             Forms\Components\Select::make('default_surah')
-                                ->label('Surah Default')
+                                ->label('Surat Ziyadah Default')
                                 ->options($surahs)
                                 ->default('78')
                                 ->searchable()
                                 ->live(),
 
                             Forms\Components\TextInput::make('default_ayah')
-                                ->label('Ayat / Jilid Default')
+                                ->label('Ayat Ziyadah Default')
                                 ->default('1-10')
-                                ->placeholder('Contoh: 1-15 / Jilid 4 Hal. 10')
+                                ->placeholder('Contoh: 1-15')
                                 ->live(),
-                        ])->columns(3),
+
+                            Forms\Components\Select::make('default_juz_murajaah')
+                                ->label('Juz Muraja\'ah Default')
+                                ->options(array_combine(range(1, 30), range(1, 30)))
+                                ->placeholder('-- Pilih Juz (Opsional) --')
+                                ->nullable()
+                                ->live()
+                                ->searchable(),
+
+                            Forms\Components\Select::make('default_surah_murajaah')
+                                ->label('Surat Muraja\'ah Default')
+                                ->options($surahs)
+                                ->placeholder('-- Pilih Surat (Opsional) --')
+                                ->nullable()
+                                ->searchable()
+                                ->live(),
+
+                            Forms\Components\TextInput::make('default_ayah_murajaah')
+                                ->label('Ayat Muraja\'ah Default')
+                                ->placeholder('Contoh: 1-Akhir')
+                                ->nullable()
+                                ->live(),
+                        ])->columns(4),
 
                     Forms\Components\Section::make('👥 2. Lembar Penilaian & Setoran Santri (Format Jurnal Mengajar)')
-                        ->description('Format terintegrasi satu pintu: Skor kualitas bacaan (0-100), materi setoran, predikat kelulusan (Mumtaz, Jayyid Jiddan, Jayyid, Maqbul), dan catatan evaluasi guru.')
+                        ->description('Format terintegrasi satu pintu: Capaian Ziyadah (Juz, Surat, Ayat), Capaian Muraja\'ah (Juz, Surat, Ayat), Skor Kualitas Bacaan (0-100), Predikat, dan Catatan Guru.')
                         ->schema([
                             Forms\Components\ViewField::make('student_achievements')
                                 ->view('filament.staff.forms.components.quran-achievement-batch-selector')
@@ -165,15 +174,18 @@ class ManageQuranAchievements extends ManageRecords
                                     $students = $query->orderBy('name')->get();
 
                                     return [
-                                        'students'            => $students,
-                                        'program'             => $program,
-                                        'defaultScaleScore'   => $get('default_scale_score') ?? 85,
-                                        'defaultJuz'          => $get('default_juz') ?? 30,
-                                        'defaultSurah'        => $get('default_surah') ?? '78',
-                                        'defaultAyah'         => $get('default_ayah') ?? '1-10',
-                                        'defaultType'         => $get('type') ?? 'ziyadah',
-                                        'defaultJilidHalaman' => $get('default_ayah') ?? '',
-                                        'surahs'              => $surahs,
+                                        'students'              => $students,
+                                        'program'               => $program,
+                                        'defaultScaleScore'     => $get('default_scale_score') ?? 85,
+                                        'defaultJuz'            => $get('default_juz') ?? 30,
+                                        'defaultSurah'          => $get('default_surah') ?? '78',
+                                        'defaultAyah'           => $get('default_ayah') ?? '1-10',
+                                        'defaultJuzMurajaah'    => $get('default_juz_murajaah') ?? '',
+                                        'defaultSurahMurajaah'  => $get('default_surah_murajaah') ?? '',
+                                        'defaultAyahMurajaah'   => $get('default_ayah_murajaah') ?? '',
+                                        'defaultType'           => 'ziyadah',
+                                        'defaultJilidHalaman'   => '',
+                                        'surahs'                => $surahs,
                                     ];
                                 })
                                 ->dehydrated(true)
@@ -183,11 +195,13 @@ class ManageQuranAchievements extends ManageRecords
                 ->action(function (array $data) {
                     $program = $data['program'] ?? $data['program_otomatis'] ?? Auth::user()?->getQuranSpecializationKey() ?? 'tahsin';
                     $tanggal = $data['tanggal'] ?? Carbon::now();
-                    $type = $data['type'] ?? 'ziyadah';
                     $defaultScaleScore = !empty($data['default_scale_score']) ? (int)$data['default_scale_score'] : 85;
                     $defaultJuz = $data['default_juz'] ?? 30;
                     $defaultSurah = $data['default_surah'] ?? '78';
                     $defaultAyah = $data['default_ayah'] ?? '1-10';
+                    $defaultJuzMurajaah = !empty($data['default_juz_murajaah']) ? (int)$data['default_juz_murajaah'] : null;
+                    $defaultSurahMurajaah = !empty($data['default_surah_murajaah']) ? (string)$data['default_surah_murajaah'] : null;
+                    $defaultAyahMurajaah = !empty($data['default_ayah_murajaah']) ? (string)$data['default_ayah_murajaah'] : null;
                     $studentAchievements = $data['student_achievements'] ?? [];
                     $teacherId = Auth::id();
 
@@ -206,11 +220,13 @@ class ManageQuranAchievements extends ManageRecords
                         $studentAchievements,
                         $program,
                         $tanggal,
-                        $type,
                         $defaultScaleScore,
                         $defaultJuz,
                         $defaultSurah,
                         $defaultAyah,
+                        $defaultJuzMurajaah,
+                        $defaultSurahMurajaah,
+                        $defaultAyahMurajaah,
                         $teacherId,
                         &$savedCount
                     ) {
@@ -230,6 +246,11 @@ class ManageQuranAchievements extends ManageRecords
                             $juz = !empty($row['juz']) ? (int)$row['juz'] : (int)$defaultJuz;
                             $surah = !empty($row['surah']) ? (string)$row['surah'] : (string)$defaultSurah;
                             $ayah = !empty($row['ayah']) ? (string)$row['ayah'] : (string)$defaultAyah;
+
+                            $juzMurajaah = !empty($row['juz_murajaah']) ? (int)$row['juz_murajaah'] : $defaultJuzMurajaah;
+                            $surahMurajaah = !empty($row['surah_murajaah']) ? (string)$row['surah_murajaah'] : $defaultSurahMurajaah;
+                            $ayahMurajaah = !empty($row['ayah_murajaah']) ? (string)$row['ayah_murajaah'] : $defaultAyahMurajaah;
+
                             $scaleScore = isset($row['scale_score']) && $row['scale_score'] !== '' ? (int)$row['scale_score'] : $defaultScaleScore;
                             
                             $predikat = !empty($row['predikat']) ? (string)$row['predikat'] : null;
@@ -241,18 +262,25 @@ class ManageQuranAchievements extends ManageRecords
                             }
 
                             $catatan = $row['catatan'] ?? null;
-                            $itemType = !empty($row['type']) ? (string)$row['type'] : $type;
                             $jilid = $row['jilid_halaman'] ?? null;
+
+                            $types = ['ziyadah'];
+                            if (!empty($juzMurajaah) || !empty($surahMurajaah)) {
+                                $types[] = 'murajaah';
+                            }
 
                             QuranAchievement::create([
                                 'institution_id'    => $instId,
                                 'student_id'        => $student->id,
                                 'teacher_id'        => $teacherId,
                                 'program'           => $program,
-                                'type'              => [$itemType],
+                                'type'              => $types,
                                 'juz'               => $juz,
                                 'surah'             => $surah,
                                 'ayah'              => $ayah,
+                                'juz_murajaah'      => $juzMurajaah,
+                                'surah_murajaah'    => $surahMurajaah,
+                                'ayah_murajaah'     => $ayahMurajaah,
                                 'jilid_halaman'     => $jilid,
                                 'scale_score'       => $scaleScore,
                                 'predikat'          => $predikat,

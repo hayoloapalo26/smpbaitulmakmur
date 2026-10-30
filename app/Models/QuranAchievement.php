@@ -14,12 +14,32 @@ class QuranAchievement extends Model
         'type' => 'array',
         'verified_at' => 'datetime',
         'scale_score' => 'integer',
+        'juz' => 'integer',
+        'juz_murajaah' => 'integer',
         'tanggal' => 'date',
     ];
 
     protected static function booted(): void
     {
         parent::booted();
+
+        static::saving(function (QuranAchievement $record) {
+            $types = is_array($record->type) ? $record->type : ($record->type ? [$record->type] : []);
+            if (!empty($record->juz) || !empty($record->surah)) {
+                if (!in_array('ziyadah', $types)) {
+                    $types[] = 'ziyadah';
+                }
+            }
+            if (!empty($record->juz_murajaah) || !empty($record->surah_murajaah)) {
+                if (!in_array('murajaah', $types)) {
+                    $types[] = 'murajaah';
+                }
+            }
+            if (empty($types)) {
+                $types = ['ziyadah'];
+            }
+            $record->type = array_values(array_unique($types));
+        });
 
         static::saved(function (QuranAchievement $record) {
             // Sinkronisasi otomatis ke reading_quality_scores agar satu pintu penilaian
@@ -79,5 +99,52 @@ class QuranAchievement extends Model
             'tahfidz'          => 'Tahfidz',
             default            => ucfirst(str_replace('_', ' ', (string)($this->program ?? 'Tahfidz'))),
         };
+    }
+
+    public function getSurahNameAttribute(): ?string
+    {
+        if (empty($this->surah)) return null;
+        $surahs = \App\Filament\Staff\Resources\QuranAchievementResource::getSurahs();
+        return $surahs[(string)$this->surah] ?? (string)$this->surah;
+    }
+
+    public function getSurahMurajaahNameAttribute(): ?string
+    {
+        if (empty($this->surah_murajaah)) return null;
+        $surahs = \App\Filament\Staff\Resources\QuranAchievementResource::getSurahs();
+        return $surahs[(string)$this->surah_murajaah] ?? (string)$this->surah_murajaah;
+    }
+
+    public function getZiyadahFormattedAttribute(): string
+    {
+        $parts = [];
+        if ($this->juz) {
+            $parts[] = "Juz {$this->juz}";
+        }
+        if ($this->surah_name) {
+            $parts[] = "Surat {$this->surah_name}";
+        }
+        if ($this->ayah) {
+            $parts[] = "Ayat {$this->ayah}";
+        }
+        if (!empty($this->jilid_halaman)) {
+            $parts[] = "({$this->jilid_halaman})";
+        }
+        return !empty($parts) ? implode(', ', $parts) : '-';
+    }
+
+    public function getMurajaahFormattedAttribute(): string
+    {
+        $parts = [];
+        if ($this->juz_murajaah) {
+            $parts[] = "Juz {$this->juz_murajaah}";
+        }
+        if ($this->surah_murajaah_name) {
+            $parts[] = "Surat {$this->surah_murajaah_name}";
+        }
+        if ($this->ayah_murajaah) {
+            $parts[] = "Ayat {$this->ayah_murajaah}";
+        }
+        return !empty($parts) ? implode(', ', $parts) : '-';
     }
 }
