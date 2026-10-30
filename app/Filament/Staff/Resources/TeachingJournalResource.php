@@ -87,17 +87,11 @@ class TeachingJournalResource extends Resource
 
     public static function getNavigationGroup(): ?string
     {
-        if (auth()->user()?->hasRole('kepala_sekolah')) {
-            return 'Bab 2: Perencanaan Administrasi Pembelajaran';
-        }
         return 'Akademik & Kurikulum';
     }
 
     public static function getNavigationLabel(): string
     {
-        if (auth()->user()?->hasRole('kepala_sekolah')) {
-            return '- Fitur Input Mengajar';
-        }
         return 'Jurnal Mengajar & Presensi';
     }
 
@@ -113,9 +107,6 @@ class TeachingJournalResource extends Resource
 
     public static function getNavigationSort(): ?int
     {
-        if (auth()->user()?->hasRole('kepala_sekolah')) {
-            return 1;
-        }
         return null;
     }
 

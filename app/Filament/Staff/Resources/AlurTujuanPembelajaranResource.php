@@ -51,9 +51,6 @@ class AlurTujuanPembelajaranResource extends Resource
 
     public static function getNavigationGroup(): ?string
     {
-        if (auth()->user()?->hasRole('kepala_sekolah')) {
-            return 'Bab 2: Perencanaan Administrasi Pembelajaran';
-        }
         return 'Akademik & Kurikulum';
     }
 

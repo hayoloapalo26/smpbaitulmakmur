@@ -355,25 +355,6 @@
                 $rawItemLabel = (string) $item->getLabel();
             @endphp
 
-            @if ($isKepsek)
-                @if (str_contains($rawItemLabel, 'Fitur Input Mengajar'))
-                    <li class="list-none px-2.5 pt-2 pb-1 text-xs font-bold text-orange-600 dark:text-orange-400 flex items-center gap-1.5 tracking-wide">
-                        <span class="inline-block w-1.5 h-1.5 rounded-full bg-orange-500"></span>
-                        <span>Subbab A. Pelaksanaan Pembelajaran</span>
-                    </li>
-                @elseif (str_contains($rawItemLabel, 'Fitur Rekap & Input Nilai'))
-                    <li class="list-none px-2.5 pt-3 pb-1 text-xs font-bold text-orange-600 dark:text-orange-400 border-t border-dashed border-gray-200 dark:border-gray-700/60 flex items-center gap-1.5 mt-2 tracking-wide">
-                        <span class="inline-block w-1.5 h-1.5 rounded-full bg-orange-500"></span>
-                        <span>Subbab B. Penilaian Pembelajaran</span>
-                    </li>
-                @elseif (str_contains($rawItemLabel, 'Fitur Rekap Presensi Siswa'))
-                    <li class="list-none px-2.5 pt-3 pb-1 text-xs font-bold text-orange-600 dark:text-orange-400 border-t border-dashed border-gray-200 dark:border-gray-700/60 flex items-center gap-1.5 mt-2 tracking-wide">
-                        <span class="inline-block w-1.5 h-1.5 rounded-full bg-orange-500"></span>
-                        <span>Subbab C. Kedisiplinan</span>
-                    </li>
-                @endif
-            @endif
-
             <x-filament-panels::sidebar.item
                 :active="$item->isActive()"
                 :active-child-items="$item->isChildItemsActive()"

@@ -70,8 +70,6 @@ class StaffPanelProvider extends PanelProvider
                 'Manajemen Sekolah',
                 'Kepala Sekolah',
                 'Tugas Waka Kurikulum',
-                'Bab 1: Program Kerja WKr',
-                'Bab 2: Perencanaan Administrasi Pembelajaran',
                 'Tugas Waka Kesiswaan',
                 'Kesiswaan & Karakter',
                 'Kesiswaan',

@@ -49,25 +49,16 @@ class ProgramKurikulumResource extends Resource
 
     public static function getNavigationGroup(): ?string
     {
-        if (auth()->user()?->hasRole('kepala_sekolah')) {
-            return 'Bab 1: Program Kerja WKr';
-        }
         return 'Akademik & Kurikulum';
     }
 
     public static function getNavigationLabel(): string
     {
-        if (auth()->user()?->hasRole('kepala_sekolah')) {
-            return '- Fitur Input Program Kerja WKr';
-        }
         return 'Program Kerja Kurikulum';
     }
 
     public static function getNavigationSort(): ?int
     {
-        if (auth()->user()?->hasRole('kepala_sekolah')) {
-            return 1;
-        }
         return static::$navigationSort;
     }
 
