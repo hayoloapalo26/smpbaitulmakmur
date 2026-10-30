@@ -42,7 +42,7 @@ class TahfidzRanking extends Page
     {
         // Get all classrooms for this institution
         $user = auth()->user();
-        $classrooms = Classroom::when($user?->institution_id && !$user->hasRole('superadmin'), fn ($q) => $q->where('institution_id', $user->institution_id))
+        $classrooms = Classroom::when($user?->institution_id && $user->institution_id != 1 && !$user->hasRole('superadmin'), fn ($q) => $q->where('institution_id', $user->institution_id))
             ->orderBy('name')
             ->get();
 

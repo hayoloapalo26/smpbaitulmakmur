@@ -37,6 +37,9 @@ class RedirectPortalUsers
                 'tim_pengembang_penjamin_mutu_yayasan', 'pengembang_penjamin_mutu', 'tim_pengembang_yayasan',
                 'pembina_yayasan', 'pegawai_keuangan_yayasan', 'pegawai_keuangan'
             ]);
+            $isTeacherOrStaff = $user->isQuranTeacher() || $user->hasAnyRole([
+                'guru_mapel', 'guru_kelas', 'guru_piket', 'wali_kelas', 'koordinator_madin', 'guru_alquran'
+            ]);
             $isPortalOnly = $user->hasRole(['siswa', 'orang_tua']) && $user->roles->count() == 1;
             $isStaff = !$isYayasan && !$isPortalOnly; // Anyone else is considered staff
 
@@ -45,7 +48,25 @@ class RedirectPortalUsers
             $isAuthRoute = str_ends_with($path, '/logout') || str_ends_with($path, '/login');
 
             if (!$isAuthRoute) {
-                // Yayasan Roles -> /yayasan
+                // Dual Role: Pengurus Yayasan yang juga Guru Pengajar (misal: Pak Romli - Ketua Yayasan & Guru Tahfidz Lanjutan)
+                if ($isYayasan && $isTeacherOrStaff) {
+                    // Berikan akses penuh ke portal yayasan dan portal staff/guru tanpa redirect paksa
+                    $validDualPanels = ['yayasan*', 'staff*', 'kbtk*', 'sd*', 'smk*', 'ma*', 'ponpes*'];
+                    foreach ($validDualPanels as $panelPattern) {
+                        if ($request->is($panelPattern)) {
+                            return $next($request);
+                        }
+                    }
+
+                    // Jika berada di luar panel (misal root / atau /portal), arahkan sesuai referer atau default ke /yayasan
+                    $referer = request()->headers->get('referer');
+                    if ($referer && str_contains($referer, '/staff')) {
+                        return redirect('/staff');
+                    }
+                    return redirect('/yayasan');
+                }
+
+                // Yayasan Roles Murni -> /yayasan
                 if ($isYayasan && !$request->is('yayasan*')) {
                     return redirect('/yayasan');
                 }

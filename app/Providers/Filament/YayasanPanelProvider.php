@@ -279,9 +279,19 @@ class YayasanPanelProvider extends PanelProvider
                     </style>
                 ')
             )
+            ->navigationItems([
+                \Filament\Navigation\NavigationItem::make('Beralih ke Portal Guru (Staff)')
+                    ->url('/staff')
+                    ->icon('heroicon-o-academic-cap')
+                    ->group('Menu Utama')
+                    ->sort(999)
+                    ->visible(fn () => auth()->check() && (auth()->user()->isQuranTeacher() || auth()->user()->hasAnyRole([
+                        'guru_mapel', 'guru_kelas', 'guru_alquran', 'wali_kelas', 'koordinator_madin'
+                    ]))),
+            ])
             ->renderHook(
                 PanelsRenderHook::USER_MENU_BEFORE,
-                fn (): string => Blade::render('@include("filament.common.whatsapp-topbar-button")')
+                fn (): string => Blade::render('@include("filament.common.portal-switcher-topbar") @include("filament.common.whatsapp-topbar-button")')
             )
             ->renderHook(
                 PanelsRenderHook::BODY_END,

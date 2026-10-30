@@ -406,9 +406,21 @@ class StaffPanelProvider extends PanelProvider
                     </style>
                 ')
             )
+            ->navigationItems([
+                \Filament\Navigation\NavigationItem::make('Beralih ke Portal Yayasan')
+                    ->url('/yayasan')
+                    ->icon('heroicon-o-building-library')
+                    ->group('Yayasan')
+                    ->sort(999)
+                    ->visible(fn () => auth()->check() && auth()->user()->hasAnyRole([
+                        'yayasan', 'ketua_yayasan', 'wakil_ketua_yayasan', 'sekretaris_yayasan',
+                        'tim_pengembang_penjamin_mutu_yayasan', 'pengembang_penjamin_mutu', 'tim_pengembang_yayasan',
+                        'pembina_yayasan', 'pegawai_keuangan_yayasan', 'pegawai_keuangan'
+                    ])),
+            ])
             ->renderHook(
                 PanelsRenderHook::USER_MENU_BEFORE,
-                fn (): string => Blade::render('@include("filament.common.whatsapp-topbar-button")')
+                fn (): string => Blade::render('@include("filament.common.portal-switcher-topbar") @include("filament.common.whatsapp-topbar-button")')
             )
             ->renderHook(
                 PanelsRenderHook::BODY_END,

@@ -83,7 +83,11 @@ class StudentQuranPlacementResource extends Resource
     public static function getGuruQuranOptions(?int $institutionId = null): array
     {
         $query = User::query()
-            ->when($institutionId && $institutionId != 1, fn ($q) => $q->where('institution_id', $institutionId))
+            ->when($institutionId && $institutionId != 1, fn ($q) => $q->where(function ($sub) use ($institutionId) {
+                $sub->where('institution_id', $institutionId)
+                    ->orWhere('institution_id', 1)
+                    ->orWhereNull('institution_id');
+            }))
             ->where(function ($q) {
                 $q->whereHas('roles', fn ($r) => $r->whereIn('name', User::QURAN_TEACHER_ROLES))
                   ->orWhere('has_account', true);
@@ -97,11 +101,12 @@ class StudentQuranPlacementResource extends Resource
 
         foreach ($users as $u) {
             $roles = $u->getRoleNames()->filter(fn ($r) => in_array($r, User::QURAN_TEACHER_ROLES))->values();
+            $crossTag = ($u->institution_id == 1) ? ' [Yayasan / Lintas Lembaga]' : '';
             if ($roles->isNotEmpty()) {
                 $labels = $roles->map(fn ($r) => User::getQuranTeacherRoleLabels()[$r] ?? $r)->implode(', ');
-                $specialistList[$u->id] = "{$u->name} [{$labels}]";
+                $specialistList[$u->id] = "{$u->name} [{$labels}]{$crossTag}";
             } else {
-                $generalList[$u->id] = "{$u->name} (Guru)";
+                $generalList[$u->id] = "{$u->name} (Guru){$crossTag}";
             }
         }
 
