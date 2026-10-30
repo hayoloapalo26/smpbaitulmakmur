@@ -7,6 +7,8 @@ use App\Models\Student;
 use App\Models\TeacherSubjectClass;
 use Filament\Forms;
 use Filament\Forms\Form;
+use Filament\Infolists\Infolist;
+use Filament\Infolists\Components\ViewEntry;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Actions\ExportBulkAction;
@@ -243,6 +245,16 @@ class StudentResource extends Resource
                                     ->default(false),
                             ])->columns(1),
                     ]),
+            ]);
+    }
+
+    public static function infolist(Infolist $infolist): Infolist
+    {
+        return $infolist
+            ->schema([
+                ViewEntry::make('summary')
+                    ->view('filament.staff.modals.student-detail-summary-modal')
+                    ->columnSpanFull(),
             ]);
     }
 
@@ -786,7 +798,10 @@ class StudentResource extends Resource
                             'characterScoreLogs',
                         ]),
                     ])),
-                Tables\Actions\ViewAction::make(),
+                Tables\Actions\ViewAction::make()
+                    ->label('Lihat Detail')
+                    ->modalHeading(fn (Student $record) => "Detail & Ringkasan Data Siswa: {$record->name}")
+                    ->modalWidth('4xl'),
                 Tables\Actions\EditAction::make(),
                 Tables\Actions\Action::make('download_pdf')
                     ->label('Rapor Karakter')
