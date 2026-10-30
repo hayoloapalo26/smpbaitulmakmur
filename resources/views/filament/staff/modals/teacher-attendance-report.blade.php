@@ -141,11 +141,24 @@
     </div>
 
     <!-- Kop Cetak Resmi -->
-    <div class="text-center pb-4 border-b-2 border-gray-800 dark:border-gray-200">
-        <h2 class="text-lg font-bold uppercase tracking-wider">YAYASAN PENDIDIKAN ISLAM BAITUL MAKMUR</h2>
-        <h3 class="text-base font-semibold text-primary-600">SMP ISLAM TERPADU BAITUL MAKMUR</h3>
-        <p class="text-[11px] text-gray-500">Jl. Raya Baitul Makmur, Jawa Timur • NSS/NPSN Terakreditasi</p>
-        <div class="mt-2 py-1 bg-gray-100 dark:bg-gray-800 rounded text-xs font-bold uppercase tracking-wide">
+    <div class="flex items-center justify-between pb-4 border-b-2 border-gray-800 dark:border-gray-200">
+        <div class="w-20 flex-shrink-0 text-center">
+            <img src="{{ asset('images/logo-sekolah.png') }}" class="w-16 h-auto mx-auto object-contain" alt="Logo">
+        </div>
+        <div class="flex-1 text-center px-4">
+            <h2 class="text-sm font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-400">YAYASAN PENDIDIKAN ISLAM BAITUL MAKMUR</h2>
+            <h3 class="text-base font-extrabold text-gray-900 dark:text-white uppercase tracking-tight">SMP ISLAM BAITUL MAKMUR MALANG</h3>
+            <p class="text-[10px] text-gray-600 dark:text-gray-400 leading-tight mt-0.5">
+                Gg. 17B Jl. Raya Sawojajar No.58, Sawojajar, Kec. Kedungkandang, Kota Malang, Jawa Timur 65139<br>
+                <span>Email: <strong>adminsmp@baitulmakmur.sch.id</strong></span> &bull; <span>Instagram: <strong>@smpibaitulmakmurmlg</strong></span>
+            </p>
+        </div>
+        <div class="w-20 flex-shrink-0">
+            {{-- Spacer penyeimbang --}}
+        </div>
+    </div>
+    <div class="text-center my-3">
+        <div class="py-1 bg-gray-100 dark:bg-gray-800 rounded text-xs font-bold uppercase tracking-wide">
             LAPORAN REKAPITULASI JAM MENGAJAR (JP) & PRESENSI GURU BULANAN
         </div>
         <div class="text-[11px] text-gray-500 mt-1">

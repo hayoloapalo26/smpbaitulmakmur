@@ -3,12 +3,11 @@
         {{-- Header Buku Tabungan --}}
         <div class="flex items-center justify-between pb-3 border-b border-gray-200 dark:border-gray-700">
             <div class="flex items-center gap-3">
-                <div class="w-10 h-10 rounded-full bg-orange-500 text-white flex items-center justify-center font-bold">
-                    BM
-                </div>
+                <img src="{{ asset('images/logo-sekolah.png') }}" class="w-12 h-12 object-contain" alt="Logo">
                 <div>
-                    <h3 class="font-bold text-base text-gray-900 dark:text-white uppercase tracking-wider">BUKU TABUNGAN SISWA</h3>
-                    <p class="text-xs text-gray-500">{{ $student?->institution?->name ?? 'Yayasan Baitul Makmur' }}</p>
+                    <h4 class="font-bold text-xs text-emerald-700 dark:text-emerald-400 uppercase tracking-wider">YAYASAN PENDIDIKAN ISLAM BAITUL MAKMUR</h4>
+                    <h3 class="font-extrabold text-base text-gray-900 dark:text-white uppercase tracking-wider">BUKU TABUNGAN SISWA</h3>
+                    <p class="text-[10px] text-gray-500">Gg. 17B Jl. Raya Sawojajar No.58, Malang &bull; adminsmp@baitulmakmur.sch.id &bull; @smpibaitulmakmurmlg</p>
                 </div>
             </div>
             <div class="text-right">

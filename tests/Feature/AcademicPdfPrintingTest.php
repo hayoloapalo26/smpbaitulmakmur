@@ -43,10 +43,15 @@ class AcademicPdfPrintingTest extends TestCase
         Role::firstOrCreate(['name' => 'waka_kesiswaan', 'guard_name' => 'web']);
         Role::firstOrCreate(['name' => 'bk', 'guard_name' => 'web']);
 
-        $this->institution = Institution::create([
-            'name' => 'SMP Islam Baitul Makmur',
-            'slug' => 'smp-islam-baitul-makmur',
-        ]);
+        Institution::firstOrCreate(
+            ['id' => 1],
+            ['name' => 'Yayasan Baitul Makmur', 'slug' => 'yayasan']
+        );
+
+        $this->institution = Institution::firstOrCreate(
+            ['id' => 2],
+            ['name' => 'SMP Islam Baitul Makmur', 'slug' => 'smp-islam-baitul-makmur']
+        );
 
         $this->academicYear = AcademicYear::create([
             'institution_id' => $this->institution->id,

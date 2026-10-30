@@ -185,13 +185,46 @@
         </script>
     @endif
 
-    <!-- Header Dokumen -->
-    <div class="header">
-        <h3>LEMBAGA PENDIDIKAN ISLAM (LPI) BAITUL MAKMUR</h3>
-        <h1>TIM PENGEMBANG & PENJAMIN MUTU PENDIDIKAN YAYASAN</h1>
-        <h2>RAPOR HASIL PENILAIAN KINERJA GURU (PKG)</h2>
-        <p>Instrumen Standar Kinerja Pendidik Berbasis 8 Klaster Kompetensi (70 Indikator Evaluasi)</p>
-    </div>
+    @php
+        $logoPath = public_path('images/logo-sekolah.png');
+        if (!file_exists($logoPath)) {
+            $logoPath = public_path('images/logo.png');
+        }
+        $logoBase64 = file_exists($logoPath) ? base64_encode(file_get_contents($logoPath)) : '';
+    @endphp
+
+    <!-- Header Dokumen / Kop Resmi -->
+    <table style="width: 100%; border-collapse: collapse; margin-bottom: 12px; border-bottom: 3px double #1f2937; padding-bottom: 8px;">
+        <tr>
+            <td style="width: 15%; text-align: center; vertical-align: middle;">
+                @if(!empty($logoBase64))
+                    <img src="data:image/png;base64,{{ $logoBase64 }}" style="width: 70px; height: auto;" alt="Logo">
+                @else
+                    <div style="font-size: 32px; font-weight: bold; color: #d97706;">🎓</div>
+                @endif
+            </td>
+            <td style="width: 70%; text-align: center; vertical-align: middle; line-height: 1.25;">
+                <div style="font-size: 11px; font-weight: bold; letter-spacing: 0.5px; color: #d97706; text-transform: uppercase;">
+                    LEMBAGA PENDIDIKAN ISLAM (LPI) BAITUL MAKMUR
+                </div>
+                <div style="font-size: 14px; font-weight: 800; color: #111827; text-transform: uppercase; margin: 2px 0;">
+                    TIM PENGEMBANG & PENJAMIN MUTU PENDIDIKAN YAYASAN
+                </div>
+                <div style="font-size: 11.5px; font-weight: bold; color: #374151; text-decoration: underline; margin-bottom: 2px;">
+                    RAPOR HASIL PENILAIAN KINERJA GURU (PKG)
+                </div>
+                <div style="font-size: 8px; color: #4b5563; line-height: 1.35;">
+                    Gg. 17B Jl. Raya Sawojajar No.58, Sawojajar, Kec. Kedungkandang, Kota Malang, Jawa Timur 65139<br>
+                    <span>Email: <strong>adminsmp@baitulmakmur.sch.id</strong></span>
+                    &nbsp;&bull;&nbsp;
+                    <span>Instagram: <strong>@smpibaitulmakmurmlg</strong></span>
+                </div>
+            </td>
+            <td style="width: 15%; text-align: center; vertical-align: middle;">
+                {{-- Penyeimbang simetris --}}
+            </td>
+        </tr>
+    </table>
 
     <!-- Data Identitas Pendidik (Header Form) -->
     <table class="identity-box">
