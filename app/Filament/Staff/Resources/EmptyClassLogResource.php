@@ -26,7 +26,7 @@ public static function canAccess(): bool
 
     protected static ?string $navigationIcon = 'heroicon-o-rectangle-stack';
 
-    
+    protected static ?string $navigationGroup = 'Tugas Guru Piket';
 
     public static function form(Form $form): Form
     {

@@ -13,15 +13,17 @@
     $hasDropdown = filled($label) && filled($icon) && $sidebarCollapsible;
     $isKepsek = auth()->check() && auth()->user()->hasRole('kepala_sekolah');
 
-    // Identifikasi Kategori Tupoksi Sidebar Group
+    // Identifikasi Kategori & Detail Keterangan Tupoksi Sidebar Group
     $labelLower = strtolower(trim((string) $label));
     $tupoksiType = null;
     $tupoksiBadge = null;
+    $tupoksiKeterangan = null;
 
     if (filled($label)) {
         // 1. Fitur Umum & Informasi
         if (
             str_contains($labelLower, 'menu utama') ||
+            str_contains($labelLower, 'beranda') ||
             str_contains($labelLower, 'pengumuman') ||
             str_contains($labelLower, 'informasi') ||
             str_contains($labelLower, 'visi &') ||
@@ -33,28 +35,128 @@
         ) {
             $tupoksiType = 'umum';
             $tupoksiBadge = 'UMUM / INFO';
+            $tupoksiKeterangan = match (true) {
+                str_contains($labelLower, 'pengumuman') || str_contains($labelLower, 'informasi') => 'Pengumuman kedinasan & kabar sekolah',
+                str_contains($labelLower, 'visi') => 'Visi, misi, SOP & pedoman sekolah',
+                str_contains($labelLower, 'pengaturan') => 'Hak akses pengguna & konfigurasi',
+                default => 'Informasi umum & navigasi dasar',
+            };
         }
-        // 2. Tugas Guru
+        // 2. Tugas Guru: Piket
+        elseif (str_contains($labelLower, 'piket')) {
+            $tupoksiType = 'guru';
+            $isPiketHariIni = auth()->check() && method_exists(auth()->user(), 'isPiketToday') && auth()->user()->isPiketToday();
+            $tupoksiBadge = $isPiketHariIni ? 'TUGAS GURU PIKET (AKTIF)' : 'TUGAS GURU PIKET';
+            $tupoksiKeterangan = $isPiketHariIni 
+                ? '⚡ Anda bertugas piket hari ini - Pantau presensi & ketertiban' 
+                : 'Tugas & pemantauan piket harian';
+        }
+        // 3. Tugas Guru: Al-Qur'an
         elseif (
+            str_contains($labelLower, 'qur\'an') ||
+            str_contains($labelLower, 'quran') ||
+            str_contains($labelLower, 'tahfidz') ||
+            str_contains($labelLower, 'tahsin') ||
+            str_contains($labelLower, 'yanbua')
+        ) {
+            $tupoksiType = 'guru';
+            $tupoksiBadge = 'TUGAS GURU AL-QUR\'AN';
+            $tupoksiKeterangan = 'Ziyadah, muraja\'ah & mutu bacaan santri';
+        }
+        // 4. Tugas Guru: Wali Kelas
+        elseif (str_contains($labelLower, 'wali kelas')) {
+            $tupoksiType = 'guru';
+            $tupoksiBadge = 'TUGAS GURU WALI KELAS';
+            $tupoksiKeterangan = 'Binaan kelas, rekap nilai & profil lulusan';
+        }
+        // 5. Tugas Guru: Harian / Kewajiban
+        elseif (
+            str_contains($labelLower, 'harian guru') ||
+            str_contains($labelLower, 'kewajiban') ||
+            str_contains($labelLower, 'tugas pokok')
+        ) {
+            $tupoksiType = 'guru';
+            $tupoksiBadge = 'TUGAS GURU (HARIAN)';
+            $tupoksiKeterangan = 'Checklist tugas pokok & komitmen guru';
+        }
+        // 6. Tugas Guru: Mapel / Akademik Umum
+        elseif (
+            str_contains($labelLower, 'mapel') ||
             str_contains($labelLower, 'akademik') ||
             str_contains($labelLower, 'pembelajaran') ||
             str_contains($labelLower, 'penilaian') ||
             str_contains($labelLower, 'kompetensi') ||
-            str_contains($labelLower, 'tahfidz') ||
-            str_contains($labelLower, 'tahsin') ||
-            str_contains($labelLower, 'guru') ||
-            str_contains($labelLower, 'wali kelas') ||
-            str_contains($labelLower, 'kewajiban') ||
-            str_contains($labelLower, 'manajemen tugas') ||
-            str_contains($labelLower, 'piket')
+            (str_contains($labelLower, 'kurikulum') && str_contains($labelLower, 'guru'))
         ) {
             $tupoksiType = 'guru';
-            $tupoksiBadge = 'TUGAS GURU';
+            $tupoksiBadge = 'TUGAS GURU MAPEL';
+            $tupoksiKeterangan = 'Jurnal mengajar, nilai & perangkat ajar';
         }
-        // 3. Tugas Jabatan (Struktural, Waka, Kepsek, Kesiswaan, Sarpras, Humas, TU, Lintas Divisi, dll.)
+        // Fallback Rumpun Guru
+        elseif (str_contains($labelLower, 'guru')) {
+            $tupoksiType = 'guru';
+            $tupoksiBadge = 'TUGAS GURU';
+            $tupoksiKeterangan = 'Tugas edukatif & pembelajaran';
+        }
+        // 7. Tugas Jabatan: Kepala Sekolah
+        elseif (
+            str_contains($labelLower, 'kepala sekolah') ||
+            str_contains($labelLower, 'kepsek') ||
+            str_contains($labelLower, 'manajemen sekolah')
+        ) {
+            $tupoksiType = 'jabatan';
+            $tupoksiBadge = 'TUGAS JABATAN (KEPALA SEKOLAH)';
+            $tupoksiKeterangan = 'Manajemen sekolah, supervisi & akreditasi';
+        }
+        // 8. Tugas Jabatan: Waka Kurikulum
+        elseif (str_contains($labelLower, 'kurikulum') || str_contains($labelLower, 'wkr')) {
+            $tupoksiType = 'jabatan';
+            $tupoksiBadge = 'TUGAS JABATAN (WAKA KURIKULUM)';
+            $tupoksiKeterangan = 'Setting guru mapel, kurikulum & jadwal';
+        }
+        // 9. Tugas Jabatan: Waka Kesiswaan
+        elseif (str_contains($labelLower, 'kesiswaan') || str_contains($labelLower, 'karakter')) {
+            $tupoksiType = 'jabatan';
+            $tupoksiBadge = 'TUGAS JABATAN (WAKA KESISWAAN)';
+            $tupoksiKeterangan = 'Disiplin, presensi, karakter & prestasi siswa';
+        }
+        // 10. Tugas Jabatan: Waka Sarpras
+        elseif (
+            str_contains($labelLower, 'sarpras') ||
+            str_contains($labelLower, 'pengadaan') ||
+            str_contains($labelLower, 'pemeliharaan')
+        ) {
+            $tupoksiType = 'jabatan';
+            $tupoksiBadge = 'TUGAS JABATAN (WAKA SARPRAS)';
+            $tupoksiKeterangan = 'Inventaris, pengadaan & perawatan sarpras';
+        }
+        // 11. Tugas Jabatan: Waka Humas
+        elseif (str_contains($labelLower, 'humas') || str_contains($labelLower, 'kerja sama')) {
+            $tupoksiType = 'jabatan';
+            $tupoksiBadge = 'TUGAS JABATAN (WAKA HUMAS)';
+            $tupoksiKeterangan = 'Kemitraan, publikasi & paguyuban wali murid';
+        }
+        // 12. Tugas Jabatan: Tata Usaha
+        elseif (
+            str_contains($labelLower, 'tata usaha') ||
+            str_contains($labelLower, 'perizinan') ||
+            str_contains($labelLower, 'kepegawaian')
+        ) {
+            $tupoksiType = 'jabatan';
+            $tupoksiBadge = 'TUGAS JABATAN (TATA USAHA)';
+            $tupoksiKeterangan = 'Administrasi kepegawaian, arsip & persuratan';
+        }
+        // 13. Tugas Jabatan: Koordinator Madin
+        elseif (str_contains($labelLower, 'madin') || str_contains($labelLower, 'diniyah')) {
+            $tupoksiType = 'jabatan';
+            $tupoksiBadge = 'TUGAS JABATAN (KOORDINATOR MADIN)';
+            $tupoksiKeterangan = 'Penerimaan nilai & program diniyah';
+        }
+        // Fallback Tugas Jabatan Lainnya
         else {
             $tupoksiType = 'jabatan';
             $tupoksiBadge = 'TUGAS JABATAN';
+            $tupoksiKeterangan = 'Tugas struktural kedinasan';
         }
     }
 @endphp
@@ -99,10 +201,19 @@
             <span
                 class="fi-sidebar-group-label flex-1 text-sm font-medium leading-6"
             >
-                <span class="fi-sidebar-group-label-text">{{ $label }}</span>
-                @if ($tupoksiBadge)
-                    <span class="tupoksi-badge tupoksi-badge-{{ $tupoksiType }}">{{ $tupoksiBadge }}</span>
-                @endif
+                <div class="tupoksi-group-header flex flex-col min-w-0 flex-1 w-full gap-0.5">
+                    <div class="tupoksi-group-row flex items-center justify-between gap-1.5 w-full min-w-0">
+                        <span class="fi-sidebar-group-label-text font-bold truncate">{{ $label }}</span>
+                        @if ($tupoksiBadge)
+                            <span class="tupoksi-badge tupoksi-badge-{{ $tupoksiType }} {{ !empty($isPiketHariIni) ? 'tupoksi-badge-piket-aktif' : '' }}">{{ $tupoksiBadge }}</span>
+                        @endif
+                    </div>
+                    @if ($tupoksiKeterangan)
+                        <span class="tupoksi-keterangan text-[9.5px] font-normal normal-case tracking-normal text-gray-500 dark:text-gray-400 block truncate" title="{{ $tupoksiKeterangan }}">
+                            {{ $tupoksiKeterangan }}
+                        </span>
+                    @endif
+                </div>
             </span>
 
             @if ($collapsible)

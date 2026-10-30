@@ -27,7 +27,7 @@ class DutySwapRequestResource extends Resource
     protected static ?string $model = DutySwapRequest::class;
     protected static bool $shouldRegisterNavigation = false;
     protected static ?string $navigationIcon = 'heroicon-o-arrows-right-left';
-    protected static ?string $navigationGroup = 'Kesiswaan & Karakter';
+    protected static ?string $navigationGroup = 'Tugas Guru Piket';
     protected static ?string $navigationLabel = 'Tukar Jadwal Piket';
     protected static ?string $modelLabel = 'Tukar Jadwal Piket';
     protected static ?int $navigationSort = 3;

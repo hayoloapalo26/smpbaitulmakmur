@@ -45,33 +45,57 @@ class StaffPanelProvider extends PanelProvider
             ->discoverResources(in: app_path('Filament/Staff/Resources'), for: 'App\\Filament\\Staff\\Resources')
             ->discoverPages(in: app_path('Filament/Staff/Pages'), for: 'App\\Filament\\Staff\\Pages')
             ->navigationGroups([
+                // 1. INFORMASI UMUM & BERANDA (Urutan Pertama)
                 'Menu Utama',
+                'Informasi Umum & Beranda',
                 'Pengumuman & Informasi',
-                'Akademik & Kurikulum',
-                'Fitur Guru Al-Qur\'an',
-                'Madrasah Diniyah (Madin)',
-                'Kesiswaan & Karakter',
-                'Sarpras',
-                'Humas',
-                'Manajemen Sekolah',
-                'Tugas & Kewajiban',
-                'Administrasi & Data Induk',
                 'Visi & Misi Sekolah',
-                'Fitur Wali Kelas',
-                'Manajemen Tugas',
+
+                // 2. TUGAS GURU (Ditaruh pertama tepat setelah Informasi Umum)
+                'Tugas & Kewajiban Harian Guru',
+                'Tugas & Kewajiban',
+                'Tugas Guru Mapel',
+                'Akademik & Kurikulum',
                 'Penilaian & Kompetensi',
+                'Tugas Guru Al-Qur\'an',
+                'Fitur Guru Al-Qur\'an',
                 'Tahfidz & Tahsin',
+                'Tugas Wali Kelas',
+                'Fitur Wali Kelas',
+                'Tugas Guru Piket',
+                'Piket',
+
+                // 3. TUGAS JABATAN (Ditaruh setelah Tugas Guru)
+                'Tugas Kepala Sekolah',
+                'Manajemen Sekolah',
+                'Kepala Sekolah',
+                'Tugas Waka Kurikulum',
+                'Bab 1: Program Kerja WKr',
+                'Bab 2: Perencanaan Administrasi Pembelajaran',
+                'Tugas Waka Kesiswaan',
+                'Kesiswaan & Karakter',
                 'Kesiswaan',
                 'Karakter & Evaluasi',
-                'Hubungan & Kerja Sama',
+                'Tugas Waka Sarpras',
+                'Sarpras',
                 'Perencanaan dan Pengadaan',
                 'Inventarisasi & Administrasi',
                 'Pemeliharaan',
+                'Tugas Waka Humas',
+                'Humas',
+                'Hubungan & Kerja Sama',
+                'Tugas Tata Usaha',
                 'Tata Usaha',
+                'Administrasi & Data Induk',
                 'Perizinan',
                 'Lintas Divisi',
                 'Manajemen Administrasi',
-                'Kepala Sekolah',
+                'Manajemen Tugas',
+                'Tugas Koordinator Madin',
+                'Madrasah Diniyah (Madin)',
+
+                // 4. LAINNYA / PENGATURAN SISTEM
+                'Pengaturan Sistem',
                 'Pengaturan',
             ])
             ->pages([
@@ -122,8 +146,9 @@ class StaffPanelProvider extends PanelProvider
                         /* Group Header Layout */
                         aside.fi-sidebar .fi-sidebar-group-label {
                             display: flex !important;
-                            align-items: center !important;
-                            justify-content: space-between !important;
+                            flex-direction: column !important;
+                            align-items: stretch !important;
+                            justify-content: center !important;
                             width: 100% !important;
                             padding-top: 5px !important;
                             padding-bottom: 6px !important;
@@ -140,6 +165,49 @@ class StaffPanelProvider extends PanelProvider
                             overflow: hidden;
                             text-overflow: ellipsis;
                             white-space: nowrap;
+                        }
+
+                        .tupoksi-group-header {
+                            display: flex !important;
+                            flex-direction: column !important;
+                            width: 100% !important;
+                            min-width: 0 !important;
+                        }
+
+                        .tupoksi-group-row {
+                            display: flex !important;
+                            align-items: center !important;
+                            justify-content: space-between !important;
+                            width: 100% !important;
+                            min-width: 0 !important;
+                            gap: 4px !important;
+                        }
+
+                        .tupoksi-keterangan {
+                            display: block !important;
+                            font-size: 9.5px !important;
+                            font-weight: 500 !important;
+                            line-height: 1.3 !important;
+                            text-transform: none !important;
+                            letter-spacing: normal !important;
+                            color: #64748b !important;
+                            opacity: 0.9 !important;
+                        }
+                        .dark .tupoksi-keterangan {
+                            color: #94a3b8 !important;
+                        }
+
+                        /* Piket Aktif Special Glowing Badge */
+                        .tupoksi-badge-piket-aktif {
+                            background: #fef2f2 !important;
+                            color: #dc2626 !important;
+                            border: 1px solid #fca5a5 !important;
+                            box-shadow: 0 0 8px rgba(239, 68, 68, 0.35) !important;
+                        }
+                        .dark .tupoksi-badge-piket-aktif {
+                            background: rgba(220, 38, 38, 0.22) !important;
+                            color: #f87171 !important;
+                            border: 1px solid rgba(248, 113, 113, 0.45) !important;
                         }
 
                         /* Mini Pill Badge */

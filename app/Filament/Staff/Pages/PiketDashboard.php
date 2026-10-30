@@ -35,10 +35,24 @@ class PiketDashboard extends Page
 
     protected static ?string $navigationIcon = 'heroicon-o-shield-check';
     protected static string $view = 'filament.staff.pages.piket-dashboard';
-    protected static ?string $navigationGroup = 'Kesiswaan & Karakter';
-    protected static ?string $navigationLabel = 'Dasbor Piket Harian';
+    protected static ?string $navigationGroup = 'Tugas Guru Piket';
+    protected static ?string $navigationLabel = 'Dasbor Guru Piket';
     protected static ?string $title = 'Dasbor Guru Piket Harian';
     protected static ?int $navigationSort = 1;
+
+    public static function getNavigationBadge(): ?string
+    {
+        $user = Auth::user();
+        if ($user?->isPiketToday()) {
+            return '⚡ Bertugas Hari Ini';
+        }
+        return null;
+    }
+
+    public static function getNavigationBadgeColor(): ?string
+    {
+        return 'danger';
+    }
 
     public string $hariIni = '';
     public string $tanggalFormatted = '';

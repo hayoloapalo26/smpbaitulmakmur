@@ -33,11 +33,13 @@ class DutyScheduleResource extends Resource
             return true;
         }
 
-        // Untuk guru: hanya dapat diakses dan muncul ketika bertugas piket hari ini atau memiliki riwayat/permohonan tukar jadwal piket
-        return $user->isPiketToday() || DutySwapRequest::where(function ($q) use ($user) {
-            $q->where('requester_id', $user->id)
-              ->orWhere('substitute_teacher_id', $user->id);
-        })->whereIn('status', ['diajukan', 'menunggu', 'disetujui'])->exists();
+        // Untuk guru: dapat diakses jika bertugas piket hari ini, memiliki penugasan jadwal piket, atau memiliki riwayat/permohonan tukar jadwal piket
+        return $user->isPiketToday() ||
+            DutySchedule::where('teacher_id', $user->id)->exists() ||
+            DutySwapRequest::where(function ($q) use ($user) {
+                $q->where('requester_id', $user->id)
+                  ->orWhere('substitute_teacher_id', $user->id);
+            })->whereIn('status', ['diajukan', 'menunggu', 'disetujui'])->exists();
     }
 
     public static function shouldRegisterNavigation(): bool
@@ -48,7 +50,7 @@ class DutyScheduleResource extends Resource
     protected static ?string $model = DutySchedule::class;
 
     protected static ?string $navigationIcon = 'heroicon-o-calendar-days';
-    protected static ?string $navigationGroup = 'Kesiswaan & Karakter';
+    protected static ?string $navigationGroup = 'Tugas Guru Piket';
     protected static ?string $navigationLabel = 'Jadwal Piket Guru';
     protected static ?string $modelLabel = 'Jadwal Piket Guru';
     protected static ?string $pluralModelLabel = 'Jadwal Piket Guru';
