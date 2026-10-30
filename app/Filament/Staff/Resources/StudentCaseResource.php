@@ -33,10 +33,19 @@ class StudentCaseResource extends Resource
         return Auth::user()?->hasRole('wali_kelas') ? 'Fitur Wali Kelas' : 'Kesiswaan & Karakter';
     }
 
+    public static function shouldRegisterNavigation(): bool
+    {
+        $user = Auth::user();
+        if (!$user || $user->isQuranTeacher()) return false;
+        return static::canAccess();
+    }
+
     // ─── Hak Akses ────────────────────────────────────────────────
     public static function canAccess(): bool
     {
-        return Auth::user()->hasAnyRole([
+        $user = Auth::user();
+        if (!$user || $user->isQuranTeacher()) return false;
+        return $user->hasAnyRole([
             'wali_kelas', 'waka_kesiswaan', 'bk', 'kepala_sekolah', 'superadmin',
         ]);
     }

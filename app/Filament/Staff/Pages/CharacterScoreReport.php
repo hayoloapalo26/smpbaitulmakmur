@@ -11,10 +11,17 @@ use Filament\Notifications\Notification;
 
 class CharacterScoreReport extends Page
 {
+    public static function shouldRegisterNavigation(): bool
+    {
+        $user = Auth::user();
+        if (!$user || $user->isQuranTeacher()) return false;
+        return static::canAccess();
+    }
+
     public static function canAccess(): bool
     {
         $user = Auth::user();
-        if (!$user) {
+        if (!$user || $user->isQuranTeacher()) {
             return false;
         }
 

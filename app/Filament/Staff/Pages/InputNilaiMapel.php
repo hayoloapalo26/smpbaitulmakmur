@@ -20,8 +20,8 @@ class InputNilaiMapel extends Page
         $user = Auth::user();
         if (!$user) return false;
 
-        // Jika Guru Al-Qur'an (dan bukan guru mapel umum), sembunyikan dari sidebar agar fokus ke fitur Al-Qur'an
-        if ($user->isQuranTeacher() && !$user->hasAnyRole(['guru_mapel', 'guru_kelas', 'waka_kurikulum', 'kepala_sekolah', 'superadmin'])) {
+        // Guru Al-Qur'an TIDAK PERNAH melihat Input Nilai Per Mapel umum di sidebar
+        if ($user->isQuranTeacher()) {
             return false;
         }
 
@@ -34,14 +34,13 @@ class InputNilaiMapel extends Page
         if (!$user) return false;
 
         // Guru Al-Qur'an memiliki sistem penilaian khusus (Tahfidz & Mutu Bacaan) tanpa CP, TP, dan ATP
-        if ($user->isQuranTeacher() && !$user->hasAnyRole(['guru_mapel', 'guru_kelas', 'waka_kurikulum', 'kepala_sekolah', 'superadmin'])) {
+        if ($user->isQuranTeacher()) {
             return false;
         }
 
         return $user->hasAnyRole([
             'guru_mapel',
             'guru_kelas',
-            'wali_kelas',
             'waka_kurikulum',
             'kepala_sekolah',
             'superadmin',

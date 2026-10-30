@@ -18,7 +18,16 @@ class StudentAchievementResource extends Resource
 {
     public static function canAccess(): bool
     {
-        return auth()->user()->hasAnyRole(['waka_kesiswaan', 'superadmin', 'kepala_sekolah', 'wali_kelas', 'guru_kelas', 'tata_usaha', 'bk']);
+        $user = auth()->user();
+        if (!$user || $user->isQuranTeacher()) return false;
+        return $user->hasAnyRole(['waka_kesiswaan', 'superadmin', 'kepala_sekolah', 'wali_kelas', 'guru_kelas', 'tata_usaha', 'bk']);
+    }
+
+    public static function shouldRegisterNavigation(): bool
+    {
+        $user = auth()->user();
+        if (!$user || $user->isQuranTeacher()) return false;
+        return $user->hasAnyRole(['waka_kesiswaan', 'superadmin', 'kepala_sekolah']);
     }
 
     public static function canCreate(): bool

@@ -15,9 +15,18 @@ use Filament\Notifications\Notification;
 
 class RekapNilaiKelas extends Page
 {
+    public static function shouldRegisterNavigation(): bool
+    {
+        $user = Auth::user();
+        if (!$user || $user->isQuranTeacher()) return false;
+        return static::canAccess();
+    }
+
     public static function canAccess(): bool
     {
-        return Auth::user()->hasAnyRole(['wali_kelas', 'guru_kelas', 'waka_kurikulum', 'kepala_sekolah', 'superadmin']);
+        $user = Auth::user();
+        if (!$user || $user->isQuranTeacher()) return false;
+        return $user->hasAnyRole(['wali_kelas', 'guru_kelas', 'waka_kurikulum', 'kepala_sekolah', 'superadmin']);
     }
 
     protected static ?string $navigationIcon = 'heroicon-o-table-cells';

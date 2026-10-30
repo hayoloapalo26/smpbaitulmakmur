@@ -2,25 +2,35 @@
 
 namespace Tests\Feature;
 
+use App\Filament\Staff\Pages\CharacterScoreReport;
 use App\Filament\Staff\Pages\InputNilaiMapel;
 use App\Filament\Staff\Pages\PenerimaanNilaiMadin;
+use App\Filament\Staff\Pages\RekapNilaiKelas;
 use App\Filament\Staff\Pages\TahfidzRanking;
 use App\Filament\Staff\Resources\AlurTujuanPembelajaranResource;
 use App\Filament\Staff\Resources\BkWorkProgramResource;
 use App\Filament\Staff\Resources\CapaianPembelajaranResource;
+use App\Filament\Staff\Resources\ClassProgramResource;
 use App\Filament\Staff\Resources\DutyScheduleResource;
 use App\Filament\Staff\Resources\GradeResource;
 use App\Filament\Staff\Resources\InventoryResource;
 use App\Filament\Staff\Resources\LearningPlanResource;
+use App\Filament\Staff\Resources\ParentSummonResource;
+use App\Filament\Staff\Resources\PresensiIzinSiswaResource;
+use App\Filament\Staff\Resources\ProgramEvaluationResource;
 use App\Filament\Staff\Resources\ProgramHumasResource;
 use App\Filament\Staff\Resources\ProgramSarprasResource;
 use App\Filament\Staff\Resources\QuranAchievementResource;
 use App\Filament\Staff\Resources\ReadingQualityScoreResource;
 use App\Filament\Staff\Resources\RppmResource;
 use App\Filament\Staff\Resources\ScheduleResource;
+use App\Filament\Staff\Resources\StudentAchievementResource;
+use App\Filament\Staff\Resources\StudentCaseResource;
 use App\Filament\Staff\Resources\StudentQuranPlacementResource;
+use App\Filament\Staff\Resources\StudentResource;
 use App\Filament\Staff\Resources\SubjectResource;
 use App\Filament\Staff\Resources\TeacherLeaveRequestResource;
+use App\Filament\Staff\Resources\TeacherProfileResource;
 use App\Filament\Staff\Resources\TeacherSubjectClassResource;
 use App\Filament\Staff\Resources\TeachingJournalResource;
 use App\Filament\Staff\Resources\TujuanPembelajaranResource;
@@ -249,5 +259,82 @@ class RoleBasedNavigationIsolationTest extends TestCase
         $this->assertFalse(ProgramSarprasResource::canAccess());
         $this->assertFalse(GradeResource::canAccess());
         $this->assertFalse(QuranAchievementResource::canAccess());
+    }
+
+    /**
+     * Test: Master Data Guru hanya dapat diakses oleh TU, Kepsek, Waka, dan Superadmin (Bukan guru biasa)
+     */
+    public function test_teacher_profiles_resource_is_strictly_limited_to_management_and_tu(): void
+    {
+        // Guru biasa (Quran, Mapel, Humas, Sarpras) TIDAK BISA melihat / mengakses master Data Guru
+        $this->actingAs($this->guruQuran);
+        $this->assertFalse(TeacherProfileResource::canAccess());
+        $this->assertFalse(TeacherProfileResource::shouldRegisterNavigation());
+
+        $this->actingAs($this->guruMapel);
+        $this->assertFalse(TeacherProfileResource::canAccess());
+        $this->assertFalse(TeacherProfileResource::shouldRegisterNavigation());
+
+        // TU & Kepsek BISA
+        $tu = User::create([
+            'name' => 'Staf Tata Usaha',
+            'username' => 'staf_tu',
+            'email' => 'tu@smpi.com',
+            'password' => bcrypt('password'),
+            'institution_id' => $this->institution->id,
+        ]);
+        $tu->assignRole('tata_usaha');
+
+        $this->actingAs($tu);
+        $this->assertTrue(TeacherProfileResource::canAccess());
+        $this->assertTrue(TeacherProfileResource::shouldRegisterNavigation());
+    }
+
+    /**
+     * Test: Guru Al-Qur'an TIDAK PERNAH melihat menu Wali Kelas & Prestasi Siswa, bahkan jika memiliki role campuran
+     */
+    public function test_quran_teachers_never_see_wali_kelas_or_prestasi_siswa(): void
+    {
+        $this->actingAs($this->guruQuran);
+
+        // Prestasi siswa & Jadwal piket (jika tidak bertugas)
+        $this->assertFalse(StudentAchievementResource::canAccess());
+        $this->assertFalse(StudentAchievementResource::shouldRegisterNavigation());
+        $this->assertFalse(DutyScheduleResource::canAccess());
+        $this->assertFalse(DutyScheduleResource::shouldRegisterNavigation());
+
+        // 8 Fitur Wali Kelas
+        $this->assertFalse(RekapNilaiKelas::canAccess());
+        $this->assertFalse(RekapNilaiKelas::shouldRegisterNavigation());
+        $this->assertFalse(StudentResource::canAccess());
+        $this->assertFalse(StudentResource::shouldRegisterNavigation());
+        $this->assertFalse(StudentCaseResource::canAccess());
+        $this->assertFalse(StudentCaseResource::shouldRegisterNavigation());
+        $this->assertFalse(CharacterScoreReport::canAccess());
+        $this->assertFalse(CharacterScoreReport::shouldRegisterNavigation());
+        $this->assertFalse(PresensiIzinSiswaResource::canAccess());
+        $this->assertFalse(PresensiIzinSiswaResource::shouldRegisterNavigation());
+        $this->assertFalse(ClassProgramResource::canAccess());
+        $this->assertFalse(ClassProgramResource::shouldRegisterNavigation());
+        $this->assertFalse(ParentSummonResource::canAccess());
+        $this->assertFalse(ParentSummonResource::shouldRegisterNavigation());
+        $this->assertFalse(ProgramEvaluationResource::canAccess());
+        $this->assertFalse(ProgramEvaluationResource::shouldRegisterNavigation());
+
+        // Combo Role: jika akun guru di DB memiliki role guru_alquran + guru_mapel + wali_kelas sekaligus
+        $this->guruQuran->assignRole(['guru_mapel', 'wali_kelas']);
+        $this->guruQuran->refresh();
+
+        // Tetap terisolasi secara mutlak dari menu kurikulum mapel umum & wali kelas
+        $this->assertFalse(InputNilaiMapel::canAccess());
+        $this->assertFalse(InputNilaiMapel::shouldRegisterNavigation());
+        $this->assertFalse(GradeResource::canAccess());
+        $this->assertFalse(GradeResource::shouldRegisterNavigation());
+        $this->assertFalse(RppmResource::canAccess());
+        $this->assertFalse(RppmResource::shouldRegisterNavigation());
+        $this->assertFalse(RekapNilaiKelas::canAccess());
+        $this->assertFalse(RekapNilaiKelas::shouldRegisterNavigation());
+        $this->assertFalse(StudentResource::canAccess());
+        $this->assertFalse(StudentResource::shouldRegisterNavigation());
     }
 }

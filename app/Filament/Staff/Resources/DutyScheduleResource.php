@@ -23,14 +23,6 @@ class DutyScheduleResource extends Resource
 {
     public static function canAccess(): bool
     {
-        return auth()->user()?->hasAnyRole(array_merge([
-            'waka_kesiswaan', 'superadmin', 'kepala_sekolah',
-            'guru_mapel', 'koordinator_madin', 'wali_kelas', 'guru_kelas', 'bk', 'guru_piket', 'tata_usaha'
-        ], \App\Models\User::QURAN_TEACHER_ROLES)) ?? false;
-    }
-
-    public static function shouldRegisterNavigation(): bool
-    {
         $user = auth()->user();
         if (!$user) {
             return false;
@@ -41,11 +33,16 @@ class DutyScheduleResource extends Resource
             return true;
         }
 
-        // Untuk guru: hanya muncul ketika bertugas piket hari ini atau memiliki riwayat/permohonan tukar jadwal piket
+        // Untuk guru: hanya dapat diakses dan muncul ketika bertugas piket hari ini atau memiliki riwayat/permohonan tukar jadwal piket
         return $user->isPiketToday() || DutySwapRequest::where(function ($q) use ($user) {
             $q->where('requester_id', $user->id)
               ->orWhere('substitute_teacher_id', $user->id);
         })->whereIn('status', ['diajukan', 'menunggu', 'disetujui'])->exists();
+    }
+
+    public static function shouldRegisterNavigation(): bool
+    {
+        return static::canAccess();
     }
 
     protected static ?string $model = DutySchedule::class;

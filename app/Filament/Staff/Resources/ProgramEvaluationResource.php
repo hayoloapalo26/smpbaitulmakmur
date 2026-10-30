@@ -21,9 +21,19 @@ use Filament\Tables\Table;
 
 class ProgramEvaluationResource extends Resource
 {
+    public static function shouldRegisterNavigation(): bool
+    {
+        $user = auth()->user();
+        if (!$user || $user->isQuranTeacher()) return false;
+        return static::canAccess();
+    }
+
     public static function canAccess(): bool
     {
-        return auth()->user()?->hasAnyRole([
+        $user = auth()->user();
+        if (!$user || $user->isQuranTeacher()) return false;
+
+        return $user->hasAnyRole([
             'kepala_sekolah',
             'superadmin',
             'waka_kurikulum',
@@ -35,7 +45,7 @@ class ProgramEvaluationResource extends Resource
             'guru_kelas',
             'ketua_yayasan',
             'pembina_yayasan',
-        ]) ?? false;
+        ]);
     }
 
     protected static ?string $model = ProgramEvaluation::class;

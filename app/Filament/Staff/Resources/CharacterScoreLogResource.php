@@ -20,7 +20,7 @@ class CharacterScoreLogResource extends Resource
     public static function shouldRegisterNavigation(): bool
     {
         $user = auth()->user();
-        if (!$user) return false;
+        if (!$user || $user->isQuranTeacher()) return false;
 
         // Roles that already have 'Rekapitulasi & Input Karakter' (CharacterScoreReport) in their sidebar do not need a duplicate menu
         if ($user->hasAnyRole(['wali_kelas', 'guru_kelas', 'waka_kesiswaan', 'kepala_sekolah', 'superadmin'])) {
@@ -32,7 +32,10 @@ class CharacterScoreLogResource extends Resource
 
     public static function canAccess(): bool
     {
-        return auth()->user()->hasAnyRole(['wali_kelas', 'guru_kelas', 'guru_mapel', 'waka_kesiswaan', 'kepala_sekolah', 'superadmin']);
+        $user = auth()->user();
+        if (!$user || $user->isQuranTeacher()) return false;
+
+        return $user->hasAnyRole(['wali_kelas', 'guru_kelas', 'guru_mapel', 'waka_kesiswaan', 'kepala_sekolah', 'superadmin']);
     }
 
     protected static ?string $model = CharacterScoreLog::class;

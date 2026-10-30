@@ -27,7 +27,7 @@ class CapaianPembelajaranResource extends Resource
         if (!$user) return false;
 
         // Role khusus Guru Al-Qur'an: tidak ada akses dan tidak ada inputan CP
-        if ($user->isQuranTeacher() && !$user->hasAnyRole(['guru_mapel', 'guru_kelas', 'waka_kurikulum', 'kepala_sekolah', 'superadmin'])) {
+        if ($user->isQuranTeacher()) {
             return false;
         }
 

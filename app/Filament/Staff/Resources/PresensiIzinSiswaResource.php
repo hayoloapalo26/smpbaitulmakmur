@@ -63,9 +63,18 @@ class PresensiIzinSiswaResource extends Resource
         return 4;
     }
 
+    public static function shouldRegisterNavigation(): bool
+    {
+        $user = Auth::user();
+        if (!$user || $user->isQuranTeacher()) return false;
+        return static::canAccess();
+    }
+
     public static function canAccess(): bool
     {
-        return Auth::user()->hasAnyRole([
+        $user = Auth::user();
+        if (!$user || $user->isQuranTeacher()) return false;
+        return $user->hasAnyRole([
             'wali_kelas', 'guru_kelas', 'guru_piket', 'tata_usaha', 'waka_kesiswaan', 'kepala_sekolah', 'superadmin',
         ]);
     }

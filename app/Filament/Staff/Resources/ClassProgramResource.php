@@ -27,12 +27,16 @@ class ClassProgramResource extends Resource
 
     public static function shouldRegisterNavigation(): bool
     {
-        return Auth::user()?->hasAnyRole(['wali_kelas', 'guru_kelas', 'kepala_sekolah', 'superadmin']) ?? false;
+        $user = Auth::user();
+        if (!$user || $user->isQuranTeacher()) return false;
+        return $user->hasAnyRole(['wali_kelas', 'guru_kelas', 'kepala_sekolah', 'superadmin']);
     }
 
     public static function canAccess(): bool
     {
-        return Auth::user()->hasAnyRole(['wali_kelas', 'guru_kelas', 'kepala_sekolah', 'superadmin']);
+        $user = Auth::user();
+        if (!$user || $user->isQuranTeacher()) return false;
+        return $user->hasAnyRole(['wali_kelas', 'guru_kelas', 'kepala_sekolah', 'superadmin']);
     }
 
     public static function getNavigationBadge(): ?string

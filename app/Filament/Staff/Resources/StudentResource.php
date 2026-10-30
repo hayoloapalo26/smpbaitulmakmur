@@ -23,9 +23,18 @@ use App\Models\User;
 
 class StudentResource extends Resource
 {
+    public static function shouldRegisterNavigation(): bool
+    {
+        $user = auth()->user();
+        if (!$user || $user->isQuranTeacher()) return false;
+        return static::canAccess();
+    }
+
     public static function canAccess(): bool
     {
-        return auth()->user()->hasAnyRole(['waka_kesiswaan', 'tata_usaha', 'superadmin', 'kepala_sekolah', 'wali_kelas', 'guru_kelas']);
+        $user = auth()->user();
+        if (!$user || $user->isQuranTeacher()) return false;
+        return $user->hasAnyRole(['waka_kesiswaan', 'tata_usaha', 'superadmin', 'kepala_sekolah', 'wali_kelas', 'guru_kelas']);
     }
 
     protected static ?string $model = Student::class;

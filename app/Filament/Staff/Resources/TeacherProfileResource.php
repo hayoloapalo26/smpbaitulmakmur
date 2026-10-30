@@ -18,12 +18,18 @@ use Illuminate\Database\Eloquent\Builder;
 
 class TeacherProfileResource extends Resource
 {
+    public static function shouldRegisterNavigation(): bool
+    {
+        return static::canAccess();
+    }
+
     public static function canAccess(): bool
     {
-        return auth()->user()->hasAnyRole(array_merge([
-            'tata_usaha', 'superadmin', 'kepala_sekolah', 'waka_kurikulum', 'waka_kesiswaan',
-            'humas', 'sarpras', 'bk', 'guru_mapel', 'wali_kelas'
-        ], \App\Models\User::QURAN_TEACHER_ROLES));
+        $user = auth()->user();
+        if (!$user) return false;
+
+        // Hanya Tata Usaha, Kepala Sekolah, Waka Kurikulum, Waka Kesiswaan, dan Superadmin yang mengelola master Data Guru
+        return $user->hasAnyRole(['tata_usaha', 'superadmin', 'kepala_sekolah', 'waka_kurikulum', 'waka_kesiswaan']);
     }
 
     public static function getEloquentQuery(): Builder
@@ -275,7 +281,17 @@ class TeacherProfileResource extends Resource
                             ->label('Role / Hak Akses')
                             ->multiple()
                             ->relationship('roles', 'name')
-                            ->default(fn ($record) => $record->roles->pluck('id')->toArray() ?: [\Spatie\Permission\Models\Role::where('name', 'guru_mapel')->value('id')])
+                            ->default(function ($record) {
+                                if ($record->roles()->exists()) {
+                                    return $record->roles->pluck('id')->toArray();
+                                }
+                                $jabatan = strtolower($record->jabatan ?? '');
+                                if (str_contains($jabatan, 'qur') || str_contains($jabatan, 'tahfidz') || str_contains($jabatan, 'tahsin') || str_contains($jabatan, 'yanbua')) {
+                                    return [\Spatie\Permission\Models\Role::firstOrCreate(['name' => 'guru_alquran', 'guard_name' => 'web'])->id];
+                                }
+                                return [\Spatie\Permission\Models\Role::firstOrCreate(['name' => 'guru_mapel', 'guard_name' => 'web'])->id];
+                            })
+                            ->getOptionLabelFromRecordUsing(fn ($record) => \App\Models\User::getRoleDisplayName($record->name))
                             ->preload(),
                     ])
                     ->action(function ($record, array $data) {
@@ -409,7 +425,12 @@ class TeacherProfileResource extends Resource
                                 ]);
 
                                 if ($record->roles()->count() === 0) {
-                                    $record->assignRole($defaultRole);
+                                    $jabatan = strtolower($record->jabatan ?? '');
+                                    if (str_contains($jabatan, 'qur') || str_contains($jabatan, 'tahfidz') || str_contains($jabatan, 'tahsin') || str_contains($jabatan, 'yanbua')) {
+                                        $record->assignRole(\Spatie\Permission\Models\Role::firstOrCreate(['name' => 'guru_alquran', 'guard_name' => 'web']));
+                                    } else {
+                                        $record->assignRole($defaultRole);
+                                    }
                                 }
 
                                 $created++;

@@ -17,8 +17,8 @@ class RppmResource extends Resource
         $user = auth()->user();
         if (!$user) return false;
 
-        // Role khusus Guru Al-Qur'an: tidak ada inputan CP, TP, dan ATP (RPPM)
-        if ($user->isQuranTeacher() && !$user->hasAnyRole(['guru_mapel', 'guru_kelas', 'waka_kurikulum', 'kepala_sekolah', 'superadmin'])) {
+        // Role khusus Guru Al-Qur'an: TIDAK PERNAH melihat RPPM di sidebar
+        if ($user->isQuranTeacher()) {
             return false;
         }
 
@@ -30,8 +30,8 @@ class RppmResource extends Resource
         $user = auth()->user();
         if (!$user) return false;
 
-        // Role khusus Guru Al-Qur'an: tidak ada inputan CP, TP, dan ATP (RPPM)
-        if ($user->isQuranTeacher() && !$user->hasAnyRole(['guru_mapel', 'guru_kelas', 'waka_kurikulum', 'kepala_sekolah', 'superadmin'])) {
+        // Role khusus Guru Al-Qur'an: TIDAK PERNAH mengakses RPPM
+        if ($user->isQuranTeacher()) {
             return false;
         }
 

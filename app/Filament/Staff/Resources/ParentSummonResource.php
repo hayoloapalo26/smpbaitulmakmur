@@ -19,9 +19,18 @@ use Illuminate\Support\Facades\Auth;
 
 class ParentSummonResource extends Resource
 {
+    public static function shouldRegisterNavigation(): bool
+    {
+        $user = Auth::user();
+        if (!$user || $user->isQuranTeacher()) return false;
+        return static::canAccess();
+    }
+
     public static function canAccess(): bool
     {
-        return Auth::user()->hasAnyRole(['wali_kelas', 'bk', 'waka_kesiswaan', 'kepala_sekolah', 'superadmin']);
+        $user = Auth::user();
+        if (!$user || $user->isQuranTeacher()) return false;
+        return $user->hasAnyRole(['wali_kelas', 'bk', 'waka_kesiswaan', 'kepala_sekolah', 'superadmin']);
     }
 
     public static function canCreate(): bool

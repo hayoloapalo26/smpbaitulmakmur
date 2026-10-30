@@ -29,8 +29,8 @@ class GradeResource extends Resource
         $user = auth()->user();
         if (!$user) return false;
 
-        // Jika user adalah Guru Al-Qur'an dan BUKAN Guru Mapel umum, sembunyikan menu nilai mapel CP/TP ini dari sidebar
-        if ($user->isQuranTeacher() && !$user->hasAnyRole(['guru_mapel', 'guru_kelas', 'waka_kurikulum', 'kepala_sekolah', 'superadmin'])) {
+        // Guru Al-Qur'an TIDAK PERNAH melihat daftar nilai mapel umum di sidebar
+        if ($user->isQuranTeacher()) {
             return false;
         }
 
@@ -43,7 +43,7 @@ class GradeResource extends Resource
         if (!$user) return false;
 
         // Guru Al-Qur'an memiliki sistem penilaian khusus (Tahfidz & Mutu Bacaan) tanpa CP, TP, dan ATP
-        if ($user->isQuranTeacher() && !$user->hasAnyRole(['guru_mapel', 'guru_kelas', 'waka_kurikulum', 'kepala_sekolah', 'superadmin'])) {
+        if ($user->isQuranTeacher()) {
             return false;
         }
 
