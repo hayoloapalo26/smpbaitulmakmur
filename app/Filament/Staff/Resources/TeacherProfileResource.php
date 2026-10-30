@@ -28,13 +28,30 @@ class TeacherProfileResource extends Resource
         $user = auth()->user();
         if (!$user) return false;
 
-        // Hanya Tata Usaha, Kepala Sekolah, Waka Kurikulum, Waka Kesiswaan, dan Superadmin yang mengelola master Data Guru
-        return $user->hasAnyRole(['tata_usaha', 'superadmin', 'kepala_sekolah', 'waka_kurikulum', 'waka_kesiswaan']);
+        // Fitur Data Guru hanya muncul di role Kepala Sekolah, Tata Usaha per lembaga masing-masing, dan Waka Kurikulum
+        return $user->hasAnyRole(['superadmin', 'kepala_sekolah', 'tata_usaha', 'waka_kurikulum']);
     }
 
     public static function getEloquentQuery(): Builder
     {
-        return parent::getEloquentQuery()->withoutGlobalScope('institution');
+        $query = parent::getEloquentQuery();
+        $user = auth()->user();
+        if (!$user) return $query;
+
+        // Superadmin dapat melihat seluruh data guru lintas lembaga
+        if ($user->hasRole('superadmin')) {
+            return $query->withoutGlobalScope('institution');
+        }
+
+        // Kepala Sekolah, Tata Usaha, dan Waka Kurikulum hanya melihat data guru di lembaga masing-masing
+        if ($user->institution_id) {
+            return $query->where(function ($q) use ($user) {
+                $q->where('users.institution_id', $user->institution_id)
+                  ->orWhereNull('users.institution_id');
+            });
+        }
+
+        return $query;
     }
 
     protected static ?string $model = TeacherProfile::class;
@@ -193,14 +210,14 @@ class TeacherProfileResource extends Resource
                     ->color(fn ($record): string => $record->has_account ? 'success' : 'danger')
                     ->icon(fn ($record): string => $record->has_account ? 'heroicon-m-check-circle' : 'heroicon-m-x-circle')
                     ->action(function ($record, $livewire) {
-                        if (!auth()->user()->hasAnyRole(['superadmin', 'tata_usaha', 'kepala_sekolah'])) return;
+                        if (!auth()->user()->hasAnyRole(['superadmin', 'tata_usaha', 'kepala_sekolah', 'waka_kurikulum'])) return;
                         if ($record->has_account) {
                             $livewire->mountTableAction('edit_akun', $record);
                         } else {
                             $livewire->mountTableAction('buat_akun', $record);
                         }
                     })
-                    ->tooltip(fn () => auth()->user()->hasAnyRole(['superadmin', 'tata_usaha', 'kepala_sekolah']) ? 'Klik untuk membuat / kelola akun' : null),
+                    ->tooltip(fn () => auth()->user()->hasAnyRole(['superadmin', 'tata_usaha', 'kepala_sekolah', 'waka_kurikulum']) ? 'Klik untuk membuat / kelola akun' : null),
             ])
             ->filters([
                 Tables\Filters\SelectFilter::make('institution_id')
@@ -240,7 +257,7 @@ class TeacherProfileResource extends Resource
                     ->icon('heroicon-m-user-plus')
                     ->button()
                     ->color('warning')
-                    ->visible(fn ($record) => auth()->user()->hasAnyRole(['superadmin', 'tata_usaha', 'kepala_sekolah']) && !$record->has_account)
+                    ->visible(fn ($record) => auth()->user()->hasAnyRole(['superadmin', 'tata_usaha', 'kepala_sekolah', 'waka_kurikulum']) && !$record->has_account)
                     ->modalHeading(fn ($record) => "Buat Akun Login: {$record->name}")
                     ->modalDescription('Lengkapi data akun login (email, username, password, dan foto) untuk guru/pegawai ini.')
                     ->form([
@@ -320,7 +337,7 @@ class TeacherProfileResource extends Resource
                     ->label('Kelola Akun')
                     ->icon('heroicon-m-key')
                     ->color('info')
-                    ->visible(fn ($record) => auth()->user()->hasAnyRole(['superadmin', 'tata_usaha', 'kepala_sekolah']) && $record->has_account)
+                    ->visible(fn ($record) => auth()->user()->hasAnyRole(['superadmin', 'tata_usaha', 'kepala_sekolah', 'waka_kurikulum']) && $record->has_account)
                     ->modalHeading(fn ($record) => "Kelola / Reset Akun Guru: {$record->name}")
                     ->modalDescription('Ubah data akun guru atau reset password baru jika guru lupa password.')
                     ->form([

@@ -25,16 +25,31 @@ class StudentResource extends Resource
 {
     public static function shouldRegisterNavigation(): bool
     {
-        $user = auth()->user();
-        if (!$user || $user->isQuranTeacher()) return false;
         return static::canAccess();
     }
 
     public static function canAccess(): bool
     {
         $user = auth()->user();
-        if (!$user || $user->isQuranTeacher()) return false;
-        return $user->hasAnyRole(['waka_kesiswaan', 'tata_usaha', 'superadmin', 'kepala_sekolah', 'wali_kelas', 'guru_kelas']);
+        if (!$user) return false;
+
+        // Siswa dan orang tua mengakses portal siswa / orang tua
+        if ($user->hasRole(['siswa', 'orang_tua']) && $user->roles->count() === 1) {
+            return false;
+        }
+
+        // Tampilkan untuk SEMUA role lembaga dan role yayasan
+        return $user->hasAnyRole(array_merge([
+            'superadmin',
+            // Semua Role Lembaga
+            'kepala_sekolah', 'waka_kurikulum', 'waka_kesiswaan', 'tata_usaha',
+            'wali_kelas', 'guru_kelas', 'guru_mapel', 'guru_piket', 'guru_ekstrakurikuler',
+            'koordinator_madin', 'bk', 'sarpras', 'humas', 'bendahara', 'pegawai_keuangan',
+            // Semua Role Yayasan
+            'yayasan', 'pembina_yayasan', 'ketua_yayasan', 'wakil_ketua_yayasan', 'sekretaris_yayasan',
+            'keuangan_yayasan', 'pegawai_keuangan_yayasan', 'tim_pengembang_yayasan',
+            'tim_pengembang_penjamin_mutu_yayasan', 'pengembang_penjamin_mutu', 'penjamin_mutu_yayasan'
+        ], User::QURAN_TEACHER_ROLES));
     }
 
     protected static ?string $model = Student::class;
@@ -46,7 +61,7 @@ class StudentResource extends Resource
     public static function getNavigationGroup(): ?string
     {
         $user = auth()->user();
-        if ($user?->hasAnyRole(['tata_usaha', 'kepala_sekolah', 'superadmin'])) {
+        if ($user?->hasAnyRole(['tata_usaha', 'kepala_sekolah', 'superadmin', 'waka_kurikulum'])) {
             return 'Administrasi & Data Induk';
         }
         if ($user?->hasRole('waka_kesiswaan')) {
@@ -55,50 +70,59 @@ class StudentResource extends Resource
         if ($user?->hasAnyRole(['wali_kelas', 'guru_kelas'])) {
             return 'Fitur Wali Kelas';
         }
+        if ($user?->isQuranTeacher() || $user?->hasRole('koordinator_madin')) {
+            return 'Fitur Guru Al-Qur\'an';
+        }
+        if ($user?->hasRole('guru_mapel')) {
+            return 'Akademik & Kurikulum';
+        }
+        if ($user?->hasAnyRole([
+            'yayasan', 'pembina_yayasan', 'ketua_yayasan', 'wakil_ketua_yayasan', 'sekretaris_yayasan',
+            'pegawai_keuangan_yayasan', 'keuangan_yayasan', 'tim_pengembang_penjamin_mutu_yayasan',
+            'tim_pengembang_yayasan', 'pengembang_penjamin_mutu', 'penjamin_mutu_yayasan'
+        ])) {
+            return 'Menu Utama';
+        }
         return 'Administrasi & Data Induk';
     }
 
     public static function getNavigationLabel(): string
     {
-        $user = auth()->user();
-        if ($user?->hasAnyRole(['wali_kelas', 'guru_kelas']) && !$user?->hasAnyRole(['waka_kesiswaan', 'tata_usaha', 'kepala_sekolah', 'superadmin'])) {
-            return 'Data & Profil Siswa Kelas';
-        }
         return 'Data Siswa';
     }
-
 
     public static function getEloquentQuery(): Builder
     {
         $query = parent::getEloquentQuery();
         $user = Auth::user();
+        if (!$user) return $query;
 
-        // Isolasi ketat per lembaga: pastikan data siswa hanya dari lembaga masing-masing
-        if ($user && ($user->institution_id == 2 || $user->institution_id == 1 || $user->hasRole('superadmin'))) {
-            // Pada panel staff (SMP): tampilkan siswa SMP (ID 2), serta toleransi jika ada data lawas yang sempat tersimpan ID 1 (Yayasan)
-            $query->where(function ($q) {
+        // Superadmin & Yayasan (pembina, ketua, sekretaris, keuangan, tim pengembang & penjamin mutu):
+        // Memiliki akses penuh melihat seluruh siswa
+        $isYayasanUser = $user->hasAnyRole([
+            'superadmin', 'yayasan', 'pembina_yayasan', 'ketua_yayasan', 'wakil_ketua_yayasan', 'sekretaris_yayasan',
+            'keuangan_yayasan', 'pegawai_keuangan_yayasan', 'tim_pengembang_yayasan',
+            'tim_pengembang_penjamin_mutu_yayasan', 'pengembang_penjamin_mutu', 'penjamin_mutu_yayasan'
+        ]) || $user->institution_id == 1;
+
+        if ($isYayasanUser) {
+            return $query->withoutGlobalScope('institution');
+        }
+
+        // Untuk semua role lembaga (kepala sekolah, tata usaha, waka, guru mapel, guru alquran, wali kelas, dll):
+        // Tampilkan seluruh siswa di lembaganya masing-masing
+        if ($user->institution_id == 2) {
+            // Khusus SMP: tampilkan siswa SMP (ID 2), serta toleransi jika ada data tersimpan ID 1 / null
+            return $query->where(function ($q) {
                 $q->where('students.institution_id', 2)
                   ->orWhere('students.institution_id', 1)
                   ->orWhereNull('students.institution_id');
             });
-        } elseif ($user && $user->institution_id) {
-            $query->where('students.institution_id', $user->institution_id);
+        } elseif ($user->institution_id) {
+            return $query->where('students.institution_id', $user->institution_id);
         }
 
-        // Admin roles
-        if ($user->hasRole(['superadmin', 'kepala_sekolah', 'waka_kurikulum', 'waka_kesiswaan', 'tata_usaha', 'bk'])) {
-            return $query;
-        }
-
-        // Wali Kelas classes (khusus kelas akademik reguler)
-        $waliKelasClassroomIds = \App\Models\Classroom::reguler()->where('wali_kelas_id', $user->id)->pluck('id')->toArray();
-
-        // Teacher subject classes
-        $teacherClassroomIds = TeacherSubjectClass::where('teacher_id', $user->id)->pluck('classroom_id')->toArray();
-        
-        $allowedClassrooms = array_unique(array_merge($waliKelasClassroomIds, $teacherClassroomIds));
-
-        return $query->whereIn('classroom_id', $allowedClassrooms);
+        return $query;
     }
 
         
