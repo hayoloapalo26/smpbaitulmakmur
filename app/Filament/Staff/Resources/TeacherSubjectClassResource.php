@@ -98,6 +98,7 @@ class TeacherSubjectClassResource extends Resource
                             ->label('Mata Pelajaran')
                             ->searchable()
                             ->preload()
+                            ->live()
                             ->required(),
 
                         Forms\Components\Select::make('classroom_id')
@@ -110,7 +111,52 @@ class TeacherSubjectClassResource extends Resource
                             ->label('Kelas / Rombel')
                             ->searchable()
                             ->preload()
-                            ->required(),
+                            ->live()
+                            ->required()
+                            ->rules([
+                                function (Forms\Get $get, ?\Illuminate\Database\Eloquent\Model $record) {
+                                    return function (string $attribute, $value, \Closure $fail) use ($get, $record) {
+                                        $subjectId = $get('subject_id');
+                                        $classroomId = $value;
+                                        if ($subjectId && $classroomId) {
+                                            $query = TeacherSubjectClass::withoutGlobalScopes()
+                                                ->where('subject_id', $subjectId)
+                                                ->where('classroom_id', $classroomId);
+
+                                            if ($record && $record->id) {
+                                                $query->where('id', '!=', $record->id);
+                                            }
+
+                                            $existing = $query->with(['teacher', 'subject', 'classroom'])->first();
+                                            if ($existing) {
+                                                $teacherName = $existing->teacher?->name ?? 'Guru Lain';
+                                                $subjectName = $existing->subject?->name ?? 'Mata pelajaran ini';
+                                                $className = $existing->classroom?->name ?? 'kelas terpilih';
+                                                $fail("Mata pelajaran {$subjectName} di {$className} sudah terisi oleh {$teacherName}. Sistem menolak input dobel.");
+                                            }
+                                        }
+                                    };
+                                },
+                            ])
+                            ->helperText(function (Forms\Get $get, ?\Illuminate\Database\Eloquent\Model $record) {
+                                $subjectId = $get('subject_id');
+                                $classroomId = $get('classroom_id');
+                                if ($subjectId && $classroomId) {
+                                    $query = TeacherSubjectClass::withoutGlobalScopes()
+                                        ->where('subject_id', $subjectId)
+                                        ->where('classroom_id', $classroomId);
+
+                                    if ($record && $record->id) {
+                                        $query->where('id', '!=', $record->id);
+                                    }
+
+                                    $existing = $query->with('teacher')->first();
+                                    if ($existing) {
+                                        return "⚠️ Perhatian: Kelas ini sudah diampu oleh " . ($existing->teacher?->name ?? 'Guru Lain') . ". Sistem akan menolak jika disimpan.";
+                                    }
+                                }
+                                return '1 mata pelajaran di 1 kelas hanya dapat diampu oleh 1 guru.';
+                            }),
                     ])->columns(3),
             ]);
     }
