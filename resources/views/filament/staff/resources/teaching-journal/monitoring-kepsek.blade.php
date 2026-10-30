@@ -304,6 +304,41 @@
                                         </span>
                                     </div>
 
+                                    <!-- Materi Pembelajaran & TP dari RPPM -->
+                                    <div class="mb-3 p-3 rounded-lg bg-orange-50/70 dark:bg-orange-950/30 border border-orange-200 dark:border-orange-800/60">
+                                        <div class="flex flex-wrap items-center justify-between gap-2 mb-1.5">
+                                            <div class="flex items-center gap-1.5">
+                                                <x-heroicon-m-bookmark class="w-4 h-4 text-orange-600 dark:text-orange-400" />
+                                                <span class="font-bold text-gray-900 dark:text-white text-xs">Materi: {{ $j->materi ?: ($j->rencana_kegiatan_guru ?: '-') }}</span>
+                                            </div>
+                                            @if($j->rppm)
+                                                <span class="inline-flex items-center gap-1 text-[11px] font-semibold text-orange-700 dark:text-orange-300 bg-orange-100 dark:bg-orange-900/60 px-2 py-0.5 rounded border border-orange-300 dark:border-orange-700">
+                                                    <x-heroicon-m-document-text class="w-3.5 h-3.5" />
+                                                    RPPM: {{ $j->rppm->topik }}
+                                                </span>
+                                            @endif
+                                        </div>
+
+                                        @php
+                                            $tps = $j->selected_tps;
+                                        @endphp
+                                        @if($tps->isNotEmpty())
+                                            <div class="mt-2 pt-2 border-t border-orange-200/60 dark:border-orange-800/40">
+                                                <div class="text-[10px] font-bold uppercase tracking-wider text-orange-700 dark:text-orange-400 mb-1 flex items-center gap-1">
+                                                    <span>🎯 Tujuan Pembelajaran (TP) yang Dicapai:</span>
+                                                </div>
+                                                <div class="space-y-1">
+                                                    @foreach($tps as $tp)
+                                                        <div class="flex items-start gap-1.5 text-[11px] text-gray-700 dark:text-gray-200">
+                                                            <span class="font-bold text-orange-600 dark:text-orange-400 shrink-0">[{{ $tp->kode_tp }}]</span>
+                                                            <span>{{ $tp->deskripsi_tp }}</span>
+                                                        </div>
+                                                    @endforeach
+                                                </div>
+                                            </div>
+                                        @endif
+                                    </div>
+
                                     <!-- Content Details Grid -->
                                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
                                         <div class="space-y-2">

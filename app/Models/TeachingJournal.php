@@ -13,6 +13,7 @@ class TeachingJournal extends Model
     protected $casts = [
         'kegiatan_rutin' => 'array',
         'catatan_karakter' => 'array',
+        'tp_ids' => 'array',
     ];
 
     protected static function booted()
@@ -56,6 +57,18 @@ class TeachingJournal extends Model
 
                 if ($schedule) {
                     $journal->schedule_id = $schedule->id;
+                }
+            }
+
+            if (empty($journal->materi)) {
+                if (!empty($journal->rppm_id)) {
+                    $journal->materi = Rppm::where('id', $journal->rppm_id)->value('topik');
+                }
+                if (empty($journal->materi) && !empty($journal->tp_ids) && is_array($journal->tp_ids)) {
+                    $journal->materi = TujuanPembelajaran::whereIn('id', $journal->tp_ids)->pluck('materi')->filter()->unique()->implode(', ');
+                }
+                if (empty($journal->materi)) {
+                    $journal->materi = $journal->rencana_kegiatan_guru ?? '-';
                 }
             }
         });
@@ -149,6 +162,20 @@ class TeachingJournal extends Model
     public function subject()
     {
         return $this->belongsTo(Subject::class, 'subject_id');
+    }
+
+    public function rppm()
+    {
+        return $this->belongsTo(Rppm::class, 'rppm_id');
+    }
+
+    public function getSelectedTpsAttribute()
+    {
+        if (empty($this->tp_ids)) {
+            return collect();
+        }
+
+        return TujuanPembelajaran::whereIn('id', $this->tp_ids)->get();
     }
 
     public function schedule()

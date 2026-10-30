@@ -5,6 +5,8 @@ namespace App\Filament\Staff\Resources;
 use App\Filament\Staff\Resources\TeachingJournalResource\Pages;
 use App\Models\TeachingJournal;
 use App\Models\Schedule;
+use App\Models\Rppm;
+use App\Models\TujuanPembelajaran;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
@@ -12,6 +14,7 @@ use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Str;
 use Carbon\Carbon;
 
 class TeachingJournalResource extends Resource
@@ -121,6 +124,9 @@ class TeachingJournalResource extends Resource
                                 $set('classroom_id', null);
                                 $set('subject_id', null);
                                 $set('jam_ke', null);
+                                $set('rppm_id', null);
+                                $set('materi', null);
+                                $set('tp_ids', []);
                                 $set('student_attendances', []);
                                 $set('catatan_karakter', []);
                             })
@@ -150,6 +156,9 @@ class TeachingJournalResource extends Resource
                                 $set('classroom_id', null);
                                 $set('subject_id', null);
                                 $set('jam_ke', null);
+                                $set('rppm_id', null);
+                                $set('materi', null);
+                                $set('tp_ids', []);
                                 $set('student_attendances', []);
                                 $set('catatan_karakter', []);
                             })
@@ -299,6 +308,9 @@ class TeachingJournalResource extends Resource
                                     $set('classroom_id', null);
                                     $set('subject_id', null);
                                     $set('jam_ke', null);
+                                    $set('rppm_id', null);
+                                    $set('materi', null);
+                                    $set('tp_ids', []);
                                     $set('student_attendances', []);
                                     $set('catatan_karakter', []);
                                     return;
@@ -310,6 +322,25 @@ class TeachingJournalResource extends Resource
                                 $set('classroom_id', $schedule->classroom_id);
                                 $set('subject_id', $schedule->subject_id);
                                 $set('jam_ke', $schedule->jam_ke);
+
+                                // Auto pre-fill RPPM & TP jika guru memiliki dokumen RPPM untuk mapel ini
+                                $teacherId = $get('teacher_id') ?: Auth::id();
+                                $subjectName = $schedule->subject?->name;
+                                $matchingRppm = Rppm::query()
+                                    ->where('guru_id', $teacherId)
+                                    ->when($subjectName, fn ($q) => $q->where('mata_pelajaran', 'like', "%{$subjectName}%"))
+                                    ->latest()
+                                    ->first();
+
+                                if ($matchingRppm) {
+                                    $set('rppm_id', $matchingRppm->id);
+                                    if (!empty($matchingRppm->topik) && empty($get('materi'))) {
+                                        $set('materi', $matchingRppm->topik);
+                                    }
+                                    if (!empty($matchingRppm->selected_tp_ids) && empty($get('tp_ids'))) {
+                                        $set('tp_ids', $matchingRppm->selected_tp_ids);
+                                    }
+                                }
 
                                 $tanggal = $get('tanggal') ?? Carbon::today()->format('Y-m-d');
                                 $students = \App\Models\Student::where('classroom_id', $schedule->classroom_id)->orderBy('name')->get();
@@ -351,6 +382,101 @@ class TeachingJournalResource extends Resource
                             ->dehydrated()
                             ->required(),
                     ])->columns(3),
+
+                Forms\Components\Section::make('🎯 Lingkup Materi & Penarikan TP dari RPPM & Perangkat Pembelajaran')
+                    ->description('Tarik otomatis Tujuan Pembelajaran (TP) yang sudah di-inputkan di RPPM atau pilih langsung dari Tujuan Pembelajaran mapel terkait.')
+                    ->schema([
+                        Forms\Components\Select::make('rppm_id')
+                            ->label('Tarik Dokumen RPPM Guru (Opsional)')
+                            ->options(function (Forms\Get $get) {
+                                $subjectId = $get('subject_id');
+                                $teacherId = $get('teacher_id') ?: Auth::id();
+
+                                $query = Rppm::query();
+                                if (!auth()->user()?->hasAnyRole(['waka_kurikulum', 'superadmin', 'kepala_sekolah'])) {
+                                    $query->where('guru_id', $teacherId);
+                                }
+                                if ($subjectId) {
+                                    $subjectName = \App\Models\Subject::where('id', $subjectId)->value('name');
+                                    if ($subjectName) {
+                                        $query->where('mata_pelajaran', 'like', "%{$subjectName}%");
+                                    }
+                                }
+                                return $query->latest()->get()->mapWithKeys(function ($r) {
+                                    $tpCount = count($r->selected_tp_ids ?? []);
+                                    return [$r->id => "RPPM: {$r->topik} ({$r->kelas_fase} | {$tpCount} TP)"];
+                                });
+                            })
+                            ->searchable()
+                            ->preload()
+                            ->live()
+                            ->afterStateUpdated(function ($state, Forms\Set $set, Forms\Get $get) {
+                                if (!$state) return;
+                                $rppm = Rppm::find($state);
+                                if ($rppm) {
+                                    if (!empty($rppm->topik)) {
+                                        $set('materi', $rppm->topik);
+                                    }
+                                    if (!empty($rppm->selected_tp_ids)) {
+                                        $set('tp_ids', $rppm->selected_tp_ids);
+                                    }
+                                }
+                            })
+                            ->helperText('Pilih RPPM untuk otomatis mengisi Materi Pokok dan mencentang Tujuan Pembelajaran (TP) yang diajarkan.'),
+
+                        Forms\Components\TextInput::make('materi')
+                            ->label('Topik / Materi Pokok Pembelajaran')
+                            ->placeholder('Contoh: Operasi Aljabar / Teks Deskripsi / Mengenal Perangkat Komputer')
+                            ->required()
+                            ->helperText('Lingkup materi pokok yang disampaikan pada jam mengajar ini.'),
+
+                        Forms\Components\Select::make('tp_ids')
+                            ->label('Tujuan Pembelajaran (TP) Terkait [Multiple Choice]')
+                            ->multiple()
+                            ->options(function (Forms\Get $get) {
+                                $subjectId = $get('subject_id');
+                                $classroomId = $get('classroom_id');
+                                $rppmId = $get('rppm_id');
+
+                                $rppmTpIds = [];
+                                if ($rppmId) {
+                                    $rppm = Rppm::find($rppmId);
+                                    $rppmTpIds = $rppm?->selected_tp_ids ?? [];
+                                }
+
+                                $query = TujuanPembelajaran::query();
+                                if ($subjectId) {
+                                    $query->where('subject_id', $subjectId);
+                                }
+                                if ($classroomId) {
+                                    $tingkat = \App\Models\Classroom::where('id', $classroomId)->value('tingkat');
+                                    if ($tingkat) {
+                                        $query->where('kelas_tingkat', $tingkat);
+                                    }
+                                }
+
+                                return $query->get()->mapWithKeys(function ($tp) use ($rppmTpIds) {
+                                    $isRppm = in_array($tp->id, $rppmTpIds);
+                                    $tag = $isRppm ? '📌 [Dari RPPM] ' : '';
+                                    $prefix = $tp->materi ? "[{$tp->materi}] " : '';
+                                    $kode = $tp->kode_tp ? "({$tp->kode_tp}) " : '';
+                                    return [$tp->id => "{$tag}{$kode}{$prefix}" . Str::limit($tp->deskripsi_tp, 70)];
+                                });
+                            })
+                            ->searchable()
+                            ->preload()
+                            ->live()
+                            ->afterStateUpdated(function ($state, Forms\Set $set, Forms\Get $get) {
+                                if (empty($get('materi')) && !empty($state) && is_array($state)) {
+                                    $materiNames = TujuanPembelajaran::whereIn('id', $state)->pluck('materi')->filter()->unique()->implode(', ');
+                                    if ($materiNames) {
+                                        $set('materi', $materiNames);
+                                    }
+                                }
+                            })
+                            ->helperText('💡 Tujuan Pembelajaran yang ditarik dari dokumen RPPM & Perangkat Pembelajaran guru. Anda juga dapat memilih lebih dari satu TP.')
+                            ->columnSpanFull(),
+                    ])->columns(2),
 
                 Forms\Components\Section::make('To Do List Kegiatan Rutin')
                     ->description('Dengan melaksanakan to do list ini, anda berkontribusi terhadap pengembangan kualitas murid')
@@ -538,6 +664,21 @@ class TeachingJournalResource extends Resource
                     ->color('info'),
                 Tables\Columns\TextColumn::make('subject.name')
                     ->label('Mata Pelajaran'),
+                Tables\Columns\TextColumn::make('materi')
+                    ->label('Materi & TP')
+                    ->limit(35)
+                    ->tooltip(fn ($state) => $state)
+                    ->description(function (TeachingJournal $record) {
+                        $count = is_array($record->tp_ids) ? count($record->tp_ids) : 0;
+                        if ($count > 0) {
+                            return "🎯 {$count} Tujuan Pembelajaran (TP)";
+                        }
+                        if ($record->rppm) {
+                            return '📄 Dari RPPM Guru';
+                        }
+                        return null;
+                    })
+                    ->searchable(),
                 Tables\Columns\TextColumn::make('presensi_status')
                     ->label('Presensi Guru')
                     ->state(fn () => 'Hadir (Dari Jurnal)')
