@@ -35,6 +35,47 @@ class TeacherKpiService
     }
 
     /**
+     * Hitung Nilai Evaluasi Kinerja Komprehensif Guru:
+     * - Kewajiban Jurnal Mengajar: 40%
+     * - Supervisi Guru: 20%
+     * - UKG / PKG Yayasan: 20%
+     * - Observasi Penjamin Mutu: 20%
+     */
+    public function calculateTeacherPerformanceEvaluation(int $teacherId, string $period = 'bulanan'): array
+    {
+        $jurnalScore = $this->calculateAttendancePercentage($teacherId, $period);
+
+        $supervisiScore = (float) (\App\Models\TeacherSupervision::withoutGlobalScopes()
+            ->where('teacher_id', $teacherId)
+            ->whereNotNull('score')
+            ->latest()
+            ->value('score') ?? 0);
+
+        $ukgScore = (float) (\App\Models\TeacherCompetencyTest::withoutGlobalScopes()
+            ->where('teacher_id', $teacherId)
+            ->whereNotNull('score')
+            ->latest()
+            ->value('score') ?? 0);
+
+        $observasiScore = (float) (\App\Models\TeacherObservation::withoutGlobalScopes()
+            ->where('teacher_id', $teacherId)
+            ->whereNotNull('score')
+            ->latest('tanggal_observasi')
+            ->value('score') ?? 0);
+
+        $finalScore = ($jurnalScore * 0.40) + ($supervisiScore * 0.20) + ($ukgScore * 0.20) + ($observasiScore * 0.20);
+
+        return [
+            'jurnal_score' => round($jurnalScore, 2),
+            'supervisi_score' => round($supervisiScore, 2),
+            'ukg_score' => round($ukgScore, 2),
+            'observasi_score' => round($observasiScore, 2),
+            'final_score' => round($finalScore, 2),
+            'predikat' => \App\Models\TeacherObservation::determinePredicate($finalScore),
+        ];
+    }
+
+    /**
      * Hitung persentase kehadiran guru (0 - 100%) berdasarkan Jadwal Pelajaran & Jurnal Mengajar.
      */
     public function calculateAttendancePercentage(int $teacherId, string $period = 'bulanan'): float

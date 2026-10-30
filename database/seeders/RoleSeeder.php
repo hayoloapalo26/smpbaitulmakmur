@@ -18,6 +18,8 @@ class RoleSeeder extends Seeder
             'wakil_ketua_yayasan',
             'sekretaris_yayasan',
             'tim_pengembang_penjamin_mutu_yayasan',
+            'pengembang_penjamin_mutu',
+            'tim_pengembang_yayasan',
             'pegawai_keuangan_yayasan',
             'pegawai_keuangan',
             'kepala_sekolah',

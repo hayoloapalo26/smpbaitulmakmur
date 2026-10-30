@@ -66,6 +66,8 @@ class User extends Authenticatable implements FilamentUser, HasAvatar
             'guru_quran_tahfidz_dasar' => '🌱 Guru Al-Qur\'an: Tahfidz Dasar (Juz 30)',
             'guru_quran_tahfidz_lanjutan' => '🌳 Guru Al-Qur\'an: Tahfidz Lanjutan (Juz 1-29)',
             'guru_piket' => '📌 Guru Piket',
+            'tim_pengembang_penjamin_mutu_yayasan' => '🔍 Tim Pengembang & Penjamin Mutu Yayasan',
+            'pengembang_penjamin_mutu' => '🔍 Pengembang & Penjamin Mutu',
             'tata_usaha' => '📁 Tata Usaha',
             'sarpras' => '🏢 Sarana Prasarana',
             'humas' => '🤝 Hubungan Masyarakat',
@@ -477,5 +479,15 @@ class User extends Authenticatable implements FilamentUser, HasAvatar
         }
 
         return $options;
+    }
+
+    public function teacherObservations(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(\App\Models\TeacherObservation::class, 'teacher_id');
+    }
+
+    public function conductedObservations(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(\App\Models\TeacherObservation::class, 'observer_id');
     }
 }

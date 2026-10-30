@@ -32,7 +32,11 @@ class RedirectPortalUsers
             }
 
             // Check roles
-            $isYayasan = $user->hasAnyRole(['yayasan', 'ketua_yayasan', 'wakil_ketua_yayasan', 'sekretaris_yayasan', 'tim_pengembang_penjamin_mutu_yayasan', 'pembina_yayasan', 'pegawai_keuangan_yayasan', 'pegawai_keuangan']);
+            $isYayasan = $user->hasAnyRole([
+                'yayasan', 'ketua_yayasan', 'wakil_ketua_yayasan', 'sekretaris_yayasan',
+                'tim_pengembang_penjamin_mutu_yayasan', 'pengembang_penjamin_mutu', 'tim_pengembang_yayasan',
+                'pembina_yayasan', 'pegawai_keuangan_yayasan', 'pegawai_keuangan'
+            ]);
             $isPortalOnly = $user->hasRole(['siswa', 'orang_tua']) && $user->roles->count() == 1;
             $isStaff = !$isYayasan && !$isPortalOnly; // Anyone else is considered staff
 
