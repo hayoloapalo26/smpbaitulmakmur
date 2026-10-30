@@ -61,6 +61,10 @@ class ListTeacherProfiles extends ListRecords
     protected function getHeaderActions(): array
     {
         return [
+            Actions\CreateAction::make()
+                ->label('Input Data Guru')
+                ->icon('heroicon-o-plus-circle')
+                ->color('primary'),
             Actions\Action::make('import_ptk')
                 ->label('Import Data PTK')
                 ->icon('heroicon-o-arrow-down-tray')

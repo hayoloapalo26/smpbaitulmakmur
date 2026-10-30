@@ -32,6 +32,21 @@ class TeacherProfileResource extends Resource
         return $user->hasAnyRole(['superadmin', 'kepala_sekolah', 'tata_usaha', 'waka_kurikulum']);
     }
 
+    public static function canCreate(): bool
+    {
+        return auth()->user()?->hasAnyRole(['tata_usaha', 'superadmin', 'kepala_sekolah']) ?? false;
+    }
+
+    public static function canEdit(\Illuminate\Database\Eloquent\Model $record): bool
+    {
+        return auth()->user()?->hasAnyRole(['tata_usaha', 'superadmin', 'kepala_sekolah']) ?? false;
+    }
+
+    public static function canDelete(\Illuminate\Database\Eloquent\Model $record): bool
+    {
+        return auth()->user()?->hasRole('superadmin') ?? false;
+    }
+
     public static function getEloquentQuery(): Builder
     {
         $query = parent::getEloquentQuery();
@@ -100,12 +115,25 @@ class TeacherProfileResource extends Resource
                             ->maxLength(255),
                         Forms\Components\DatePicker::make('tanggal_lahir')
                             ->label('Tanggal Lahir'),
+                        Forms\Components\TextInput::make('satminkal')
+                            ->label('Satminkal (Satuan Administrasi Pangkal)')
+                            ->placeholder('contoh: SMP Islam Baitul Makmur')
+                            ->maxLength(255),
                     ])->columns(2),
 
                 Forms\Components\Section::make('Pendidikan & Jabatan')
                     ->schema([
+                        Forms\Components\Select::make('institution_id')
+                            ->label('Unit / Lembaga')
+                            ->relationship('institution', 'name')
+                            ->default(fn () => auth()->user()?->institution_id ?? 2)
+                            ->searchable()
+                            ->preload()
+                            ->disabled(fn () => !auth()->user()?->hasRole('superadmin'))
+                            ->dehydrated(),
                         Forms\Components\TextInput::make('jenjang_pendidikan')
                             ->label('Jenjang Pendidikan')
+                            ->placeholder('contoh: S1 / S2')
                             ->maxLength(255),
                         Forms\Components\TextInput::make('jurusan_pendidikan')
                             ->label('Jurusan Pendidikan')
@@ -114,9 +142,10 @@ class TeacherProfileResource extends Resource
                             ->label('Universitas')
                             ->maxLength(255),
                         Forms\Components\DatePicker::make('tanggal_masuk')
-                            ->label('Tanggal Masuk'),
+                            ->label('Tanggal Masuk / TMT'),
                         Forms\Components\TextInput::make('jabatan')
                             ->label('Jabatan')
+                            ->placeholder('contoh: Guru Mapel / Guru Al-Qur\'an')
                             ->maxLength(255),
                         Forms\Components\Select::make('status_kepegawaian')
                             ->label('Status')

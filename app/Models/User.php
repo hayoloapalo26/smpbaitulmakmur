@@ -15,7 +15,12 @@ use Filament\Models\Contracts\HasAvatar;
 use Filament\Panel;
 use Illuminate\Support\Facades\Storage;
 
-#[Fillable(['name', 'email', 'password', 'avatar_url', 'username', 'is_active', 'institution_id', 'has_account', 'nuptk', 'no_induk_yayasan', 'gender', 'tempat_lahir', 'tanggal_lahir', 'alamat', 'no_hp'])]
+#[Fillable([
+    'name', 'email', 'password', 'avatar_url', 'username', 'is_active', 'institution_id', 'has_account',
+    'nuptk', 'no_induk_yayasan', 'gender', 'tempat_lahir', 'tanggal_lahir', 'alamat', 'no_hp',
+    'satminkal', 'jenjang_pendidikan', 'jurusan_pendidikan', 'universitas', 'tanggal_masuk',
+    'jabatan', 'status_kepegawaian', 'no_sk_gty', 'no_ukg'
+])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable implements FilamentUser, HasAvatar
 {

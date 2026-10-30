@@ -46,5 +46,19 @@ class CreateTeacherProfile extends CreateRecord
         if ($this->record->roles()->count() === 0) {
             $this->record->assignRole('guru_mapel');
         }
+
+        if ($this->record->institution_id && \Illuminate\Support\Facades\Schema::hasTable('institution_user')) {
+            try {
+                \Illuminate\Support\Facades\DB::table('institution_user')->updateOrInsert(
+                    ['user_id' => $this->record->id, 'institution_id' => $this->record->institution_id],
+                    ['created_at' => now(), 'updated_at' => now()]
+                );
+            } catch (\Throwable $e) {}
+        }
+    }
+
+    protected function getRedirectUrl(): string
+    {
+        return static::getResource()::getUrl('index');
     }
 }

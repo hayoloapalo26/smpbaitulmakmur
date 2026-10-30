@@ -7,6 +7,8 @@ class TeacherProfile extends User
     use \App\Models\Traits\BelongsToInstitution;
 
     protected $table = 'users';
+    protected $guarded = ['id'];
+    protected $guard_name = 'web';
 
     public function getMorphClass()
     {
