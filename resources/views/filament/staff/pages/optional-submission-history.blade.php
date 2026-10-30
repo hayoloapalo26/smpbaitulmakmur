@@ -40,7 +40,7 @@
     </div>
     @empty
     <div class="p-4 text-center text-gray-500">
-        Anda belum pernah mengerjakan tugas ini.
+        Anda belum pernah melaporkan tugas insidentil ini.
     </div>
     @endforelse
 </div>

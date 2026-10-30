@@ -23,7 +23,17 @@ class MandatoryTaskResource extends Resource
     protected static ?string $modelLabel = 'To-Do List Harian (Wajib)';
     protected static ?string $pluralModelLabel = 'To-Do List Harian (Wajib)';
     protected static ?int $navigationSort = 1;
-    protected static bool $shouldRegisterNavigation = true;
+    protected static bool $shouldRegisterNavigation = false;
+
+    public static function canAccess(): bool
+    {
+        return false;
+    }
+
+    public static function canViewAny(): bool
+    {
+        return false;
+    }
 
     public static function getRoleOptions(): array
     {

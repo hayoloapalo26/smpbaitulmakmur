@@ -142,7 +142,7 @@ class TeacherPerformanceDashboard extends Page
             $tasks->push([
                 'id' => 'o_' . $sub->id,
                 'tanggal' => $sub->submitted_at ? $sub->submitted_at->format('Y-m-d') : now()->format('Y-m-d'),
-                'tugas' => '[Opsional] ' . ($sub->optionalTask->title ?? 'Tugas Opsional'),
+                'tugas' => '[Tugas Insidentil] ' . ($sub->optionalTask->title ?? 'Tugas Insidentil'),
                 'is_done' => true,
                 'completed_at' => $sub->submitted_at ? $sub->submitted_at->format('Y-m-d H:i:s') : null,
             ]);

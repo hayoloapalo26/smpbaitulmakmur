@@ -7,28 +7,31 @@ use App\Models\User;
 
 class MandatoryTaskPolicy
 {
+    /**
+     * Fitur To-Do List Wajib telah dinonaktifkan untuk lembaga sesuai arahan kebijakan.
+     */
     public function viewAny(User $user): bool
     {
-        return $user->hasAnyRole(['kepala_sekolah', 'superadmin', 'yayasan']);
+        return false;
     }
 
     public function view(User $user, MandatoryTask $model): bool
     {
-        return $this->viewAny($user);
+        return false;
     }
 
     public function create(User $user): bool
     {
-        return $user->hasRole(['kepala_sekolah', 'superadmin']);
+        return false;
     }
 
     public function update(User $user, MandatoryTask $model): bool
     {
-        return $this->create($user);
+        return false;
     }
 
     public function delete(User $user, MandatoryTask $model): bool
     {
-        return $this->create($user);
+        return false;
     }
 }

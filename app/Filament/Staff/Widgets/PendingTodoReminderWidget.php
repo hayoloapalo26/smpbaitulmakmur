@@ -2,9 +2,9 @@
 
 namespace App\Filament\Staff\Widgets;
 
-use App\Models\MandatoryTask;
+use App\Filament\Staff\Pages\OptionalTodoList;
 use App\Models\OptionalTask;
-use Carbon\Carbon;
+use App\Models\OptionalTaskSubmission;
 use Filament\Widgets\Widget;
 use Illuminate\Support\Facades\Auth;
 
@@ -19,6 +19,11 @@ class PendingTodoReminderWidget extends Widget
 
     public static function canView(): bool
     {
+        $user = Auth::user();
+        if (!$user || $user->hasAnyRole(['kepala_sekolah', 'superadmin'])) {
+            return false;
+        }
+
         $widget = new static();
         return $widget->getPendingTasksCount() > 0;
     }
@@ -33,36 +38,34 @@ class PendingTodoReminderWidget extends Widget
         if (!$user) {
             return self::$cachedCount = 0;
         }
-        
-        $userRoles = $user->roles->pluck('name')->toArray();
-        if (empty($userRoles)) {
-            return self::$cachedCount = 0;
-        }
 
-        $today = Carbon::today();
         $institutionId = $user->institution_id;
 
-        // 1. Mandatory Tasks Query (Wajib Harian)
-        $pendingMandatory = MandatoryTask::where('is_active', true)
-            ->when($institutionId, fn ($q) => $q->where('institution_id', $institutionId))
-            ->where(function ($query) use ($userRoles) {
-                foreach ($userRoles as $role) {
-                    $query->orWhereJsonContains('target_roles', $role);
-                }
-            })
-            ->whereDoesntHave('submissions', function ($query) use ($user, $today) {
-                $query->where('user_id', $user->id)
-                      ->whereDate('submitted_at', $today);
-            })
-            ->count();
+        // Query seluruh tugas insidentil yang sedang aktif
+        $candidateTasks = OptionalTask::withoutGlobalScopes()
+            ->where('is_active', true)
+            ->when($institutionId && $institutionId != 1, fn ($q) => $q->where('institution_id', $institutionId))
+            ->get();
 
-        self::$cachedCount = $pendingMandatory;
-        
+        $pendingCount = 0;
+        foreach ($candidateTasks as $task) {
+            if ($task->isAssignedToUser($user)) {
+                $hasSubmitted = OptionalTaskSubmission::where('optional_task_id', $task->id)
+                    ->where('user_id', $user->id)
+                    ->exists();
+
+                if (!$hasSubmitted) {
+                    $pendingCount++;
+                }
+            }
+        }
+
+        self::$cachedCount = $pendingCount;
         return self::$cachedCount;
     }
 
     public function getTodoListUrl(): string
     {
-        return \App\Filament\Staff\Pages\DailyTodoList::getUrl();
+        return OptionalTodoList::getUrl();
     }
 }

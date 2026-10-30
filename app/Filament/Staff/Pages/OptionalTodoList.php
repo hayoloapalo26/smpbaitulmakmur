@@ -22,11 +22,11 @@ class OptionalTodoList extends Page implements HasForms, HasTable
 
     protected static ?string $navigationIcon = 'heroicon-o-sparkles';
     protected static ?string $navigationGroup = 'Tugas & Kewajiban';
-    protected static ?string $navigationLabel = 'To-Do List Opsional';
-    protected static ?string $title = 'To-Do List Opsional';
+    protected static ?string $navigationLabel = 'Tugas Insidentil';
+    protected static ?string $title = 'Tugas Insidentil';
 
     protected static string $view = 'filament.staff.pages.my-todo-list';
-    protected static ?int $navigationSort = 2;
+    protected static ?int $navigationSort = 1;
 
     public static function shouldRegisterNavigation(): bool
     {
@@ -34,8 +34,13 @@ class OptionalTodoList extends Page implements HasForms, HasTable
         if (!$user) {
             return false;
         }
-        // Kepala Sekolah & Superadmin menggunakan menu To-Do List Opsional versi Kelola/Penugasan
+        // Kepala Sekolah & Superadmin mengelola & menginput tugas insidentil lewat menu Kelola Tugas Insidentil
         return !$user->hasAnyRole(['kepala_sekolah', 'superadmin']);
+    }
+
+    public static function canAccess(): bool
+    {
+        return Auth::check();
     }
 
     protected function getHeaderActions(): array
@@ -47,14 +52,14 @@ class OptionalTodoList extends Page implements HasForms, HasTable
 
         return [
             Actions\Action::make('manage_optional_tasks')
-                ->label('Kelola & Rakit Tugas Opsional')
+                ->label('Kelola & Input Tugas Insidentil')
                 ->icon('heroicon-o-cog-6-tooth')
-                ->color('gray')
+                ->color('primary')
                 ->url(OptionalTaskResource::getUrl('index')),
             Actions\Action::make('create_optional_task')
-                ->label('Buat Tugas Opsional Baru')
+                ->label('Buat Tugas Insidentil Baru')
                 ->icon('heroicon-o-plus-circle')
-                ->color('primary')
+                ->color('success')
                 ->url(OptionalTaskResource::getUrl('create')),
         ];
     }
@@ -81,11 +86,11 @@ class OptionalTodoList extends Page implements HasForms, HasTable
                     ->required($isRequired);
             } elseif (in_array($type, ['file', 'file_upload'])) {
                 $schema[] = \Filament\Forms\Components\TextInput::make($name)
-                    ->label($name . ' (Link Google Drive)')
+                    ->label($name . ' (Link Google Drive Bukti)')
                     ->placeholder('https://drive.google.com/...')
                     ->url()
                     ->prefixIcon('heroicon-o-link')
-                    ->helperText('Tautkan link Google Drive dokumen bukti tugas untuk menghemat kapasitas hosting.')
+                    ->helperText('Tautkan link Google Drive dokumen atau foto bukti pelaksanaan tugas insidentil.')
                     ->maxLength(2048)
                     ->required($isRequired);
             } else {
@@ -98,12 +103,12 @@ class OptionalTodoList extends Page implements HasForms, HasTable
         if (empty($schema)) {
             $schema = [
                 \Filament\Forms\Components\Checkbox::make('Konfirmasi Pelaksanaan')
-                    ->label('Saya telah melaksanakan kegiatan/tugas opsional ini')
+                    ->label('Saya telah melaksanakan tugas insidentil ini dengan baik')
                     ->default(true)
                     ->required(),
                 \Filament\Forms\Components\Textarea::make('Uraian Kegiatan & Hasil')
-                    ->label('Uraian Kegiatan & Hasil Pelaksanaan')
-                    ->placeholder('Tuliskan deskripsi singkat pelaksanaan tugas opsional yang Anda kerjakan...')
+                    ->label('Uraian Pelaksanaan & Hasil Kegiatan')
+                    ->placeholder('Tuliskan rincian hasil pelaksanaan tugas insidentil yang telah diselesaikan...')
                     ->rows(3)
                     ->required(),
             ];
@@ -115,14 +120,6 @@ class OptionalTodoList extends Page implements HasForms, HasTable
     public function table(Table $table): Table
     {
         $user = Auth::user();
-        $roles = $user->roles->pluck('name')->toArray();
-        if (in_array('wali_kelas', $roles) && !in_array('guru_kelas', $roles)) {
-            $roles[] = 'guru_kelas';
-        }
-        if (in_array('guru_kelas', $roles) && !in_array('wali_kelas', $roles)) {
-            $roles[] = 'wali_kelas';
-        }
-
         $institutionId = $user->institution_id;
 
         $candidateTasks = OptionalTask::withoutGlobalScopes()
@@ -131,14 +128,7 @@ class OptionalTodoList extends Page implements HasForms, HasTable
             ->get();
 
         $matchingIds = $candidateTasks
-            ->filter(function (OptionalTask $task) use ($roles) {
-                if (in_array('superadmin', $roles) || in_array('kepala_sekolah', $roles)) {
-                    return true;
-                }
-                $targetRoles = is_array($task->target_roles) ? $task->target_roles : [];
-                return !empty(array_intersect($targetRoles, $roles));
-            })
-            ->unique('title')
+            ->filter(fn (OptionalTask $task) => $task->isAssignedToUser($user))
             ->pluck('id')
             ->toArray();
 
@@ -150,48 +140,66 @@ class OptionalTodoList extends Page implements HasForms, HasTable
                 Tables\Columns\TextColumn::make('no')
                     ->label('No')
                     ->rowIndex(),
+
                 Tables\Columns\TextColumn::make('title')
-                    ->label('Tugas / Kegiatan Opsional')
+                    ->label('Tugas Insidentil')
                     ->weight('bold')
-                    ->description(fn (OptionalTask $record): string => $record->description ?? '')
+                    ->description(fn (OptionalTask $record): string => $record->description ? "Arahan: {$record->description}" : '')
                     ->wrap()
                     ->searchable(),
-                Tables\Columns\TextColumn::make('peran_tupoksi')
-                    ->label('Tupoksi Role')
-                    ->getStateUsing(function (OptionalTask $record) use ($roles) {
-                        $targetRoles = is_array($record->target_roles) ? $record->target_roles : [];
-                        $matched = array_intersect($targetRoles, $roles);
-                        $displayRoles = !empty($matched) ? $matched : $targetRoles;
+
+                Tables\Columns\TextColumn::make('sasaran')
+                    ->label('Sasaran Tugas')
+                    ->getStateUsing(function (OptionalTask $record) use ($user) {
+                        if ($record->target_type === 'all') {
+                            return '🌐 Seluruh Lembaga';
+                        }
+                        if ($record->target_type === 'users') {
+                            return '👤 Ditugaskan Khusus Anda';
+                        }
+                        $roles = is_array($record->target_roles) ? $record->target_roles : [];
+                        $userRoles = $user->roles->pluck('name')->toArray();
+                        $matched = array_intersect($roles, $userRoles);
+                        $displayRoles = !empty($matched) ? $matched : $roles;
 
                         return collect($displayRoles)
-                            ->map(fn ($r) => DailyTodoList::formatRoleLabel($r))
-                            ->unique()
-                            ->values()
-                            ->toArray();
+                            ->map(fn ($r) => OptionalTaskResource::getRoleLabel($r))
+                            ->implode(', ');
                     })
                     ->badge()
-                    ->color('info'),
+                    ->color(fn (OptionalTask $record) => match ($record->target_type) {
+                        'all'   => 'purple',
+                        'users' => 'warning',
+                        default => 'info',
+                    }),
+
+                Tables\Columns\TextColumn::make('due_date')
+                    ->label('Tenggat Waktu')
+                    ->date('d M Y')
+                    ->placeholder('-'),
+
                 Tables\Columns\TextColumn::make('reward_points')
                     ->label('Poin Apresiasi')
                     ->badge()
                     ->color('success')
                     ->formatStateUsing(fn ($state) => $state ? "+{$state} Poin" : '+5 Poin'),
-                Tables\Columns\TextColumn::make('status_hari_ini')
-                    ->label('Status Hari Ini')
+
+                Tables\Columns\TextColumn::make('status_pengerjaan')
+                    ->label('Status Laporan')
                     ->getStateUsing(function (OptionalTask $record) use ($user) {
-                        $doneToday = OptionalTaskSubmission::where('optional_task_id', $record->id)
+                        $done = OptionalTaskSubmission::where('optional_task_id', $record->id)
                             ->where('user_id', $user->id)
-                            ->whereDate('submitted_at', today())
                             ->exists();
-                        return $doneToday ? 'Sudah Dikerjakan Hari Ini' : 'Tersedia';
+                        return $done ? 'Sudah Dilaporkan' : 'Belum Dilaporkan';
                     })
                     ->badge()
                     ->color(fn (string $state): string => match ($state) {
-                        'Sudah Dikerjakan Hari Ini' => 'success',
-                        default => 'gray',
+                        'Sudah Dilaporkan' => 'success',
+                        default            => 'warning',
                     }),
+
                 Tables\Columns\TextColumn::make('submissions_count')
-                    ->label('Total Dikerjakan')
+                    ->label('Total Dilaporkan')
                     ->getStateUsing(function (OptionalTask $record) use ($user) {
                         $count = OptionalTaskSubmission::where('optional_task_id', $record->id)
                             ->where('user_id', $user->id)
@@ -199,27 +207,28 @@ class OptionalTodoList extends Page implements HasForms, HasTable
                         return $count . ' Kali';
                     })
                     ->badge()
-                    ->color('warning'),
+                    ->color('gray'),
             ])
             ->actions([
                 Tables\Actions\Action::make('fill_form')
-                    ->label('Kerjakan Tugas')
-                    ->icon('heroicon-o-pencil-square')
+                    ->label('Laporkan Tugas')
+                    ->icon('heroicon-o-paper-airplane')
                     ->color('primary')
                     ->button()
-                    ->modalHeading(fn (OptionalTask $record) => 'Laporan Tugas Opsional: ' . $record->title)
-                    ->modalDescription(fn (OptionalTask $record) => $record->description ?? 'Isi detail pelaksanaan tugas opsional untuk mendapatkan poin apresiasi kinerja.')
+                    ->modalHeading(fn (OptionalTask $record) => 'Laporan Pelaksanaan Tugas Insidentil: ' . $record->title)
+                    ->modalDescription(fn (OptionalTask $record) => $record->description ?? 'Isi detail pelaksanaan tugas insidentil untuk dilaporkan kepada Kepala Sekolah.')
                     ->form(fn (OptionalTask $record) => $this->buildTaskFormSchema($record))
                     ->action(function (array $data, OptionalTask $record) use ($user) {
                         OptionalTaskSubmission::create([
                             'optional_task_id' => $record->id,
-                            'user_id' => $user->id,
-                            'answers' => $data,
-                            'submitted_at' => now(),
+                            'user_id'          => $user->id,
+                            'answers'          => $data,
+                            'submitted_at'     => now(),
                         ]);
+
                         \Filament\Notifications\Notification::make()
-                            ->title('Laporan Tugas Opsional Berhasil Dikirim')
-                            ->body('Apresiasi +' . ($record->reward_points ?? 5) . ' poin telah ditambahkan ke rekam kinerja Anda.')
+                            ->title('Laporan Tugas Insidentil Berhasil Dikirim!')
+                            ->body('Alhamdulillah, laporan tugas insidentil Anda telah tersimpan dan poin apresiasi (+' . ($record->reward_points ?? 5) . ' poin) telah ditambahkan.')
                             ->success()
                             ->send();
                     }),
@@ -228,7 +237,7 @@ class OptionalTodoList extends Page implements HasForms, HasTable
                     ->label('Riwayat')
                     ->icon('heroicon-o-clock')
                     ->color('gray')
-                    ->modalHeading('Riwayat Pengerjaan Tugas Opsional')
+                    ->modalHeading('Riwayat Laporan Tugas Insidentil')
                     ->modalContent(function (OptionalTask $record) use ($user) {
                         $submissions = OptionalTaskSubmission::where('optional_task_id', $record->id)
                             ->where('user_id', $user->id)
@@ -236,14 +245,14 @@ class OptionalTodoList extends Page implements HasForms, HasTable
                             ->get();
 
                         return view('filament.staff.pages.optional-submission-history', [
-                            'record' => $record,
+                            'record'      => $record,
                             'submissions' => $submissions,
                         ]);
                     })
                     ->modalSubmitAction(false)
                     ->modalCancelActionLabel('Tutup'),
             ])
-            ->emptyStateHeading('Tidak Ada Tugas Opsional')
-            ->emptyStateDescription('Belum ada daftar tugas opsional untuk peran Anda.');
+            ->emptyStateHeading('Belum Ada Tugas Insidentil')
+            ->emptyStateDescription('Saat ini belum ada tugas insidentil dari Kepala Sekolah yang ditujukan untuk Anda.');
     }
 }

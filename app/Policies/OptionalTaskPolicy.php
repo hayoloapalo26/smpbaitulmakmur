@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Policies;
 
 use App\Models\OptionalTask;
@@ -10,18 +11,22 @@ class OptionalTaskPolicy
     {
         return $user->hasAnyRole(['kepala_sekolah', 'superadmin', 'yayasan']);
     }
+
     public function view(User $user, OptionalTask $model): bool
     {
         return $this->viewAny($user);
     }
+
     public function create(User $user): bool
     {
-        return $user->hasRole(['kepala_sekolah', 'superadmin']);
+        return $user->hasAnyRole(['kepala_sekolah', 'superadmin']);
     }
+
     public function update(User $user, OptionalTask $model): bool
     {
         return $this->create($user);
     }
+
     public function delete(User $user, OptionalTask $model): bool
     {
         return $this->create($user);

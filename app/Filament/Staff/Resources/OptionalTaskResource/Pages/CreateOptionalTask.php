@@ -9,11 +9,14 @@ class CreateOptionalTask extends CreateRecord
 {
     protected static string $resource = OptionalTaskResource::class;
 
+    protected static ?string $title = 'Buat Tugas Insidentil Baru';
+
     protected function mutateFormDataBeforeCreate(array $data): array
     {
         if (empty($data['institution_id'])) {
             $data['institution_id'] = auth()->user()->institution_id;
         }
+        $data['created_by'] = auth()->id();
         return $data;
     }
 

@@ -30,12 +30,12 @@ class DailyTodoList extends Page implements HasForms, HasTable
 
     public static function shouldRegisterNavigation(): bool
     {
-        $user = Auth::user();
-        if (!$user) {
-            return false;
-        }
-        // Kepala Sekolah & Superadmin menggunakan menu To-Do List Harian (Wajib) versi Kelola/Penugasan
-        return !$user->hasAnyRole(['kepala_sekolah', 'superadmin']);
+        return false;
+    }
+
+    public static function canAccess(): bool
+    {
+        return false;
     }
 
     public static function formatRoleLabel(string $role): string

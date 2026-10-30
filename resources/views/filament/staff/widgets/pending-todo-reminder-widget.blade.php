@@ -17,10 +17,10 @@
                 </div>
                 <div>
                     <h3 class="text-base sm:text-lg font-medium">
-                        Halo, {{ explode(' ', auth()->user()->name)[0] }}! Anda memiliki tugas tertunda.
+                        Halo, {{ explode(' ', auth()->user()->name)[0] }}! Anda memiliki tugas insidentil.
                     </h3>
                     <p class="text-sm sm:text-base mt-0.5 opacity-90">
-                        Ada <span class="font-black text-amber-700 dark:text-amber-300 text-lg mx-1">{{ $pendingCount }}</span> tugas yang menunggu untuk diselesaikan hari ini.
+                        Ada <span class="font-black text-amber-700 dark:text-amber-300 text-lg mx-1">{{ $pendingCount }}</span> tugas insidentil yang menunggu untuk diselesaikan.
                     </p>
                 </div>
             </div>
@@ -29,7 +29,7 @@
             <div class="w-full sm:w-auto flex-shrink-0">
                 <a href="{{ $todoUrl }}" 
                    class="inline-flex items-center justify-center w-full sm:w-auto px-5 py-2.5 bg-amber-500 hover:bg-amber-600 dark:bg-amber-600 dark:hover:bg-amber-500 text-white text-sm font-bold rounded-lg shadow transition-colors duration-200 focus:ring-2 focus:ring-offset-2 focus:ring-amber-500 focus:outline-none">
-                    Lihat & Kerjakan
+                    Lihat & Kerjakan Tugas
                     <svg class="w-4 h-4 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path>
                     </svg>
