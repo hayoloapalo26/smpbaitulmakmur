@@ -634,43 +634,11 @@ class TeachingJournalResource extends Resource
                         }
                     })
                     ->saveRelationshipsUsing(function (TeachingJournal $record, $state) {
-                        $charEntries = is_array($state) ? $state : ($record->catatan_karakter ?? []);
-
-                        // Hapus log karakter lama dari jurnal ini agar sinkron dan tidak dobel saat diedit
-                        $prefix = "[Jurnal #{$record->id}]";
-                        \App\Models\CharacterScoreLog::withoutGlobalScopes()
-                            ->where('description', 'like', "{$prefix}%")
-                            ->get()
-                            ->each(fn ($log) => $log->delete());
-
-                        if (is_array($charEntries)) {
-                            foreach ($charEntries as $item) {
-                                $studentId = $item['student_id'] ?? null;
-                                $catatan = trim($item['catatan'] ?? '');
-                                $kategori = trim($item['kategori'] ?? 'Karakter Mapel');
-                                $type = $item['type'] ?? 'baik';
-
-                                if ($studentId && ($catatan !== '' || $kategori !== '')) {
-                                    $student = \App\Models\Student::find($studentId);
-                                    if ($student) {
-                                        $isBaik = ($type === 'baik');
-                                        $subjectName = $record->subject?->name ?? 'Mapel';
-                                        $descriptionText = "{$prefix} [{$subjectName}] " . ($catatan ?: $kategori);
-
-                                        \App\Models\CharacterScoreLog::create([
-                                            'student_id'   => $student->id,
-                                            'source'       => 'guru_kelas',
-                                            'category'     => $kategori ?: ($isBaik ? 'Karakter Baik' : 'Karakter Kurang Baik'),
-                                            'description'  => $descriptionText,
-                                            'point_change' => $isBaik ? 1 : -1,
-                                            'tanggal'      => $record->tanggal,
-                                            'submitted_by' => Auth::id(),
-                                            'institution_id' => $student->institution_id,
-                                        ]);
-                                    }
-                                }
-                            }
+                        if (is_array($state)) {
+                            $record->catatan_karakter = $state;
+                            $record->saveQuietly();
                         }
+                        $record->syncCharacterScoreLogs();
                     }),
 
                 Forms\Components\ViewField::make('student_attendances')

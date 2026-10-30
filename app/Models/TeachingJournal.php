@@ -135,6 +135,9 @@ class TeachingJournal extends Model
             } else {
                 TeacherAttendance::create($payload);
             }
+
+            // Otomatis sinkronkan catatan karakter siswa dari Jurnal Mengajar ke CharacterScoreLog & Rekapitulasi Skor Karakter
+            $journal->syncCharacterScoreLogs();
         });
 
         static::deleted(function (TeachingJournal $journal) {
@@ -147,6 +150,52 @@ class TeachingJournal extends Model
                 ->get()
                 ->each(fn ($log) => $log->delete());
         });
+    }
+
+    /**
+     * Sinkronkan catatan karakter siswa (baik / kurang baik) ke CharacterScoreLog & Rekapitulasi Skor Karakter Siswa.
+     */
+    public function syncCharacterScoreLogs(): void
+    {
+        $charEntries = $this->catatan_karakter;
+        if (!is_array($charEntries)) {
+            return;
+        }
+
+        $prefix = "[Jurnal #{$this->id}]";
+
+        // Hapus log lama dari jurnal ini agar sinkron dan tidak duplikasi saat diedit
+        CharacterScoreLog::withoutGlobalScopes()
+            ->where('description', 'like', "{$prefix}%")
+            ->get()
+            ->each(fn ($log) => $log->delete());
+
+        foreach ($charEntries as $item) {
+            $studentId = $item['student_id'] ?? null;
+            $catatan = trim($item['catatan'] ?? '');
+            $kategori = trim($item['kategori'] ?? 'Karakter Mapel');
+            $type = $item['type'] ?? 'baik';
+
+            if ($studentId && ($catatan !== '' || $kategori !== '')) {
+                $student = Student::withoutGlobalScopes()->find($studentId);
+                if ($student) {
+                    $isBaik = in_array(strtolower($type), ['baik', 'positif', '+']);
+                    $subjectName = $this->subject?->name ?? 'Mapel';
+                    $descriptionText = "{$prefix} [{$subjectName}] " . ($catatan ?: $kategori);
+
+                    CharacterScoreLog::create([
+                        'student_id'     => $student->id,
+                        'source'         => 'guru_mapel',
+                        'category'       => $kategori ?: ($isBaik ? 'Karakter Baik' : 'Karakter Kurang Baik'),
+                        'description'    => $descriptionText,
+                        'point_change'   => $isBaik ? 1 : -1,
+                        'tanggal'        => $this->tanggal,
+                        'submitted_by'   => $this->teacher_id ?: \Illuminate\Support\Facades\Auth::id(),
+                        'institution_id' => $student->institution_id ?: ($this->institution_id ?: 2),
+                    ]);
+                }
+            }
+        }
     }
 
     public function teacher()
