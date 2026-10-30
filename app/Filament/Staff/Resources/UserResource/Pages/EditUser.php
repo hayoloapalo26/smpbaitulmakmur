@@ -22,6 +22,7 @@ class EditUser extends EditRecord
 
     protected function mutateFormDataBeforeSave(array $data): array
     {
+        $data['has_account'] = true;
         $authUser = auth()->user();
         
         // Proteksi Penetapan Role

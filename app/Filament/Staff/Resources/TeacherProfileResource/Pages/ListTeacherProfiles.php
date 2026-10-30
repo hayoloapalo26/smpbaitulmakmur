@@ -25,12 +25,35 @@ class ListTeacherProfiles extends ListRecords
         return [
             'all' => Tab::make('Semua Guru / Pegawai'),
             'belum_dibuat' => Tab::make('Belum Memiliki Akun')
-                ->modifyQueryUsing(fn (Builder $query) => $query->where('has_account', false))
-                ->badge(fn () => TeacherProfile::where('has_account', false)->count())
+                ->modifyQueryUsing(fn (Builder $query) => $query->where(function ($q) {
+                    $q->where('has_account', false)
+                      ->where(function ($sq) {
+                          $sq->whereNull('email')
+                             ->orWhere('email', 'like', '%@placeholder.local%');
+                      });
+                }))
+                ->badge(fn () => TeacherProfile::where('has_account', false)->where(function ($sq) {
+                    $sq->whereNull('email')
+                       ->orWhere('email', 'like', '%@placeholder.local%');
+                })->count())
                 ->badgeColor('danger'),
             'sudah_dibuat' => Tab::make('Sudah Memiliki Akun')
-                ->modifyQueryUsing(fn (Builder $query) => $query->where('has_account', true))
-                ->badge(fn () => TeacherProfile::where('has_account', true)->count())
+                ->modifyQueryUsing(fn (Builder $query) => $query->where(function ($q) {
+                    $q->where('has_account', true)
+                      ->orWhere(function ($sq) {
+                          $sq->whereNotNull('email')
+                             ->where('email', 'not like', '%@placeholder.local%')
+                             ->whereNotNull('username');
+                      });
+                }))
+                ->badge(fn () => TeacherProfile::where(function ($q) {
+                    $q->where('has_account', true)
+                      ->orWhere(function ($sq) {
+                          $sq->whereNotNull('email')
+                             ->where('email', 'not like', '%@placeholder.local%')
+                             ->whereNotNull('username');
+                      });
+                })->count())
                 ->badgeColor('success'),
         ];
     }

@@ -14,6 +14,7 @@ class CreateUser extends CreateRecord
 
     protected function mutateFormDataBeforeCreate(array $data): array
     {
+        $data['has_account'] = true;
         $authUser = auth()->user();
         
         // Proteksi Penetapan Role

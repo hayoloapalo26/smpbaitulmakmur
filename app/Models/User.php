@@ -89,6 +89,28 @@ class User extends Authenticatable implements FilamentUser, HasAvatar
         return true;
     }
 
+    protected static function booted()
+    {
+        static::saving(function (User $user) {
+            if (!empty($user->email) && !str_contains($user->email, '@placeholder.local') && !empty($user->username)) {
+                $user->has_account = true;
+            }
+        });
+    }
+
+    public function getHasAccountAttribute($value): bool
+    {
+        if ($value) {
+            return true;
+        }
+
+        if (!empty($this->email) && !str_contains($this->email, '@placeholder.local') && !empty($this->username)) {
+            return true;
+        }
+
+        return false;
+    }
+
     /**
      * Get the attributes that should be cast.
      *

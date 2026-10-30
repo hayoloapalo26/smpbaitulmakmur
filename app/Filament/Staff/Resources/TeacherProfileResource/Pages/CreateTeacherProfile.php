@@ -5,6 +5,7 @@ namespace App\Filament\Staff\Resources\TeacherProfileResource\Pages;
 use App\Filament\Staff\Resources\TeacherProfileResource;
 use Filament\Actions;
 use Filament\Resources\Pages\CreateRecord;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 
 class CreateTeacherProfile extends CreateRecord
@@ -13,25 +14,37 @@ class CreateTeacherProfile extends CreateRecord
 
     protected function mutateFormDataBeforeCreate(array $data): array
     {
-        $slugName = Str::slug($data['name'] ?? 'guru');
-        $random = rand(1000, 9999);
-        $data['username'] = $data['username'] ?? ($slugName . $random);
-        $data['email'] = $data['email'] ?? ($slugName . $random . '@placeholder.local');
-        $data['password'] = bcrypt(\Illuminate\Support\Str::random(16));
-        $data['has_account'] = false; // Menunggu pembuatan akun oleh Superadmin
-        $data['is_active'] = false;
-        
+        $hasRealEmail = !empty($data['email']) && !str_contains($data['email'], '@placeholder.local');
+        $hasRealUsername = !empty($data['username']) && !str_starts_with($data['username'], 'placeholder');
+
+        if ($hasRealEmail || $hasRealUsername) {
+            $slugName = Str::slug($data['name'] ?? 'guru');
+            $data['username'] = $hasRealUsername ? $data['username'] : ($slugName . rand(100, 999));
+            $data['email'] = $hasRealEmail ? $data['email'] : ($slugName . rand(100, 999) . '@guru.local');
+            $data['password'] = !empty($data['password']) ? Hash::make($data['password']) : Hash::make('guru123');
+            $data['has_account'] = true;
+            $data['is_active'] = $data['is_active'] ?? true;
+        } else {
+            $slugName = Str::slug($data['name'] ?? 'guru');
+            $random = rand(1000, 9999);
+            $data['username'] = $slugName . $random;
+            $data['email'] = $slugName . $random . '@placeholder.local';
+            $data['password'] = Hash::make(Str::random(16));
+            $data['has_account'] = false;
+            $data['is_active'] = false;
+        }
+
         if (empty($data['institution_id']) && auth()->user()->institution_id) {
             $data['institution_id'] = auth()->user()->institution_id;
         }
-        
+
         return $data;
     }
 
     protected function afterCreate(): void
     {
-        // Automatically assign 'guru_mapel' or 'karyawan' role by default so they can login.
-        // Superadmin can adjust this later.
-        $this->record->assignRole('guru_mapel');
+        if ($this->record->roles()->count() === 0) {
+            $this->record->assignRole('guru_mapel');
+        }
     }
 }

@@ -118,6 +118,35 @@ class TeacherProfileResource extends Resource
                             ->label('Alamat Lengkap')
                             ->columnSpanFull(),
                     ])->columns(2),
+
+                Forms\Components\Section::make('🔐 Akun Login Guru (Kredensial)')
+                    ->description('Data akun login untuk guru/pegawai ini agar dapat mengakses sistem.')
+                    ->schema([
+                        Forms\Components\TextInput::make('email')
+                            ->label('Email Login')
+                            ->email()
+                            ->placeholder('contoh: ahmad@sekolah.sch.id')
+                            ->unique('users', 'email', ignoreRecord: true),
+                        Forms\Components\TextInput::make('username')
+                            ->label('Username Login')
+                            ->placeholder('contoh: ahmad_fauzi')
+                            ->unique('users', 'username', ignoreRecord: true),
+                        Forms\Components\TextInput::make('password')
+                            ->label('Password (Isi jika ingin mengatur / mengubah password)')
+                            ->password()
+                            ->revealable()
+                            ->placeholder('Default: guru123')
+                            ->dehydrated(fn ($state) => filled($state))
+                            ->nullable(),
+                        Forms\Components\Select::make('roles')
+                            ->label('Hak Akses / Role Guru')
+                            ->multiple()
+                            ->relationship('roles', 'name')
+                            ->preload(),
+                        Forms\Components\Toggle::make('is_active')
+                            ->label('Akun Aktif')
+                            ->default(true),
+                    ])->columns(2),
             ]);
     }
 
@@ -154,14 +183,14 @@ class TeacherProfileResource extends Resource
                     ->color(fn ($record): string => $record->has_account ? 'success' : 'danger')
                     ->icon(fn ($record): string => $record->has_account ? 'heroicon-m-check-circle' : 'heroicon-m-x-circle')
                     ->action(function ($record, $livewire) {
-                        if (!auth()->user()->hasRole('superadmin')) return;
+                        if (!auth()->user()->hasAnyRole(['superadmin', 'tata_usaha', 'kepala_sekolah'])) return;
                         if ($record->has_account) {
                             $livewire->mountTableAction('edit_akun', $record);
                         } else {
                             $livewire->mountTableAction('buat_akun', $record);
                         }
                     })
-                    ->tooltip(fn () => auth()->user()->hasRole('superadmin') ? 'Klik untuk membuat / kelola akun' : null),
+                    ->tooltip(fn () => auth()->user()->hasAnyRole(['superadmin', 'tata_usaha', 'kepala_sekolah']) ? 'Klik untuk membuat / kelola akun' : null),
             ])
             ->filters([
                 Tables\Filters\SelectFilter::make('institution_id')
@@ -176,9 +205,22 @@ class TeacherProfileResource extends Resource
                     ])
                     ->query(function (Builder $query, array $data) {
                         if ($data['value'] === '1') {
-                            $query->where('has_account', true);
+                            $query->where(function ($q) {
+                                $q->where('has_account', true)
+                                  ->orWhere(function ($sq) {
+                                      $sq->whereNotNull('email')
+                                         ->where('email', 'not like', '%@placeholder.local%')
+                                         ->whereNotNull('username');
+                                  });
+                            });
                         } elseif ($data['value'] === '0') {
-                            $query->where('has_account', false);
+                            $query->where(function ($q) {
+                                $q->where('has_account', false)
+                                  ->where(function ($sq) {
+                                      $sq->whereNull('email')
+                                         ->orWhere('email', 'like', '%@placeholder.local%');
+                                  });
+                            });
                         }
                     }),
             ])
@@ -188,7 +230,7 @@ class TeacherProfileResource extends Resource
                     ->icon('heroicon-m-user-plus')
                     ->button()
                     ->color('warning')
-                    ->visible(fn ($record) => auth()->user()->hasRole('superadmin') && !$record->has_account)
+                    ->visible(fn ($record) => auth()->user()->hasAnyRole(['superadmin', 'tata_usaha', 'kepala_sekolah']) && !$record->has_account)
                     ->modalHeading(fn ($record) => "Buat Akun Login: {$record->name}")
                     ->modalDescription('Lengkapi data akun login (email, username, password, dan foto) untuk guru/pegawai ini.')
                     ->form([
@@ -258,7 +300,7 @@ class TeacherProfileResource extends Resource
                     ->label('Kelola Akun')
                     ->icon('heroicon-m-key')
                     ->color('info')
-                    ->visible(fn ($record) => auth()->user()->hasRole('superadmin') && $record->has_account)
+                    ->visible(fn ($record) => auth()->user()->hasAnyRole(['superadmin', 'tata_usaha', 'kepala_sekolah']) && $record->has_account)
                     ->modalHeading(fn ($record) => "Kelola / Reset Akun Guru: {$record->name}")
                     ->modalDescription('Ubah data akun guru atau reset password baru jika guru lupa password.')
                     ->form([
@@ -327,7 +369,7 @@ class TeacherProfileResource extends Resource
                         ->label('Buat Akun Guru Massal')
                         ->icon('heroicon-m-user-plus')
                         ->color('warning')
-                        ->visible(fn () => auth()->user()->hasRole('superadmin'))
+                        ->visible(fn () => auth()->user()->hasAnyRole(['superadmin', 'tata_usaha', 'kepala_sekolah']))
                         ->requiresConfirmation()
                         ->modalHeading('Buat Akun Login Massal untuk Guru Terpilih')
                         ->modalDescription('Sistem akan mengaktifkan akun login secara otomatis untuk semua guru terpilih yang belum memiliki akun. Password default adalah "guru123".')
