@@ -22,6 +22,11 @@ trait BelongsToInstitution
                             $q->where($table . '.institution_id', $user->institution_id)
                               ->orWhereNull($table . '.institution_id');
 
+                            // Khusus tabel students: izinkan staf SMP (institution_id = 2) melihat siswa jika sempat tercatat di ID 1 (Yayasan)
+                            if ($table === 'students' && $user->institution_id == 2) {
+                                $q->orWhere($table . '.institution_id', 1);
+                            }
+
                             // Dukungan Guru Lintas Lembaga (Cross-Institution Teaching):
                             // 1. Jika record memiliki teacher_id atau guru_id (jadwal, jurnal, presensi, supervisi)
                             if (\Illuminate\Support\Facades\Schema::hasColumn($table, 'teacher_id')) {
@@ -56,6 +61,15 @@ trait BelongsToInstitution
         // Event for Creating & Saving Data: always ensure records match institution_id
         static::saving(function ($model) {
             if (!\Illuminate\Support\Facades\Schema::hasColumn($model->getTable(), 'institution_id')) {
+                return;
+            }
+
+            // Khusus data Siswa: Siswa tidak pernah berada di Yayasan (ID = 1).
+            // Jika kosong, null, atau 1, otomatis arahkan ke unit SMP (ID = 2).
+            if ($model instanceof \App\Models\Student) {
+                if (empty($model->institution_id) || $model->institution_id == 1) {
+                    $model->institution_id = 2;
+                }
                 return;
             }
 

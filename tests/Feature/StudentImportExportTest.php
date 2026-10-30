@@ -34,7 +34,12 @@ class StudentImportExportTest extends TestCase
         Role::firstOrCreate(['name' => 'superadmin', 'guard_name' => 'web']);
         Role::firstOrCreate(['name' => 'tata_usaha', 'guard_name' => 'web']);
 
-        $this->institution = Institution::create([
+        Institution::firstOrCreate(['id' => 1], [
+            'name' => 'Yayasan Baitul Makmur',
+            'slug' => 'yayasan',
+        ]);
+
+        $this->institution = Institution::firstOrCreate(['id' => 2], [
             'name' => 'SMP Baitul Makmur',
             'slug' => 'smp-baitul-makmur',
         ]);
@@ -289,5 +294,93 @@ class StudentImportExportTest extends TestCase
         $this->assertEquals('2011-09-17', $student->tanggal_lahir->format('Y-m-d'));
         $this->assertEquals('Fulan Baswedan', $student->nama_ayah);
         $this->assertEquals('Fatimah Zahra', $student->nama_ibu);
+    }
+
+    /**
+     * Test 5: Siswa yang diimpor oleh user Yayasan (ID = 1) atau Superadmin HARUS masuk ke SMP (ID = 2), BUKAN ke Yayasan.
+     */
+    public function test_import_by_superadmin_or_yayasan_user_always_assigns_students_to_smp(): void
+    {
+        $superadmin = User::create([
+            'name' => 'Superadmin Yayasan',
+            'username' => 'superadmin_yayasan',
+            'email' => 'superadmin@yayasan.com',
+            'password' => bcrypt('password'),
+            'institution_id' => 1, // Yayasan
+        ]);
+        $superadmin->assignRole('superadmin');
+
+        $this->actingAs($superadmin);
+
+        $stream = fopen('php://memory', 'r+');
+        fputcsv($stream, ['NO', 'NAMA', 'NIS', 'NISN']);
+        fputcsv($stream, ['1', 'Muhammad Zaidan', 'SMP2026999', '0089988776']);
+        rewind($stream);
+        $csvContent = stream_get_contents($stream);
+        fclose($stream);
+
+        $file = UploadedFile::fake()->createWithContent('siswa_smp_superadmin.csv', $csvContent);
+
+        Livewire::test(ManageStudents::class)
+            ->callAction('import_csv', [
+                'file' => [$file],
+            ])
+            ->assertHasNoActionErrors();
+
+        $student = Student::withoutGlobalScopes()->where('nis', 'SMP2026999')->first();
+        $this->assertNotNull($student);
+        $this->assertEquals(2, $student->institution_id, 'Siswa wajib masuk ke SMP (ID = 2), TIDAK BOLEH masuk ke Yayasan (ID = 1)');
+
+        // Pastikan staf SMP (institution_id = 2) dapat melihat siswa ini di StudentResource
+        $smpStaff = User::create([
+            'name' => 'Staf SMP Asli',
+            'username' => 'staf_smp_asli',
+            'email' => 'stafsmp@smpi.com',
+            'password' => bcrypt('password'),
+            'institution_id' => 2,
+        ]);
+        $smpStaff->assignRole('tata_usaha');
+        $this->actingAs($smpStaff);
+
+        $query = \App\Filament\Staff\Resources\StudentResource::getEloquentQuery();
+        $this->assertTrue($query->where('students.id', $student->id)->exists(), 'Siswa harus muncul pada query Data Siswa SMP');
+    }
+
+    /**
+     * Test 6: Siswa lawas yang sempat tersimpan dengan institution_id = 1 atau null tetap muncul di SMP dan diperbaiki ke ID 2
+     */
+    public function test_legacy_students_with_institution_id_1_appear_in_smp_and_fixed(): void
+    {
+        // Bypass model hook using DB query to simulate legacy dirty data
+        $legacyId = \Illuminate\Support\Facades\DB::table('students')->insertGetId([
+            'institution_id' => 1,
+            'name' => 'Siswa Lawas Nyasar Yayasan',
+            'nis' => 'SMP-LEGACY-001',
+            'jenis_kelamin' => 'L',
+            'character_score' => 80,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $smpStaff = User::create([
+            'name' => 'Staf SMP TU',
+            'username' => 'staf_smp_tu2',
+            'email' => 'tu2@smpi.com',
+            'password' => bcrypt('password'),
+            'institution_id' => 2,
+        ]);
+        $smpStaff->assignRole('tata_usaha');
+        $this->actingAs($smpStaff);
+
+        // Harus tetap bisa dilihat oleh staf SMP
+        $visibleInSmp = \App\Filament\Staff\Resources\StudentResource::getEloquentQuery()
+            ->where('students.id', $legacyId)
+            ->exists();
+        $this->assertTrue($visibleInSmp, 'Siswa yang sempat nyasar di ID 1 harus tetap terbaca di panel SMP');
+
+        // Saat di-save / update, otomatis dinormalisasi ke ID 2
+        $legacyStudent = Student::withoutGlobalScopes()->find($legacyId);
+        $legacyStudent->save();
+        $this->assertEquals(2, $legacyStudent->fresh()->institution_id, 'Siswa otomatis dinormalisasi ke ID 2 (SMP)');
     }
 }

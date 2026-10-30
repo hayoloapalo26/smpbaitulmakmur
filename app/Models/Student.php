@@ -164,6 +164,12 @@ class Student extends Model
         parent::booted();
 
         static::saving(function (Student $student) {
+            // Siswa di lingkungan Baitul Makmur tidak pernah berada di Yayasan (ID = 1).
+            // Jika kosong, null, atau 1, otomatis arahkan ke unit SMP (ID = 2).
+            if (empty($student->institution_id) || $student->institution_id == 1) {
+                $student->institution_id = 2;
+            }
+
             // Sinkronisasi otomatis antara fingerspot_pin dan hikvision_employee_no
             $hasFingerspot = !empty($student->attributes['fingerspot_pin'] ?? null);
             $hasHikvision  = !empty($student->attributes['hikvision_employee_no'] ?? null);

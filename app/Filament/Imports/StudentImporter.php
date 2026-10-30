@@ -15,15 +15,35 @@ class StudentImporter extends Importer
     public static function getColumns(): array
     {
         return [
+            ImportColumn::make('classroom_id')
+                ->relationship(resolveUsing: function ($state) {
+                    if (empty($state)) return null;
+                    $clean = strtoupper(trim((string)$state));
+                    $tingkat = match (true) {
+                        str_contains($clean, '7') || str_contains($clean, 'VII') => '7',
+                        str_contains($clean, '8') || str_contains($clean, 'VIII') => '8',
+                        str_contains($clean, '9') || str_contains($clean, 'IX') => '9',
+                        default => null,
+                    };
+                    $query = \App\Models\Classroom::withoutGlobalScopes();
+                    if ($tingkat) {
+                        $found = (clone $query)->where('tingkat', $tingkat)->first();
+                        if ($found) return $found;
+                    }
+                    return $query->where('name', 'like', "%{$state}%")->first();
+                })
+                ->rules(['nullable'])
+                ->guess(['KELAS', 'Kelas', 'kelas', 'Rombel', 'Tingkat']),
+
             ImportColumn::make('name')
                 ->requiredMapping()
                 ->rules(['required', 'max:255'])
-                ->guess(['NAMA', 'Nama', 'Nama Lengkap', 'Nama Siswa', 'name']),
+                ->guess(['NAMA', 'Nama', 'NAMA SISWA', 'Nama Siswa', 'Nama Lengkap', 'name']),
 
             ImportColumn::make('nis')
                 ->requiredMapping()
                 ->rules(['required', 'max:255'])
-                ->guess(['NIS', 'NIPD/NIS', 'nis', 'Nomor Induk Siswa', 'Nomor Induk']),
+                ->guess(['NIS', 'NIPD/NIS', 'NIPD', 'nis', 'Nomor Induk Siswa', 'Nomor Induk']),
 
             ImportColumn::make('nisn')
                 ->rules(['nullable', 'max:255'])
@@ -35,7 +55,7 @@ class StudentImporter extends Importer
 
             ImportColumn::make('no_kk')
                 ->rules(['nullable', 'max:255'])
-                ->guess(['Nomer KK (Kartu Keluarga)', 'No KK', 'Nomor KK', 'Nomer KK', 'no_kk']),
+                ->guess(['Nomer KK (Kartu Keluarga)', 'No KK', 'No. KK', 'Nomor KK', 'Nomer KK', 'no_kk']),
 
             ImportColumn::make('tempat_lahir')
                 ->rules(['nullable', 'max:255'])
@@ -56,12 +76,12 @@ class StudentImporter extends Importer
             ImportColumn::make('anak_ke')
                 ->numeric()
                 ->rules(['nullable', 'integer'])
-                ->guess(['Anak ke-', 'Anak ke', 'anak_ke']),
+                ->guess(['ANAK KE-', 'Anak ke-', 'Anak ke', 'anak_ke']),
 
             ImportColumn::make('jumlah_saudara_kandung')
                 ->numeric()
                 ->rules(['nullable', 'integer'])
-                ->guess(['Jumlah Saudara Kandung', 'Jumlah Saudara', 'jumlah_saudara_kandung', 'jumlah_saudara']),
+                ->guess(['DARI SAUDARA KANDUNG KE-', 'Jumlah Saudara Kandung', 'Jumlah Saudara', 'jumlah_saudara_kandung', 'jumlah_saudara']),
 
             ImportColumn::make('asal_sekolah')
                 ->rules(['nullable', 'max:255'])
@@ -162,15 +182,20 @@ class StudentImporter extends Importer
     {
         $nis = trim($this->data['nis'] ?? '');
         $instId = auth()->user()?->institution_id;
-
-        $query = Student::withoutGlobalScopes();
-        if ($instId && !auth()->user()?->hasRole('superadmin')) {
-            $query->where('institution_id', $instId);
+        if (empty($instId) || $instId == 1) {
+            $instId = 2; // Default ke SMP Islam Baitul Makmur (Siswa tidak berada di Yayasan)
         }
+
+        $query = Student::withoutGlobalScopes()->where(function ($q) use ($instId) {
+            $q->where('institution_id', $instId)
+              ->orWhere('institution_id', 1)
+              ->orWhereNull('institution_id');
+        });
 
         if (!empty($nis)) {
             $existing = (clone $query)->where('nis', $nis)->first();
             if ($existing) {
+                $existing->institution_id = $instId;
                 return $existing;
             }
         }
@@ -179,12 +204,13 @@ class StudentImporter extends Importer
         if (!empty($nisn)) {
             $existing = (clone $query)->where('nisn', $nisn)->first();
             if ($existing) {
+                $existing->institution_id = $instId;
                 return $existing;
             }
         }
 
         return new Student([
-            'institution_id' => $instId ?? 2,
+            'institution_id' => $instId,
             'character_score' => 80,
         ]);
     }
@@ -220,8 +246,8 @@ class StudentImporter extends Importer
 
     protected function beforeSave(): void
     {
-        if (empty($this->record->institution_id)) {
-            $this->record->institution_id = auth()->user()?->institution_id ?? 2;
+        if (empty($this->record->institution_id) || $this->record->institution_id == 1) {
+            $this->record->institution_id = 2; // Pastikan selalu masuk ke SMP Islam Baitul Makmur
         }
         if (empty($this->record->character_score)) {
             $this->record->character_score = 80;

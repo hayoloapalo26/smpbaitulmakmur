@@ -136,19 +136,44 @@ class ManageStudents extends ManageRecords
                     ]);
                 }),
 
-            // 3. Upload Cepat CSV Langsung (Auto-Detect Header 34 Kolom)
+            // 3. Upload Cepat (Mendukung Format Kelas 7, 8, dan 9 - CSV / XLSX)
             Actions\Action::make('import_csv')
-                ->label('Upload Cepat CSV')
+                ->label('Upload Cepat (CSV / Excel)')
                 ->icon('heroicon-o-cloud-arrow-up')
-                ->color('gray')
+                ->color('primary')
                 ->form([
+                    \Filament\Forms\Components\Select::make('target_classroom_id')
+                        ->label('Kelas Target (Opsional)')
+                        ->options(function () {
+                            $instId = auth()->user()?->institution_id;
+                            if (empty($instId) || $instId == 1) $instId = 2;
+                            return \App\Models\Classroom::withoutGlobalScopes()
+                                ->where(function ($q) use ($instId) {
+                                    $q->where('institution_id', $instId)
+                                      ->orWhere('institution_id', 1)
+                                      ->orWhereNull('institution_id');
+                                })
+                                ->orderBy('name')
+                                ->pluck('name', 'id');
+                        })
+                        ->placeholder('Otomatis deteksi dari kolom KELAS (7/8/9) atau pilih manual')
+                        ->searchable()
+                        ->nullable(),
+
                     FileUpload::make('file')
-                        ->label('Unggah Berkas CSV')
+                        ->label('Unggah Berkas Siswa (CSV / XLSX)')
                         ->disk('local')
                         ->directory('imports')
-                        ->acceptedFileTypes(['text/csv', 'application/csv', 'text/x-csv', 'application/vnd.ms-excel', 'text/plain'])
+                        ->acceptedFileTypes([
+                            'text/csv',
+                            'application/csv',
+                            'text/x-csv',
+                            'application/vnd.ms-excel',
+                            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                            'text/plain',
+                        ])
                         ->required()
-                        ->helperText('Unggah berkas CSV sesuai dengan variabel format yang telah ditentukan.'),
+                        ->helperText('Otomatis mendeteksi layout Kelas 7, Kelas 8, dan Kelas 9 baik file CSV maupun Excel.'),
                 ])
                 ->action(function (array $data) {
                     $fileVal = $data['file'] ?? null;
@@ -156,195 +181,47 @@ class ManageStudents extends ManageRecords
                         $fileVal = reset($fileVal);
                     }
 
-                    $handle = null;
-                    if ($fileVal instanceof \Illuminate\Http\UploadedFile) {
-                        $handle = fopen($fileVal->getRealPath(), 'r');
-                    } elseif (is_string($fileVal)) {
-                        if (Storage::disk('local')->exists($fileVal)) {
-                            $handle = Storage::disk('local')->readStream($fileVal);
-                        } elseif (file_exists($fileVal)) {
-                            $handle = fopen($fileVal, 'r');
-                        } else {
-                            $path = Storage::disk('local')->path($fileVal);
-                            if (file_exists($path)) {
-                                $handle = fopen($path, 'r');
-                            }
-                        }
+                    $instId = auth()->user()?->institution_id;
+                    if (empty($instId) || $instId == 1) {
+                        $instId = 2;
                     }
 
-                    if (!$handle) {
-                        Notification::make()->title('Gagal membaca berkas CSV.')->danger()->send();
+                    $targetClassroomId = !empty($data['target_classroom_id']) ? (int) $data['target_classroom_id'] : null;
+                    $importService = new \App\Services\StudentImportService();
+                    $result = null;
+
+                    if (is_string($fileVal) && Storage::disk('local')->exists($fileVal)) {
+                        $ext = strtolower(pathinfo($fileVal, PATHINFO_EXTENSION));
+                        if (in_array($ext, ['xlsx', 'xls'])) {
+                            $filePath = Storage::disk('local')->path($fileVal);
+                            $result = $importService->importFromFile($filePath, $targetClassroomId, $instId);
+                        } else {
+                            $content = Storage::disk('local')->get($fileVal);
+                            $result = $importService->importFromContent($content, $targetClassroomId, $instId);
+                        }
+                    } elseif ($fileVal instanceof \Illuminate\Http\UploadedFile) {
+                        $ext = strtolower($fileVal->getClientOriginalExtension());
+                        if (in_array($ext, ['xlsx', 'xls'])) {
+                            $result = $importService->importFromFile($fileVal->getRealPath(), $targetClassroomId, $instId);
+                        } else {
+                            $content = file_get_contents($fileVal->getRealPath());
+                            $result = $importService->importFromContent($content, $targetClassroomId, $instId);
+                        }
+                    } elseif (is_string($fileVal) && file_exists($fileVal)) {
+                        $result = $importService->importFromFile($fileVal, $targetClassroomId, $instId);
+                    } else {
+                        Notification::make()->title('Gagal membaca berkas yang diunggah.')->danger()->send();
                         return;
                     }
 
-                    $firstLine = fgets($handle);
-                    if ($firstLine === false) {
-                        fclose($handle);
-                        Notification::make()->title('File CSV kosong.')->danger()->send();
+                    if (!$result['success']) {
+                        Notification::make()->title($result['message'] ?? 'Impor gagal.')->danger()->send();
                         return;
                     }
-
-                    $firstLine = preg_replace('/^\xEF\xBB\xBF/', '', $firstLine);
-                    $delimiter = (substr_count($firstLine, ';') > substr_count($firstLine, ',')) ? ';' : ',';
-
-                    $headers = str_getcsv($firstLine, $delimiter);
-                    $headerMap = [];
-                    foreach ($headers as $idx => $h) {
-                        $clean = trim(strtolower($h));
-                        $headerMap[$clean] = $idx;
-                    }
-
-                    $hasHeader = isset($headerMap['nama']) || isset($headerMap['nis']) || isset($headerMap['name']);
-                    if (!$hasHeader) {
-                        rewind($handle);
-                    }
-
-                    $instId = auth()->user()?->institution_id ?? 2;
-                    $created = 0;
-                    $updated = 0;
-
-                    $getVal = function ($names, $fallbackIdx = null) use (&$currentRow, $headerMap) {
-                        if (!is_array($names)) $names = [$names];
-                        foreach ($names as $name) {
-                            $clean = trim(strtolower($name));
-                            if (isset($headerMap[$clean]) && isset($currentRow[$headerMap[$clean]])) {
-                                $val = trim((string) $currentRow[$headerMap[$clean]]);
-                                if ($val !== '') return $val;
-                            }
-                        }
-                        if ($fallbackIdx !== null && isset($currentRow[$fallbackIdx])) {
-                            $val = trim((string) $currentRow[$fallbackIdx]);
-                            if ($val !== '') return $val;
-                        }
-                        return null;
-                    };
-
-                    while (($currentRow = fgetcsv($handle, 0, $delimiter)) !== false) {
-                        if (empty(array_filter($currentRow))) {
-                            continue;
-                        }
-
-                        $name = $getVal(['NAMA', 'Nama', 'Nama Lengkap', 'Nama Siswa'], 1);
-                        if (empty($name) || str_contains(strtoupper($name), 'LAKI-LAKI') || str_contains(strtoupper($name), 'TOTAL')) {
-                            continue;
-                        }
-
-                        $nis = $getVal(['NIS', 'NIPD/NIS', 'Nomor Induk Siswa', 'nis'], 2);
-                        if (empty($nis)) {
-                            $nis = 'NIS-' . strtoupper(Str::random(6));
-                        }
-
-                        $nisn = $getVal(['NISN', 'nisn'], 3);
-                        $nik = $getVal(['NIK', 'nik'], 4);
-                        $noKk = $getVal(['Nomer KK (Kartu Keluarga)', 'No KK', 'Nomor KK', 'Nomer KK'], 5);
-                        $tempatLahir = $getVal(['Tempat Lahir', 'tempat_lahir'], 6);
-                        $tglLahir = StudentImporter::parseDateValue($getVal(['Tanggal Lahir', 'tanggal_lahir', 'Tgl Lahir'], 7));
-
-                        $rawJk = $getVal(['Jenis Kelamin', 'Jenis Kelamin.1', 'JK', 'Gender'], 8);
-                        $jk = 'L';
-                        if (!empty($rawJk)) {
-                            $upperJk = strtoupper($rawJk);
-                            if (str_starts_with($upperJk, 'P') || str_contains($upperJk, 'PEREMPUAN') || str_contains($upperJk, 'WANITA')) {
-                                $jk = 'P';
-                            }
-                        }
-
-                        $agama = $getVal(['Agama', 'agama'], 10);
-                        $anakKe = $getVal(['Anak ke-', 'Anak ke', 'anak_ke'], 11);
-                        $jumlahSaudara = $getVal(['Jumlah Saudara Kandung', 'Jumlah Saudara', 'jumlah_saudara_kandung'], 12);
-                        $asalSekolah = $getVal(['Asal sekolah', 'Sekolah Asal', 'Asal Sekolah'], 13);
-                        $alamat = $getVal([
-                            'Alamat Rumah Siswa (Nama jalan, RT/RW, Desa, Kecamatan dan Kota/Kabupaten)',
-                            'Alamat Rumah Siswa',
-                            'Alamat',
-                            'alamat_siswa'
-                        ], 14);
-
-                        // Ayah
-                        $namaAyah = $getVal(['Nama Ayah', 'NAMA AYAH'], 15);
-                        $tempatLahirAyah = $getVal(['Tempat Lahir (Ayah)', 'Tempat Lahir Ayah'], 16);
-                        $tglLahirAyah = StudentImporter::parseDateValue($getVal(['Tanggal Lahir (Ayah)', 'Tanggal Lahir Ayah'], 17));
-                        $noHpAyah = $getVal(['No. Telp/HP (Ayah)', 'No Telp/HP (Ayah)', 'NO HP Ayah', 'Nomor HP Ayah'], 18);
-                        $pendidikanAyah = $getVal(['Pendidikan (Ayah)', 'Pendidikan Ayah', 'Jenjang Pendidikan Ayah'], 19);
-                        $pekerjaanAyah = $getVal(['Pekerjaan (Ayah)', 'Pekerjaan Ayah'], 20);
-                        $penghasilanAyah = $getVal(['Rata-rata Penghasilan (Ayah)', 'Penghasilan Ayah'], 21);
-
-                        // Ibu
-                        $namaIbu = $getVal(['Nama Ibu', 'NAMA IBU'], 22);
-                        $tempatLahirIbu = $getVal(['Tempat Lahir (Ibu)', 'Tempat Lahir Ibu'], 23);
-                        $tglLahirIbu = StudentImporter::parseDateValue($getVal(['Tanggal Lahir (Ibu)', 'Tanggal Lahir Ibu'], 24));
-                        $noHpIbu = $getVal(['No. Telp/HP', 'No. Telp/HP (Ibu)', 'No Telp/HP (Ibu)', 'NO HP Ibu'], 25);
-                        $pendidikanIbu = $getVal(['Pendidikan', 'Pendidikan (Ibu)', 'Pendidikan Ibu'], 26);
-                        $pekerjaanIbu = $getVal(['Pekerjaan', 'Pekerjaan (Ibu)', 'Pekerjaan Ibu'], 27);
-                        $penghasilanIbu = $getVal(['Rata-rata Penghasilan', 'Rata-rata Penghasilan (Ibu)', 'Penghasilan Ibu'], 28);
-
-                        // Wali
-                        $namaWali = $getVal(['NAMA WALI', 'Nama Wali'], 29);
-                        $noHpWali = $getVal(['NO HP', 'No. HP (Wali)', 'NO HP Wali'], 30);
-                        $pendidikanWali = $getVal(['Pendidikan2', 'Pendidikan (Wali)', 'Pendidikan Wali'], 31);
-                        $pekerjaanWali = $getVal(['Pekerjaan2', 'Pekerjaan (Wali)', 'Pekerjaan Wali'], 32);
-                        $penghasilanWali = $getVal(['Rata-rata Penghasilan2', 'Penghasilan (Wali)', 'Penghasilan Wali'], 33);
-
-                        $student = Student::withoutGlobalScopes()
-                            ->where('institution_id', $instId)
-                            ->where('nis', $nis)
-                            ->first();
-
-                        $dataToSave = [
-                            'institution_id' => $instId,
-                            'name' => $name,
-                            'nisn' => $nisn,
-                            'nik' => $nik,
-                            'no_kk' => $noKk,
-                            'tempat_lahir' => $tempatLahir,
-                            'tanggal_lahir' => $tglLahir,
-                            'jenis_kelamin' => $jk,
-                            'agama' => $agama,
-                            'anak_ke' => !empty($anakKe) ? (int)$anakKe : null,
-                            'jumlah_saudara_kandung' => !empty($jumlahSaudara) ? (int)$jumlahSaudara : null,
-                            'jumlah_saudara' => !empty($jumlahSaudara) ? (int)$jumlahSaudara : null,
-                            'asal_sekolah' => $asalSekolah,
-                            'alamat_siswa' => $alamat,
-
-                            'nama_ayah' => $namaAyah,
-                            'tempat_lahir_ayah' => $tempatLahirAyah,
-                            'tanggal_lahir_ayah' => $tglLahirAyah,
-                            'no_hp_ayah' => $noHpAyah,
-                            'pendidikan_ayah' => $pendidikanAyah,
-                            'pekerjaan_ayah' => $pekerjaanAyah,
-                            'penghasilan_ayah' => $penghasilanAyah,
-
-                            'nama_ibu' => $namaIbu,
-                            'tempat_lahir_ibu' => $tempatLahirIbu,
-                            'tanggal_lahir_ibu' => $tglLahirIbu,
-                            'no_hp_ibu' => $noHpIbu,
-                            'pendidikan_ibu' => $pendidikanIbu,
-                            'pekerjaan_ibu' => $pekerjaanIbu,
-                            'penghasilan_ibu' => $penghasilanIbu,
-
-                            'nama_wali' => $namaWali,
-                            'no_hp_wali' => $noHpWali,
-                            'pendidikan_wali' => $pendidikanWali,
-                            'pekerjaan_wali' => $pekerjaanWali,
-                            'penghasilan_wali' => $penghasilanWali,
-                        ];
-
-                        if ($student) {
-                            $student->update($dataToSave);
-                            $updated++;
-                        } else {
-                            $dataToSave['nis'] = $nis;
-                            $dataToSave['character_score'] = 80;
-                            Student::create($dataToSave);
-                            $created++;
-                        }
-                    }
-
-                    fclose($handle);
 
                     Notification::make()
-                        ->title('Impor Data Siswa Berhasil')
-                        ->body("Berhasil memproses data: {$created} siswa baru ditambahkan, {$updated} siswa diperbarui!")
+                        ->title('Impor Data Siswa Selesai!')
+                        ->body("Total: {$result['total']} siswa ({$result['created']} siswa baru, {$result['updated']} siswa diperbarui, {$result['skipped']} baris judul/rekap diabaikan).")
                         ->success()
                         ->send();
                 }),

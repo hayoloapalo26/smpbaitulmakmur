@@ -74,7 +74,14 @@ class StudentResource extends Resource
         $user = Auth::user();
 
         // Isolasi ketat per lembaga: pastikan data siswa hanya dari lembaga masing-masing
-        if (!$user->hasRole('superadmin') && $user->institution_id != 1) {
+        if ($user && ($user->institution_id == 2 || $user->institution_id == 1 || $user->hasRole('superadmin'))) {
+            // Pada panel staff (SMP): tampilkan siswa SMP (ID 2), serta toleransi jika ada data lawas yang sempat tersimpan ID 1 (Yayasan)
+            $query->where(function ($q) {
+                $q->where('students.institution_id', 2)
+                  ->orWhere('students.institution_id', 1)
+                  ->orWhereNull('students.institution_id');
+            });
+        } elseif ($user && $user->institution_id) {
             $query->where('students.institution_id', $user->institution_id);
         }
 
