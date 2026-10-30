@@ -117,23 +117,23 @@
             Akses langsung ke seluruh fitur harian guru piket (Responsif Mobile Android & iOS).
         </x-slot>
 
-        <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-2.5 sm:gap-3 pt-2">
-            {{-- 1. Presensi Fingerprint / Data Harian --}}
-            <a href="{{ route('filament.staff.resources.daily-attendances.index') }}" class="flex flex-col items-center justify-center p-3 text-center rounded-xl border border-gray-200 dark:border-gray-800 hover:border-primary-500 hover:bg-primary-50/50 dark:hover:bg-primary-950/20 active:scale-95 transition-all select-none group">
-                <span class="p-2 sm:p-2.5 rounded-xl bg-primary-100 dark:bg-primary-900/50 text-primary-600 dark:text-primary-400 group-hover:scale-105 transition-transform">
-                    <x-filament::icon icon="heroicon-o-finger-print" class="w-5 h-5 sm:w-6 sm:h-6" />
-                </span>
-                <span class="mt-2 text-xs font-bold text-gray-800 dark:text-gray-200 group-hover:text-primary-600 dark:group-hover:text-primary-400">Presensi Fingerprint</span>
-                <span class="text-[10px] text-gray-400 mt-0.5">Data Masuk Pagi</span>
-            </a>
-
-            {{-- 2. Input Absensi Manual --}}
+        <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-6 gap-2.5 sm:gap-3 pt-2">
+            {{-- 1. Input Absensi Manual (Cadangan Mati Lampu / Darurat) --}}
             <a href="{{ route('filament.staff.pages.absensi-manual') }}" class="flex flex-col items-center justify-center p-3 text-center rounded-xl border border-gray-200 dark:border-gray-800 hover:border-emerald-500 hover:bg-emerald-50/50 dark:hover:bg-emerald-950/20 active:scale-95 transition-all select-none group">
                 <span class="p-2 sm:p-2.5 rounded-xl bg-emerald-100 dark:bg-emerald-900/50 text-emerald-600 dark:text-emerald-400 group-hover:scale-105 transition-transform">
                     <x-filament::icon icon="heroicon-o-clipboard-document-check" class="w-5 h-5 sm:w-6 sm:h-6" />
                 </span>
                 <span class="mt-2 text-xs font-bold text-gray-800 dark:text-gray-200 group-hover:text-emerald-600 dark:group-hover:text-emerald-400">Presensi Manual</span>
-                <span class="text-[10px] text-gray-400 mt-0.5">Per Kelas</span>
+                <span class="text-[10px] text-gray-400 mt-0.5">Cadangan Mati Lampu</span>
+            </a>
+
+            {{-- 2. Jadwal Piket Guru --}}
+            <a href="{{ route('filament.staff.resources.duty-schedules.index') }}" class="flex flex-col items-center justify-center p-3 text-center rounded-xl border border-gray-200 dark:border-gray-800 hover:border-teal-500 hover:bg-teal-50/50 dark:hover:bg-teal-950/20 active:scale-95 transition-all select-none group">
+                <span class="p-2 sm:p-2.5 rounded-xl bg-teal-100 dark:bg-teal-900/50 text-teal-600 dark:text-teal-400 group-hover:scale-105 transition-transform">
+                    <x-filament::icon icon="heroicon-o-calendar-days" class="w-5 h-5 sm:w-6 sm:h-6" />
+                </span>
+                <span class="mt-2 text-xs font-bold text-gray-800 dark:text-gray-200 group-hover:text-teal-600 dark:group-hover:text-teal-400">Jadwal Piket</span>
+                <span class="text-[10px] text-gray-400 mt-0.5">Jadwal 1 Semester</span>
             </a>
 
             {{-- 3. Izin Siswa --}}
@@ -170,15 +170,6 @@
                 </span>
                 <span class="mt-2 text-xs font-bold text-gray-800 dark:text-gray-200 group-hover:text-indigo-600 dark:group-hover:text-indigo-400">Tukar Jadwal</span>
                 <span class="text-[10px] text-gray-400 mt-0.5">Swap Shift</span>
-            </a>
-
-            {{-- 7. Jadwal Piket 1 Semester --}}
-            <a href="{{ route('filament.staff.resources.duty-schedules.index') }}" class="flex flex-col items-center justify-center p-3 text-center rounded-xl border border-gray-200 dark:border-gray-800 hover:border-teal-500 hover:bg-teal-50/50 dark:hover:bg-teal-950/20 active:scale-95 transition-all select-none group">
-                <span class="p-2 sm:p-2.5 rounded-xl bg-teal-100 dark:bg-teal-900/50 text-teal-600 dark:text-teal-400 group-hover:scale-105 transition-transform">
-                    <x-filament::icon icon="heroicon-o-calendar-days" class="w-5 h-5 sm:w-6 sm:h-6" />
-                </span>
-                <span class="mt-2 text-xs font-bold text-gray-800 dark:text-gray-200 group-hover:text-teal-600 dark:group-hover:text-teal-400">Jadwal Piket</span>
-                <span class="text-[10px] text-gray-400 mt-0.5">1 Semester</span>
             </a>
         </div>
     </x-filament::section>

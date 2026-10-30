@@ -32,9 +32,11 @@ class DailyAttendanceResource extends Resource
         return $user->isPiketToday();
     }
 
+    protected static bool $shouldRegisterNavigation = false;
+
     public static function shouldRegisterNavigation(): bool
     {
-        return static::canAccess();
+        return false;
     }
 
     protected static ?string $model = DailyAttendance::class;

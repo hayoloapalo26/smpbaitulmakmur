@@ -74,13 +74,13 @@
                 <span class="text-[10px] tracking-tight mt-0.5 truncate">Dasbor</span>
             </a>
 
-            {{-- 2. Presensi Harian (Fingerprint & Rekap) --}}
-            <a href="{{ route('filament.staff.resources.daily-attendances.index') }}" 
-               class="flex flex-col items-center justify-center flex-1 py-1 px-1 transition-all group active:scale-90 {{ str_contains($currentRoute, 'daily-attendances') ? 'text-primary-600 dark:text-primary-400 font-bold' : 'text-gray-500 dark:text-gray-400' }}">
-                <div class="p-1 rounded-xl transition-all {{ str_contains($currentRoute, 'daily-attendances') ? 'bg-primary-50 dark:bg-primary-950/60' : '' }}">
-                    <x-filament::icon icon="heroicon-o-finger-print" class="w-5 h-5 {{ str_contains($currentRoute, 'daily-attendances') ? 'text-primary-600' : '' }}" />
+            {{-- 2. Jadwal Piket Guru --}}
+            <a href="{{ route('filament.staff.resources.duty-schedules.index') }}" 
+               class="flex flex-col items-center justify-center flex-1 py-1 px-1 transition-all group active:scale-90 {{ str_contains($currentRoute, 'duty-schedule') ? 'text-primary-600 dark:text-primary-400 font-bold' : 'text-gray-500 dark:text-gray-400' }}">
+                <div class="p-1 rounded-xl transition-all {{ str_contains($currentRoute, 'duty-schedule') ? 'bg-primary-50 dark:bg-primary-950/60' : '' }}">
+                    <x-filament::icon icon="heroicon-o-calendar-days" class="w-5 h-5 {{ str_contains($currentRoute, 'duty-schedule') ? 'text-primary-600' : '' }}" />
                 </div>
-                <span class="text-[10px] tracking-tight mt-0.5 truncate">Presensi</span>
+                <span class="text-[10px] tracking-tight mt-0.5 truncate">Jadwal</span>
             </a>
 
             {{-- 3. Center Elevated: Presensi Manual --}}

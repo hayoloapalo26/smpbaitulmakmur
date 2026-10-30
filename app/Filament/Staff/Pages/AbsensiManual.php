@@ -16,7 +16,7 @@ class AbsensiManual extends Page
     public static function canAccess(): bool
     {
         $user = auth()->user();
-        if (!$user) {
+        if (!$user || $user->isQuranTeacher()) {
             return false;
         }
 
@@ -33,11 +33,11 @@ class AbsensiManual extends Page
     }
 
     protected static ?string $navigationIcon    = 'heroicon-o-clipboard-document-check';
-    protected static ?string $navigationGroup   = 'Kesiswaan & Karakter';
-    protected static ?string $navigationLabel   = 'Input Presensi Manual';
-    protected static ?string $title             = 'Input Presensi Kolektif Per Kelas';
+    protected static ?string $navigationGroup   = 'Tugas Guru Piket';
+    protected static ?string $navigationLabel   = 'Input Presensi Manual Siswa';
+    protected static ?string $title             = 'Input Presensi Manual Siswa (Cadangan Mati Lampu)';
     protected static string  $view              = 'filament.staff.pages.absensi-manual';
-    protected static ?int    $navigationSort    = 4;
+    protected static ?int    $navigationSort    = 3;
 
     // Filter state
     public string $selectedDate;
@@ -46,6 +46,9 @@ class AbsensiManual extends Page
 
     // Attendance state: [student_id => status]
     public array $attendanceData = [];
+
+    // Attendance metadata: [student_id => ['metode' => ..., 'jam' => ..., 'is_late' => ..., 'catatan' => ...]]
+    public array $attendanceMeta = [];
 
     public function mount(): void
     {
@@ -74,11 +77,13 @@ class AbsensiManual extends Page
     }
 
     /**
-     * Muat data presensi yang sudah ada untuk tampilan default
+     * Muat data presensi yang sudah ada untuk tampilan default (Terintegrasi Fingerprint & Manual)
      */
     public function loadAttendance(): void
     {
-        if (!$this->selectedClassroomId) return;
+        if (!$this->selectedClassroomId) {
+            return;
+        }
 
         $students = Student::where('classroom_id', $this->selectedClassroomId)
             ->orderBy('name')
@@ -92,9 +97,18 @@ class AbsensiManual extends Page
 
         // Default status: belum diisi = null, sudah ada = ambil dari DB
         $this->attendanceData = [];
+        $this->attendanceMeta = [];
+
         foreach ($students as $student) {
             if ($existingRecords->has($student->id)) {
-                $this->attendanceData[$student->id] = $existingRecords[$student->id]->status;
+                $rec = $existingRecords[$student->id];
+                $this->attendanceData[$student->id] = $rec->status;
+                $this->attendanceMeta[$student->id] = [
+                    'metode'  => $rec->metode_absen ?? 'manual',
+                    'jam'     => $rec->waktu_kedatangan ? Carbon::parse($rec->waktu_kedatangan)->format('H:i') : null,
+                    'is_late' => (bool) $rec->is_late,
+                    'catatan' => $rec->keterangan ?? $rec->catatan ?? null,
+                ];
             } else {
                 // Cek halangan siswi untuk tipe sholat
                 if ($student->jenis_kelamin === 'P'
@@ -102,33 +116,58 @@ class AbsensiManual extends Page
                     && StudentHalangan::isHalangan($student->id, $this->selectedDate)
                 ) {
                     $this->attendanceData[$student->id] = 'halangan';
+                    $this->attendanceMeta[$student->id] = [
+                        'metode'  => 'manual',
+                        'jam'     => null,
+                        'is_late' => false,
+                        'catatan' => 'Udzur syar\'i (Halangan)',
+                    ];
                 } else {
                     $this->attendanceData[$student->id] = null; // belum diisi
+                    $this->attendanceMeta[$student->id] = null;
                 }
             }
         }
     }
 
     /**
-     * Simpan semua data presensi manual
+     * Simpan semua data presensi manual (Terintegrasi dengan mesin Fingerprint)
      */
     public function simpan(): void
     {
-        $savedCount  = 0;
+        $savedCount   = 0;
         $updatedCount = 0;
         $now = Carbon::now()->format('H:i:s');
         $currentUser = Auth::user();
 
         foreach ($this->attendanceData as $studentId => $status) {
-            if ($status === null || $status === '') continue;
+            if ($status === null || $status === '') {
+                continue;
+            }
 
             $student = Student::find($studentId);
-            $institutionId = $student?->classroom?->institution_id ?? ($currentUser?->institution_id ?? 1);
+            $institutionId = $student?->classroom?->institution_id 
+                ?? $student?->institution_id 
+                ?? ($currentUser?->institution_id ?? 1);
 
             $existing = DailyAttendance::where('student_id', $studentId)
                 ->where('tanggal', $this->selectedDate)
                 ->where('tipe_absen', $this->tipeAbsen)
                 ->first();
+
+            // Jika siswa sudah terdata lewat mesin fingerprint dan statusnya tetap hadir,
+            // jaga integritas data fingerprint (jangan overwrite metode 'fingerprint' atau jam kedatangan aslinya)
+            if ($existing && $existing->metode_absen === 'fingerprint' && $existing->status === $status) {
+                continue;
+            }
+
+            $metode = ($existing && $existing->metode_absen === 'fingerprint' && $existing->status === $status)
+                ? 'fingerprint'
+                : 'manual';
+
+            $keterangan = ($existing && $existing->metode_absen === 'fingerprint')
+                ? $existing->keterangan
+                : ('Input manual Guru Piket: ' . ($currentUser?->name ?? 'Petugas') . ' (Mati Lampu/Darurat)');
 
             $data = [
                 'student_id'     => $studentId,
@@ -136,14 +175,14 @@ class AbsensiManual extends Page
                 'teacher_id'     => $currentUser?->id ?? 1,
                 'tanggal'        => $this->selectedDate,
                 'tipe_absen'     => $this->tipeAbsen,
-                'metode_absen'   => 'manual',
+                'metode_absen'   => $metode,
                 'status'         => $status,
-                'is_late'        => ($this->tipeAbsen === 'masuk' && $status === 'hadir' && $now > '07:15:00'),
-                'keterangan'     => 'Input manual oleh ' . ($currentUser?->name ?? 'Guru Piket'),
+                'is_late'        => ($existing?->is_late ?? ($this->tipeAbsen === 'masuk' && $status === 'hadir' && $now > '07:15:00')),
+                'keterangan'     => $keterangan,
             ];
 
             if ($this->tipeAbsen === 'masuk' && $status === 'hadir') {
-                $data['waktu_kedatangan'] = $now;
+                $data['waktu_kedatangan'] = $existing?->waktu_kedatangan ?? $now;
             }
 
             if ($existing) {
@@ -156,7 +195,7 @@ class AbsensiManual extends Page
         }
 
         Notification::make()
-            ->title("✅ Presensi Manual Berhasil Disimpan")
+            ->title("✅ Presensi Siswa Berhasil Disimpan")
             ->body("{$savedCount} data baru tersimpan, {$updatedCount} data diperbarui.")
             ->success()
             ->send();
@@ -191,7 +230,10 @@ class AbsensiManual extends Page
 
     public function getStudents()
     {
-        if (!$this->selectedClassroomId) return collect();
+        if (!$this->selectedClassroomId) {
+            return collect();
+        }
+
         return Student::where('classroom_id', $this->selectedClassroomId)
             ->orderBy('jenis_kelamin') // L dulu baru P
             ->orderBy('name')
@@ -200,9 +242,29 @@ class AbsensiManual extends Page
 
     public function render(): \Illuminate\Contracts\View\View
     {
+        $students = $this->getStudents();
+
+        $countFingerprint = 0;
+        $countManual = 0;
+        $countBelum = 0;
+
+        foreach ($students as $st) {
+            $m = $this->attendanceMeta[$st->id] ?? null;
+            if ($m && $m['metode'] === 'fingerprint') {
+                $countFingerprint++;
+            } elseif ($m && $m['metode'] === 'manual') {
+                $countManual++;
+            } else {
+                $countBelum++;
+            }
+        }
+
         return view($this::$view, [
-            'classrooms' => $this->getClassrooms(),
-            'students'   => $this->getStudents(),
+            'classrooms'        => $this->getClassrooms(),
+            'students'          => $students,
+            'countFingerprint'  => $countFingerprint,
+            'countManual'       => $countManual,
+            'countBelum'        => $countBelum,
         ]);
     }
 }

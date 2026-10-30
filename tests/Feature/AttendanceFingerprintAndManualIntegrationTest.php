@@ -36,10 +36,15 @@ class AttendanceFingerprintAndManualIntegrationTest extends TestCase
         Role::firstOrCreate(['name' => 'guru_piket', 'guard_name' => 'web']);
         Role::firstOrCreate(['name' => 'waka_kesiswaan', 'guard_name' => 'web']);
 
-        $this->institution = Institution::create([
-            'name' => 'SMP Islam Baitul Makmur',
-            'slug' => 'smp-islam-baitul-makmur',
-        ]);
+        Institution::firstOrCreate(
+            ['id' => 1],
+            ['name' => 'Yayasan Baitul Makmur', 'slug' => 'yayasan']
+        );
+
+        $this->institution = Institution::firstOrCreate(
+            ['id' => 2],
+            ['name' => 'SMP Islam Baitul Makmur', 'slug' => 'smp-islam-baitul-makmur']
+        );
 
         $this->classroom = Classroom::create([
             'name' => 'VII-A',
