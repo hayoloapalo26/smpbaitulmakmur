@@ -78,7 +78,8 @@ class TeacherProfileCreateByTuTest extends TestCase
     }
 
     /**
-     * Test 2: Role tata_usaha can input full PTK data guru variables through CreateTeacherProfile page.
+     * Test 2: Role tata_usaha can input full PTK data guru variables through CreateTeacherProfile page,
+     * and newly inputted teacher has status 'Belum Memiliki Akun' (has_account = false, is_active = false).
      */
     public function test_tu_can_input_teacher_with_all_ptk_variables(): void
     {
@@ -103,10 +104,6 @@ class TeacherProfileCreateByTuTest extends TestCase
             'no_ukg' => '202012345678',
             'no_hp' => '081234567890',
             'alamat' => 'Jl. Makmur No. 123, Surabaya',
-            'email' => 'ahmad.fauzan@sekolah.sch.id',
-            'username' => 'ahmad_fauzan',
-            'password' => 'password123',
-            'is_active' => true,
         ];
 
         Livewire::test(CreateTeacherProfile::class)
@@ -114,8 +111,8 @@ class TeacherProfileCreateByTuTest extends TestCase
             ->call('create')
             ->assertHasNoFormErrors();
 
-        // Verifikasi record berhasil tersimpan di database dengan semua variabel
-        $createdTeacher = User::where('username', 'ahmad_fauzan')->first();
+        // Verifikasi record berhasil tersimpan di database dengan semua variabel PTK
+        $createdTeacher = User::where('name', 'Ustadz Ahmad Fauzan, S.Pd.')->first();
         $this->assertNotNull($createdTeacher);
 
         $this->assertEquals('Ustadz Ahmad Fauzan, S.Pd.', $createdTeacher->name);
@@ -135,9 +132,11 @@ class TeacherProfileCreateByTuTest extends TestCase
         $this->assertEquals('202012345678', $createdTeacher->no_ukg);
         $this->assertEquals('081234567890', $createdTeacher->no_hp);
         $this->assertEquals('Jl. Makmur No. 123, Surabaya', $createdTeacher->alamat);
-        $this->assertEquals('ahmad.fauzan@sekolah.sch.id', $createdTeacher->email);
-        $this->assertTrue($createdTeacher->is_active);
-        $this->assertTrue($createdTeacher->has_account);
+
+        // Status akun guru yang baru diinputkan adalah BELUM MEMILIKI AKUN
+        $this->assertFalse($createdTeacher->has_account);
+        $this->assertFalse($createdTeacher->is_active);
+        $this->assertStringContainsString('@placeholder.local', $createdTeacher->email);
 
         // Verifikasi unit lembaga tersinkronisasi
         $this->assertEquals($this->institution->id, $createdTeacher->institution_id);
@@ -147,5 +146,39 @@ class TeacherProfileCreateByTuTest extends TestCase
                 'institution_id' => $this->institution->id,
             ]);
         }
+    }
+
+    /**
+     * Test 3: Guru yang baru diinputkan muncul dengan status 'Belum Memiliki Akun',
+     * TU melihat action 'hubungi_admin' untuk WhatsApp ke Admin Yayasan, dan Superadmin melihat 'buat_akun'.
+     */
+    public function test_newly_created_teacher_shows_hubungi_admin_action_for_tu(): void
+    {
+        $guru = User::create([
+            'name' => 'Ust. Zulkifli, M.Pd.',
+            'username' => 'guru_zulkifli_temp',
+            'email' => 'zulkifli_temp@placeholder.local',
+            'password' => bcrypt('secret'),
+            'institution_id' => $this->institution->id,
+            'is_active' => false,
+            'has_account' => false,
+            'no_hp' => '08987654321',
+            'jabatan' => 'Guru IPA',
+        ]);
+        $guru->assignRole('guru_mapel');
+
+        $this->actingAs($this->tataUsaha);
+
+        Livewire::test(ListTeacherProfiles::class)
+            ->assertSee('Ust. Zulkifli, M.Pd.')
+            ->assertSee('Belum Memiliki Akun')
+            ->assertTableActionVisible('hubungi_admin', $guru)
+            ->assertTableActionHidden('buat_akun', $guru);
+
+        $this->actingAs($this->superadmin);
+
+        Livewire::test(ListTeacherProfiles::class)
+            ->assertTableActionVisible('buat_akun', $guru)
+            ->assertTableActionHidden('hubungi_admin', $guru);
     }
 }

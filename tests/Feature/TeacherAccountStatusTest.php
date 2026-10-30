@@ -87,12 +87,12 @@ class TeacherAccountStatusTest extends TestCase
         $this->actingAs($this->admin);
         Livewire::test(ListTeacherProfiles::class)
             ->assertSee('Ust. Ahmad Fauzi, S.Pd.')
-            ->assertSee('Sudah Dibuat')
+            ->assertSee('Sudah Memiliki Akun')
             ->assertDontSeeHtml('heroicon-m-x-circle');
     }
 
     /**
-     * Test 2: Guru yang belum dibuatkan akun (masih email placeholder) berstatus 'Belum Dibuat'.
+     * Test 2: Guru yang belum dibuatkan akun (masih email placeholder) berstatus 'Belum Memiliki Akun'.
      */
     public function test_teacher_with_placeholder_shows_belum_dibuat(): void
     {
@@ -113,11 +113,11 @@ class TeacherAccountStatusTest extends TestCase
         $this->actingAs($this->admin);
         Livewire::test(ListTeacherProfiles::class)
             ->assertSee('Guru Baru Placeholder')
-            ->assertSee('Belum Dibuat');
+            ->assertSee('Belum Memiliki Akun');
     }
 
     /**
-     * Test 3: Action buat_akun berhasil mengaktifkan akun dan mengubah status menjadi 'Sudah Dibuat'.
+     * Test 3: Action buat_akun berhasil mengaktifkan akun dan mengubah status menjadi 'Sudah Memiliki Akun'.
      */
     public function test_buat_akun_action_activates_account(): void
     {
@@ -157,7 +157,8 @@ class TeacherAccountStatusTest extends TestCase
     }
 
     /**
-     * Test 4: Tata Usaha dan Kepala Sekolah juga memiliki wewenang untuk melihat dan mengelola akun guru.
+     * Test 4: Pihak lembaga (Tata Usaha) melihat aksi 'hubungi_admin' untuk memohon pembuatan akun,
+     * sedangkan wewenang eksekusi 'buat_akun' berada pada Superadmin.
      */
     public function test_tata_usaha_can_manage_teacher_accounts(): void
     {
@@ -175,6 +176,13 @@ class TeacherAccountStatusTest extends TestCase
         $this->actingAs($this->tataUsaha);
 
         Livewire::test(ListTeacherProfiles::class)
-            ->assertTableActionVisible('buat_akun', $guru);
+            ->assertTableActionVisible('hubungi_admin', $guru)
+            ->assertTableActionHidden('buat_akun', $guru);
+
+        $this->actingAs($this->admin);
+
+        Livewire::test(ListTeacherProfiles::class)
+            ->assertTableActionVisible('buat_akun', $guru)
+            ->assertTableActionHidden('hubungi_admin', $guru);
     }
 }

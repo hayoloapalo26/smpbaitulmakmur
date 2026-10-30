@@ -20,6 +20,11 @@ class EditTeacherProfile extends EditRecord
 
     protected function mutateFormDataBeforeSave(array $data): array
     {
+        if (!auth()->user()?->hasRole('superadmin')) {
+            unset($data['has_account'], $data['is_active'], $data['password'], $data['email'], $data['username']);
+            return $data;
+        }
+
         $hasRealEmail = !empty($data['email']) && !str_contains($data['email'], '@placeholder.local');
         $hasRealUsername = !empty($data['username']) && !str_starts_with($data['username'], 'placeholder');
 
