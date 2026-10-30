@@ -29,6 +29,25 @@ class DutyScheduleResource extends Resource
         ], \App\Models\User::QURAN_TEACHER_ROLES)) ?? false;
     }
 
+    public static function shouldRegisterNavigation(): bool
+    {
+        $user = auth()->user();
+        if (!$user) {
+            return false;
+        }
+
+        // Waka Kesiswaan, Kepala Sekolah, dan Superadmin selalu mengelola dan memantau jadwal piket
+        if ($user->hasAnyRole(['waka_kesiswaan', 'kepala_sekolah', 'superadmin'])) {
+            return true;
+        }
+
+        // Untuk guru: hanya muncul ketika bertugas piket hari ini atau memiliki riwayat/permohonan tukar jadwal piket
+        return $user->isPiketToday() || DutySwapRequest::where(function ($q) use ($user) {
+            $q->where('requester_id', $user->id)
+              ->orWhere('substitute_teacher_id', $user->id);
+        })->whereIn('status', ['diajukan', 'menunggu', 'disetujui'])->exists();
+    }
+
     protected static ?string $model = DutySchedule::class;
 
     protected static ?string $navigationIcon = 'heroicon-o-calendar-days';

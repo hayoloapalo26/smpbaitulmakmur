@@ -18,7 +18,10 @@ class TeacherLeaveRequestResource extends Resource
 {
     public static function canAccess(): bool
     {
-        return auth()->user()->hasAnyRole(array_merge(['guru_mapel', 'waka_kurikulum', 'kepala_sekolah', 'tata_usaha', 'superadmin'], \App\Models\User::QURAN_TEACHER_ROLES));
+        return auth()->user()->hasAnyRole(array_merge([
+            'guru_mapel', 'guru_kelas', 'wali_kelas', 'koordinator_madin', 'bk', 
+            'waka_kurikulum', 'waka_kesiswaan', 'kepala_sekolah', 'tata_usaha', 'sarpras', 'humas', 'superadmin'
+        ], \App\Models\User::QURAN_TEACHER_ROLES));
     }
 
     public static function canCreate(): bool
