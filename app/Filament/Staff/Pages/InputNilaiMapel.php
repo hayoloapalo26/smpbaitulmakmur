@@ -58,7 +58,6 @@ class InputNilaiMapel extends Page
     public ?int $selectedClassroomId = null;
     public ?int $selectedAcademicYearId = null;
     public string $selectedSemester = 'Ganjil';
-    public ?string $selectedQuranClass = null; // 'tahsin', 'yanbua', 'tahfidz_dasar', 'tahfidz_lanjutan'
     public array $scores = [];
     public string $search = '';
 
@@ -71,7 +70,6 @@ class InputNilaiMapel extends Page
         'selectedSubjectId' => ['except' => null, 'as' => 'subject_id'],
         'selectedClassroomId' => ['except' => null, 'as' => 'classroom_id'],
         'selectedSemester' => ['except' => 'Ganjil', 'as' => 'semester'],
-        'selectedQuranClass' => ['except' => null, 'as' => 'quran_class'],
     ];
 
     public function mount(?int $subject_id = null, ?int $classroom_id = null): void
@@ -130,11 +128,6 @@ class InputNilaiMapel extends Page
         $this->loadStudentScores();
     }
 
-    public function updatedSelectedQuranClass(): void
-    {
-        $this->loadStudentScores();
-    }
-
     public function selectSubject(int $subjectId): void
     {
         $this->selectedSubjectId = $subjectId;
@@ -154,16 +147,10 @@ class InputNilaiMapel extends Page
             return;
         }
 
-        $studentsQuery = Student::with(['guruQuran']);
-
-        if (!empty($this->selectedQuranClass)) {
-            // Jika filter Al-Qur'an aktif, ambil seluruh santri kelompok Al-Qur'an tersebut (lintas Kelas 7/8/9)
-            $studentsQuery->where('kelas_quran', $this->selectedQuranClass);
-        } else {
-            $studentsQuery->where('classroom_id', $this->selectedClassroomId);
-        }
-
-        $students = $studentsQuery->orderBy('name')->get();
+        $students = Student::with(['guruQuran', 'classroom'])
+            ->where('classroom_id', $this->selectedClassroomId)
+            ->orderBy('name')
+            ->get();
 
         $existingGrades = Grade::where([
             'subject_id'       => $this->selectedSubjectId,
@@ -284,33 +271,22 @@ class InputNilaiMapel extends Page
             return collect();
         }
 
-        // Jika Kurikulum / Kepsek / Admin / Koordinator Madin: melihat seluruh mapel
+        // Jika Kurikulum / Kepsek / Admin / Koordinator Madin: melihat seluruh mapel akademik (tanpa mapel Al-Qur'an)
         if ($user->hasAnyRole(['koordinator_madin', 'waka_kurikulum', 'kepala_sekolah', 'superadmin'])) {
-            return Subject::orderBy('name')->get();
+            return Subject::akademik()->orderBy('name')->get();
         }
 
-        // Jika Guru: ambil mapel yang ditugaskan ke guru ini
+        // Jika Guru: ambil mapel akademik yang ditugaskan ke guru ini
         $assignedSubjectIds = TeacherSubjectClass::where('teacher_id', $user->id)
             ->pluck('subject_id')
             ->unique()
             ->toArray();
 
-        $subjects = Subject::whereIn('id', $assignedSubjectIds)->orderBy('name')->get();
+        $subjects = Subject::akademik()->whereIn('id', $assignedSubjectIds)->orderBy('name')->get();
 
-        // Fallback jika belum disetting oleh kurikulum
+        // Fallback jika belum disetting oleh kurikulum: selalu hanya memuat mapel akademik murni
         if ($subjects->isEmpty()) {
-            if ($user->isQuranTeacher() && !$user->hasAnyRole(['guru_mapel', 'waka_kurikulum', 'superadmin'])) {
-                $quranSubject = Subject::where('name', 'Al-Qur’an')
-                    ->orWhere('name', 'like', '%Qur%')
-                    ->orWhere('name', 'like', '%Yanbua%')
-                    ->orWhere('name', 'like', '%Tahsin%')
-                    ->orWhere('name', 'like', '%Tahfidz%')
-                    ->get();
-                if ($quranSubject->isNotEmpty()) {
-                    return $quranSubject;
-                }
-            }
-            return Subject::orderBy('name')->get();
+            return Subject::akademik()->orderBy('name')->get();
         }
 
         return $subjects;
@@ -412,11 +388,9 @@ class InputNilaiMapel extends Page
             $assignedTeacher = $setting?->teacher;
         }
 
-        // Ambil daftar siswa
+        // Ambil daftar siswa murni per kelas / rombel reguler
         $studentsQuery = Student::with(['guruQuran', 'classroom']);
-        if (!empty($this->selectedQuranClass)) {
-            $studentsQuery->where('kelas_quran', $this->selectedQuranClass);
-        } elseif ($this->selectedClassroomId) {
+        if ($this->selectedClassroomId) {
             $studentsQuery->where('classroom_id', $this->selectedClassroomId);
         } else {
             $studentsQuery->whereRaw('1=0');

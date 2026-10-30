@@ -40,9 +40,10 @@ class SmpSubjectsAndMultiSubjectGradingTest extends TestCase
         Role::firstOrCreate(['name' => 'guru_mapel', 'guard_name' => 'web']);
         Role::firstOrCreate(['name' => 'wali_kelas', 'guard_name' => 'web']);
 
+        Institution::firstOrCreate(['id' => 1], ['name' => 'Yayasan Baitul Makmur', 'slug' => 'yayasan']);
         $this->institution = Institution::firstOrCreate(
-            ['slug' => 'smp-islam-baitul-makmur'],
-            ['name' => 'SMP Islam Baitul Makmur']
+            ['id' => 2],
+            ['slug' => 'smp-islam-baitul-makmur', 'name' => 'SMP Islam Baitul Makmur']
         );
 
         $this->kurikulum = User::create([

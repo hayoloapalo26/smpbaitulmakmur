@@ -106,10 +106,13 @@ class RppmResource extends Resource
                                 ->form([
                                     Forms\Components\Select::make('modal_subject_id')
                                         ->label('Mata Pelajaran')
-                                        ->options(fn () => \App\Models\Subject::orderBy('name')->pluck('name', 'id'))
+                                        ->options(fn () => \App\Models\Subject::akademik()->orderBy('name')->pluck('name', 'id'))
                                         ->default(function () {
-                                            return \App\Models\TeacherSubjectClass::where('teacher_id', auth()->id())->value('subject_id')
-                                                ?? \App\Models\Subject::first()?->id;
+                                            $userSubj = \App\Models\TeacherSubjectClass::where('teacher_id', auth()->id())->value('subject_id');
+                                            if ($userSubj && \App\Models\Subject::akademik()->where('id', $userSubj)->exists()) {
+                                                return $userSubj;
+                                            }
+                                            return \App\Models\Subject::akademik()->first()?->id;
                                         })
                                         ->searchable()
                                         ->preload()

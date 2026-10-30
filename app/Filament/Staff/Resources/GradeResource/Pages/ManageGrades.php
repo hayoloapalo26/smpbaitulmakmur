@@ -86,45 +86,14 @@ class ManageGrades extends ManageRecords
                     Forms\Components\Section::make('📚 1. Identitas Pembelajaran & Kurikulum (Satu untuk Seluruh Kelas)')
                         ->description('Pilihan di bawah ini berlaku untuk seluruh siswa di kelas/rombel yang dinilai. Guru cukup memilih CP, TP, dan Materi 1 kali.')
                         ->schema([
-                            Forms\Components\Select::make('filter_kelas_quran')
-                                ->label('Kelas / Kelompok Al-Qur\'an (Yanbu\'a / Tahsin / Tahfidz)')
-                                ->options([
-                                    'yanbua'           => '📖 Kelas Yanbu\'a (Metode Baca Tulis Al-Qur\'an)',
-                                    'tahsin'           => '📖 Kelas Tahsin (Kualitas & Kaidah Tajwid)',
-                                    'tahfidz_dasar'    => '📖 Kelas Tahfidz Dasar (Juz 30 / Juz \'Amma)',
-                                    'tahfidz_lanjutan' => '📖 Kelas Tahfidz Lanjutan (Juz 1-29)',
-                                ])
-                                ->default(function () {
-                                    $user = Auth::user();
-                                    if (!$user) return null;
-                                    if ($user->hasRole(User::ROLE_GURU_QURAN_TAHSIN)) return 'tahsin';
-                                    if ($user->hasRole(User::ROLE_GURU_QURAN_YANBUA)) return 'yanbua';
-                                    if ($user->hasRole(User::ROLE_GURU_QURAN_TAHFIDZ_DASAR)) return 'tahfidz_dasar';
-                                    if ($user->hasRole(User::ROLE_GURU_QURAN_TAHFIDZ_LANJUTAN)) return 'tahfidz_lanjutan';
-                                    return null;
-                                })
-                                ->placeholder('-- Pilih Kelas Al-Qur\'an (Jika Menilai Mapel Al-Qur\'an) --')
-                                ->live()
-                                ->dehydrated(false)
-                                ->afterStateUpdated(function (Forms\Set $set, $state) {
-                                    if (!empty($state)) {
-                                        $set('classroom_id', null);
-                                    }
-                                })
-                                ->columnSpan(fn () => (Auth::user()?->isQuranTeacher() ?? false) ? 3 : 1),
-
                             Forms\Components\Select::make('classroom_id')
-                                ->label('Kelas Reguler / Rombel')
+                                ->label('Kelas / Rombel')
                                 ->options(function () {
                                     $user = Auth::user();
                                     if (!$user) return [];
                                     $isPrivileged = $user->hasAnyRole(['waka_kurikulum', 'superadmin', 'kepala_sekolah']);
                                     $isWaliKelas = $user->hasRole('wali_kelas');
-                                    $query = Classroom::where('name', 'not like', '%tahsin%')
-                                        ->where('name', 'not like', '%yanbua%')
-                                        ->where('name', 'not like', '%yanbu\'a%')
-                                        ->where('name', 'not like', '%tahfidz%')
-                                        ->where('name', 'not like', '%qur%');
+                                    $query = Classroom::reguler();
                                     if ($isPrivileged) {
                                         return $query->orderBy('name')->pluck('name', 'id');
                                     }
@@ -132,10 +101,6 @@ class ManageGrades extends ManageRecords
                                     if ($isWaliKelas) {
                                         $waliClassrooms = Classroom::where('wali_kelas_id', $user->id)->pluck('id')->toArray();
                                         $tscClassrooms = array_unique(array_merge($tscClassrooms, $waliClassrooms));
-                                    }
-                                    if ($user->isQuranTeacher()) {
-                                        $quranClassrooms = Student::where('guru_quran_id', $user->id)->whereNotNull('classroom_id')->pluck('classroom_id')->toArray();
-                                        $tscClassrooms = array_unique(array_merge($tscClassrooms, $quranClassrooms));
                                     }
                                     if (empty($tscClassrooms)) {
                                         return $query->orderBy('name')->pluck('name', 'id');
@@ -145,7 +110,7 @@ class ManageGrades extends ManageRecords
                                 ->searchable()
                                 ->preload()
                                 ->live()
-                                ->required(fn (Forms\Get $get) => empty($get('filter_kelas_quran')) && !(Auth::user()?->isQuranTeacher() ?? false))
+                                ->required()
                                 ->helperText('Pilih kelas/rombel untuk memuat seluruh siswa di kelas tersebut.'),
 
                             Forms\Components\Select::make('subject_id')
@@ -156,24 +121,14 @@ class ManageGrades extends ManageRecords
                                     $isPrivileged = $user->hasAnyRole(['waka_kurikulum', 'superadmin', 'kepala_sekolah']);
                                     $isWaliKelas = $user->hasRole('wali_kelas');
                                     if ($isPrivileged || $isWaliKelas) {
-                                        return Subject::orderBy('name')->pluck('name', 'id');
+                                        return Subject::akademik()->orderBy('name')->pluck('name', 'id');
                                     }
                                     $subjectIds = TeacherSubjectClass::where('teacher_id', $user->id)->pluck('subject_id')->toArray();
-                                    if ($user->isQuranTeacher() || $user->hasRole('koordinator_madin')) {
-                                        $quranSubjects = Subject::where(function ($sq) {
-                                            $sq->where('name', 'like', '%qur%')
-                                              ->orWhere('name', 'like', '%tahfidz%')
-                                              ->orWhere('name', 'like', '%tahsin%')
-                                              ->orWhere('name', 'like', '%yanbua%')
-                                              ->orWhere('name', 'like', '%madin%')
-                                              ->orWhere('name', 'like', '%diniyah%');
-                                        })->pluck('id')->toArray();
-                                        $subjectIds = array_unique(array_merge($subjectIds, $quranSubjects));
+                                    $assignedAkademik = Subject::akademik()->whereIn('id', $subjectIds)->orderBy('name')->pluck('name', 'id');
+                                    if ($assignedAkademik->isNotEmpty()) {
+                                        return $assignedAkademik;
                                     }
-                                    if (empty($subjectIds)) {
-                                        return Subject::orderBy('name')->pluck('name', 'id');
-                                    }
-                                    return Subject::whereIn('id', $subjectIds)->orderBy('name')->pluck('name', 'id');
+                                    return Subject::akademik()->orderBy('name')->pluck('name', 'id');
                                 })
                                 ->searchable()
                                 ->preload()
@@ -374,23 +329,8 @@ class ManageGrades extends ManageRecords
                                 ->view('filament.staff.forms.components.student-grade-batch-selector')
                                 ->viewData(function (Forms\Get $get) {
                                     $classroomId = $get('classroom_id');
-                                    $filterQuran = $get('filter_kelas_quran');
-                                    $user = Auth::user();
-
-                                    if ($user?->isQuranTeacher() && empty($filterQuran)) {
-                                        $filterQuran = match (true) {
-                                            $user->hasRole(User::ROLE_GURU_QURAN_TAHSIN) => 'tahsin',
-                                            $user->hasRole(User::ROLE_GURU_QURAN_YANBUA) => 'yanbua',
-                                            $user->hasRole(User::ROLE_GURU_QURAN_TAHFIDZ_DASAR) => 'tahfidz_dasar',
-                                            $user->hasRole(User::ROLE_GURU_QURAN_TAHFIDZ_LANJUTAN) => 'tahfidz_lanjutan',
-                                            default => null,
-                                        };
-                                    }
-
-                                    $query = Student::query()->with(['classroom', 'guruQuran']);
-                                    if (!empty($filterQuran)) {
-                                        $query->where('kelas_quran', $filterQuran);
-                                    } elseif (!empty($classroomId)) {
+                                    $query = Student::query()->with('classroom');
+                                    if (!empty($classroomId)) {
                                         $query->where('classroom_id', $classroomId);
                                     } else {
                                         $query->whereRaw('1 = 0');
@@ -401,7 +341,6 @@ class ManageGrades extends ManageRecords
                                     return [
                                         'students' => $students,
                                         'classroomId' => $classroomId,
-                                        'filterKelasQuran' => $filterQuran,
                                     ];
                                 })
                                 ->dehydrated(true)

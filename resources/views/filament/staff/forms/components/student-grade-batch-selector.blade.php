@@ -3,7 +3,7 @@
 @endphp
 
 <x-dynamic-component :component="$getFieldWrapperView()" :field="$field">
-    @if(empty($classroomId) && empty($filterKelasQuran))
+    @if(empty($classroomId))
         <div class="rounded-2xl border-2 border-dashed border-gray-300 dark:border-gray-700 p-8 text-center bg-gray-50/60 dark:bg-gray-800/40">
             <div class="w-12 h-12 mx-auto mb-3 rounded-full bg-primary-100 dark:bg-primary-950/60 text-primary-600 flex items-center justify-center">
                 <x-heroicon-o-academic-cap class="w-7 h-7" />
@@ -24,7 +24,7 @@
         </div>
     @else
         <div
-            wire:key="{{ (isset($this) && method_exists($this, 'getId') ? $this->getId() : $field->getId()) }}.{{ $statePath }}.class-{{ $classroomId ?? 'quran' }}"
+            wire:key="{{ (isset($this) && method_exists($this, 'getId') ? $this->getId() : $field->getId()) }}.{{ $statePath }}.class-{{ $classroomId ?? 'empty' }}"
             x-data="{
                 state: $wire.{{ $applyStateBindingModifiers("\$entangle('{$statePath}')") }},
                 search: '',

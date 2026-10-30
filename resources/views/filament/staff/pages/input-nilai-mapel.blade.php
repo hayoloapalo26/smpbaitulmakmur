@@ -1,29 +1,25 @@
 <x-filament-panels::page>
     <div class="space-y-6">
 
-        @if(auth()->user()->isQuranTeacher() && !auth()->user()->hasRole('guru_mapel'))
-            <div class="p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        @if(auth()->user()->isQuranTeacher())
+            <div class="p-4 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div class="flex items-center gap-3">
-                    <div class="w-10 h-10 rounded-xl bg-amber-100 dark:bg-amber-900 text-amber-600 flex items-center justify-center shrink-0">
+                    <div class="w-10 h-10 rounded-xl bg-emerald-100 dark:bg-emerald-900 text-emerald-600 flex items-center justify-center shrink-0">
                         <x-heroicon-o-book-open class="w-6 h-6" />
                     </div>
                     <div>
-                        <h4 class="text-sm font-bold text-amber-900 dark:text-amber-200">
-                            Fitur Penilaian Guru Al-Qur'an Berdiri Sendiri (Terpisah dari Guru Mapel)
+                        <h4 class="text-sm font-bold text-emerald-900 dark:text-emerald-200">
+                            Penilaian Al-Qur'an Berdiri Sendiri & Terintegrasi
                         </h4>
-                        <p class="text-xs text-amber-700 dark:text-amber-400 mt-0.5">
-                            Untuk penilaian santri Al-Qur'an, gunakan 2 fitur khusus Al-Qur'an di bawah ini (sudah dilengkapi format Jurnal Mengajar sekelas).
+                        <p class="text-xs text-emerald-700 dark:text-emerald-400 mt-0.5">
+                            Halaman ini khusus penginputan nilai mata pelajaran akademik. Untuk penilaian capaian Al-Qur'an (Ziyadah, Muraja'ah, dan Skor Kualitas), gunakan menu khusus Penilaian Al-Qur'an.
                         </p>
                     </div>
                 </div>
                 <div class="flex flex-wrap items-center gap-2 shrink-0">
                     <a href="{{ url('/staff/quran-achievements?action=input_setoran_rombel') }}" class="px-3.5 py-2 text-xs font-bold rounded-xl bg-emerald-600 text-white hover:bg-emerald-500 shadow-sm transition flex items-center gap-1.5">
-                        <x-heroicon-o-book-open class="w-4 h-4" />
-                        📖 Capaian & Setoran Hafalan
-                    </a>
-                    <a href="{{ url('/staff/reading-quality-scores?action=input_skor_rombel') }}" class="px-3.5 py-2 text-xs font-bold rounded-xl bg-amber-600 text-white hover:bg-amber-500 shadow-sm transition flex items-center gap-1.5">
-                        <x-heroicon-o-star class="w-4 h-4" />
-                        ⭐ Skor Kualitas & Tahsin
+                        <x-heroicon-o-sparkles class="w-4 h-4" />
+                        📖 Buka Penilaian Al-Qur'an (Rombel)
                     </a>
                 </div>
             </div>
@@ -179,20 +175,7 @@
                         </div>
                     </div>
 
-                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
-                        <div>
-                            <label class="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
-                                Filter Kelas Al-Qur'an
-                            </label>
-                            <select wire:model.live="selectedQuranClass" 
-                                    class="w-full text-xs rounded-xl border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white shadow-sm focus:border-primary-500 focus:ring-primary-500">
-                                <option value="">-- Semua Siswa Rombel --</option>
-                                <option value="tahsin">📖 Hanya Kelas Tahsin</option>
-                                <option value="yanbua">📖 Hanya Kelas Yanbu'a</option>
-                                <option value="tahfidz_dasar">📖 Hanya Kelas Tahfidz Dasar</option>
-                                <option value="tahfidz_lanjutan">📖 Hanya Kelas Tahfidz Lanjutan</option>
-                            </select>
-                        </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
                         <div>
                             <label class="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
                                 Semester

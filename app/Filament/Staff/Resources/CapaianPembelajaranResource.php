@@ -97,10 +97,14 @@ class CapaianPembelajaranResource extends Resource
                             ->relationship('subject', 'name')
                             ->options(function () use ($isPrivileged, $user) {
                                 if ($isPrivileged) {
-                                    return Subject::orderBy('name')->pluck('name', 'id');
+                                    return Subject::akademik()->orderBy('name')->pluck('name', 'id');
                                 }
                                 $subjectIds = TeacherSubjectClass::where('teacher_id', $user->id)->pluck('subject_id')->toArray();
-                                return Subject::whereIn('id', $subjectIds)->orderBy('name')->pluck('name', 'id');
+                                $assignedAkademik = Subject::akademik()->whereIn('id', $subjectIds)->orderBy('name')->pluck('name', 'id');
+                                if ($assignedAkademik->isNotEmpty()) {
+                                    return $assignedAkademik;
+                                }
+                                return Subject::akademik()->orderBy('name')->pluck('name', 'id');
                             })
                             ->searchable()
                             ->preload()
