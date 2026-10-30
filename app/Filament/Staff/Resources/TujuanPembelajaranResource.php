@@ -102,8 +102,9 @@ class TujuanPembelajaranResource extends Resource
                                 if ($subjectId) {
                                     $query->where('subject_id', $subjectId);
                                 }
-                                return $query->orderBy('tingkat')->get()->mapWithKeys(function ($cp) {
-                                    $label = "[Kelas {$cp->tingkat} - {$cp->elemen}] " . \Illuminate\Support\Str::limit($cp->deskripsi_cp, 65);
+                                return $query->orderBy('tingkat')->orderBy('id')->get()->mapWithKeys(function ($cp) {
+                                    $kode = $cp->kode_cp ? "[CP {$cp->kode_cp}] " : '';
+                                    $label = "{$kode}[Kelas {$cp->tingkat} - {$cp->elemen}] " . \Illuminate\Support\Str::limit($cp->deskripsi_cp, 60);
                                     return [$cp->id => $label];
                                 });
                             })
@@ -117,6 +118,11 @@ class TujuanPembelajaranResource extends Resource
                                     if ($cp) {
                                         $set('kelas_tingkat', $cp->tingkat);
                                         $set('materi', $cp->elemen);
+
+                                        $cpKode = $cp->kode_cp ?: '1';
+                                        $existingCount = TujuanPembelajaran::where('capaian_pembelajaran_id', $cp->id)->count();
+                                        $nextNum = $existingCount + 1;
+                                        $set('kode_tp', "{$cpKode}.{$nextNum}");
                                     }
                                 }
                             }),
@@ -146,7 +152,8 @@ class TujuanPembelajaranResource extends Resource
                     ->schema([
                         Forms\Components\TextInput::make('kode_tp')
                             ->label('Kode TP')
-                            ->placeholder('Contoh: TP.7.1 atau TP.MAT.01')
+                            ->placeholder('Contoh: 1.1, 1.2, 1.5, 2.1')
+                            ->helperText('Format: {Kode CP}.{Nomor TP}. Contoh: TP ke-1 pada CP 1 adalah 1.1, TP ke-5 adalah 1.5.')
                             ->required(),
 
                         Forms\Components\TextInput::make('materi')

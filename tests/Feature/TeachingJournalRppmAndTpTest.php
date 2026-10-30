@@ -157,7 +157,7 @@ class TeachingJournalRppmAndTpTest extends TestCase
         // Accessor getSelectedTpsAttribute
         $selectedTps = $fresh->selected_tps;
         $this->assertCount(2, $selectedTps);
-        $this->assertEquals('TP.7.1', $selectedTps->first()->kode_tp);
+        $this->assertEquals('1.1', $selectedTps->first()->kode_tp);
     }
 
     public function test_teaching_journal_auto_populates_materi_from_rppm_if_materi_empty(): void

@@ -78,6 +78,12 @@ class CapaianPembelajaranResource extends Resource
                         Forms\Components\Hidden::make('guru_id')
                             ->default(fn () => Auth::id()),
 
+                        Forms\Components\TextInput::make('kode_cp')
+                            ->label('Kode CP')
+                            ->placeholder('Contoh: 1, 2, dst. (Otomatis)')
+                            ->helperText('Nomor urut CP (CP ke-1 berkode 1, CP ke-2 berkode 2, dst.). Otomatis terisi urutan berikutnya jika dikosongkan.')
+                            ->nullable(),
+
                         Forms\Components\Select::make('subject_id')
                             ->label('Mata Pelajaran')
                             ->relationship('subject', 'name')
@@ -90,7 +96,16 @@ class CapaianPembelajaranResource extends Resource
                             })
                             ->searchable()
                             ->preload()
-                            ->required(),
+                            ->required()
+                            ->live()
+                            ->afterStateUpdated(function ($state, Forms\Set $set, Forms\Get $get) {
+                                if ($state && empty($get('kode_cp'))) {
+                                    $guruId = $get('guru_id') ?? Auth::id();
+                                    $tingkat = $get('tingkat') ?? '7';
+                                    $count = CapaianPembelajaran::where('guru_id', $guruId)->where('subject_id', $state)->where('tingkat', $tingkat)->count() + 1;
+                                    $set('kode_cp', (string) $count);
+                                }
+                            }),
 
                         Forms\Components\Select::make('tingkat')
                             ->label('Tingkat Kelas')
@@ -100,7 +115,16 @@ class CapaianPembelajaranResource extends Resource
                                 '9' => 'Kelas 9 (Fase D)',
                             ])
                             ->default('7')
-                            ->required(),
+                            ->required()
+                            ->live()
+                            ->afterStateUpdated(function ($state, Forms\Set $set, Forms\Get $get) {
+                                $subjectId = $get('subject_id');
+                                if ($subjectId && empty($get('kode_cp'))) {
+                                    $guruId = $get('guru_id') ?? Auth::id();
+                                    $count = CapaianPembelajaran::where('guru_id', $guruId)->where('subject_id', $subjectId)->where('tingkat', $state)->count() + 1;
+                                    $set('kode_cp', (string) $count);
+                                }
+                            }),
 
                         Forms\Components\TextInput::make('fase')
                             ->label('Fase Kurikulum')
@@ -153,6 +177,14 @@ class CapaianPembelajaranResource extends Resource
     {
         return $table
             ->columns([
+                Tables\Columns\TextColumn::make('kode_cp')
+                    ->label('Kode CP')
+                    ->badge()
+                    ->color('primary')
+                    ->formatStateUsing(fn ($state) => $state ? "CP {$state}" : '-')
+                    ->searchable()
+                    ->sortable(),
+
                 Tables\Columns\TextColumn::make('subject.name')
                     ->label('Mata Pelajaran')
                     ->badge()

@@ -455,7 +455,9 @@ class TeachingJournalResource extends Resource
                                     }
                                 }
 
-                                return $query->get()->mapWithKeys(function ($tp) use ($rppmTpIds) {
+                                return $query->get()->sort(function ($a, $b) {
+                                    return strnatcmp($a->kode_tp ?? '', $b->kode_tp ?? '');
+                                })->mapWithKeys(function ($tp) use ($rppmTpIds) {
                                     $isRppm = in_array($tp->id, $rppmTpIds);
                                     $tag = $isRppm ? '📌 [Dari RPPM] ' : '';
                                     $prefix = $tp->materi ? "[{$tp->materi}] " : '';

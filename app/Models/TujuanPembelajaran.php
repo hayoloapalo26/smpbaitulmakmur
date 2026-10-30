@@ -17,10 +17,21 @@ class TujuanPembelajaran extends Model
     protected static function booted()
     {
         static::creating(function ($tp) {
-            if (empty($tp->kode_tp)) {
+            $cp = $tp->capaianPembelajaran ?? CapaianPembelajaran::find($tp->capaian_pembelajaran_id);
+            $cpKode = $cp?->kode_cp ?: '1';
+
+            if (empty($tp->kode_tp) || str_starts_with($tp->kode_tp, 'TP.')) {
                 $count = static::where('capaian_pembelajaran_id', $tp->capaian_pembelajaran_id)->count() + 1;
-                $tingkat = $tp->kelas_tingkat ?? '7';
-                $tp->kode_tp = "TP.{$tingkat}.{$count}";
+                $tp->kode_tp = "{$cpKode}.{$count}";
+            }
+
+            if ($cp) {
+                if (empty($tp->subject_id)) {
+                    $tp->subject_id = $cp->subject_id;
+                }
+                if (empty($tp->kelas_tingkat)) {
+                    $tp->kelas_tingkat = $cp->tingkat;
+                }
             }
         });
 
@@ -63,5 +74,11 @@ class TujuanPembelajaran extends Model
     public function grades()
     {
         return $this->hasMany(Grade::class, 'tp_pengayaan_id');
+    }
+
+    public function getDisplayTitleAttribute(): string
+    {
+        $prefix = $this->materi ? "[{$this->materi}] " : '';
+        return "[{$this->kode_tp}] {$prefix}" . $this->deskripsi_tp;
     }
 }

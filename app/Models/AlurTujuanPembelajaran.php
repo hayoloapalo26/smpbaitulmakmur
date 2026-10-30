@@ -36,6 +36,7 @@ class AlurTujuanPembelajaran extends Model
 
     /**
      * Otomatis membuat dan memperbarui ATP dari seluruh inputan TP oleh guru mapel bersangkutan
+     * Mengakumulasikan seluruh TP dan mengurutkan berdasarkan kode CP dan kode TP secara sistematis (1.1, 1.2, ..., 2.1, dst.)
      */
     public static function syncForTeacherAndSubject(int $guruId, int $subjectId, ?string $tingkat = '7', ?string $tahunAjaran = '2026/2027', ?string $semester = 'Ganjil'): ?self
     {
@@ -57,9 +58,32 @@ class AlurTujuanPembelajaran extends Model
             });
         }
 
-        $allTps = $query->orderBy('id', 'asc')->get();
+        // Urutkan TP secara natural berdasarkan kode_tp (1.1, 1.2, ..., 1.5, 2.1, dst.)
+        $allTps = $query->with('capaianPembelajaran')->get()->sort(function ($a, $b) {
+            return strnatcmp($a->kode_tp ?? '', $b->kode_tp ?? '');
+        })->values();
+
         $tpIds = $allTps->pluck('id')->toArray();
         $count = count($tpIds);
+
+        // Susun urutan alur terstruktur yang memuat kode CP dan kode TP
+        $urutanAlur = $allTps->map(function ($tp, $index) {
+            $cp = $tp->capaianPembelajaran;
+            $cpKode = $cp?->kode_cp ?: '1';
+            $tahapNum = $index + 1;
+
+            return [
+                'tahap' => "Tahap {$tahapNum} [TP {$tp->kode_tp}]",
+                'kode_tp' => $tp->kode_tp,
+                'kode_cp' => $cpKode,
+                'elemen' => $cp?->elemen ?? '',
+                'materi' => $tp->materi ?: ($cp?->elemen ?: "Materi TP {$tp->kode_tp}"),
+                'alokasi_jp' => 2,
+                'catatan_alur' => $tp->deskripsi_tp,
+            ];
+        })->toArray();
+
+        $totalJp = $count * 2;
 
         $atp = static::firstOrCreate(
             [
@@ -74,20 +98,23 @@ class AlurTujuanPembelajaran extends Model
                 'fase' => 'Fase D (SMP)',
                 'semester' => $semester ?? 'Ganjil',
                 'tp_ids' => $tpIds,
+                'urutan_alur' => $urutanAlur,
+                'total_alokasi_jp' => $totalJp,
             ]
         );
 
         $atp->update([
             'tp_ids' => $tpIds,
+            'urutan_alur' => $urutanAlur,
             'judul_atp' => "Alur Tujuan Pembelajaran (ATP) - {$subject->name} Kelas {$tingkat} ({$count} TP Terakumulasi)",
-            'total_alokasi_jp' => $allTps->sum('alokasi_jp') ?: ($count * 2),
+            'total_alokasi_jp' => $totalJp,
         ]);
 
         return $atp;
     }
 
     /**
-     * Mengambil koleksi TujuanPembelajaran yang diakumulasikan
+     * Mengambil koleksi TujuanPembelajaran yang diakumulasikan dan terurut natural berdasarkan kode_tp
      */
     public function getAccumulatedTpsAttribute()
     {
@@ -95,10 +122,25 @@ class AlurTujuanPembelajaran extends Model
             return collect();
         }
 
-        return TujuanPembelajaran::whereIn('id', $this->tp_ids)
+        return TujuanPembelajaran::with('capaianPembelajaran')
+            ->whereIn('id', $this->tp_ids)
             ->get()
-            ->sortBy(function ($tp) {
-                return array_search($tp->id, $this->tp_ids);
-            });
+            ->sort(function ($a, $b) {
+                return strnatcmp($a->kode_tp ?? '', $b->kode_tp ?? '');
+            })
+            ->values();
+    }
+
+    /**
+     * Ringkasan daftar kode TP yang terakumulasi
+     */
+    public function getTpCodesSummaryAttribute(): string
+    {
+        $tps = $this->accumulated_tps;
+        if ($tps->isEmpty()) {
+            return 'Belum ada TP';
+        }
+
+        return $tps->pluck('kode_tp')->filter()->implode(', ');
     }
 }

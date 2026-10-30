@@ -94,7 +94,11 @@ class RppmResource extends Resource
                                         ->preload()
                                         ->required(),
 
-                                    Forms\Components\Grid::make(2)->schema([
+                                    Forms\Components\Grid::make(3)->schema([
+                                        Forms\Components\TextInput::make('modal_kode_cp')
+                                            ->label('Kode CP')
+                                            ->placeholder('1, 2, dst. (Otomatis)')
+                                            ->helperText('Contoh: 1 untuk CP 1'),
                                         Forms\Components\Select::make('modal_tingkat')
                                             ->label('Tingkat Kelas')
                                             ->options(['7' => 'Kelas 7', '8' => 'Kelas 8', '9' => 'Kelas 9'])
@@ -127,6 +131,7 @@ class RppmResource extends Resource
                                         'institution_id' => auth()->user()?->institution_id,
                                         'guru_id' => auth()->id(),
                                         'subject_id' => $data['modal_subject_id'],
+                                        'kode_cp' => !empty($data['modal_kode_cp']) ? (string) $data['modal_kode_cp'] : null,
                                         'fase' => 'Fase D (SMP)',
                                         'tingkat' => $data['modal_tingkat'],
                                         'tahun_ajaran' => '2026/2027',
@@ -166,7 +171,8 @@ class RppmResource extends Resource
                                         ->options(function () {
                                             return \App\Models\CapaianPembelajaran::with('subject')->get()->mapWithKeys(function ($cp) {
                                                 $mapel = $cp->subject?->name ?? 'Mapel';
-                                                return [$cp->id => "[{$mapel} - Kelas {$cp->tingkat}] {$cp->elemen} - " . \Illuminate\Support\Str::limit($cp->deskripsi_cp, 55)];
+                                                $cpKode = $cp->kode_cp ? "CP {$cp->kode_cp}" : "CP";
+                                                return [$cp->id => "[{$cpKode}] [{$mapel} - Kelas {$cp->tingkat}] {$cp->elemen} - " . \Illuminate\Support\Str::limit($cp->deskripsi_cp, 55)];
                                             });
                                         })
                                         ->default(fn (Forms\Get $get) => $get('capaian_pembelajaran_id') ?? $get('content.capaian_pembelajaran_id'))
@@ -188,15 +194,17 @@ class RppmResource extends Resource
                                 ])
                                 ->action(function (array $data, Forms\Set $set, Forms\Get $get) {
                                     $cp = \App\Models\CapaianPembelajaran::find($data['modal_cp_id']);
+                                    $cpKode = $cp?->kode_cp ?: '1';
                                     $count = \App\Models\TujuanPembelajaran::where('capaian_pembelajaran_id', $data['modal_cp_id'])->count() + 1;
                                     $tingkat = $cp?->tingkat ?? '7';
+                                    $kodeTp = "{$cpKode}.{$count}";
 
                                     $tp = \App\Models\TujuanPembelajaran::create([
                                         'institution_id' => auth()->user()?->institution_id,
                                         'guru_id' => auth()->id(),
                                         'capaian_pembelajaran_id' => $data['modal_cp_id'],
                                         'subject_id' => $cp?->subject_id ?? \App\Models\Subject::first()?->id,
-                                        'kode_tp' => "TP.{$tingkat}.{$count}",
+                                        'kode_tp' => $kodeTp,
                                         'deskripsi_tp' => $data['modal_deskripsi_tp'],
                                         'materi' => $data['modal_materi'] ?? null,
                                         'kelas_tingkat' => $tingkat,
@@ -213,11 +221,13 @@ class RppmResource extends Resource
                                     $set('selected_tp_ids', $currentSelected);
                                     $set('content.selected_tp_dropdown', $currentSelected);
 
-                                    $tps = \App\Models\TujuanPembelajaran::whereIn('id', $currentSelected)->get();
+                                    $tps = \App\Models\TujuanPembelajaran::whereIn('id', $currentSelected)->get()->sort(function ($a, $b) {
+                                        return strnatcmp($a->kode_tp ?? '', $b->kode_tp ?? '');
+                                    });
                                     $tpItems = $tps->map(function ($item) {
-                                        $prefix = $item->materi ? "[{$item->materi}] " : '';
-                                        return ['rumusan' => "{$prefix}{$item->deskripsi_tp}"];
-                                    })->toArray();
+                                        $prefix = $item->materi ? "({$item->materi}) " : '';
+                                        return ['rumusan' => "[{$item->kode_tp}] {$prefix}{$item->deskripsi_tp}"];
+                                    })->values()->toArray();
                                     $set('content.tujuan_pembelajaran', $tpItems);
 
                                     // Otomatis akumulasikan dan sinkronisasi ATP untuk guru & mapel ini
@@ -245,7 +255,8 @@ class RppmResource extends Resource
                             ->options(function () {
                                 return \App\Models\CapaianPembelajaran::with('subject')->get()->mapWithKeys(function ($cp) {
                                     $mapel = $cp->subject?->name ?? 'Mapel';
-                                    return [$cp->id => "[{$mapel} - Kelas {$cp->tingkat}] {$cp->elemen} - " . \Illuminate\Support\Str::limit($cp->deskripsi_cp, 60)];
+                                    $cpKode = $cp->kode_cp ? "CP {$cp->kode_cp}" : "CP";
+                                    return [$cp->id => "[{$cpKode}] [{$mapel} - Kelas {$cp->tingkat}] {$cp->elemen} - " . \Illuminate\Support\Str::limit($cp->deskripsi_cp, 60)];
                                 });
                             })
                             ->searchable()
@@ -334,9 +345,12 @@ class RppmResource extends Resource
                                 if ($cpId && is_numeric($cpId)) {
                                     $query->where('capaian_pembelajaran_id', $cpId);
                                 }
-                                return $query->get()->mapWithKeys(function ($tp) {
-                                    $prefix = $tp->materi ? "[{$tp->materi}] " : '';
-                                    return [$tp->id => "{$prefix}" . \Illuminate\Support\Str::limit($tp->deskripsi_tp, 65)];
+                                $tps = $query->get()->sort(function ($a, $b) {
+                                    return strnatcmp($a->kode_tp ?? '', $b->kode_tp ?? '');
+                                });
+                                return $tps->mapWithKeys(function ($tp) {
+                                    $prefix = $tp->materi ? "({$tp->materi}) " : '';
+                                    return [$tp->id => "[TP {$tp->kode_tp}] {$prefix}" . \Illuminate\Support\Str::limit($tp->deskripsi_tp, 65)];
                                 });
                             })
                             ->searchable()
@@ -344,11 +358,13 @@ class RppmResource extends Resource
                             ->live()
                             ->afterStateUpdated(function ($state, Forms\Set $set) {
                                 if (!empty($state)) {
-                                    $tps = \App\Models\TujuanPembelajaran::whereIn('id', $state)->get();
+                                    $tps = \App\Models\TujuanPembelajaran::whereIn('id', $state)->get()->sort(function ($a, $b) {
+                                        return strnatcmp($a->kode_tp ?? '', $b->kode_tp ?? '');
+                                    });
                                     $tpItems = $tps->map(function ($tp) {
-                                        $prefix = $tp->materi ? "[{$tp->materi}] " : '';
-                                        return ['rumusan' => "{$prefix}{$tp->deskripsi_tp}"];
-                                    })->toArray();
+                                        $prefix = $tp->materi ? "({$tp->materi}) " : '';
+                                        return ['rumusan' => "[{$tp->kode_tp}] {$prefix}{$tp->deskripsi_tp}"];
+                                    })->values()->toArray();
                                     $set('content.tujuan_pembelajaran', $tpItems);
                                     $set('content.selected_tp_dropdown', $state);
                                 }

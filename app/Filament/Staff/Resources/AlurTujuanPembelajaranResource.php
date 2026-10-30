@@ -138,16 +138,32 @@ class AlurTujuanPembelajaranResource extends Resource
                                 if ($tingkat) {
                                     $query->where('kelas_tingkat', $tingkat);
                                 }
-                                return $query->orderBy('kode_tp')->get()->mapWithKeys(function ($tp) {
-                                    return [$tp->id => "[{$tp->kode_tp}] {$tp->materi} - " . \Illuminate\Support\Str::limit($tp->deskripsi_tp, 55)];
+                                $tps = $query->with('capaianPembelajaran')->get()->sort(function ($a, $b) {
+                                    return strnatcmp($a->kode_tp ?? '', $b->kode_tp ?? '');
+                                });
+                                return $tps->mapWithKeys(function ($tp) {
+                                    $cp = $tp->capaianPembelajaran;
+                                    $cpKode = $cp?->kode_cp ? "CP {$cp->kode_cp}" : "CP";
+                                    $materi = $tp->materi ? "({$tp->materi}) " : '';
+                                    return [$tp->id => "[TP {$tp->kode_tp}] [{$cpKode}] {$materi}" . \Illuminate\Support\Str::limit($tp->deskripsi_tp, 60)];
                                 });
                             })
                             ->searchable()
                             ->preload()
+                            ->live()
                             ->helperText('Pilih TP-TP yang akan diakumulasikan dan diurutkan dalam alur pembelajaran ini.')
                             ->columnSpanFull()
                             ->required(),
                     ])->columns(2),
+
+                Forms\Components\Section::make('📋 Kumpulan Seluruh Tujuan Pembelajaran (TP) Terakumulasi')
+                    ->description('Daftar seluruh TP yang diakumulasikan dalam ATP ini sesuai kode urutan CP dan TP.')
+                    ->schema([
+                        Forms\Components\ViewField::make('accumulated_tp_preview')
+                            ->label('')
+                            ->view('filament.staff.components.atp-accumulated-tp-table')
+                            ->columnSpanFull(),
+                    ]),
 
                 Forms\Components\Section::make('🪜 Penyusunan Alur & Tahapan Pembelajaran')
                     ->description('Susun tahapan alur secara runut, alokasi jam pelajaran (JP), dan materi esensial.')
@@ -155,9 +171,14 @@ class AlurTujuanPembelajaranResource extends Resource
                         Forms\Components\Repeater::make('urutan_alur')
                             ->label('Tahapan Alur Pembelajaran')
                             ->schema([
+                                Forms\Components\TextInput::make('kode_tp')
+                                    ->label('Kode TP')
+                                    ->placeholder('1.1')
+                                    ->helperText('Contoh: 1.1, 1.2, 2.1'),
+
                                 Forms\Components\TextInput::make('tahap')
                                     ->label('Tahap / Pekan')
-                                    ->placeholder('Contoh: Alur 1 / Pekan 1-3')
+                                    ->placeholder('Contoh: Tahap 1 [TP 1.1]')
                                     ->required(),
 
                                 Forms\Components\TextInput::make('materi')
@@ -168,7 +189,7 @@ class AlurTujuanPembelajaranResource extends Resource
                                 Forms\Components\TextInput::make('alokasi_jp')
                                     ->label('Alokasi Waktu (JP)')
                                     ->numeric()
-                                    ->placeholder('Contoh: 10')
+                                    ->placeholder('Contoh: 2')
                                     ->suffix('JP')
                                     ->required(),
 
@@ -178,7 +199,7 @@ class AlurTujuanPembelajaranResource extends Resource
                                     ->rows(2)
                                     ->columnSpanFull(),
                             ])
-                            ->columns(3)
+                            ->columns(4)
                             ->defaultItems(1)
                             ->columnSpanFull(),
 
@@ -226,6 +247,13 @@ class AlurTujuanPembelajaranResource extends Resource
                     ->state(fn (AlurTujuanPembelajaran $record) => count($record->tp_ids ?? []) . ' TP')
                     ->badge()
                     ->color('success'),
+
+                Tables\Columns\TextColumn::make('tp_codes_summary')
+                    ->label('Daftar Kode TP')
+                    ->badge()
+                    ->color('primary')
+                    ->limit(35)
+                    ->tooltip(fn (AlurTujuanPembelajaran $record) => $record->tp_codes_summary),
 
                 Tables\Columns\TextColumn::make('total_alokasi_jp')
                     ->label('Total JP')
