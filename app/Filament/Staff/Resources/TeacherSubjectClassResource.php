@@ -4,6 +4,7 @@ namespace App\Filament\Staff\Resources;
 
 use App\Filament\Staff\Resources\TeacherSubjectClassResource\Pages;
 use App\Models\TeacherSubjectClass;
+use App\Models\User;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
@@ -35,6 +36,30 @@ class TeacherSubjectClassResource extends Resource
         return 3;
     }
 
+    public static function getEligibleTeachersQuery(?\Illuminate\Database\Eloquent\Builder $query = null, ?User $user = null): \Illuminate\Database\Eloquent\Builder
+    {
+        $query = $query ?: User::query();
+        $user = $user ?: auth()->user();
+
+        $query->where('is_active', true)
+            ->whereHas('roles', function ($q) {
+                $q->whereIn('name', array_merge([
+                    'guru_mapel',
+                    'guru_kelas',
+                ], User::QURAN_TEACHER_ROLES));
+            });
+
+        if ($user && $user->institution_id && !$user->hasRole('superadmin')) {
+            $query->where(function ($q) use ($user) {
+                $q->where('institution_id', $user->institution_id)
+                  ->orWhereNull('institution_id')
+                  ->orWhere('institution_id', 1);
+            });
+        }
+
+        return $query;
+    }
+
     public static function form(Form $form): Form
     {
         return $form
@@ -43,14 +68,7 @@ class TeacherSubjectClassResource extends Resource
                     ->description('Tentukan guru pengampu, mata pelajaran yang diajarkan, dan kelas tujuan. 1 guru dapat mengampu lebih dari 1 mata pelajaran.')
                     ->schema([
                         Forms\Components\Select::make('teacher_id')
-                            ->relationship('teacher', 'name', modifyQueryUsing: function ($query) {
-                                $query->where('is_active', true)
-                                    ->whereHas('roles', function ($q) {
-                                        $q->whereIn('name', array_merge([
-                                            'guru_mapel', 'guru_kelas', 'wali_kelas', 'waka_kurikulum', 'waka_kesiswaan'
-                                        ], \App\Models\User::QURAN_TEACHER_ROLES));
-                                    });
-                            })
+                            ->relationship('teacher', 'name', modifyQueryUsing: fn ($query) => static::getEligibleTeachersQuery($query))
                             ->getOptionLabelFromRecordUsing(function ($record) {
                                 $user = auth()->user();
                                 $roles = $record->roles->pluck('name')->toArray();
@@ -172,8 +190,8 @@ class TeacherSubjectClassResource extends Resource
                         }
                     }),
                 Tables\Filters\SelectFilter::make('teacher_id')
-                    ->relationship('teacher', 'name')
                     ->label('Filter Guru')
+                    ->relationship('teacher', 'name', modifyQueryUsing: fn ($query) => static::getEligibleTeachersQuery($query))
                     ->searchable()
                     ->preload(),
                 Tables\Filters\SelectFilter::make('subject_id')

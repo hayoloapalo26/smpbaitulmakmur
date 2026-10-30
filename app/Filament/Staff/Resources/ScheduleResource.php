@@ -184,7 +184,26 @@ class ScheduleResource extends Resource
                     ->relationship('classroom', 'name'),
                 Tables\Filters\SelectFilter::make('teacher_id')
                     ->label('Guru')
-                    ->relationship('teacher', 'name'),
+                    ->relationship('teacher', 'name', modifyQueryUsing: function (\Illuminate\Database\Eloquent\Builder $query) {
+                        $user = auth()->user();
+                        $query->where('is_active', true)
+                            ->whereHas('roles', function ($q) {
+                                $q->whereIn('name', array_merge([
+                                    'guru_mapel',
+                                    'guru_kelas',
+                                ], \App\Models\User::QURAN_TEACHER_ROLES));
+                            });
+
+                        if ($user && $user->institution_id && !$user->hasRole('superadmin')) {
+                            $query->where(function ($q) use ($user) {
+                                $q->where('institution_id', $user->institution_id)
+                                  ->orWhereNull('institution_id')
+                                  ->orWhere('institution_id', 1);
+                            });
+                        }
+                    })
+                    ->searchable()
+                    ->preload(),
             ])
             ->actions([
                 Tables\Actions\EditAction::make()

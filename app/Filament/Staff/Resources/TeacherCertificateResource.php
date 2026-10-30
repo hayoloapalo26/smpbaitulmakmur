@@ -288,7 +288,16 @@ class TeacherCertificateResource extends Resource
 
                 Tables\Filters\SelectFilter::make('teacher_id')
                     ->label('Filter Guru')
-                    ->relationship('teacher', 'name')
+                    ->relationship('teacher', 'name', modifyQueryUsing: function (\Illuminate\Database\Eloquent\Builder $query) {
+                        $query->where('is_active', true)
+                            ->whereHas('roles', function ($q) {
+                                $q->whereIn('name', array_merge([
+                                    'guru_mapel',
+                                    'guru_kelas',
+                                    'wali_kelas',
+                                ], \App\Models\User::QURAN_TEACHER_ROLES));
+                            });
+                    })
                     ->searchable()
                     ->preload()
                     ->visible(fn () => Auth::user()?->hasAnyRole(['kepala_sekolah', 'waka_kurikulum', 'superadmin', 'tata_usaha'])),
