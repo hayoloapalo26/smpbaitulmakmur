@@ -163,6 +163,14 @@ class CustomLogin extends BaseLogin
                 ->modalHeading('Permintaan Reset Password')
                 ->modalDescription('Masukkan username atau email Anda. Admin akan me-reset password Anda secara manual.')
                 ->modalSubmitActionLabel('Kirim Permintaan'),
+
+            Action::make('contactAdminWhatsApp')
+                ->label('Kendala / Tanya Admin? Chat WhatsApp (082322672548)')
+                ->icon('heroicon-m-chat-bubble-left-right')
+                ->color('success')
+                ->link()
+                ->url('https://wa.me/6282322672548?text=' . rawurlencode("Assalamu'alaikum Admin Sistem Informasi Baitul Makmur, saya mengalami kendala saat login ke sistem: "))
+                ->openUrlInNewTab(),
         ];
     }
 }

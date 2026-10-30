@@ -1,3 +1,6 @@
+{{-- FLOATING WHATSAPP CP BUTTON (UNTUK SEMUA USER & HALAMAN) --}}
+@include('filament.common.whatsapp-help-button')
+
 @php
     $user = auth()->user();
     if (!$user) return;

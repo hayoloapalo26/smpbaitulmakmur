@@ -280,6 +280,10 @@ class YayasanPanelProvider extends PanelProvider
                 ')
             )
             ->renderHook(
+                PanelsRenderHook::USER_MENU_BEFORE,
+                fn (): string => Blade::render('@include("filament.common.whatsapp-topbar-button")')
+            )
+            ->renderHook(
                 PanelsRenderHook::BODY_END,
                 fn (): string => Blade::render('@include("filament.common.mobile-bottom-nav")')
             )
