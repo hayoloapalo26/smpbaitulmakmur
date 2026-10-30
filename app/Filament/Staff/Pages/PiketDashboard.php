@@ -21,9 +21,11 @@ class PiketDashboard extends Page
             return false;
         }
 
-        return $user->hasAnyRole([
-            'guru_piket', 'waka_kesiswaan', 'kepala_sekolah', 'superadmin'
-        ]) || $user->isPiketToday();
+        if ($user->hasAnyRole(['waka_kesiswaan', 'kepala_sekolah', 'superadmin'])) {
+            return true;
+        }
+
+        return $user->isPiketToday();
     }
 
     public static function shouldRegisterNavigation(): bool

@@ -20,11 +20,11 @@ class AbsensiManual extends Page
             return false;
         }
 
-        $isPiketToday = $user->isPiketToday();
+        if ($user->hasAnyRole(['waka_kesiswaan', 'kepala_sekolah', 'superadmin', 'tata_usaha'])) {
+            return true;
+        }
 
-        return $isPiketToday || $user->hasAnyRole([
-            'guru_piket', 'tata_usaha', 'waka_kesiswaan', 'kepala_sekolah', 'superadmin'
-        ]);
+        return $user->isPiketToday();
     }
 
     public static function shouldRegisterNavigation(): bool

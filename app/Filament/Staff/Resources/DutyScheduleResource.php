@@ -5,11 +5,14 @@ namespace App\Filament\Staff\Resources;
 use App\Filament\Staff\Resources\DutyScheduleResource\Pages;
 use App\Models\AcademicYear;
 use App\Models\DutySchedule;
+use App\Models\DutySwapRequest;
 use App\Models\Schedule;
+use App\Models\User;
 use App\Services\DutyScheduleGeneratorService;
 use Carbon\Carbon;
 use Filament\Forms;
 use Filament\Forms\Form;
+use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
@@ -30,6 +33,7 @@ class DutyScheduleResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-calendar-days';
     protected static ?string $navigationGroup = 'Kesiswaan & Karakter';
+    protected static ?string $navigationLabel = 'Jadwal Piket Guru';
     protected static ?string $modelLabel = 'Jadwal Piket Guru';
     protected static ?string $pluralModelLabel = 'Jadwal Piket Guru';
     protected static ?int $navigationSort = 2;
@@ -56,7 +60,7 @@ class DutyScheduleResource extends Resource
         return $form
             ->schema([
                 Forms\Components\Section::make('Informasi Penugasan Guru Piket')
-                    ->description('Cukup tentukan hari piket dan nama guru. Sistem otomatis mendeteksi hari bertugas setiap harinya tanpa perlu menginputkan tanggal.')
+                    ->description('Pilih hari dan tentukan guru yang bertugas. Anda dapat memilih lebih dari satu guru (multiple choice) untuk hari yang sama.')
                     ->schema([
                         Forms\Components\Select::make('hari')
                             ->label('Hari Piket')
@@ -70,16 +74,19 @@ class DutyScheduleResource extends Resource
                             ])
                             ->required()
                             ->native(false)
-                            ->helperText('Pilih hari piket rutin. Guru akan otomatis aktif bertugas di sistem setiap hari tersebut tiba!'),
+                            ->helperText('Pilih hari piket rutin.'),
 
-                        Forms\Components\Select::make('teacher_id')
-                            ->label('Guru yang Bertugas')
+                        Forms\Components\Select::make('teacher_ids')
+                            ->label('Guru yang Bertugas (Multiple Choice)')
+                            ->multiple()
+                            ->searchable()
+                            ->preload()
                             ->options(function () {
                                 $instId = Auth::user()?->institution_id;
                                 return DutyScheduleGeneratorService::getEligibleTeachers($instId)->pluck('name', 'id');
                             })
-                            ->searchable()
-                            ->required(),
+                            ->required()
+                            ->helperText('Pilih satu atau beberapa guru yang bertugas di hari tersebut (bisa lebih dari 1 guru).'),
 
                         Forms\Components\Select::make('semester')
                             ->label('Semester')
@@ -97,11 +104,11 @@ class DutyScheduleResource extends Resource
                             ->searchable(),
 
                         Forms\Components\DatePicker::make('tanggal')
-                            ->label('Tanggal Spesifik (Opsional)')
+                            ->label('Tanggal Khusus (Opsional)')
                             ->nullable()
                             ->native(false)
                             ->displayFormat('d F Y')
-                            ->helperText('Biarkan KOSONG untuk penugasan rutin mingguan otomatis berdasarkan hari. Isi hanya jika ingin menugaskan pada tanggal khusus tertentu.'),
+                            ->helperText('Biarkan KOSONG untuk penugasan rutin mingguan otomatis berdasarkan hari.'),
 
                         Forms\Components\Textarea::make('notes')
                             ->label('Catatan / Keterangan')
@@ -142,7 +149,9 @@ class DutyScheduleResource extends Resource
                     ->state(function (DutySchedule $record): string {
                         $todayDay = Schedule::getIndonesianDayName(Carbon::today());
                         $todayDate = Carbon::today()->toDateString();
-                        if ($record->hari === $todayDay || ($record->tanggal && Carbon::parse($record->tanggal)->toDateString() === $todayDate)) {
+                        
+                        // Periksa apakah guru ini aktif piket hari ini (termasuk status tukar piket)
+                        if ($record->teacher && $record->teacher->isPiketToday() && ($record->hari === $todayDay || ($record->tanggal && Carbon::parse($record->tanggal)->toDateString() === $todayDate))) {
                             return '🔥 Bertugas Hari Ini';
                         }
                         return 'Jadwal Rutin';
@@ -153,7 +162,7 @@ class DutyScheduleResource extends Resource
                     ->label('Tanggal Khusus')
                     ->date('d M Y')
                     ->placeholder('Rutin Mingguan')
-                    ->toggleable(isToggledHiddenByDefault: false),
+                    ->toggleable(isToggledHiddenByDefault: true),
 
                 Tables\Columns\TextColumn::make('semester')
                     ->label('Semester')
@@ -211,6 +220,49 @@ class DutyScheduleResource extends Resource
                     ->options(fn () => DutyScheduleGeneratorService::getEligibleTeachers(Auth::user()?->institution_id)->pluck('name', 'id')),
             ])
             ->actions([
+                Tables\Actions\Action::make('ajukan_tukar_row')
+                    ->label('Tukar Jadwal')
+                    ->icon('heroicon-o-arrows-right-left')
+                    ->color('info')
+                    ->visible(fn (DutySchedule $record) => $record->teacher_id === Auth::id() || Auth::user()?->hasAnyRole(['waka_kesiswaan', 'superadmin']))
+                    ->form([
+                        Forms\Components\DatePicker::make('original_date')
+                            ->label('Tanggal Piket Asli yang Ingin Ditukar')
+                            ->required()
+                            ->default(now()->toDateString())
+                            ->native(false)
+                            ->displayFormat('d F Y'),
+
+                        Forms\Components\Select::make('substitute_teacher_id')
+                            ->label('Guru Pengganti')
+                            ->options(fn () => User::where('id', '!=', Auth::id())->pluck('name', 'id'))
+                            ->searchable()
+                            ->required(),
+
+                        Forms\Components\DatePicker::make('new_date')
+                            ->label('Tanggal Anda Menggantikan Guru Pengganti Tersebut')
+                            ->required()
+                            ->default(now()->addDays(2)->toDateString())
+                            ->native(false)
+                            ->displayFormat('d F Y'),
+                    ])
+                    ->action(function (DutySchedule $record, array $data) {
+                        DutySwapRequest::create([
+                            'requester_id' => $record->teacher_id,
+                            'original_date' => $data['original_date'],
+                            'substitute_teacher_id' => $data['substitute_teacher_id'],
+                            'new_date' => $data['new_date'],
+                            'status' => 'diajukan',
+                            'institution_id' => Auth::user()?->institution_id,
+                        ]);
+
+                        Notification::make()
+                            ->title('Pengajuan Tukar Piket Terkirim')
+                            ->body('Permohonan tukar jadwal piket berhasil diajukan. Menunggu persetujuan.')
+                            ->success()
+                            ->send();
+                    }),
+
                 Tables\Actions\EditAction::make()
                     ->visible(fn () => Auth::user()?->hasAnyRole(['waka_kesiswaan', 'superadmin'])),
                 Tables\Actions\DeleteAction::make()

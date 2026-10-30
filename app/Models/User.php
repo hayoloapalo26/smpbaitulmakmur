@@ -233,6 +233,44 @@ class User extends Authenticatable implements FilamentUser, HasAvatar
         $targetDate = $date ? \Carbon\Carbon::parse($date)->toDateString() : \Carbon\Carbon::today()->toDateString();
         $targetDay = Schedule::getIndonesianDayName($targetDate);
 
+        // 1. Cek apakah ada permohonan tukar piket yang disetujui (Approved Duty Swap):
+        // 1a. Jika user ini adalah pengganti (substitute_teacher_id) pada original_date -> MAKA HARI INI DIA BERTUGAS PIKET
+        $isSubstituteToday = DutySwapRequest::where('substitute_teacher_id', $this->id)
+            ->where('status', 'disetujui')
+            ->whereDate('original_date', $targetDate)
+            ->exists();
+        if ($isSubstituteToday) {
+            return true;
+        }
+
+        // 1b. Jika user ini adalah pemohon (requester_id) yang bertugas menggantikan pada new_date -> MAKA HARI INI DIA BERTUGAS PIKET
+        $isRequesterTakingShiftToday = DutySwapRequest::where('requester_id', $this->id)
+            ->where('status', 'disetujui')
+            ->whereDate('new_date', $targetDate)
+            ->exists();
+        if ($isRequesterTakingShiftToday) {
+            return true;
+        }
+
+        // 1c. Jika user ini adalah pemohon (requester_id) yang jadwal piketnya di original_date sudah disetujui ditukar ke guru lain -> TIDAK PIKET
+        $isSwappedOutToday = DutySwapRequest::where('requester_id', $this->id)
+            ->where('status', 'disetujui')
+            ->whereDate('original_date', $targetDate)
+            ->exists();
+        if ($isSwappedOutToday) {
+            return false;
+        }
+
+        // 1d. Jika user ini adalah pengganti (substitute_teacher_id) yang jadwalnya di new_date sudah disetujui ditukar ke pemohon -> TIDAK PIKET
+        $isSubSwappedOutToday = DutySwapRequest::where('substitute_teacher_id', $this->id)
+            ->where('status', 'disetujui')
+            ->whereDate('new_date', $targetDate)
+            ->exists();
+        if ($isSubSwappedOutToday) {
+            return false;
+        }
+
+        // 2. Cek jadwal reguler berdasarkan hari atau tanggal
         return \App\Models\DutySchedule::where('teacher_id', $this->id)
             ->where(function ($q) use ($targetDate, $targetDay) {
                 $q->where('hari', $targetDay)

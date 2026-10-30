@@ -21,7 +21,7 @@ class PrayerAttendanceResource extends Resource
             return false;
         }
 
-        if ($user->hasAnyRole(['waka_kesiswaan', 'kepala_sekolah', 'superadmin', 'guru_piket'])) {
+        if ($user->hasAnyRole(['waka_kesiswaan', 'kepala_sekolah', 'superadmin'])) {
             return true;
         }
 

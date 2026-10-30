@@ -25,6 +25,7 @@ class DutySwapRequestResource extends Resource
     }
 
     protected static ?string $model = DutySwapRequest::class;
+    protected static bool $shouldRegisterNavigation = false;
     protected static ?string $navigationIcon = 'heroicon-o-arrows-right-left';
     protected static ?string $navigationGroup = 'Kesiswaan & Karakter';
     protected static ?string $navigationLabel = 'Tukar Jadwal Piket';
@@ -90,20 +91,11 @@ class DutySwapRequestResource extends Resource
                     ->action(function ($record) {
                         $record->update(['status' => 'disetujui']);
                         
-                        // Swap logic
-                        // Find requester's schedule on original_date
-                        $reqSched = DutySchedule::where('teacher_id', $record->requester_id)->where('tanggal', $record->original_date)->first();
-                        $subSched = DutySchedule::where('teacher_id', $record->substitute_teacher_id)->where('tanggal', $record->new_date)->first();
-                        
-                        if ($reqSched) {
-                            $reqSched->teacher_id = $record->substitute_teacher_id;
-                            $reqSched->save();
-                        }
-                        
-                        if ($subSched) {
-                            $subSched->teacher_id = $record->requester_id;
-                            $subSched->save();
-                        }
+                        \Filament\Notifications\Notification::make()
+                            ->title('Permohonan Tukar Piket Disetujui')
+                            ->body("Jadwal piket antara {$record->requester?->name} dan {$record->substituteTeacher?->name} resmi ditukar dan aktif di sistem.")
+                            ->success()
+                            ->send();
                     }),
                 Tables\Actions\Action::make('tolak')
                     ->label('Tolak')
