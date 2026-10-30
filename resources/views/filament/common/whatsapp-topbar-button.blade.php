@@ -1,16 +1,15 @@
 @php
     $user = auth()->user();
+    if (!$user) {
+        return;
+    }
+
     $phone = '6282322672548';
     $pageUrl = url()->current();
-
-    if ($user) {
-        $nama = $user->name;
-        $role = $user->roles->pluck('name')->implode(', ') ?: 'Staff';
-        $lembaga = $user->institution?->name ?? 'SMP Islam Baitul Makmur';
-        $msg = "Assalamu'alaikum Admin Sistem Informasi Baitul Makmur,\n\nSaya membutuhkan bantuan / ada kendala teknis pada sistem:\n• Nama: {$nama}\n• Lembaga/Unit: {$lembaga}\n• Posisi/Role: {$role}\n• Halaman: {$pageUrl}\n\nKendala / Pertanyaan:\n";
-    } else {
-        $msg = "Assalamu'alaikum Admin Sistem Informasi Baitul Makmur,\n\nSaya mengalami kendala saat mengakses sistem / login:\n• Halaman: {$pageUrl}\n\nKendala / Pertanyaan:\n";
-    }
+    $nama = $user->name;
+    $role = $user->roles->pluck('name')->implode(', ') ?: 'Staff';
+    $lembaga = $user->institution?->name ?? 'SMP Islam Baitul Makmur';
+    $msg = "Assalamu'alaikum Admin Sistem Informasi Baitul Makmur,\n\nSaya membutuhkan bantuan / ada kendala teknis pada sistem:\n• Nama: {$nama}\n• Lembaga/Unit: {$lembaga}\n• Posisi/Role: {$role}\n• Halaman: {$pageUrl}\n\nKendala / Pertanyaan:\n";
 
     $waUrl = "https://wa.me/{$phone}?text=" . rawurlencode($msg);
 @endphp

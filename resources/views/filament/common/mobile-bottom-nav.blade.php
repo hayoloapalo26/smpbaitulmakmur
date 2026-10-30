@@ -1,6 +1,3 @@
-{{-- FLOATING WHATSAPP CP BUTTON (UNTUK SEMUA USER & HALAMAN) --}}
-@include('filament.common.whatsapp-help-button')
-
 @php
     $user = auth()->user();
     if (!$user) return;
@@ -17,6 +14,9 @@
                    str_contains($currentRoute, 'duty-schedule') ||
                    str_contains($currentRoute, 'duty-swap');
 @endphp
+
+{{-- FLOATING WHATSAPP CP BUTTON (HANYA UNTUK USER LOGIN, TIDAK DI LOGIN PAGE) --}}
+@include('filament.common.whatsapp-help-button')
 
 {{-- ========================================================
      UNIVERSAL MOBILE BOTTOM NAVIGATION (ANDROID & IOS)
