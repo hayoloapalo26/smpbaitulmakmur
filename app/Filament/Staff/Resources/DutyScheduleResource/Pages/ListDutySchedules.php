@@ -6,6 +6,7 @@ use App\Filament\Staff\Resources\DutyScheduleResource;
 use App\Filament\Staff\Resources\DutySwapRequestResource;
 use App\Filament\Staff\Widgets\DutyScheduleFormationWidget;
 use App\Models\AcademicYear;
+use App\Models\DutySchedule;
 use App\Models\User;
 use App\Services\DutyScheduleGeneratorService;
 use Carbon\Carbon;
@@ -36,6 +37,92 @@ class ListDutySchedules extends ListRecords
         $defaultEnd = ($defaultSemester === 'Ganjil') ? "{$currentYear}-12-31" : "{$currentYear}-06-30";
 
         return [
+            Actions\Action::make('atur_piket_harian')
+                ->label('⚡ Set Guru Piket per Hari')
+                ->icon('heroicon-o-calendar-days')
+                ->color('success')
+                ->visible(fn () => Auth::user()?->hasAnyRole(['waka_kesiswaan', 'superadmin']))
+                ->modalHeading('⚡ Atur Guru Piket Mingguan Berdasarkan Hari')
+                ->modalDescription('Cukup tentukan guru piket untuk masing-masing hari (Senin s/d Sabtu). Sistem akan otomatis menetapkan guru yang bertugas saat hari tersebut tiba tanpa perlu input tanggal.')
+                ->modalSubmitActionLabel('Simpan Jadwal Hari')
+                ->modalWidth('4xl')
+                ->fillForm(function () {
+                    $instId = Auth::user()?->institution_id;
+                    $records = DutySchedule::whereNull('tanggal')
+                        ->when($instId && $instId != 1, fn ($q) => $q->where('institution_id', $instId))
+                        ->get();
+
+                    $formData = [];
+                    foreach (['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'] as $day) {
+                        $formData['teachers_' . strtolower($day)] = $records->where('hari', $day)->pluck('teacher_id')->toArray();
+                    }
+                    return $formData;
+                })
+                ->form(function () {
+                    $instId = Auth::user()?->institution_id;
+                    $teacherOptions = DutyScheduleGeneratorService::getEligibleTeachers($instId)->pluck('name', 'id');
+                    $days = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+
+                    $fields = [];
+                    foreach ($days as $day) {
+                        $fields[] = Forms\Components\Select::make('teachers_' . strtolower($day))
+                            ->label("Guru Piket Hari {$day}")
+                            ->multiple()
+                            ->searchable()
+                            ->options($teacherOptions)
+                            ->placeholder("Pilih guru piket hari {$day}...");
+                    }
+
+                    return [
+                        Forms\Components\Section::make('Penugasan Guru Piket Rutin per Hari')
+                            ->description('Pilih satu atau lebih guru yang bertugas untuk setiap harinya. Guru yang dipilih akan otomatis aktif bertugas di sistem setiap hari tersebut tiba tanpa perlu input tanggal.')
+                            ->schema($fields)
+                            ->columns(2),
+                    ];
+                })
+                ->action(function (array $data) {
+                    $user = Auth::user();
+                    $instId = $user?->institution_id;
+                    $activeAy = AcademicYear::where('is_active', true)->first();
+                    $month = Carbon::now()->month;
+                    $semester = ($month >= 7 && $month <= 12) ? 'Ganjil' : 'Genap';
+
+                    $days = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+                    $totalAssigned = 0;
+
+                    foreach ($days as $day) {
+                        $selectedTeachers = $data['teachers_' . strtolower($day)] ?? [];
+
+                        // Hapus jadwal hari ini yang null tanggal (jadwal rutin mingguan)
+                        $deleteQuery = DutySchedule::whereNull('tanggal')->where('hari', $day);
+                        if ($instId && $instId != 1) {
+                            $deleteQuery->where('institution_id', $instId);
+                        }
+                        $deleteQuery->delete();
+
+                        // Masukkan guru yang baru dipilih
+                        foreach ($selectedTeachers as $teacherId) {
+                            DutySchedule::create([
+                                'hari' => $day,
+                                'tanggal' => null,
+                                'teacher_id' => $teacherId,
+                                'semester' => $semester,
+                                'academic_year_id' => $activeAy?->id,
+                                'institution_id' => $instId,
+                                'notes' => "Jadwal piket rutin hari {$day}",
+                            ]);
+                            $totalAssigned++;
+                        }
+                    }
+
+                    Notification::make()
+                        ->title('Jadwal Guru Piket per Hari Berhasil Disimpan!')
+                        ->body("Berhasil memperbarui jadwal piket rutin mingguan ({$totalAssigned} penugasan guru). Guru yang bersangkutan otomatis bertugas setiap hari terkait.")
+                        ->success()
+                        ->duration(8000)
+                        ->send();
+                }),
+
             Actions\Action::make('generate_semester_schedule')
                 ->label('Acak & Atur Jadwal Piket (1 Semester)')
                 ->icon('heroicon-o-arrow-path-rounded-square')
@@ -196,7 +283,7 @@ class ListDutySchedules extends ListRecords
                 ->url(fn () => DutySwapRequestResource::getUrl()),
 
             Actions\CreateAction::make()
-                ->label('Tambah Jadwal Manual')
+                ->label('Tambah Jadwal Piket Harian')
                 ->visible(fn () => Auth::user()?->hasAnyRole(['waka_kesiswaan', 'superadmin'])),
         ];
     }

@@ -18,24 +18,27 @@ class DutySchedule extends Model
         parent::boot();
 
         static::saving(function (DutySchedule $model) {
-            if (!empty($model->tanggal)) {
-                // Auto-fill hari jika kolom tersedia
-                if (Schema::hasColumn('duty_schedules', 'hari') && empty($model->hari)) {
-                    $model->hari = Schedule::getIndonesianDayName($model->tanggal);
-                }
+            // Auto-fill hari jika tanggal diisi tapi hari belum ditentukan
+            if (!empty($model->tanggal) && empty($model->hari)) {
+                $model->hari = Schedule::getIndonesianDayName($model->tanggal);
+            }
 
-                // Auto-fill semester jika kolom tersedia
-                if (Schema::hasColumn('duty_schedules', 'semester') && empty($model->semester)) {
+            // Auto-fill semester jika belum terisi
+            if (empty($model->semester)) {
+                if (!empty($model->tanggal)) {
                     $month = Carbon::parse($model->tanggal)->month;
                     $model->semester = ($month >= 7 && $month <= 12) ? 'Ganjil' : 'Genap';
+                } else {
+                    $month = Carbon::now()->month;
+                    $model->semester = ($month >= 7 && $month <= 12) ? 'Ganjil' : 'Genap';
                 }
+            }
 
-                // Auto-fill academic_year_id jika kolom tersedia dan belum terisi
-                if (Schema::hasColumn('duty_schedules', 'academic_year_id') && empty($model->academic_year_id)) {
-                    $activeAy = AcademicYear::where('is_active', true)->first();
-                    if ($activeAy) {
-                        $model->academic_year_id = $activeAy->id;
-                    }
+            // Auto-fill academic_year_id jika belum terisi
+            if (empty($model->academic_year_id)) {
+                $activeAy = AcademicYear::where('is_active', true)->first();
+                if ($activeAy) {
+                    $model->academic_year_id = $activeAy->id;
                 }
             }
         });
@@ -94,11 +97,17 @@ class DutySchedule extends Model
     }
 
     /**
-     * Scope untuk jadwal piket hari ini
+     * Scope untuk jadwal piket hari ini (otomatis mencocokkan hari atau tanggal)
      */
     public function scopeHariIni(Builder $query): Builder
     {
-        return $query->whereDate('tanggal', Carbon::today());
+        $today = Carbon::today();
+        $dayName = Schedule::getIndonesianDayName($today);
+
+        return $query->where(function ($q) use ($today, $dayName) {
+            $q->where('hari', $dayName)
+              ->orWhereDate('tanggal', $today);
+        });
     }
 
     /**

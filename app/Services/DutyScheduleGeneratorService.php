@@ -385,7 +385,11 @@ class DutyScheduleGeneratorService
         }
 
         $query = DutySchedule::with('teacher')
-            ->whereBetween('tanggal', [$start, $end]);
+            ->where(function ($q) use ($start, $end, $targetSemester) {
+                $q->whereBetween('tanggal', [$start, $end])
+                  ->orWhereNull('tanggal')
+                  ->orWhere('semester', $targetSemester);
+            });
 
         if ($institutionId && Schema::hasColumn('duty_schedules', 'institution_id') && $institutionId != 1) {
             $query->where('institution_id', $institutionId);

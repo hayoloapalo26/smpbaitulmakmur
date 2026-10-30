@@ -12,9 +12,9 @@ class PrayerAttendancePolicy
     {
         if ($user->hasRole(['waka_kesiswaan', 'wali_kelas'])) return true;
         // Check if user is piket today
-        return \App\Models\DutySchedule::where('teacher_id', $user->id)
-            ->whereDate('tanggal', \Carbon\Carbon::today())
-            ->exists();
+        return $user->isPiketToday();
+
+
     }
 
     public function viewAny(User $user): bool

@@ -56,8 +56,22 @@ class DutyScheduleResource extends Resource
         return $form
             ->schema([
                 Forms\Components\Section::make('Informasi Penugasan Guru Piket')
-                    ->description('Penugasan jadwal guru piket disetting oleh Waka Kesiswaan selama 1 semester.')
+                    ->description('Cukup tentukan hari piket dan nama guru. Sistem otomatis mendeteksi hari bertugas setiap harinya tanpa perlu menginputkan tanggal.')
                     ->schema([
+                        Forms\Components\Select::make('hari')
+                            ->label('Hari Piket')
+                            ->options([
+                                'Senin' => 'Senin',
+                                'Selasa' => 'Selasa',
+                                'Rabu' => 'Rabu',
+                                'Kamis' => 'Kamis',
+                                'Jumat' => 'Jumat',
+                                'Sabtu' => 'Sabtu',
+                            ])
+                            ->required()
+                            ->native(false)
+                            ->helperText('Pilih hari piket rutin. Guru akan otomatis aktif bertugas di sistem setiap hari tersebut tiba!'),
+
                         Forms\Components\Select::make('teacher_id')
                             ->label('Guru yang Bertugas')
                             ->options(function () {
@@ -67,45 +81,27 @@ class DutyScheduleResource extends Resource
                             ->searchable()
                             ->required(),
 
-                        Forms\Components\DatePicker::make('tanggal')
-                            ->label('Tanggal Bertugas')
-                            ->required()
-                            ->native(false)
-                            ->displayFormat('d F Y')
-                            ->live()
-                            ->afterStateUpdated(function ($state, Forms\Set $set) {
-                                if ($state) {
-                                    $set('hari', Schedule::getIndonesianDayName($state));
-                                    $m = Carbon::parse($state)->month;
-                                    $set('semester', ($m >= 7 && $m <= 12) ? 'Ganjil' : 'Genap');
-                                }
-                            }),
-
-                        Forms\Components\Select::make('hari')
-                            ->label('Hari')
-                            ->options([
-                                'Senin' => 'Senin',
-                                'Selasa' => 'Selasa',
-                                'Rabu' => 'Rabu',
-                                'Kamis' => 'Kamis',
-                                'Jumat' => 'Jumat',
-                                'Sabtu' => 'Sabtu',
-                            ])
-                            ->helperText('Otomatis disinkronkan dengan tanggal yang dipilih'),
-
                         Forms\Components\Select::make('semester')
                             ->label('Semester')
                             ->options([
                                 'Ganjil' => 'Semester Ganjil',
                                 'Genap' => 'Semester Genap',
                             ])
-                            ->default(fn () => (Carbon::now()->month >= 7 && Carbon::now()->month <= 12) ? 'Ganjil' : 'Genap'),
+                            ->default(fn () => (Carbon::now()->month >= 7 && Carbon::now()->month <= 12) ? 'Ganjil' : 'Genap')
+                            ->required(),
 
                         Forms\Components\Select::make('academic_year_id')
                             ->label('Tahun Ajaran')
                             ->options(AcademicYear::pluck('name', 'id'))
                             ->default(fn () => AcademicYear::where('is_active', true)->first()?->id)
                             ->searchable(),
+
+                        Forms\Components\DatePicker::make('tanggal')
+                            ->label('Tanggal Spesifik (Opsional)')
+                            ->nullable()
+                            ->native(false)
+                            ->displayFormat('d F Y')
+                            ->helperText('Biarkan KOSONG untuk penugasan rutin mingguan otomatis berdasarkan hari. Isi hanya jika ingin menugaskan pada tanggal khusus tertentu.'),
 
                         Forms\Components\Textarea::make('notes')
                             ->label('Catatan / Keterangan')
@@ -119,14 +115,8 @@ class DutyScheduleResource extends Resource
     {
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('tanggal')
-                    ->label('Tanggal')
-                    ->date('l, d F Y')
-                    ->sortable()
-                    ->searchable(),
-
                 Tables\Columns\TextColumn::make('hari')
-                    ->label('Hari')
+                    ->label('Hari Piket')
                     ->badge()
                     ->color(fn (string $state): string => match ($state) {
                         'Senin' => 'info',
@@ -137,13 +127,33 @@ class DutyScheduleResource extends Resource
                         'Sabtu' => 'gray',
                         default => 'secondary',
                     })
-                    ->sortable(),
+                    ->sortable()
+                    ->weight('bold'),
 
                 Tables\Columns\TextColumn::make('teacher.name')
                     ->label('Guru yang Bertugas')
                     ->searchable()
                     ->sortable()
                     ->weight('bold'),
+
+                Tables\Columns\TextColumn::make('status_hari_ini')
+                    ->label('Status Hari Ini')
+                    ->badge()
+                    ->state(function (DutySchedule $record): string {
+                        $todayDay = Schedule::getIndonesianDayName(Carbon::today());
+                        $todayDate = Carbon::today()->toDateString();
+                        if ($record->hari === $todayDay || ($record->tanggal && Carbon::parse($record->tanggal)->toDateString() === $todayDate)) {
+                            return '🔥 Bertugas Hari Ini';
+                        }
+                        return 'Jadwal Rutin';
+                    })
+                    ->color(fn (string $state): string => str_contains($state, 'Hari Ini') ? 'success' : 'gray'),
+
+                Tables\Columns\TextColumn::make('tanggal')
+                    ->label('Tanggal Khusus')
+                    ->date('d M Y')
+                    ->placeholder('Rutin Mingguan')
+                    ->toggleable(isToggledHiddenByDefault: false),
 
                 Tables\Columns\TextColumn::make('semester')
                     ->label('Semester')
@@ -164,21 +174,21 @@ class DutyScheduleResource extends Resource
                     ->limit(30)
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
-            ->defaultSort('tanggal', 'desc')
+            ->defaultSort('hari', 'asc')
             ->filters([
                 Tables\Filters\Filter::make('hari_ini')
                     ->label('⚡ Piket Hari Ini')
-                    ->query(fn ($query) => $query->whereDate('tanggal', Carbon::today())),
-
-                Tables\Filters\Filter::make('minggu_ini')
-                    ->label('📅 Piket Minggu Ini')
-                    ->query(fn ($query) => $query->whereBetween('tanggal', [
-                        Carbon::now()->startOfWeek()->toDateString(),
-                        Carbon::now()->endOfWeek()->toDateString(),
-                    ])),
+                    ->query(function ($query) {
+                        $todayDay = Schedule::getIndonesianDayName(Carbon::today());
+                        $todayDate = Carbon::today()->toDateString();
+                        $query->where(function ($q) use ($todayDay, $todayDate) {
+                            $q->where('hari', $todayDay)
+                              ->orWhereDate('tanggal', $todayDate);
+                        });
+                    }),
 
                 Tables\Filters\SelectFilter::make('hari')
-                    ->label('Hari')
+                    ->label('Hari Piket')
                     ->options([
                         'Senin' => 'Senin',
                         'Selasa' => 'Selasa',

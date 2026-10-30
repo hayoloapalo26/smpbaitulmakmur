@@ -235,10 +235,8 @@ class User extends Authenticatable implements FilamentUser, HasAvatar
 
         return \App\Models\DutySchedule::where('teacher_id', $this->id)
             ->where(function ($q) use ($targetDate, $targetDay) {
-                $q->whereDate('tanggal', $targetDate)
-                  ->orWhere(function ($sub) use ($targetDay) {
-                      $sub->whereNull('tanggal')->where('hari', $targetDay);
-                  });
+                $q->where('hari', $targetDay)
+                  ->orWhereDate('tanggal', $targetDate);
             })
             ->exists();
     }

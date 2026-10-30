@@ -69,8 +69,11 @@ class PiketDashboard extends Page
         $instId = $user?->institution_id;
         $isSuperadmin = $user?->hasRole('superadmin') ?? false;
 
-        // 1. Petugas Piket Hari Ini
-        $scheduleQuery = DutySchedule::whereDate('tanggal', $today)->with('teacher');
+        // 1. Petugas Piket Hari Ini (Membaca otomatis berdasarkan hari atau tanggal)
+        $scheduleQuery = DutySchedule::where(function ($q) use ($today) {
+            $q->where('hari', $this->hariIni)
+              ->orWhereDate('tanggal', $today);
+        })->with('teacher');
         if ($instId && $instId != 1 && !$isSuperadmin) {
             $scheduleQuery->where(function ($q) use ($instId) {
                 if (\Illuminate\Support\Facades\Schema::hasColumn('duty_schedules', 'institution_id')) {

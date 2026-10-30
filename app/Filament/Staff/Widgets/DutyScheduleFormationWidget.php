@@ -34,8 +34,11 @@ class DutyScheduleFormationWidget extends Widget
         $instId = Auth::user()?->institution_id;
         $this->formation = DutyScheduleGeneratorService::getCurrentWeeklyFormation($instId, $this->semester);
 
-        // Cari guru piket hari ini
-        $this->todayTeachers = DutySchedule::whereDate('tanggal', $today)
+        // Cari guru piket hari ini (otomatis berdasarkan hari atau tanggal)
+        $this->todayTeachers = DutySchedule::where(function ($q) use ($today) {
+                $q->where('hari', $this->todayDay)
+                  ->orWhereDate('tanggal', $today);
+            })
             ->with('teacher')
             ->get()
             ->pluck('teacher.name')

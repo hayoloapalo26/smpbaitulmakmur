@@ -218,8 +218,13 @@ class TeachingJournalResource extends Resource
                                     ->orderBy('jam_ke')
                                     ->get();
 
-                                // Jadwal di mana guru ini ditugaskan sebagai Guru Pengganti (Inval) pada tanggal tersebut
-                                $isPiketDuty = \App\Models\DutySchedule::where('teacher_id', $teacherId)->whereDate('tanggal', $tanggal)->exists()
+                                // Jadwal di mana guru ini ditugaskan sebagai Guru Pengganti (Inval) pada tanggal/hari tersebut
+                                $dayName = Schedule::getIndonesianDayName($tanggal);
+                                $isPiketDuty = \App\Models\DutySchedule::where('teacher_id', $teacherId)
+                                    ->where(function ($q) use ($tanggal, $dayName) {
+                                        $q->where('hari', $dayName)
+                                          ->orWhereDate('tanggal', $tanggal);
+                                    })->exists()
                                     || auth()->user()?->hasRole('guru_piket');
 
                                 $guruPiketIds = \App\Models\User::withoutGlobalScopes()
