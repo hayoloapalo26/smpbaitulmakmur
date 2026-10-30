@@ -36,9 +36,18 @@ class PrayerAttendanceResource extends Resource
 
     protected static ?string $model = PrayerAttendance::class;
     protected static ?string $navigationIcon = 'heroicon-o-moon';
-    protected static ?string $navigationGroup = 'Kesiswaan & Karakter';
-    protected static ?int $navigationSort = 1;
+    protected static ?int $navigationSort = 4;
     protected static ?string $modelLabel = 'Presensi Sholat';
+
+    public static function getNavigationGroup(): ?string
+    {
+        $user = auth()->user();
+        if ($user && $user->isPiketToday() && !$user->hasAnyRole(['waka_kesiswaan', 'kepala_sekolah', 'superadmin'])) {
+            return 'Tugas Guru Piket';
+        }
+
+        return 'Kesiswaan & Karakter';
+    }
 
     public static function getEloquentQuery(): Builder
     {
@@ -84,10 +93,11 @@ class PrayerAttendanceResource extends Resource
                 Forms\Components\Select::make('status')
                     ->label('Status Kehadiran')
                     ->options([
-                        'hadir' => 'Hadir',
-                        'izin' => 'Izin',
-                        'sakit' => 'Sakit',
-                        'alpa' => 'Alpa',
+                        'hadir'    => 'Hadir',
+                        'halangan' => 'Halangan / Udzur Syar\'i (Haid)',
+                        'izin'     => 'Izin',
+                        'sakit'    => 'Sakit',
+                        'alpa'     => 'Alpa',
                     ])
                     ->default('hadir')
                     ->required(),
@@ -119,7 +129,7 @@ class PrayerAttendanceResource extends Resource
                     })
                     ->sortable(),
 
-                Tables\Columns\TextColumn::make('student.name')->searchable()
+                Tables\Columns\TextColumn::make('student.name')
                     ->label('Nama Siswa')
                     ->searchable()
                     ->sortable(),
@@ -128,12 +138,40 @@ class PrayerAttendanceResource extends Resource
                     ->label('Status')
                     ->badge()
                     ->color(fn (string $state): string => match ($state) {
-                        'hadir' => 'success',
-                        'izin' => 'warning',
-                        'sakit' => 'info',
-                        'alpa' => 'danger',
-                        default => 'gray',
+                        'hadir'    => 'success',
+                        'halangan' => 'warning',
+                        'izin'     => 'info',
+                        'sakit'    => 'gray',
+                        'alpa'     => 'danger',
+                        default    => 'gray',
+                    })
+                    ->formatStateUsing(fn (string $state): string => match ($state) {
+                        'halangan' => '🌸 Halangan',
+                        default    => ucfirst($state),
                     }),
+
+                Tables\Columns\TextColumn::make('metode')
+                    ->label('Metode Presensi')
+                    ->state(function (PrayerAttendance $record): string {
+                        $daily = \App\Models\DailyAttendance::withoutGlobalScopes()
+                            ->where('student_id', $record->student_id)
+                            ->whereDate('tanggal', $record->tanggal)
+                            ->where('tipe_absen', 'sholat_' . strtolower($record->jenis_sholat))
+                            ->first();
+
+                        if ($record->status === 'halangan') {
+                            return '🌸 Udzur Syar\'i';
+                        }
+
+                        if ($daily && $daily->metode_absen === 'fingerprint') {
+                            $jam = $daily->waktu_kedatangan ? \Carbon\Carbon::parse($daily->waktu_kedatangan)->format('H:i') : null;
+                            return '👆 Fingerprint' . ($jam ? " ({$jam})" : '');
+                        }
+
+                        return '✍️ Manual (Piket)';
+                    })
+                    ->badge()
+                    ->color(fn (string $state): string => str_contains($state, 'Fingerprint') ? 'success' : (str_contains($state, 'Udzur') ? 'warning' : 'primary')),
 
                 Tables\Columns\IconColumn::make('is_khusyu')
                     ->label('Khusyu')
@@ -146,6 +184,15 @@ class PrayerAttendanceResource extends Resource
                         'Dhuha' => 'Dhuha',
                         'Dhuhur' => 'Dhuhur',
                         'Ashar' => 'Ashar',
+                    ]),
+                Tables\Filters\SelectFilter::make('status')
+                    ->label('Filter Status')
+                    ->options([
+                        'hadir'    => 'Hadir',
+                        'halangan' => 'Halangan / Haid',
+                        'izin'     => 'Izin',
+                        'sakit'    => 'Sakit',
+                        'alpa'     => 'Alpa',
                     ]),
                 Tables\Filters\Filter::make('tanggal')
                     ->form([

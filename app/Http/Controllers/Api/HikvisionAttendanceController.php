@@ -107,12 +107,29 @@ class HikvisionAttendanceController extends Controller
                             'metode_absen' => $metode,
                             'status'       => 'halangan',
                             'is_late'      => false,
-                            'catatan'      => 'Siswi halangan - via Hikvision',
+                            'catatan'      => 'Siswi halangan (Udzur Syar\'i) - via Hikvision',
                         ]
                     );
 
                     return response()->json(['status' => 'success', 'action' => 'halangan', 'student' => $student->name]);
                 }
+            }
+
+            // Cek apakah siswa sudah tercatat Sakit, Izin, atau Alpa hari ini oleh Guru Piket
+            $excusedRecord = DailyAttendance::where('student_id', $student->id)
+                ->where('tanggal', $today)
+                ->whereIn('status', ['sakit', 'izin', 'alpa'])
+                ->first();
+
+            if ($excusedRecord && in_array($tipe, ['sholat_dhuhur', 'sholat_ashar', 'pulang'])) {
+                Log::info("Hikvision: Siswa {$student->name} tercatat {$excusedRecord->status} hari ini oleh Guru Piket, scan {$tipe} diabaikan.");
+                return response()->json([
+                    'status'  => 'excused',
+                    'action'  => 'ignored',
+                    'student' => $student->name,
+                    'tipe'    => $tipe,
+                    'message' => "Siswa {$student->name} sudah tercatat {$excusedRecord->status} hari ini oleh Guru Piket",
+                ]);
             }
 
             // Cek apakah sudah absen untuk tipe ini hari ini
@@ -142,7 +159,7 @@ class HikvisionAttendanceController extends Controller
                 'tanggal'         => $today,
                 'tipe_absen'      => $tipe,
                 'metode_absen'    => $metode,
-                'waktu_kedatangan' => $tipe === 'masuk'  ? $now->format('H:i:s') : null,
+                'waktu_kedatangan' => in_array($tipe, ['masuk', 'sholat_dhuhur', 'sholat_ashar']) ? $now->format('H:i:s') : null,
                 'waktu_kepulangan' => $tipe === 'pulang' ? $now->format('H:i:s') : null,
                 'status'          => 'hadir',
                 'is_late'         => $isLate,

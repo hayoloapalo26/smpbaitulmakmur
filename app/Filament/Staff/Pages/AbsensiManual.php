@@ -110,8 +110,24 @@ class AbsensiManual extends Page
                     'catatan' => $rec->keterangan ?? $rec->catatan ?? null,
                 ];
             } else {
-                // Cek halangan siswi untuk tipe sholat
-                if ($student->jenis_kelamin === 'P'
+                // Cek apakah siswa sudah tercatat Sakit, Izin, atau Alpha dari presensi pagi piket
+                $morningAbsence = in_array($this->tipeAbsen, ['sholat_dhuhur', 'sholat_ashar'])
+                    ? DailyAttendance::where('student_id', $student->id)
+                        ->where('tanggal', $this->selectedDate)
+                        ->where('tipe_absen', 'masuk')
+                        ->whereIn('status', ['sakit', 'izin', 'alpa'])
+                        ->first()
+                    : null;
+
+                if ($morningAbsence) {
+                    $this->attendanceData[$student->id] = $morningAbsence->status;
+                    $this->attendanceMeta[$student->id] = [
+                        'metode'  => 'manual',
+                        'jam'     => null,
+                        'is_late' => false,
+                        'catatan' => "Otomatis ({$morningAbsence->status}) dari Presensi Pagi Piket",
+                    ];
+                } elseif ($student->jenis_kelamin === 'P'
                     && in_array($this->tipeAbsen, ['sholat_dhuhur', 'sholat_ashar'])
                     && StudentHalangan::isHalangan($student->id, $this->selectedDate)
                 ) {
@@ -120,7 +136,7 @@ class AbsensiManual extends Page
                         'metode'  => 'manual',
                         'jam'     => null,
                         'is_late' => false,
-                        'catatan' => 'Udzur syar\'i (Halangan)',
+                        'catatan' => 'Udzur syar\'i (Halangan / Haid)',
                     ];
                 } else {
                     $this->attendanceData[$student->id] = null; // belum diisi
@@ -192,6 +208,22 @@ class AbsensiManual extends Page
                 DailyAttendance::create($data);
                 $savedCount++;
             }
+
+            // Jika siswi ditandai status halangan, otomatis buat catatan StudentHalangan agar konsisten di seluruh sistem
+            if ($student && $student->jenis_kelamin === 'P' && $status === 'halangan') {
+                StudentHalangan::firstOrCreate(
+                    [
+                        'student_id'     => $studentId,
+                        'tanggal_mulai'  => $this->selectedDate,
+                    ],
+                    [
+                        'institution_id' => $institutionId,
+                        'tanggal_selesai'=> $this->selectedDate,
+                        'catatan'        => 'Udzur syar\'i (Halangan / Haid) dicatat Guru Piket: ' . ($currentUser?->name ?? 'Petugas'),
+                        'recorded_by'    => $currentUser?->id ?? 1,
+                    ]
+                );
+            }
         }
 
         Notification::make()
@@ -209,8 +241,8 @@ class AbsensiManual extends Page
     public function tandaiSemuaHadir(): void
     {
         foreach ($this->attendanceData as $studentId => $status) {
-            // Jangan override siswi yang sudah ditandai halangan
-            if ($status !== 'halangan') {
+            // Jangan override siswa yang sudah tercatat sakit, izin, alpa, atau halangan
+            if (!in_array($status, ['sakit', 'izin', 'alpa', 'halangan'])) {
                 $this->attendanceData[$studentId] = 'hadir';
             }
         }

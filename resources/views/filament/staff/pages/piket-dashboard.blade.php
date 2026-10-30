@@ -117,7 +117,7 @@
             Akses langsung ke seluruh fitur harian guru piket (Responsif Mobile Android & iOS).
         </x-slot>
 
-        <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-6 gap-2.5 sm:gap-3 pt-2">
+        <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2.5 sm:gap-3 pt-2">
             {{-- 1. Input Absensi Manual (Cadangan Mati Lampu / Darurat) --}}
             <a href="{{ route('filament.staff.pages.absensi-manual') }}" class="flex flex-col items-center justify-center p-3 text-center rounded-xl border border-gray-200 dark:border-gray-800 hover:border-emerald-500 hover:bg-emerald-50/50 dark:hover:bg-emerald-950/20 active:scale-95 transition-all select-none group">
                 <span class="p-2 sm:p-2.5 rounded-xl bg-emerald-100 dark:bg-emerald-900/50 text-emerald-600 dark:text-emerald-400 group-hover:scale-105 transition-transform">
@@ -127,7 +127,25 @@
                 <span class="text-[10px] text-gray-400 mt-0.5">Cadangan Mati Lampu</span>
             </a>
 
-            {{-- 2. Jadwal Piket Guru --}}
+            {{-- 2. Presensi Sholat (Dhuhur & Ashar) --}}
+            <a href="{{ route('filament.staff.resources.prayer-attendances.index') }}" class="flex flex-col items-center justify-center p-3 text-center rounded-xl border border-gray-200 dark:border-gray-800 hover:border-cyan-500 hover:bg-cyan-50/50 dark:hover:bg-cyan-950/20 active:scale-95 transition-all select-none group">
+                <span class="p-2 sm:p-2.5 rounded-xl bg-cyan-100 dark:bg-cyan-900/50 text-cyan-600 dark:text-cyan-400 group-hover:scale-105 transition-transform">
+                    <x-filament::icon icon="heroicon-o-sparkles" class="w-5 h-5 sm:w-6 sm:h-6" />
+                </span>
+                <span class="mt-2 text-xs font-bold text-gray-800 dark:text-gray-200 group-hover:text-cyan-600 dark:group-hover:text-cyan-400">Presensi Sholat</span>
+                <span class="text-[10px] text-gray-400 mt-0.5">Dhuhur & Ashar</span>
+            </a>
+
+            {{-- 3. Catatan Halangan Siswi (Udzur Syar'i) --}}
+            <a href="{{ route('filament.staff.resources.student-halangans.index') }}" class="flex flex-col items-center justify-center p-3 text-center rounded-xl border border-gray-200 dark:border-gray-800 hover:border-pink-500 hover:bg-pink-50/50 dark:hover:bg-pink-950/20 active:scale-95 transition-all select-none group">
+                <span class="p-2 sm:p-2.5 rounded-xl bg-pink-100 dark:bg-pink-900/50 text-pink-600 dark:text-pink-400 group-hover:scale-105 transition-transform">
+                    <x-filament::icon icon="heroicon-o-heart" class="w-5 h-5 sm:w-6 sm:h-6" />
+                </span>
+                <span class="mt-2 text-xs font-bold text-gray-800 dark:text-gray-200 group-hover:text-pink-600 dark:group-hover:text-pink-400">Halangan Siswi</span>
+                <span class="text-[10px] text-gray-400 mt-0.5">Udzur Syar'i / Haid</span>
+            </a>
+
+            {{-- 4. Jadwal Piket Guru --}}
             <a href="{{ route('filament.staff.resources.duty-schedules.index') }}" class="flex flex-col items-center justify-center p-3 text-center rounded-xl border border-gray-200 dark:border-gray-800 hover:border-teal-500 hover:bg-teal-50/50 dark:hover:bg-teal-950/20 active:scale-95 transition-all select-none group">
                 <span class="p-2 sm:p-2.5 rounded-xl bg-teal-100 dark:bg-teal-900/50 text-teal-600 dark:text-teal-400 group-hover:scale-105 transition-transform">
                     <x-filament::icon icon="heroicon-o-calendar-days" class="w-5 h-5 sm:w-6 sm:h-6" />
@@ -136,7 +154,7 @@
                 <span class="text-[10px] text-gray-400 mt-0.5">Jadwal 1 Semester</span>
             </a>
 
-            {{-- 3. Izin Siswa --}}
+            {{-- 5. Izin Siswa --}}
             <a href="{{ route('filament.staff.resources.presensi-izin-siswas.index') }}" class="flex flex-col items-center justify-center p-3 text-center rounded-xl border border-gray-200 dark:border-gray-800 hover:border-blue-500 hover:bg-blue-50/50 dark:hover:bg-blue-950/20 active:scale-95 transition-all select-none group">
                 <span class="p-2 sm:p-2.5 rounded-xl bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400 group-hover:scale-105 transition-transform">
                     <x-filament::icon icon="heroicon-o-document-text" class="w-5 h-5 sm:w-6 sm:h-6" />
@@ -145,7 +163,7 @@
                 <span class="text-[10px] text-gray-400 mt-0.5">Dispensasi</span>
             </a>
 
-            {{-- 4. Pelanggaran Atribut --}}
+            {{-- 6. Pelanggaran Atribut --}}
             <a href="{{ route('filament.staff.resources.attribute-violations.index') }}" class="flex flex-col items-center justify-center p-3 text-center rounded-xl border border-gray-200 dark:border-gray-800 hover:border-rose-500 hover:bg-rose-50/50 dark:hover:bg-rose-950/20 active:scale-95 transition-all select-none group">
                 <span class="p-2 sm:p-2.5 rounded-xl bg-rose-100 dark:bg-rose-900/50 text-rose-600 dark:text-rose-400 group-hover:scale-105 transition-transform">
                     <x-filament::icon icon="heroicon-o-exclamation-triangle" class="w-5 h-5 sm:w-6 sm:h-6" />
@@ -154,7 +172,7 @@
                 <span class="text-[10px] text-gray-400 mt-0.5">Kerapian</span>
             </a>
 
-            {{-- 5. Penilaian Karakter --}}
+            {{-- 7. Penilaian Karakter --}}
             <a href="{{ route('filament.staff.pages.character-score-report') }}" class="flex flex-col items-center justify-center p-3 text-center rounded-xl border border-gray-200 dark:border-gray-800 hover:border-amber-500 hover:bg-amber-50/50 dark:hover:bg-amber-950/20 active:scale-95 transition-all select-none group">
                 <span class="p-2 sm:p-2.5 rounded-xl bg-amber-100 dark:bg-amber-900/50 text-amber-600 dark:text-amber-400 group-hover:scale-105 transition-transform">
                     <x-filament::icon icon="heroicon-o-star" class="w-5 h-5 sm:w-6 sm:h-6" />
@@ -163,7 +181,7 @@
                 <span class="text-[10px] text-gray-400 mt-0.5">Akhlak Siswa</span>
             </a>
 
-            {{-- 6. Tukar Piket --}}
+            {{-- 8. Tukar Piket --}}
             <a href="{{ route('filament.staff.resources.duty-swap-requests.index') }}" class="flex flex-col items-center justify-center p-3 text-center rounded-xl border border-gray-200 dark:border-gray-800 hover:border-indigo-500 hover:bg-indigo-50/50 dark:hover:bg-indigo-950/20 active:scale-95 transition-all select-none group">
                 <span class="p-2 sm:p-2.5 rounded-xl bg-indigo-100 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400 group-hover:scale-105 transition-transform">
                     <x-filament::icon icon="heroicon-o-arrows-right-left" class="w-5 h-5 sm:w-6 sm:h-6" />
@@ -173,6 +191,86 @@
             </a>
         </div>
     </x-filament::section>
+
+    {{-- 3b. MONITORING SHOLAT BERJAMAAH & UDZUR SYAR'I (FINGERPRINT & PIKET) --}}
+    <div class="rounded-xl border border-teal-200 dark:border-teal-900/60 bg-gradient-to-r from-teal-50/70 via-emerald-50/50 to-cyan-50/70 dark:from-teal-950/30 dark:via-emerald-950/20 dark:to-cyan-950/30 p-4 sm:p-5 shadow-2xs">
+        <div class="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-3 border-b border-teal-200/60 dark:border-teal-800/40">
+            <div class="flex items-center gap-2.5">
+                <span class="p-2 rounded-xl bg-teal-500 text-white shadow-xs">
+                    <x-filament::icon icon="heroicon-o-sparkles" class="w-5 h-5" />
+                </span>
+                <div>
+                    <h2 class="text-sm sm:text-base font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                        Monitoring Sholat Berjamaah & Udzur Syar'i
+                        <span class="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-teal-100 text-teal-800 dark:bg-teal-900/60 dark:text-teal-300">
+                            Fingerprint + Piket
+                        </span>
+                    </h2>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">
+                        Otomatis merekap dari Mesin Fingerprint (Dhuhur 12:00-13:59, Ashar 14:00-15:59) serta input Udzur/Sakit/Izin/Alpa dari Guru Piket.
+                    </p>
+                </div>
+            </div>
+
+            <div class="flex items-center gap-2">
+                <a href="{{ route('filament.staff.resources.prayer-attendances.index') }}" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-750 transition-colors shadow-2xs">
+                    <x-filament::icon icon="heroicon-o-table-cells" class="w-4 h-4 text-teal-600 dark:text-teal-400" />
+                    <span>Rekap Sholat</span>
+                </a>
+                <a href="{{ route('filament.staff.resources.student-halangans.index') }}" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-pink-50 dark:bg-pink-950/40 border border-pink-200 dark:border-pink-900/60 text-pink-700 dark:text-pink-300 hover:bg-pink-100/70 transition-colors shadow-2xs">
+                    <x-filament::icon icon="heroicon-o-plus-circle" class="w-4 h-4 text-pink-600 dark:text-pink-400" />
+                    <span>+ Catat Halangan</span>
+                </a>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-3">
+            {{-- Sholat Dhuhur --}}
+            <div class="flex items-center justify-between p-3 rounded-lg bg-white/80 dark:bg-gray-900/80 border border-teal-100 dark:border-teal-900/40">
+                <div class="flex items-center gap-2.5">
+                    <span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+                    <div>
+                        <div class="text-xs font-bold text-gray-800 dark:text-gray-200">Sholat Dhuhur</div>
+                        <div class="text-[10px] text-gray-400">Fingerprint: 12:00 - 13:59</div>
+                    </div>
+                </div>
+                <div class="text-right">
+                    <span class="text-lg font-black text-emerald-600 dark:text-emerald-400">{{ $sholatDhuhurHadir }}</span>
+                    <span class="text-[11px] text-gray-500 dark:text-gray-400 ml-0.5">Hadir</span>
+                </div>
+            </div>
+
+            {{-- Sholat Ashar --}}
+            <div class="flex items-center justify-between p-3 rounded-lg bg-white/80 dark:bg-gray-900/80 border border-teal-100 dark:border-teal-900/40">
+                <div class="flex items-center gap-2.5">
+                    <span class="w-2.5 h-2.5 rounded-full bg-cyan-500"></span>
+                    <div>
+                        <div class="text-xs font-bold text-gray-800 dark:text-gray-200">Sholat Ashar</div>
+                        <div class="text-[10px] text-gray-400">Fingerprint: 14:00 - 15:59</div>
+                    </div>
+                </div>
+                <div class="text-right">
+                    <span class="text-lg font-black text-cyan-600 dark:text-cyan-400">{{ $sholatAsharHadir }}</span>
+                    <span class="text-[11px] text-gray-500 dark:text-gray-400 ml-0.5">Hadir</span>
+                </div>
+            </div>
+
+            {{-- Siswi Halangan / Haid --}}
+            <div class="flex items-center justify-between p-3 rounded-lg bg-white/80 dark:bg-gray-900/80 border border-pink-100 dark:border-pink-900/40">
+                <div class="flex items-center gap-2.5">
+                    <span class="w-2.5 h-2.5 rounded-full bg-pink-500"></span>
+                    <div>
+                        <div class="text-xs font-bold text-gray-800 dark:text-gray-200">Udzur Syar'i (Haid)</div>
+                        <div class="text-[10px] text-gray-400">Otomatis bebas sholat 1 hari</div>
+                    </div>
+                </div>
+                <div class="text-right">
+                    <span class="text-lg font-black text-pink-600 dark:text-pink-400">{{ $siswiHalangan }}</span>
+                    <span class="text-[11px] text-gray-500 dark:text-gray-400 ml-0.5">Siswi</span>
+                </div>
+            </div>
+        </div>
+    </div>
 
     {{-- 4. DUA KOLOM: MONITORING INVAL & SISWA BERMASALAH HARI INI --}}
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">

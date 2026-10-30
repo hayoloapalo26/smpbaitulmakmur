@@ -68,6 +68,11 @@ class PiketDashboard extends Page
     public int $siswaAlpa = 0;
     public float $persenKehadiran = 0.0;
 
+    // Statistik Sholat & Halangan Hari Ini
+    public int $sholatDhuhurHadir = 0;
+    public int $sholatAsharHadir = 0;
+    public int $siswiHalangan = 0;
+
     // Data lists
     public $guruIzinHariIni = [];
     public $siswaBermasalahHariIni = [];
@@ -161,5 +166,23 @@ class PiketDashboard extends Page
             $violationQuery->whereHas('student', fn ($q) => $q->where('institution_id', $instId));
         }
         $this->pelanggaranAtributHariIni = $violationQuery->latest()->take(10)->get();
+
+        // 6. Monitoring Presensi Sholat & Udzur Halangan Hari Ini
+        $prayerQuery = \App\Models\PrayerAttendance::whereDate('tanggal', $today);
+        if ($instId && $instId != 1 && !$isSuperadmin) {
+            $prayerQuery->whereHas('student', fn ($q) => $q->where('institution_id', $instId));
+        }
+        $this->sholatDhuhurHadir = (clone $prayerQuery)->where('jenis_sholat', 'Dhuhur')->where('status', 'hadir')->count();
+        $this->sholatAsharHadir = (clone $prayerQuery)->where('jenis_sholat', 'Ashar')->where('status', 'hadir')->count();
+
+        $halanganQuery = \App\Models\StudentHalangan::where('tanggal_mulai', '<=', $today)
+            ->where(function ($q) use ($today) {
+                $q->whereNull('tanggal_selesai')
+                  ->orWhere('tanggal_selesai', '>=', $today);
+            });
+        if ($instId && $instId != 1 && !$isSuperadmin) {
+            $halanganQuery->where('institution_id', $instId);
+        }
+        $this->siswiHalangan = $halanganQuery->distinct('student_id')->count('student_id');
     }
 }

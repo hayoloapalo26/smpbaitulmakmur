@@ -73,7 +73,107 @@ class DailyAttendance extends Model
                     }
                 }
 
-                // 2. Jika siswa Sakit, Izin, atau Alpha, informasikan ke Waka Kesiswaan di lembaga siswa tersebut
+                // 2. Jika siswa diinput Sakit, Izin, atau Alpha (misal saat presensi pagi oleh Guru Piket),
+                // otomatis sistem 1 hari penuh merekap absensi sholatnya (Dhuhur & Ashar) dengan status yang sama
+                if (in_array($attendance->status, ['sakit', 'izin', 'alpa'])) {
+                    $tanggalStr = Carbon::parse($attendance->tanggal)->toDateString();
+                    $prayersToSync = ['Dhuhur', 'Ashar'];
+
+                    foreach ($prayersToSync as $prayerName) {
+                        PrayerAttendance::$isSyncing = true;
+                        try {
+                            PrayerAttendance::withoutGlobalScopes()->updateOrCreate(
+                                [
+                                    'student_id'   => $attendance->student_id,
+                                    'tanggal'      => $tanggalStr,
+                                    'jenis_sholat' => $prayerName,
+                                ],
+                                [
+                                    'institution_id' => $attendance->institution_id,
+                                    'teacher_id'     => $attendance->teacher_id ?: (auth()->id() ?? 1),
+                                    'status'         => $attendance->status,
+                                    'is_khusyu'      => true,
+                                ]
+                            );
+                        } finally {
+                            PrayerAttendance::$isSyncing = false;
+                        }
+
+                        $tipeSholatKey = 'sholat_' . strtolower($prayerName);
+                        DailyAttendance::$isSyncing = true;
+                        try {
+                            DailyAttendance::withoutGlobalScopes()->updateOrCreate(
+                                [
+                                    'student_id' => $attendance->student_id,
+                                    'tanggal'    => $tanggalStr,
+                                    'tipe_absen' => $tipeSholatKey,
+                                ],
+                                [
+                                    'institution_id' => $attendance->institution_id,
+                                    'teacher_id'     => $attendance->teacher_id ?: (auth()->id() ?? 1),
+                                    'status'         => $attendance->status,
+                                    'metode_absen'   => $attendance->metode_absen ?? 'manual',
+                                    'is_late'        => false,
+                                    'keterangan'     => "Otomatis 1 hari ({$attendance->status}) dari input presensi piket",
+                                ]
+                            );
+                        } finally {
+                            DailyAttendance::$isSyncing = false;
+                        }
+                    }
+                }
+
+                // 3. Jika siswi diinput Halangan / Haid (Udzur Syar'i),
+                // otomatis sistem 1 hari merekap absensi sholatnya (Dhuhur & Ashar) sebagai Halangan
+                if ($attendance->status === 'halangan') {
+                    $tanggalStr = Carbon::parse($attendance->tanggal)->toDateString();
+                    $prayersToSync = ['Dhuhur', 'Ashar'];
+
+                    foreach ($prayersToSync as $prayerName) {
+                        PrayerAttendance::$isSyncing = true;
+                        try {
+                            PrayerAttendance::withoutGlobalScopes()->updateOrCreate(
+                                [
+                                    'student_id'   => $attendance->student_id,
+                                    'tanggal'      => $tanggalStr,
+                                    'jenis_sholat' => $prayerName,
+                                ],
+                                [
+                                    'institution_id' => $attendance->institution_id,
+                                    'teacher_id'     => $attendance->teacher_id ?: (auth()->id() ?? 1),
+                                    'status'         => 'halangan',
+                                    'is_khusyu'      => true,
+                                ]
+                            );
+                        } finally {
+                            PrayerAttendance::$isSyncing = false;
+                        }
+
+                        $tipeSholatKey = 'sholat_' . strtolower($prayerName);
+                        DailyAttendance::$isSyncing = true;
+                        try {
+                            DailyAttendance::withoutGlobalScopes()->updateOrCreate(
+                                [
+                                    'student_id' => $attendance->student_id,
+                                    'tanggal'    => $tanggalStr,
+                                    'tipe_absen' => $tipeSholatKey,
+                                ],
+                                [
+                                    'institution_id' => $attendance->institution_id,
+                                    'teacher_id'     => $attendance->teacher_id ?: (auth()->id() ?? 1),
+                                    'status'         => 'halangan',
+                                    'metode_absen'   => 'manual',
+                                    'is_late'        => false,
+                                    'keterangan'     => "Udzur syar'i (Halangan / Haid)",
+                                ]
+                            );
+                        } finally {
+                            DailyAttendance::$isSyncing = false;
+                        }
+                    }
+                }
+
+                // 4. Jika siswa Sakit, Izin, atau Alpha, informasikan ke Waka Kesiswaan di lembaga siswa tersebut
                 if (
                     in_array($attendance->status, ['sakit', 'izin', 'alpa']) &&
                     ($attendance->wasRecentlyCreated || $attendance->wasChanged('status'))

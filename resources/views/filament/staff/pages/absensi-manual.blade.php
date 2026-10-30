@@ -163,7 +163,7 @@
                     </div>
 
                     {{-- Touch-Friendly Segmented Status Buttons --}}
-                    <div class="grid {{ ($isPerempuan && $isSholat) ? 'grid-cols-5' : 'grid-cols-4' }} gap-1 pt-1">
+                    <div class="grid {{ $isPerempuan ? 'grid-cols-5' : 'grid-cols-4' }} gap-1 pt-1">
                         {{-- HADIR --}}
                         <label class="cursor-pointer">
                             <input type="radio" wire:model.live="attendanceData.{{ $student->id }}" value="hadir" class="sr-only peer">
@@ -205,7 +205,7 @@
                         </label>
 
                         {{-- HALANGAN --}}
-                        @if($isPerempuan && $isSholat)
+                        @if($isPerempuan)
                         <label class="cursor-pointer">
                             <input type="radio" wire:model.live="attendanceData.{{ $student->id }}" value="halangan" class="sr-only peer">
                             <span class="flex items-center justify-center py-2 px-1 text-[11px] font-bold rounded-lg border-2 text-center transition-all select-none
@@ -338,7 +338,7 @@
                                     </label>
 
                                     {{-- HALANGAN --}}
-                                    @if($isPerempuan && $isSholat)
+                                    @if($isPerempuan)
                                     <label class="cursor-pointer">
                                         <input type="radio" wire:model.live="attendanceData.{{ $student->id }}"
                                             value="halangan" class="sr-only peer">

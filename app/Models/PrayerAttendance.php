@@ -64,6 +64,26 @@ class PrayerAttendance extends Model
                 ) {
                     $prayer->notifyWakaKesiswaan();
                 }
+
+                // Jika status halangan dicatat dari presensi sholat, pastikan catatan StudentHalangan juga terbuat
+                if ($prayer->status === 'halangan') {
+                    $student = Student::withoutGlobalScopes()->find($prayer->student_id);
+                    if ($student && $student->jenis_kelamin === 'P') {
+                        $tanggalStr = Carbon::parse($prayer->tanggal)->toDateString();
+                        StudentHalangan::firstOrCreate(
+                            [
+                                'student_id'    => $prayer->student_id,
+                                'tanggal_mulai' => $tanggalStr,
+                            ],
+                            [
+                                'institution_id'  => $prayer->institution_id ?? $student->institution_id,
+                                'tanggal_selesai' => $tanggalStr,
+                                'catatan'         => 'Udzur syar\'i (Halangan / Haid) dicatat dari Presensi Sholat ' . $prayer->jenis_sholat,
+                                'recorded_by'     => $prayer->teacher_id ?: (auth()->id() ?? 1),
+                            ]
+                        );
+                    }
+                }
             } finally {
                 self::$isSyncing = false;
             }

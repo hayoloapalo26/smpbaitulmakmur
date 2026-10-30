@@ -17,27 +17,55 @@ use Carbon\Carbon;
 
 class StudentHalanganResource extends Resource
 {
-public static function canAccess(): bool
+    public static function canAccess(): bool
     {
-        return auth()->user()->hasAnyRole(['waka_kesiswaan', 'superadmin']);
+        $user = auth()->user();
+        if (!$user) {
+            return false;
+        }
+
+        if ($user->hasAnyRole(['waka_kesiswaan', 'kepala_sekolah', 'superadmin', 'bk', 'wali_kelas'])) {
+            return true;
+        }
+
+        return $user->isPiketToday();
+    }
+
+    public static function shouldRegisterNavigation(): bool
+    {
+        return static::canAccess();
     }
 
     protected static ?string $model = StudentHalangan::class;
     protected static ?string $navigationIcon = 'heroicon-o-calendar-days';
-    protected static ?string $navigationGroup = 'Kesiswaan & Karakter';
     protected static ?string $modelLabel = 'Catatan Halangan Siswi';
     protected static ?string $pluralModelLabel = 'Halangan Siswi';
     protected static ?string $recordTitleAttribute = 'catatan';
+    protected static ?int $navigationSort = 4;
 
-    // Hanya wali kelas, kesiswaan, BK, kepala sekolah yang bisa akses
-    
+    public static function getNavigationGroup(): ?string
+    {
+        $user = auth()->user();
+        if ($user && $user->isPiketToday() && !$user->hasAnyRole(['waka_kesiswaan', 'kepala_sekolah', 'superadmin'])) {
+            return 'Tugas Guru Piket';
+        }
+
+        return 'Kesiswaan & Karakter';
+    }
 
     public static function getEloquentQuery(): Builder
     {
         $query = parent::getEloquentQuery();
         $user = Auth::user();
 
-        if ($user->hasRole(['waka_kesiswaan', 'bk', 'kepala_sekolah'])) {
+        if (!$user) {
+            return $query;
+        }
+
+        if ($user->hasAnyRole(['waka_kesiswaan', 'bk', 'kepala_sekolah', 'superadmin']) || $user->isPiketToday()) {
+            if (!$user->hasRole('superadmin') && $user->institution_id && $user->institution_id != 1) {
+                $query->where('institution_id', $user->institution_id);
+            }
             return $query;
         }
 
