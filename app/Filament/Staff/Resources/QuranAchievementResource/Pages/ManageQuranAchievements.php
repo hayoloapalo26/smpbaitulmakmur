@@ -34,15 +34,15 @@ class ManageQuranAchievements extends ManageRecords
 
         return [
             Actions\Action::make('input_setoran_rombel')
-                ->label('⚡ Input Setoran Rombel Al-Qur\'an (Format Jurnal Mengajar)')
-                ->modalHeading('📖 Input Setoran Hafalan Santri Binaan (Format Jurnal Mengajar)')
-                ->modalSubheading('Data kelas dan santri binaan otomatis ditentukan dari penempatan Waka Kurikulum (tanpa perlu memilih kelas). Atur setoran dan catatan evaluasi per santri di lembar bawah.')
+                ->label('⚡ Input Penilaian & Setoran Rombel (Jurnal Mengajar)')
+                ->modalHeading('📖 Input Penilaian Kualitas Bacaan & Setoran Santri Binaan')
+                ->modalSubheading('Data kelas dan santri binaan otomatis ditentukan dari penempatan Waka Kurikulum (tanpa perlu memilih kelas). Atur materi setoran, skor kualitas bacaan (0-100), predikat kelulusan, dan catatan evaluasi per santri di lembar bawah.')
                 ->color('primary')
                 ->icon('heroicon-o-user-group')
                 ->modalWidth('7xl')
-                ->modalSubmitActionLabel('💾 Simpan Setoran Seluruh Santri')
+                ->modalSubmitActionLabel('💾 Simpan Penilaian & Setoran Seluruh Santri')
                 ->form([
-                    Forms\Components\Section::make('📖 1. Parameter Setoran Al-Qur\'an (Otomatis dari Waka Kurikulum)')
+                    Forms\Components\Section::make('📖 1. Parameter Penilaian Al-Qur\'an (Otomatis dari Waka Kurikulum)')
                         ->description('Data santri binaan termuat otomatis sesuai penempatan kelas oleh Waka Kurikulum.')
                         ->schema([
                             // 1. Informasi Otomatis untuk Guru Al-Qur'an (Tanpa Dropdown!)
@@ -86,20 +86,30 @@ class ManageQuranAchievements extends ManageRecords
                                 ->columnSpan(fn () => 2),
 
                             Forms\Components\DatePicker::make('tanggal')
-                                ->label('Tanggal Setoran')
+                                ->label('Tanggal Penilaian')
                                 ->default(Carbon::now())
                                 ->required(),
 
                             Forms\Components\Select::make('type')
                                 ->label('Tipe Capaian')
                                 ->options([
-                                    'ziyadah'       => 'Ziyadah (Setoran Baru)',
-                                    'murajaah'      => 'Muraja\'ah (Pengulangan)',
-                                    'tasmi'         => 'Tasmi\' (Sekali Duduk)',
-                                    'ujian_tahfidz' => 'Ujian Tahfidz / Mutqin',
+                                    'ziyadah'          => 'Ziyadah (Setoran Baru)',
+                                    'murajaah'         => 'Muraja\'ah (Pengulangan)',
+                                    'tasmi'            => 'Tasmi\' (Sekali Duduk)',
+                                    'ujian_tahfidz'    => 'Ujian Tahfidz / Mutqin',
+                                    'bimbingan_tahsin' => 'Bimbingan Tahsin / Yanbu\'a',
                                 ])
                                 ->default('ziyadah')
                                 ->required()
+                                ->live(),
+
+                            Forms\Components\TextInput::make('default_scale_score')
+                                ->label('Skor Default (0 - 100)')
+                                ->numeric()
+                                ->default(85)
+                                ->minValue(0)
+                                ->maxValue(100)
+                                ->prefix('Skor:')
                                 ->live(),
 
                             Forms\Components\Select::make('default_juz')
@@ -123,8 +133,8 @@ class ManageQuranAchievements extends ManageRecords
                                 ->live(),
                         ])->columns(3),
 
-                    Forms\Components\Section::make('👥 2. Lembar Setoran Hafalan Santri (Otomatis Termuat Seluruh Santri Binaan)')
-                        ->description('Format interaktif seperti Jurnal Mengajar. Seluruh santri binaan sudah siap diinput setorannya. Atur surah, ayat, predikat kelulusan (Mumtaz, Jayyid Jiddan, Jayyid, Maqbul) dan catatan per santri.')
+                    Forms\Components\Section::make('👥 2. Lembar Penilaian & Setoran Santri (Format Jurnal Mengajar)')
+                        ->description('Format terintegrasi satu pintu: Skor kualitas bacaan (0-100), materi setoran, predikat kelulusan (Mumtaz, Jayyid Jiddan, Jayyid, Maqbul), dan catatan evaluasi guru.')
                         ->schema([
                             Forms\Components\ViewField::make('student_achievements')
                                 ->view('filament.staff.forms.components.quran-achievement-batch-selector')
@@ -157,6 +167,7 @@ class ManageQuranAchievements extends ManageRecords
                                     return [
                                         'students'            => $students,
                                         'program'             => $program,
+                                        'defaultScaleScore'   => $get('default_scale_score') ?? 85,
                                         'defaultJuz'          => $get('default_juz') ?? 30,
                                         'defaultSurah'        => $get('default_surah') ?? '78',
                                         'defaultAyah'         => $get('default_ayah') ?? '1-10',
@@ -173,6 +184,7 @@ class ManageQuranAchievements extends ManageRecords
                     $program = $data['program'] ?? $data['program_otomatis'] ?? Auth::user()?->getQuranSpecializationKey() ?? 'tahsin';
                     $tanggal = $data['tanggal'] ?? Carbon::now();
                     $type = $data['type'] ?? 'ziyadah';
+                    $defaultScaleScore = !empty($data['default_scale_score']) ? (int)$data['default_scale_score'] : 85;
                     $defaultJuz = $data['default_juz'] ?? 30;
                     $defaultSurah = $data['default_surah'] ?? '78';
                     $defaultAyah = $data['default_ayah'] ?? '1-10';
@@ -182,7 +194,7 @@ class ManageQuranAchievements extends ManageRecords
                     if (empty($studentAchievements) || !is_array($studentAchievements)) {
                         Notification::make()
                             ->title('Gagal Menyimpan')
-                            ->body('Lembar setoran belum terisi. Silakan centang santri yang menyetor.')
+                            ->body('Lembar penilaian belum terisi. Silakan centang santri yang dinilai.')
                             ->warning()
                             ->send();
                         return;
@@ -195,6 +207,7 @@ class ManageQuranAchievements extends ManageRecords
                         $program,
                         $tanggal,
                         $type,
+                        $defaultScaleScore,
                         $defaultJuz,
                         $defaultSurah,
                         $defaultAyah,
@@ -217,7 +230,16 @@ class ManageQuranAchievements extends ManageRecords
                             $juz = !empty($row['juz']) ? (int)$row['juz'] : (int)$defaultJuz;
                             $surah = !empty($row['surah']) ? (string)$row['surah'] : (string)$defaultSurah;
                             $ayah = !empty($row['ayah']) ? (string)$row['ayah'] : (string)$defaultAyah;
-                            $predikat = !empty($row['predikat']) ? (string)$row['predikat'] : 'Jayyid Jiddan';
+                            $scaleScore = isset($row['scale_score']) && $row['scale_score'] !== '' ? (int)$row['scale_score'] : $defaultScaleScore;
+                            
+                            $predikat = !empty($row['predikat']) ? (string)$row['predikat'] : null;
+                            if (!$predikat) {
+                                if ($scaleScore >= 90) $predikat = 'Mumtaz';
+                                elseif ($scaleScore >= 80) $predikat = 'Jayyid Jiddan';
+                                elseif ($scaleScore >= 70) $predikat = 'Jayyid';
+                                else $predikat = 'Maqbul';
+                            }
+
                             $catatan = $row['catatan'] ?? null;
                             $itemType = !empty($row['type']) ? (string)$row['type'] : $type;
                             $jilid = $row['jilid_halaman'] ?? null;
@@ -232,6 +254,7 @@ class ManageQuranAchievements extends ManageRecords
                                 'surah'             => $surah,
                                 'ayah'              => $ayah,
                                 'jilid_halaman'     => $jilid,
+                                'scale_score'       => $scaleScore,
                                 'predikat'          => $predikat,
                                 'catatan'           => $catatan,
                                 'tanggal'           => $tanggal,
@@ -244,24 +267,18 @@ class ManageQuranAchievements extends ManageRecords
 
                     if ($savedCount > 0) {
                         Notification::make()
-                            ->title('Setoran Hafalan Santri Berhasil Disimpan!')
-                            ->body("Alhamdulillah, sebanyak {$savedCount} setoran hafalan santri binaan telah tersimpan dan siap diverifikasi oleh Koordinator Madin.")
+                            ->title('Penilaian & Setoran Santri Berhasil Disimpan!')
+                            ->body("Alhamdulillah, sebanyak {$savedCount} penilaian kualitas dan setoran santri binaan telah tersimpan dan terintegrasi otomatis.")
                             ->success()
                             ->send();
                     } else {
                         Notification::make()
-                            ->title('Tidak Ada Setoran yang Disimpan')
-                            ->body('Pastikan Anda mencentang setidaknya satu santri yang menyetor hari ini.')
+                            ->title('Tidak Ada Data yang Disimpan')
+                            ->body('Pastikan Anda mencentang setidaknya satu santri yang dinilai hari ini.')
                             ->warning()
                             ->send();
                     }
                 }),
-
-            Actions\Action::make('ke_skor_kualitas')
-                ->label('⭐ Buka Skor Kualitas Bacaan & Tahsin')
-                ->icon('heroicon-o-star')
-                ->color('warning')
-                ->url(fn () => url('/staff/reading-quality-scores')),
 
             Actions\Action::make('peringkat_tahfidz')
                 ->label('🏆 Lihat Peringkat Tahfidz')
@@ -270,7 +287,7 @@ class ManageQuranAchievements extends ManageRecords
                 ->url(fn () => \App\Filament\Staff\Pages\TahfidzRanking::getUrl()),
 
             Actions\CreateAction::make()
-                ->label('Input Setoran Satuan')
+                ->label('Input Penilaian Satuan')
                 ->icon('heroicon-o-plus-circle'),
         ];
     }

@@ -33,8 +33,8 @@ class QuranAchievementResource extends Resource
     protected static ?string $model = QuranAchievement::class;
     protected static ?string $navigationIcon = 'heroicon-o-book-open';
     protected static ?string $navigationGroup = 'Kesiswaan & Karakter';
-    protected static ?string $modelLabel = 'Capaian Quran & Setoran Hafalan';
-    protected static ?string $pluralModelLabel = 'Capaian Quran & Setoran Hafalan';
+    protected static ?string $modelLabel = 'Penilaian & Capaian Al-Qur\'an';
+    protected static ?string $pluralModelLabel = 'Penilaian & Capaian Al-Qur\'an';
     protected static ?int $navigationSort = 1;
 
     public static function getNavigationGroup(): ?string
@@ -280,10 +280,50 @@ class QuranAchievementResource extends Resource
                 Forms\Components\TextInput::make('ayah')
                     ->label('7. Ayat')
                     ->placeholder('Contoh: 1-15 / 1-Akhir')
+                    ->default('1-10')
                     ->required(),
 
+                Forms\Components\TextInput::make('jilid_halaman')
+                    ->label('Jilid / Halaman (Khusus Yanbu\'a / Tahsin)')
+                    ->placeholder('Contoh: Jilid 4 Hal. 20'),
+
+                Forms\Components\TextInput::make('scale_score')
+                    ->label('8. Skor Kualitas Bacaan & Tahsin (0 - 100)')
+                    ->numeric()
+                    ->minValue(0)
+                    ->maxValue(100)
+                    ->default(85)
+                    ->prefix('Skor:')
+                    ->required()
+                    ->live()
+                    ->afterStateUpdated(function ($state, Forms\Set $set) {
+                        if ($state !== null && $state !== '') {
+                            $score = (float) $state;
+                            if ($score >= 90) {
+                                $set('predikat', 'Mumtaz');
+                            } elseif ($score >= 80) {
+                                $set('predikat', 'Jayyid Jiddan');
+                            } elseif ($score >= 70) {
+                                $set('predikat', 'Jayyid');
+                            } else {
+                                $set('predikat', 'Maqbul');
+                            }
+                        }
+                    })
+                    ->helperText(function (Forms\Get $get) {
+                        $score = $get('scale_score');
+                        if ($score === null || $score === '') {
+                            return '💡 Skala Nilai: 90 - 100 (Mumtaz) | 80 - 89 (Jayyid Jiddan) | 70 - 79 (Jayyid) | < 70 (Maqbul / Pembinaan).';
+                        }
+                        $score = (float) $score;
+                        if ($score >= 90) return '🏆 Predikat: Mumtaz (Istimewa / Sangat Baik)';
+                        if ($score >= 80) return '✅ Predikat: Jayyid Jiddan (Baik / Tuntas)';
+                        if ($score >= 70) return 'ℹ️ Predikat: Jayyid (Cukup Baik)';
+                        return '⚠️ Predikat: Maqbul (Perlu Pembinaan Intensif)';
+                    }),
+
                 Forms\Components\Select::make('predikat')
-                    ->label('8. Predikat Kelulusan / Kualitas Setoran')
+                    ->label('9. Predikat Kelulusan / Kualitas Setoran')
                     ->options([
                         'Mumtaz'        => 'Mumtaz (Istimewa / Nilai 90-100)',
                         'Jayyid Jiddan' => 'Jayyid Jiddan (Sangat Baik / Nilai 80-89)',
@@ -293,17 +333,13 @@ class QuranAchievementResource extends Resource
                     ->default('Jayyid Jiddan')
                     ->required(),
 
-                Forms\Components\TextInput::make('jilid_halaman')
-                    ->label('Jilid / Halaman (Opsional untuk Yanbu\'a/Tahsin)')
-                    ->placeholder('Contoh: Jilid 4 Hal. 20'),
-
                 Forms\Components\DatePicker::make('tanggal')
-                    ->label('Tanggal Setoran')
+                    ->label('Tanggal Penilaian & Setoran')
                     ->default(Carbon::now())
                     ->required(),
 
                 Forms\Components\Textarea::make('catatan')
-                    ->label('Catatan Tambahan Guru (Kelancaran & Mutqin)')
+                    ->label('Catatan Evaluasi Guru (Makhraj, Tajwid, Fashahah, Adab, Kelancaran)')
                     ->placeholder('Contoh: Hafalan lancar mutqin, makharijul huruf tepat, dan waqaf ibtida sempurna.')
                     ->columnSpanFull(),
 
@@ -389,7 +425,20 @@ class QuranAchievementResource extends Resource
                     }),
 
                 Tables\Columns\TextColumn::make('ayah')
-                    ->label('Ayat'),
+                    ->label('Ayat / Jilid')
+                    ->formatStateUsing(fn ($state, QuranAchievement $record) => !empty($record->jilid_halaman) ? $record->jilid_halaman : "Ayat {$state}"),
+
+                Tables\Columns\TextColumn::make('scale_score')
+                    ->label('Skor')
+                    ->badge()
+                    ->color(fn ($state) => match (true) {
+                        $state >= 90 => 'success',
+                        $state >= 80 => 'info',
+                        $state >= 70 => 'warning',
+                        default      => 'danger',
+                    })
+                    ->formatStateUsing(fn ($state) => $state ? "⭐ {$state}" : "-")
+                    ->sortable(),
 
                 Tables\Columns\TextColumn::make('predikat')
                     ->label('Predikat')

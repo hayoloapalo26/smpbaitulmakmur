@@ -41,9 +41,10 @@ class GuruAlquranSystemFeaturesTest extends TestCase
         Role::firstOrCreate(['name' => 'waka_kurikulum', 'guard_name' => 'web']);
         Role::firstOrCreate(['name' => 'kepala_sekolah', 'guard_name' => 'web']);
 
+        Institution::firstOrCreate(['id' => 1], ['slug' => 'yayasan', 'name' => 'Yayasan Baitul Makmur']);
         $this->institution = Institution::firstOrCreate(
-            ['slug' => 'smp-islam-baitul-makmur'],
-            ['name' => 'SMP Islam Baitul Makmur']
+            ['id' => 2],
+            ['slug' => 'smp-islam-baitul-makmur', 'name' => 'SMP Islam Baitul Makmur']
         );
 
         $this->superadmin = User::create([
@@ -108,8 +109,8 @@ class GuruAlquranSystemFeaturesTest extends TestCase
         $this->assertEquals('Fitur Guru Al-Qur\'an', QuranAchievementResource::getNavigationGroup());
 
         $this->assertTrue(ReadingQualityScoreResource::canAccess());
-        $this->assertTrue(ReadingQualityScoreResource::shouldRegisterNavigation());
-        $this->assertEquals('Fitur Guru Al-Qur\'an', ReadingQualityScoreResource::getNavigationGroup());
+        // Fitur penilaian disatukan satu pintu ke Penilaian & Capaian Al-Qur'an agar tidak dua kali kerja:
+        $this->assertFalse(ReadingQualityScoreResource::shouldRegisterNavigation());
 
         $this->assertTrue(TahfidzRanking::canAccess());
         $this->assertTrue(TahfidzRanking::shouldRegisterNavigation());

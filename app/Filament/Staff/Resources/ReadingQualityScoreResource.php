@@ -23,7 +23,16 @@ class ReadingQualityScoreResource extends Resource
 {
     public static function shouldRegisterNavigation(): bool
     {
-        return auth()->user()?->hasAnyRole(array_merge(\App\Models\User::QURAN_TEACHER_ROLES, ['koordinator_madin', 'waka_kurikulum', 'kepala_sekolah', 'superadmin'])) ?? false;
+        $user = auth()->user();
+        if (!$user) return false;
+
+        // Guru Al-Qur'an menggunakan 1 fitur terintegrasi satu pintu "Penilaian & Capaian Al-Qur'an",
+        // sehingga menu terpisah ini dinonaktifkan dari navigasi mereka agar tidak dua kali kerja.
+        if ($user->isQuranTeacher()) {
+            return false;
+        }
+
+        return $user->hasAnyRole(['koordinator_madin', 'waka_kurikulum', 'kepala_sekolah', 'superadmin']);
     }
 
     public static function canAccess(): bool

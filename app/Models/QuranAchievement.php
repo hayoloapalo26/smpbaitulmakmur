@@ -13,7 +13,35 @@ class QuranAchievement extends Model
     protected $casts = [
         'type' => 'array',
         'verified_at' => 'datetime',
+        'scale_score' => 'integer',
+        'tanggal' => 'date',
     ];
+
+    protected static function booted(): void
+    {
+        parent::booted();
+
+        static::saved(function (QuranAchievement $record) {
+            // Sinkronisasi otomatis ke reading_quality_scores agar satu pintu penilaian
+            // langsung terintegrasi dengan rapor, Madin, dan profil kelulusan
+            if ($record->scale_score !== null) {
+                \App\Models\ReadingQualityScore::updateOrCreate(
+                    [
+                        'student_id' => $record->student_id,
+                        'teacher_id' => $record->teacher_id,
+                        'tanggal'    => $record->tanggal,
+                        'program'    => $record->program ?? 'tahsin',
+                    ],
+                    [
+                        'scale_score'   => (int) $record->scale_score,
+                        'jilid_halaman' => $record->jilid_halaman,
+                        'catatan_guru'  => $record->catatan,
+                        'predikat'      => $record->predikat ?? Grade::determineScale($record->scale_score)['predikat'],
+                    ]
+                );
+            }
+        });
+    }
 
     public function student()
     {
@@ -28,6 +56,17 @@ class QuranAchievement extends Model
     public function verifier()
     {
         return $this->belongsTo(User::class, 'verified_by');
+    }
+
+    public function getPredikatColorAttribute(): string
+    {
+        return match ($this->predikat) {
+            'Mumtaz'        => 'success',
+            'Jayyid Jiddan' => 'info',
+            'Jayyid'        => 'warning',
+            'Maqbul'        => 'danger',
+            default         => 'gray',
+        };
     }
 
     public function getProgramLabelAttribute(): string

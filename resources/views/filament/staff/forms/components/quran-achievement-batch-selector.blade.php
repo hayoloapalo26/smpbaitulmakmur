@@ -19,6 +19,7 @@
             x-data="{
                 state: $wire.{{ $applyStateBindingModifiers("\$entangle('{$statePath}')") }},
                 search: '',
+                defaultScaleScore: '{{ $defaultScaleScore ?? 85 }}',
                 defaultJuz: '{{ $defaultJuz ?? 30 }}',
                 defaultSurah: '{{ $defaultSurah ?? 78 }}',
                 defaultAyah: '{{ $defaultAyah ?? '1-10' }}',
@@ -52,6 +53,7 @@
                                 surah: this.defaultSurah,
                                 ayah: this.defaultAyah,
                                 jilid_halaman: this.defaultJilid,
+                                scale_score: this.defaultScaleScore,
                                 predikat: this.quickPredikat,
                                 catatan: ''
                             };
@@ -64,6 +66,7 @@
                             if (!this.state[s.id].juz) this.state[s.id].juz = this.defaultJuz;
                             if (!this.state[s.id].surah) this.state[s.id].surah = this.defaultSurah;
                             if (!this.state[s.id].ayah) this.state[s.id].ayah = this.defaultAyah;
+                            if (this.state[s.id].scale_score === undefined) this.state[s.id].scale_score = this.defaultScaleScore;
                             if (!this.state[s.id].predikat) this.state[s.id].predikat = this.quickPredikat;
                             if (this.state[s.id].catatan === undefined) this.state[s.id].catatan = '';
                         }
@@ -79,11 +82,22 @@
                             surah: this.defaultSurah,
                             ayah: this.defaultAyah,
                             jilid_halaman: this.defaultJilid,
+                            scale_score: this.defaultScaleScore,
                             predikat: this.quickPredikat,
                             catatan: ''
                         };
                     }
                     return this.state[id];
+                },
+                updateScore(id, score) {
+                    this.updateItem(id, 'scale_score', score);
+                    let num = parseFloat(score);
+                    if (!isNaN(num)) {
+                        if (num >= 90) this.updateItem(id, 'predikat', 'Mumtaz');
+                        else if (num >= 80) this.updateItem(id, 'predikat', 'Jayyid Jiddan');
+                        else if (num >= 70) this.updateItem(id, 'predikat', 'Jayyid');
+                        else this.updateItem(id, 'predikat', 'Maqbul');
+                    }
                 },
                 updateItem(id, key, val) {
                     let cur = this.getItem(id);
@@ -237,6 +251,7 @@
                                 <th class="px-3 py-3 w-24 text-center">Juz</th>
                                 <th class="px-3 py-3 min-w-[160px]">Surah</th>
                                 <th class="px-3 py-3 w-32">Ayat / Jilid</th>
+                                <th class="px-2 py-3 w-20 text-center">Skor (0-100)</th>
                                 <th class="px-3 py-3 min-w-[140px] text-center">Predikat Kelulusan</th>
                                 <th class="px-4 py-3 min-w-[280px]">Catatan Evaluasi Guru Al-Qur'an</th>
                             </tr>
@@ -312,6 +327,20 @@
                                             :value="getItem(student.id).ayah"
                                             @input="updateItem(student.id, 'ayah', $event.target.value)"
                                             class="w-full text-xs px-2.5 py-1.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 disabled:bg-gray-100 dark:disabled:bg-gray-800/40 font-mono"
+                                        />
+                                    </td>
+
+                                    {{-- Skor Kualitas Bacaan --}}
+                                    <td class="px-2 py-3 text-center">
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            max="100"
+                                            placeholder="85"
+                                            :disabled="!getItem(student.id).active"
+                                            :value="getItem(student.id).scale_score !== undefined ? getItem(student.id).scale_score : defaultScaleScore"
+                                            @input="updateScore(student.id, $event.target.value)"
+                                            class="w-16 text-center text-xs font-bold px-2 py-1.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 disabled:bg-gray-100 dark:disabled:bg-gray-800/40"
                                         />
                                     </td>
 
