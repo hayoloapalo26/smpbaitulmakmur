@@ -520,6 +520,20 @@ class ManageGrades extends ManageRecords
                 ->icon('heroicon-o-academic-cap')
                 ->url(fn () => url('/staff/input-nilai-mapel')),
 
+            Actions\Action::make('quran_hafalan')
+                ->label('📖 Capaian Quran & Setoran')
+                ->color('info')
+                ->icon('heroicon-o-book-open')
+                ->url(fn () => url('/staff/quran-achievements'))
+                ->visible(fn () => Auth::user()?->isQuranTeacher() ?? false),
+
+            Actions\Action::make('quran_tahsin')
+                ->label('⭐ Skor Kualitas Bacaan & Tahsin')
+                ->color('warning')
+                ->icon('heroicon-o-star')
+                ->url(fn () => url('/staff/reading-quality-scores'))
+                ->visible(fn () => Auth::user()?->isQuranTeacher() ?? false),
+
             Actions\CreateAction::make()
                 ->label('Input Nilai Satuan')
                 ->icon('heroicon-o-plus-circle')

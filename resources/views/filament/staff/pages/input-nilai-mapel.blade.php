@@ -1,6 +1,34 @@
 <x-filament-panels::page>
     <div class="space-y-6">
 
+        @if(auth()->user()->isQuranTeacher() && !auth()->user()->hasRole('guru_mapel'))
+            <div class="p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-amber-100 dark:bg-amber-900 text-amber-600 flex items-center justify-center shrink-0">
+                        <x-heroicon-o-book-open class="w-6 h-6" />
+                    </div>
+                    <div>
+                        <h4 class="text-sm font-bold text-amber-900 dark:text-amber-200">
+                            Fitur Penilaian Guru Al-Qur'an Berdiri Sendiri (Terpisah dari Guru Mapel)
+                        </h4>
+                        <p class="text-xs text-amber-700 dark:text-amber-400 mt-0.5">
+                            Untuk penilaian santri Al-Qur'an, gunakan 2 fitur khusus Al-Qur'an di bawah ini (sudah dilengkapi format Jurnal Mengajar sekelas).
+                        </p>
+                    </div>
+                </div>
+                <div class="flex flex-wrap items-center gap-2 shrink-0">
+                    <a href="{{ url('/staff/quran-achievements?action=input_setoran_rombel') }}" class="px-3.5 py-2 text-xs font-bold rounded-xl bg-emerald-600 text-white hover:bg-emerald-500 shadow-sm transition flex items-center gap-1.5">
+                        <x-heroicon-o-book-open class="w-4 h-4" />
+                        📖 Capaian & Setoran Hafalan
+                    </a>
+                    <a href="{{ url('/staff/reading-quality-scores?action=input_skor_rombel') }}" class="px-3.5 py-2 text-xs font-bold rounded-xl bg-amber-600 text-white hover:bg-amber-500 shadow-sm transition flex items-center gap-1.5">
+                        <x-heroicon-o-star class="w-4 h-4" />
+                        ⭐ Skor Kualitas & Tahsin
+                    </a>
+                </div>
+            </div>
+        @endif
+
         {{-- 1. PEMILIHAN RUMAH MATA PELAJARAN (TABS MAPEL) --}}
         <div class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-5 shadow-sm">
             <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4 pb-3 border-b border-gray-100 dark:border-gray-800">

@@ -26,7 +26,15 @@ class GradeResource extends Resource
 {
     public static function shouldRegisterNavigation(): bool
     {
-        return auth()->user()?->hasAnyRole(array_merge([
+        $user = auth()->user();
+        if (!$user) return false;
+
+        // Jika user adalah Guru Al-Qur'an dan BUKAN Guru Mapel umum, sembunyikan menu nilai mapel CP/TP ini dari sidebar
+        if ($user->isQuranTeacher() && !$user->hasAnyRole(['guru_mapel', 'guru_kelas', 'waka_kurikulum', 'kepala_sekolah', 'superadmin'])) {
+            return false;
+        }
+
+        return $user->hasAnyRole(array_merge([
             'guru_mapel',
             'koordinator_madin',
             'guru_kelas',

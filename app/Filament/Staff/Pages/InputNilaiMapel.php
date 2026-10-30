@@ -15,6 +15,19 @@ use Illuminate\Support\Facades\Auth;
 
 class InputNilaiMapel extends Page
 {
+    public static function shouldRegisterNavigation(): bool
+    {
+        $user = Auth::user();
+        if (!$user) return false;
+
+        // Jika Guru Al-Qur'an (dan bukan guru mapel umum), sembunyikan dari sidebar agar fokus ke fitur Al-Qur'an
+        if ($user->isQuranTeacher() && !$user->hasAnyRole(['guru_mapel', 'guru_kelas', 'waka_kurikulum', 'kepala_sekolah', 'superadmin'])) {
+            return false;
+        }
+
+        return static::canAccess();
+    }
+
     public static function canAccess(): bool
     {
         return Auth::user()?->hasAnyRole(array_merge([
