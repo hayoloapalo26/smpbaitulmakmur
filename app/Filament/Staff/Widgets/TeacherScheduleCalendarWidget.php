@@ -47,17 +47,68 @@ class TeacherScheduleCalendarWidget extends Widget
     {
         $user = Auth::user();
         
-        // Ambil jadwal guru yang login
-        $schedules = Schedule::where('teacher_id', $user->id)->get();
+        // Ambil seluruh jadwal guru yang login beserta relasi kelas dan mata pelajaran
+        $schedules = Schedule::where('teacher_id', $user->id)
+            ->with(['classroom', 'subject'])
+            ->orderBy('jam_ke')
+            ->get();
         
-        $jpPerHari = [
-            'Senin' => 0, 'Selasa' => 0, 'Rabu' => 0, 'Kamis' => 0, 'Jumat' => 0, 'Sabtu' => 0, 'Minggu' => 0,
-        ];
+        $daysOfWeek = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'];
+        $scheduleByDay = [];
 
-        foreach ($schedules as $sched) {
-            if (isset($jpPerHari[$sched->hari])) {
-                $jpPerHari[$sched->hari]++;
+        foreach ($daysOfWeek as $hari) {
+            $daySchedules = $schedules->where('hari', $hari)->sortBy('jam_ke');
+            $jpCount = $daySchedules->count();
+            
+            // Kelompokkan jadwal per kelas dan mata pelajaran
+            $classesGrouped = [];
+            $scheduleDetails = [];
+            
+            foreach ($daySchedules as $sched) {
+                $cId = $sched->classroom_id ?: 0;
+                $cName = $sched->classroom?->name ?? 'Kelas Lain';
+                $sName = $sched->subject?->name ?? 'Pelajaran';
+                $jamLabel = Schedule::getJamLabelWithTime($sched->jam_ke);
+                $jamTime = Schedule::getJamTime($sched->jam_ke) ?? '';
+                
+                $key = "{$cId}_{$sched->subject_id}";
+                if (!isset($classesGrouped[$key])) {
+                    $classesGrouped[$key] = [
+                        'classroom_id' => $cId,
+                        'classroom_name' => $cName,
+                        'subject_name' => $sName,
+                        'jp' => 0,
+                        'jam_numbers' => [],
+                    ];
+                }
+                $classesGrouped[$key]['jp']++;
+                if ($sched->jam_ke !== null) {
+                    $classesGrouped[$key]['jam_numbers'][] = $sched->jam_ke;
+                }
+                
+                $scheduleDetails[] = [
+                    'jam_ke' => $sched->jam_ke,
+                    'jam_label' => $jamLabel,
+                    'jam_time' => $jamTime,
+                    'classroom' => $cName,
+                    'subject' => $sName,
+                ];
             }
+            
+            // Format jam mengajar (contoh: "Jam Ke-1, 2")
+            foreach ($classesGrouped as &$cg) {
+                sort($cg['jam_numbers']);
+                $cg['jam_text'] = !empty($cg['jam_numbers'])
+                    ? 'Jam Ke-' . implode(', ', $cg['jam_numbers'])
+                    : '';
+            }
+            unset($cg);
+
+            $scheduleByDay[$hari] = [
+                'jp' => $jpCount,
+                'classes' => array_values($classesGrouped),
+                'details' => $scheduleDetails,
+            ];
         }
 
         $date = Carbon::create($this->currentYear, $this->currentMonth, 1);
@@ -80,7 +131,12 @@ class TeacherScheduleCalendarWidget extends Widget
         for ($i = 1; $i < $firstDayOfWeek; $i++) {
             $calendar[] = [
                 'date' => null,
+                'full_date' => null,
+                'day_name' => null,
+                'formatted_date' => null,
                 'jp' => 0,
+                'classes' => [],
+                'details' => [],
                 'is_today' => false,
             ];
         }
@@ -90,7 +146,8 @@ class TeacherScheduleCalendarWidget extends Widget
             $currentDate = Carbon::create($this->currentYear, $this->currentMonth, $day);
             $dayName = $isoToDayName[$currentDate->isoWeekday()];
             
-            $jp = $jpPerHari[$dayName] ?? 0;
+            $dayData = $scheduleByDay[$dayName] ?? ['jp' => 0, 'classes' => [], 'details' => []];
+            $jp = $dayData['jp'];
             $totalJpThisMonth += $jp;
             
             $isToday = $now->isSameDay($currentDate);
@@ -103,7 +160,11 @@ class TeacherScheduleCalendarWidget extends Widget
             $calendar[] = [
                 'date' => $day,
                 'full_date' => $currentDate->format('Y-m-d'),
+                'day_name' => $dayName,
+                'formatted_date' => $currentDate->translatedFormat('l, d F Y'),
                 'jp' => $jp,
+                'classes' => $dayData['classes'],
+                'details' => $dayData['details'],
                 'is_today' => $isToday,
             ];
         }
@@ -114,7 +175,12 @@ class TeacherScheduleCalendarWidget extends Widget
             for ($i = $lastDayOfWeek + 1; $i <= 7; $i++) {
                 $calendar[] = [
                     'date' => null,
+                    'full_date' => null,
+                    'day_name' => null,
+                    'formatted_date' => null,
                     'jp' => 0,
+                    'classes' => [],
+                    'details' => [],
                     'is_today' => false,
                 ];
             }
