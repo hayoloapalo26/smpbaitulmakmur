@@ -15,6 +15,8 @@ use Illuminate\Support\HtmlString;
 
 class CustomLogin extends BaseLogin
 {
+    protected static string $view = 'filament.pages.auth.custom-login';
+
     /**
      * Override form schema to use single input for Email / Username.
      */
@@ -45,6 +47,22 @@ class CustomLogin extends BaseLogin
                 'autocorrect' => 'off',
                 'spellcheck' => 'false',
             ]);
+    }
+
+    protected function getPasswordFormComponent(): Component
+    {
+        return TextInput::make('password')
+            ->label('Kata sandi')
+            ->hint(new HtmlString(Blade::render('
+                <button type="button" wire:click="mountAction(\'forgotPassword\')" class="text-xs font-semibold text-orange-600 hover:text-orange-500 dark:text-orange-400 hover:underline transition-all">
+                    Lupa Password?
+                </button>
+            ')))
+            ->password()
+            ->revealable()
+            ->autocomplete('current-password')
+            ->required()
+            ->extraInputAttributes(['tabindex' => 2]);
     }
 
     /**
@@ -131,46 +149,82 @@ class CustomLogin extends BaseLogin
         ]);
     }
 
+    public function getSubheading(): string | \Illuminate\Contracts\Support\Htmlable | null
+    {
+        return 'Silakan masukkan kredensial akun Anda untuk mengakses sistem.';
+    }
+
     /**
-     * Custom Action for Manual Forgot Password Request.
+     * Form Actions: Only authenticate action so button is full-width, solid, and prominent.
      */
     protected function getFormActions(): array
     {
         return [
             $this->getAuthenticateFormAction(),
-            Action::make('forgotPassword')
-                ->label('Lupa Password?')
-                ->color('gray')
-                ->link()
-                ->form([
-                    TextInput::make('user_input')
-                        ->label('Username atau Email')
-                        ->required()
-                        ->placeholder('Masukkan username / email Anda')
-                ])
-                ->action(function (array $data) {
-                    PasswordResetRequest::create([
-                        'user_input' => $data['user_input'],
-                        'status' => 'pending',
-                    ]);
-
-                    Notification::make()
-                        ->title('Permintaan Terkirim')
-                        ->body('Permintaan reset password telah dikirim ke Admin. Silakan tunggu prosesnya.')
-                        ->success()
-                        ->send();
-                })
-                ->modalHeading('Permintaan Reset Password')
-                ->modalDescription('Masukkan username atau email Anda. Admin akan me-reset password Anda secara manual.')
-                ->modalSubmitActionLabel('Kirim Permintaan'),
-
-            Action::make('contactAdminWhatsApp')
-                ->label('Kendala / Tanya Admin? Chat WhatsApp (082322672548)')
-                ->icon('heroicon-m-chat-bubble-left-right')
-                ->color('success')
-                ->link()
-                ->url('https://wa.me/6282322672548?text=' . rawurlencode("Assalamu'alaikum Admin Sistem Informasi Baitul Makmur, saya mengalami kendala saat login ke sistem: "))
-                ->openUrlInNewTab(),
         ];
+    }
+
+    protected function getAuthenticateFormAction(): Action
+    {
+        return Action::make('authenticate')
+            ->label('Masuk ke Akun')
+            ->icon('heroicon-m-arrow-right-on-rectangle')
+            ->submit('authenticate')
+            ->extraAttributes([
+                'class' => 'w-full !py-2.5 !rounded-xl !font-bold !text-base shadow-md shadow-orange-500/20 hover:shadow-orange-500/35 transition-all duration-300 transform hover:-translate-y-0.5',
+            ]);
+    }
+
+    protected function hasFullWidthFormActions(): bool
+    {
+        return true;
+    }
+
+    /**
+     * Custom Action for Manual Forgot Password Request.
+     */
+    public function forgotPasswordAction(): Action
+    {
+        return Action::make('forgotPassword')
+            ->label('Lupa Password?')
+            ->color('warning')
+            ->link()
+            ->modalHeading('Permintaan Reset Kata Sandi')
+            ->modalDescription('Masukkan username atau email Anda. Administrator sistem akan memproses reset kata sandi Anda.')
+            ->modalSubmitActionLabel('Kirim Permintaan ke Admin')
+            ->modalIcon('heroicon-o-key')
+            ->modalWidth('md')
+            ->form([
+                TextInput::make('user_input')
+                    ->label('Username, Email, atau NUPTK')
+                    ->required()
+                    ->placeholder('Masukkan username / email / NUPTK Anda')
+            ])
+            ->action(function (array $data) {
+                PasswordResetRequest::create([
+                    'user_input' => $data['user_input'],
+                    'status' => 'pending',
+                ]);
+
+                Notification::make()
+                    ->title('Permintaan Berhasil Dikirim')
+                    ->body('Permintaan reset kata sandi Anda telah diterima Admin. Silakan tunggu konfirmasi Admin.')
+                    ->success()
+                    ->send();
+            });
+    }
+
+    /**
+     * WhatsApp Contact Admin Action.
+     */
+    public function contactAdminWhatsAppAction(): Action
+    {
+        return Action::make('contactAdminWhatsApp')
+            ->label('Kendala / Tanya Admin? Chat WhatsApp (082322672548)')
+            ->icon('heroicon-m-chat-bubble-left-right')
+            ->color('success')
+            ->link()
+            ->url('https://wa.me/6282322672548?text=' . rawurlencode("Assalamu'alaikum Admin Sistem Informasi Baitul Makmur, saya mengalami kendala saat login ke sistem: "))
+            ->openUrlInNewTab();
     }
 }

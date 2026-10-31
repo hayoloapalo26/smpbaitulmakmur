@@ -108,4 +108,18 @@ class CustomLoginTest extends TestCase
 
         $this->assertGuest();
     }
+
+    public function test_can_submit_forgot_password_request(): void
+    {
+        Livewire::test(CustomLogin::class)
+            ->callAction('forgotPassword', [
+                'user_input' => 'ahmadguru',
+            ])
+            ->assertHasNoActionErrors();
+
+        $this->assertDatabaseHas('password_reset_requests', [
+            'user_input' => 'ahmadguru',
+            'status' => 'pending',
+        ]);
+    }
 }

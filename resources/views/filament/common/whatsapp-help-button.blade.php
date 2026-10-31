@@ -54,7 +54,7 @@
 
         <!-- Teks Muncul Hanya Saat Hover di Desktop -->
         <span class="max-w-0 overflow-hidden whitespace-nowrap opacity-0 md:group-hover:max-w-[130px] md:group-hover:opacity-100 md:group-hover:ml-2 md:group-hover:mr-1 transition-all duration-300 ease-out text-xs font-bold text-white tracking-tight">
-            Tanya Admin WA
+            Bantuan WA Admin
         </span>
     </a>
 </div>
