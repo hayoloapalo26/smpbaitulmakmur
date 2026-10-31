@@ -20,7 +20,56 @@ class SopResource extends Resource
 
     public static function canAccess(): bool
     {
-        return Auth::user()->hasAnyRole(['superadmin', 'kepala_sekolah', 'waka_kurikulum', 'waka_kesiswaan', 'humas', 'sarpras', 'bk']);
+        $user = Auth::user();
+        if (! $user) {
+            return false;
+        }
+
+        // Fitur SOP di kepala sekolah dinonaktifkan sementara sesuai instruksi
+        if ($user->hasRole('kepala_sekolah') && ! $user->hasRole('superadmin')) {
+            return false;
+        }
+
+        return $user->hasAnyRole(['superadmin', 'waka_kurikulum', 'waka_kesiswaan', 'humas', 'sarpras', 'bk']);
+    }
+
+    public static function shouldRegisterNavigation(): bool
+    {
+        $user = Auth::user();
+        if (! $user) {
+            return false;
+        }
+
+        if ($user->hasRole('kepala_sekolah') && ! $user->hasRole('superadmin')) {
+            return false;
+        }
+
+        return parent::shouldRegisterNavigation();
+    }
+
+    public static function canViewAny(): bool
+    {
+        return static::canAccess();
+    }
+
+    public static function canCreate(): bool
+    {
+        return static::canAccess();
+    }
+
+    public static function canEdit(\Illuminate\Database\Eloquent\Model $record): bool
+    {
+        return static::canAccess();
+    }
+
+    public static function canView(\Illuminate\Database\Eloquent\Model $record): bool
+    {
+        return static::canAccess();
+    }
+
+    public static function canDelete(\Illuminate\Database\Eloquent\Model $record): bool
+    {
+        return static::canAccess();
     }
 
     public static function form(Form $form): Form
