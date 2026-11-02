@@ -87,60 +87,13 @@ class ManageQuranAchievements extends ManageRecords
 
                             Forms\Components\DatePicker::make('tanggal')
                                 ->label('Tanggal Penilaian')
-                                ->default(Carbon::now())
-                                ->required(),
-
-                            Forms\Components\TextInput::make('default_scale_score')
-                                ->label('Skor Default (0 - 100)')
-                                ->numeric()
-                                ->default(85)
-                                ->minValue(0)
-                                ->maxValue(100)
-                                ->prefix('Skor:')
-                                ->live(),
-
-                            Forms\Components\Select::make('default_juz')
-                                ->label('Juz Ziyadah Default')
-                                ->options(array_combine(range(1, 30), range(1, 30)))
-                                ->default(30)
-                                ->live()
-                                ->searchable(),
-
-                            Forms\Components\Select::make('default_surah')
-                                ->label('Surat Ziyadah Default')
-                                ->options($surahs)
-                                ->default('78')
-                                ->searchable()
-                                ->live(),
-
-                            Forms\Components\TextInput::make('default_ayah')
-                                ->label('Ayat Ziyadah Default')
-                                ->default('1-10')
-                                ->placeholder('Contoh: 1-15')
-                                ->live(),
-
-                            Forms\Components\Select::make('default_juz_murajaah')
-                                ->label('Juz Muraja\'ah Default')
-                                ->options(array_combine(range(1, 30), range(1, 30)))
-                                ->placeholder('-- Pilih Juz (Opsional) --')
-                                ->nullable()
-                                ->live()
-                                ->searchable(),
-
-                            Forms\Components\Select::make('default_surah_murajaah')
-                                ->label('Surat Muraja\'ah Default')
-                                ->options($surahs)
-                                ->placeholder('-- Pilih Surat (Opsional) --')
-                                ->nullable()
-                                ->searchable()
-                                ->live(),
-
-                            Forms\Components\TextInput::make('default_ayah_murajaah')
-                                ->label('Ayat Muraja\'ah Default')
-                                ->placeholder('Contoh: 1-Akhir')
-                                ->nullable()
-                                ->live(),
-                        ])->columns(4),
+                                ->default(Carbon::today())
+                                ->disabled()
+                                ->dehydrated()
+                                ->required()
+                                ->helperText('Otomatis paten hari ini (' . Carbon::today()->translatedFormat('l, d/m/Y') . ')')
+                                ->columnSpan(fn () => 1),
+                        ])->columns(3),
 
                     Forms\Components\Section::make('👥 2. Lembar Penilaian & Setoran Santri (Format Jurnal Mengajar)')
                         ->description('Format terintegrasi satu pintu: Capaian Ziyadah (Juz, Surat, Ayat), Capaian Muraja\'ah (Juz, Surat, Ayat), Skor Kualitas Bacaan (0-100), Predikat, dan Catatan Guru.')
@@ -176,13 +129,13 @@ class ManageQuranAchievements extends ManageRecords
                                     return [
                                         'students'              => $students,
                                         'program'               => $program,
-                                        'defaultScaleScore'     => $get('default_scale_score') ?? 85,
-                                        'defaultJuz'            => $get('default_juz') ?? 30,
-                                        'defaultSurah'          => $get('default_surah') ?? '78',
-                                        'defaultAyah'           => $get('default_ayah') ?? '1-10',
-                                        'defaultJuzMurajaah'    => $get('default_juz_murajaah') ?? '',
-                                        'defaultSurahMurajaah'  => $get('default_surah_murajaah') ?? '',
-                                        'defaultAyahMurajaah'   => $get('default_ayah_murajaah') ?? '',
+                                        'defaultScaleScore'     => 85,
+                                        'defaultJuz'            => 30,
+                                        'defaultSurah'          => '78',
+                                        'defaultAyah'           => '1-10',
+                                        'defaultJuzMurajaah'    => '',
+                                        'defaultSurahMurajaah'  => '',
+                                        'defaultAyahMurajaah'   => '',
                                         'defaultType'           => 'ziyadah',
                                         'defaultJilidHalaman'   => '',
                                         'surahs'                => $surahs,

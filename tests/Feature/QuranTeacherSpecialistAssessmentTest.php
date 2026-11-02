@@ -48,9 +48,14 @@ class QuranTeacherSpecialistAssessmentTest extends TestCase
         Role::firstOrCreate(['name' => 'guru_quran_tahfidz_lanjutan', 'guard_name' => 'web']);
         Role::firstOrCreate(['name' => 'koordinator_madin', 'guard_name' => 'web']);
 
+        Institution::firstOrCreate(
+            ['id' => 1],
+            ['slug' => 'yayasan-baitul-makmur', 'name' => 'Yayasan Baitul Makmur']
+        );
+
         $this->institution = Institution::firstOrCreate(
-            ['slug' => 'smp-islam-baitul-makmur'],
-            ['name' => 'SMP Islam Baitul Makmur']
+            ['id' => 2],
+            ['slug' => 'smp-islam-baitul-makmur', 'name' => 'SMP Islam Baitul Makmur']
         );
 
         AcademicYear::create([

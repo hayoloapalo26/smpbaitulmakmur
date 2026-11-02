@@ -263,7 +263,10 @@ class ReadingQualityScoreResource extends Resource
 
                 Forms\Components\DatePicker::make('tanggal')
                     ->label('6. Tanggal Penilaian')
-                    ->default(Carbon::now())
+                    ->default(Carbon::today())
+                    ->disabled(fn () => Auth::user()?->isQuranTeacher() && !Auth::user()?->hasRole('superadmin'))
+                    ->dehydrated()
+                    ->helperText(fn () => Auth::user()?->isQuranTeacher() && !Auth::user()?->hasRole('superadmin') ? 'Otomatis paten hari ini (' . Carbon::today()->translatedFormat('l, d/m/Y') . ')' : null)
                     ->required(),
 
                 Forms\Components\Textarea::make('catatan_guru')

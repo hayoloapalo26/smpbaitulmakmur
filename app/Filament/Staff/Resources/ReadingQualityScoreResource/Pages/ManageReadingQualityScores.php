@@ -86,8 +86,12 @@ class ManageReadingQualityScores extends ManageRecords
 
                             Forms\Components\DatePicker::make('tanggal')
                                 ->label('Tanggal Penilaian')
-                                ->default(Carbon::now())
-                                ->required(),
+                                ->default(Carbon::today())
+                                ->disabled()
+                                ->dehydrated()
+                                ->required()
+                                ->helperText('Otomatis paten hari ini (' . Carbon::today()->translatedFormat('l, d/m/Y') . ')')
+                                ->columnSpan(fn () => 1),
 
                             Forms\Components\TextInput::make('jilid_halaman')
                                 ->label('Materi Pokok / Jilid / Halaman / Juz Penilaian')
