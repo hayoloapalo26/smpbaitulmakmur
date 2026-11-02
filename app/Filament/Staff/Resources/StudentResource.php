@@ -143,7 +143,7 @@ class StudentResource extends Resource
                             ->label('Nama Lengkap Siswa')
                             ->required(),
                         Forms\Components\Select::make('classroom_id')
-                            ->label('Kelas')
+                            ->label('Kelas Akademik (Rombel)')
                             ->relationship(
                                 name: 'classroom',
                                 titleAttribute: 'name',
@@ -151,7 +151,28 @@ class StudentResource extends Resource
                                     ? $query->where('institution_id', auth()->user()->institution_id)
                                     : $query
                             )
-                            ->required(),
+                            ->required()
+                            ->live()
+                            ->afterStateUpdated(function (Forms\Set $set, ?int $state) {
+                                if ($state) {
+                                    $classroom = \App\Models\Classroom::withoutGlobalScopes()->find($state);
+                                    if ($classroom && $classroom->isQuran()) {
+                                        if ($classroom->wali_kelas_id) {
+                                            $set('guru_quran_id', $classroom->wali_kelas_id);
+                                        }
+                                        $nameLower = strtolower(($classroom->name ?? '') . ' ' . ($classroom->tingkat ?? ''));
+                                        if (str_contains($nameLower, 'yanbu')) {
+                                            $set('kelas_quran', 'yanbua');
+                                        } elseif (str_contains($nameLower, 'tahsin')) {
+                                            $set('kelas_quran', 'tahsin');
+                                        } elseif (str_contains($nameLower, 'dasar')) {
+                                            $set('kelas_quran', 'tahfidz_dasar');
+                                        } elseif (str_contains($nameLower, 'lanjutan')) {
+                                            $set('kelas_quran', 'tahfidz_lanjutan');
+                                        }
+                                    }
+                                }
+                            }),
                         Forms\Components\Select::make('status_siswa')
                             ->label('Status Siswa')
                             ->options([
@@ -177,6 +198,66 @@ class StudentResource extends Resource
                         Forms\Components\Textarea::make('alamat_siswa')
                             ->label('Alamat Siswa')
                             ->columnSpanFull(),
+                    ])->columns(2),
+
+                Forms\Components\Section::make('📖 Penempatan Kelompok Al-Qur\'an (Guru Pengampu)')
+                    ->description('Tentukan kelompok Al-Qur\'an dan guru pengampu (Ustadz) agar siswa otomatis masuk ke bimbingan, rekap setoran, dan penilaian Al-Qur\'an.')
+                    ->schema([
+                        Forms\Components\Select::make('kelas_quran')
+                            ->label('Program / Kelompok Al-Qur\'an')
+                            ->options([
+                                'yanbua'           => '1. Al-Qur\'an (Yanbu\'a) - Metode Baca Tulis & Makhraj',
+                                'tahsin'           => '2. Al-Qur\'an (Tahsin) - Kualitas & Kaidah Tajwid',
+                                'tahfidz_dasar'    => '3. Al-Qur\'an (Tahfidz Dasar) - Juz 30 / Juz \'Amma',
+                                'tahfidz_lanjutan' => '4. Al-Qur\'an (Tahfidz Lanjutan) - Juz 1 s/d 29',
+                            ])
+                            ->placeholder('-- Pilih Program Al-Qur\'an --')
+                            ->live()
+                            ->afterStateUpdated(function (Forms\Set $set, ?string $state) {
+                                if ($state) {
+                                    $searchKey = match ($state) {
+                                        'yanbua' => 'yanbu',
+                                        'tahsin' => 'tahsin',
+                                        'tahfidz_dasar' => 'dasar',
+                                        'tahfidz_lanjutan' => 'lanjutan',
+                                        default => $state,
+                                    };
+                                    $classroom = \App\Models\Classroom::withoutGlobalScopes()
+                                        ->where('tipe', \App\Models\Classroom::TIPE_QURAN)
+                                        ->whereNotNull('wali_kelas_id')
+                                        ->whereRaw('LOWER(name) LIKE ?', ["%{$searchKey}%"])
+                                        ->first();
+                                    if ($classroom?->wali_kelas_id) {
+                                        $set('guru_quran_id', $classroom->wali_kelas_id);
+                                    }
+                                }
+                            }),
+
+                        Forms\Components\Select::make('guru_quran_id')
+                            ->label('Guru Al-Qur\'an Pengampu (Ustadz Pembimbing)')
+                            ->options(function () {
+                                return User::query()
+                                    ->where(function ($q) {
+                                        $q->whereHas('roles', fn ($r) => $r->whereIn('name', User::QURAN_TEACHER_ROLES))
+                                          ->orWhere('has_account', true);
+                                    })
+                                    ->orderBy('name')
+                                    ->pluck('name', 'id');
+                            })
+                            ->searchable()
+                            ->preload()
+                            ->placeholder('-- Pilih Guru Pengampu Al-Qur\'an --')
+                            ->helperText('Siswa akan otomatis muncul pada lembar penilaian dan bimbingan guru Al-Qur\'an yang dipilih.'),
+
+                        Forms\Components\DatePicker::make('tanggal_penempatan_quran')
+                            ->label('Tanggal Penempatan Al-Qur\'an')
+                            ->default(now()->toDateString())
+                            ->nullable(),
+
+                        Forms\Components\TextInput::make('catatan_penempatan_quran')
+                            ->label('Catatan Khusus Penempatan (Opsional)')
+                            ->placeholder('Contoh: Penempatan awal Yanbu\'a Jilid 2, Target Juz 30 semester ini.')
+                            ->maxLength(255),
                     ])->columns(2),
 
                 Forms\Components\Section::make('Data Akademik & Riwayat')
@@ -357,6 +438,18 @@ class StudentResource extends Resource
                     ->badge()
                     ->color(fn ($state) => $state ? 'info' : 'warning')
                     ->sortable(),
+                Tables\Columns\TextColumn::make('kelas_quran_label')
+                    ->label('Kelompok Qur\'an')
+                    ->badge()
+                    ->color('warning')
+                    ->placeholder('-')
+                    ->toggleable(isToggledHiddenByDefault: false),
+                Tables\Columns\TextColumn::make('guruQuran.name')
+                    ->label('Guru Al-Qur\'an')
+                    ->badge()
+                    ->color('gray')
+                    ->placeholder('-')
+                    ->toggleable(isToggledHiddenByDefault: false),
                 Tables\Columns\TextColumn::make('status_siswa')
                     ->label('Status')
                     ->state(function (Student $record): string {
@@ -427,7 +520,7 @@ class StudentResource extends Resource
                         'alumni' => '🎓 Alumni (Sudah Lulus)',
                     ]),
                 Tables\Filters\SelectFilter::make('classroom_id')
-                    ->label('Kelas')
+                    ->label('Kelas Akademik')
                     ->relationship(
                         name: 'classroom',
                         titleAttribute: 'name',
@@ -435,6 +528,19 @@ class StudentResource extends Resource
                             ? $query->where('institution_id', auth()->user()->institution_id)
                             : $query
                     ),
+                Tables\Filters\SelectFilter::make('kelas_quran')
+                    ->label('Kelompok Al-Qur\'an')
+                    ->options([
+                        'yanbua'           => 'Yanbu\'a',
+                        'tahsin'           => 'Tahsin',
+                        'tahfidz_dasar'    => 'Tahfidz Dasar',
+                        'tahfidz_lanjutan' => 'Tahfidz Lanjutan',
+                    ]),
+                Tables\Filters\SelectFilter::make('guru_quran_id')
+                    ->label('Guru Pengampu Al-Qur\'an')
+                    ->relationship('guruQuran', 'name')
+                    ->searchable()
+                    ->preload(),
             ])
             ->actions([
                 Tables\Actions\Action::make('jadikan_alumni')

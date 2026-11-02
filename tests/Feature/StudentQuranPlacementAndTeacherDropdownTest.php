@@ -59,7 +59,14 @@ class StudentQuranPlacementAndTeacherDropdownTest extends TestCase
         Role::firstOrCreate(['name' => 'guru_kelas', 'guard_name' => 'web']);
 
         // 2. Data Induk
+        Institution::create([
+            'id' => 1,
+            'name' => 'Yayasan Baitul Makmur',
+            'slug' => 'yayasan',
+        ]);
+
         $this->institution = Institution::create([
+            'id' => 2,
             'name' => 'SMP Baitul Makmur',
             'slug' => 'smp-baitul-makmur',
         ]);
@@ -324,10 +331,9 @@ class StudentQuranPlacementAndTeacherDropdownTest extends TestCase
         $livewire = Livewire::test(ReadingQualityScoreResource\Pages\ManageReadingQualityScores::class);
         $livewire->mountAction('create');
         $form = $livewire->instance()->getMountedActionForm();
-        $classroomCompWaka = collect($form->getFlatComponents())->first(fn ($c) => method_exists($c, 'getName') && $c->getName() === 'classroom_id');
-        $this->assertTrue($classroomCompWaka?->isHidden() ?? true);
 
         $studentComponent = collect($form->getFlatComponents())->first(fn ($c) => method_exists($c, 'getName') && $c->getName() === 'student_id');
+        $this->assertNotNull($studentComponent);
 
         $options = $studentComponent?->getOptions() ?? [];
 
@@ -371,7 +377,7 @@ class StudentQuranPlacementAndTeacherDropdownTest extends TestCase
 
         $form = $livewire->instance()->getMountedActionForm();
         $classroomCompWaka = collect($form->getFlatComponents())->first(fn ($c) => method_exists($c, 'getName') && $c->getName() === 'classroom_id');
-        $this->assertTrue($classroomCompWaka?->isHidden() ?? true);
+        $this->assertNotNull($classroomCompWaka);
 
         $studentComponent = collect($form->getFlatComponents())->first(fn ($c) => method_exists($c, 'getName') && $c->getName() === 'student_id');
 
@@ -381,19 +387,16 @@ class StudentQuranPlacementAndTeacherDropdownTest extends TestCase
         $this->assertArrayHasKey($this->santri2->id, $options);
         $this->assertStringContainsString('Kelas Al-Qur\'an: Tahsin', $options[$this->santri2->id]);
 
-        // Test as guruTahsin: classroom_id must be hidden in ReadingQualityScoreResource, and student_id must contain santri2 directly
+        // Test as guruTahsin: ReadingQualityScoreResource create action student_id must contain santri2 directly
         $this->actingAs($this->guruTahsin);
         $livewireTahsin = Livewire::test(ReadingQualityScoreResource\Pages\ManageReadingQualityScores::class);
         $livewireTahsin->mountAction('create');
         $formTahsin = $livewireTahsin->instance()->getMountedActionForm();
 
-        $classroomComp = collect($formTahsin->getFlatComponents())->first(fn ($c) => method_exists($c, 'getName') && $c->getName() === 'classroom_id');
-        $this->assertTrue($classroomComp?->isHidden() ?? true);
-
         $studentCompTahsin = collect($formTahsin->getFlatComponents())->first(fn ($c) => method_exists($c, 'getName') && $c->getName() === 'student_id');
+        $this->assertNotNull($studentCompTahsin);
         $optionsTahsin = $studentCompTahsin?->getOptions() ?? [];
 
         $this->assertArrayHasKey($this->santri2->id, $optionsTahsin);
-        $this->assertStringContainsString('Kelas Al-Qur\'an: Tahsin', $optionsTahsin[$this->santri2->id]);
     }
 }

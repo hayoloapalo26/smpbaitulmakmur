@@ -181,6 +181,33 @@ class Student extends Model
                     $student->attributes['fingerspot_pin'] = $student->attributes['hikvision_employee_no'];
                 }
             }
+
+            // Sinkronisasi otomatis penempatan Al-Qur'an jika classroom_id mengarah ke rombel Al-Qur'an
+            if (!empty($student->classroom_id)) {
+                $cls = Classroom::withoutGlobalScopes()->find($student->classroom_id);
+                if ($cls && $cls->isQuran()) {
+                    if (empty($student->guru_quran_id) && $cls->wali_kelas_id) {
+                        $student->guru_quran_id = $cls->wali_kelas_id;
+                    }
+                    if (empty($student->kelas_quran)) {
+                        $nameLower = strtolower(($cls->name ?? '') . ' ' . ($cls->tingkat ?? ''));
+                        if (str_contains($nameLower, 'yanbu')) {
+                            $student->kelas_quran = 'yanbua';
+                        } elseif (str_contains($nameLower, 'tahsin')) {
+                            $student->kelas_quran = 'tahsin';
+                        } elseif (str_contains($nameLower, 'dasar')) {
+                            $student->kelas_quran = 'tahfidz_dasar';
+                        } elseif (str_contains($nameLower, 'lanjutan')) {
+                            $student->kelas_quran = 'tahfidz_lanjutan';
+                        }
+                    }
+                }
+            }
+
+            // Jika guru_quran_id diatur tapi tanggal_penempatan_quran kosong, set ke hari ini
+            if (!empty($student->guru_quran_id) && empty($student->tanggal_penempatan_quran)) {
+                $student->tanggal_penempatan_quran = now()->toDateString();
+            }
         });
     }
 }

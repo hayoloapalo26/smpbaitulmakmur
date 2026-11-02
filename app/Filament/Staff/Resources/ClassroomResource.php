@@ -168,11 +168,13 @@ class ClassroomResource extends Resource
                     }),
 
                 Tables\Columns\TextColumn::make('students_count')
-                    ->counts('students')
                     ->label('Jml Siswa')
                     ->badge()
-                    ->color('gray')
-                    ->sortable(),
+                    ->color(fn (Classroom $record): string => $record->getRealStudentsCount() > 0 ? 'success' : 'gray')
+                    ->getStateUsing(fn (Classroom $record): int => $record->getRealStudentsCount())
+                    ->sortable(query: function (Builder $query, string $direction): Builder {
+                        return $query->withCount('students')->orderBy('students_count', $direction);
+                    }),
 
                 Tables\Columns\TextColumn::make('created_at')
                     ->dateTime()
@@ -188,6 +190,54 @@ class ClassroomResource extends Resource
                     ]),
             ])
             ->actions([
+                Tables\Actions\Action::make('daftar_siswa')
+                    ->label('Lihat Siswa')
+                    ->icon('heroicon-m-users')
+                    ->color('info')
+                    ->modalHeading(fn (Classroom $record): string => "Daftar Siswa - {$record->name} (" . ($record->isQuran() ? 'Kelompok Al-Qur\'an' : 'Kelas Akademik') . ")")
+                    ->modalDescription(function (Classroom $record): string {
+                        $count = $record->getRealStudentsCount();
+                        $wali = $record->waliKelas?->name ?? 'Belum Ditentukan';
+                        $peran = $record->isQuran() ? 'Guru Pengampu Al-Qur\'an' : 'Wali Kelas';
+                        return "Total Siswa: {$count} Santri/Siswa | {$peran}: {$wali}";
+                    })
+                    ->modalSubmitAction(false)
+                    ->modalCancelActionLabel('Tutup')
+                    ->form(function (Classroom $record) {
+                        $students = $record->getRealStudents();
+                        if ($students->isEmpty()) {
+                            return [
+                                Forms\Components\Placeholder::make('empty_info')
+                                    ->label('Daftar Siswa')
+                                    ->content(new \Illuminate\Support\HtmlString('<div class="p-4 text-center text-gray-500 dark:text-gray-400">Belum ada siswa yang terdaftar di kelas/kelompok ini.</div>')),
+                            ];
+                        }
+
+                        $html = '<div class="space-y-2 max-h-96 overflow-y-auto">';
+                        foreach ($students as $idx => $s) {
+                            $num = $idx + 1;
+                            $nis = $s->nis ?? '-';
+                            $rombel = $s->classroom?->name ?? '-';
+                            $extra = $record->isQuran()
+                                ? "<span class=\"text-xs text-primary-600 bg-primary-50 dark:bg-primary-950/50 px-2 py-0.5 rounded ml-2 font-medium\">Rombel: {$rombel}</span>"
+                                : ($s->kelas_quran_label ? "<span class=\"text-xs text-amber-600 bg-amber-50 dark:bg-amber-950/50 px-2 py-0.5 rounded ml-2 font-medium\">Qur'an: {$s->kelas_quran_label}</span>" : "");
+
+                            $html .= "<div class=\"flex items-center justify-between p-2.5 rounded-lg bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700\">
+                                <div>
+                                    <span class=\"font-semibold text-gray-900 dark:text-gray-100\">{$num}. {$s->name}</span>
+                                    <span class=\"text-xs text-gray-500 dark:text-gray-400 ml-2\">NIS: {$nis}</span>
+                                </div>
+                                <div>{$extra}</div>
+                            </div>";
+                        }
+                        $html .= '</div>';
+
+                        return [
+                            Forms\Components\Placeholder::make('student_list')
+                                ->label('Daftar Siswa Terdaftar')
+                                ->content(new \Illuminate\Support\HtmlString($html)),
+                        ];
+                    }),
                 Tables\Actions\EditAction::make()
                     ->after(function (Classroom $record) {
                         static::syncTeacherRoles($record);

@@ -197,45 +197,82 @@ class GradeResource extends Resource
                             ->label('2. Nama Siswa')
                             ->options(function (Forms\Get $get) {
                                 $classroomId = $get('classroom_id');
-                                $query = Student::query()->with('classroom');
+                                $query = Student::query()->with(['classroom', 'guruQuran']);
                                 if (!empty($classroomId)) {
-                                    $query->where('classroom_id', $classroomId);
+                                    $selectedCls = Classroom::withoutGlobalScopes()->find($classroomId);
+                                    if ($selectedCls && $selectedCls->isQuran()) {
+                                        $teacherId = $selectedCls->wali_kelas_id;
+                                        $nameLower = strtolower(($selectedCls->name ?? '') . ' ' . ($selectedCls->tingkat ?? ''));
+                                        $quranKey = null;
+                                        if (str_contains($nameLower, 'yanbu')) $quranKey = 'yanbua';
+                                        elseif (str_contains($nameLower, 'tahsin')) $quranKey = 'tahsin';
+                                        elseif (str_contains($nameLower, 'dasar')) $quranKey = 'tahfidz_dasar';
+                                        elseif (str_contains($nameLower, 'lanjutan')) $quranKey = 'tahfidz_lanjutan';
+
+                                        $query->where(function ($q) use ($selectedCls, $teacherId, $quranKey) {
+                                            $q->where('classroom_id', $selectedCls->id);
+                                            if ($teacherId) $q->orWhere('guru_quran_id', $teacherId);
+                                            if ($quranKey) $q->orWhere('kelas_quran', $quranKey);
+                                        });
+                                    } else {
+                                        $query->where('classroom_id', $classroomId);
+                                    }
                                 }
                                 return $query->orderBy('name')->get()->mapWithKeys(function ($s) {
                                     $nis = $s->nis ? " (NIS: {$s->nis})" : '';
                                     $rombel = $s->classroom ? " [{$s->classroom->name}]" : '';
+                                    $quran = $s->kelas_quran_label ? " • [Kelas Al-Qur'an: {$s->kelas_quran_label}]" : '';
                                     return [
-                                        $s->id => "{$s->name}{$nis}{$rombel}"
+                                        $s->id => "{$s->name}{$nis}{$rombel}{$quran}"
                                     ];
                                 })->toArray();
                             })
                             ->getSearchResultsUsing(function (string $search, Forms\Get $get) {
                                 $classroomId = $get('classroom_id');
-                                $query = Student::query()->with('classroom')
+                                $query = Student::query()->with(['classroom', 'guruQuran'])
                                     ->where(function ($sq) use ($search) {
                                         $sq->where('name', 'like', "%{$search}%")
                                            ->orWhere('nis', 'like', "%{$search}%");
                                     });
 
                                 if (!empty($classroomId)) {
-                                    $query->where('classroom_id', $classroomId);
+                                    $selectedCls = Classroom::withoutGlobalScopes()->find($classroomId);
+                                    if ($selectedCls && $selectedCls->isQuran()) {
+                                        $teacherId = $selectedCls->wali_kelas_id;
+                                        $nameLower = strtolower(($selectedCls->name ?? '') . ' ' . ($selectedCls->tingkat ?? ''));
+                                        $quranKey = null;
+                                        if (str_contains($nameLower, 'yanbu')) $quranKey = 'yanbua';
+                                        elseif (str_contains($nameLower, 'tahsin')) $quranKey = 'tahsin';
+                                        elseif (str_contains($nameLower, 'dasar')) $quranKey = 'tahfidz_dasar';
+                                        elseif (str_contains($nameLower, 'lanjutan')) $quranKey = 'tahfidz_lanjutan';
+
+                                        $query->where(function ($q) use ($selectedCls, $teacherId, $quranKey) {
+                                            $q->where('classroom_id', $selectedCls->id);
+                                            if ($teacherId) $q->orWhere('guru_quran_id', $teacherId);
+                                            if ($quranKey) $q->orWhere('kelas_quran', $quranKey);
+                                        });
+                                    } else {
+                                        $query->where('classroom_id', $classroomId);
+                                    }
                                 }
 
                                 return $query->orderBy('name')->limit(50)->get()->mapWithKeys(function ($s) {
                                     $nis = $s->nis ? " (NIS: {$s->nis})" : '';
                                     $rombel = $s->classroom ? " [{$s->classroom->name}]" : '';
+                                    $quran = $s->kelas_quran_label ? " • [Kelas Al-Qur'an: {$s->kelas_quran_label}]" : '';
                                     return [
-                                        $s->id => "{$s->name}{$nis}{$rombel}"
+                                        $s->id => "{$s->name}{$nis}{$rombel}{$quran}"
                                     ];
                                 })->toArray();
                             })
                             ->getOptionLabelUsing(function ($value) {
                                 if (!$value) return null;
-                                $s = Student::with('classroom')->find($value);
+                                $s = Student::with(['classroom', 'guruQuran'])->find($value);
                                 if (!$s) return null;
                                 $nis = $s->nis ? " (NIS: {$s->nis})" : '';
                                 $rombel = $s->classroom ? " [{$s->classroom->name}]" : '';
-                                return "{$s->name}{$nis}{$rombel}";
+                                $quran = $s->kelas_quran_label ? " • [Kelas Al-Qur'an: {$s->kelas_quran_label}]" : '';
+                                return "{$s->name}{$nis}{$rombel}{$quran}";
                             })
                             ->searchable()
                             ->preload()
