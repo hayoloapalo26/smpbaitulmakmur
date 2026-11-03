@@ -105,7 +105,7 @@ class TeacherCertificateResource extends Resource
                     ->schema([
                         Forms\Components\TextInput::make('nama_kegiatan')
                             ->label('Nama Kegiatan / Pelatihan / Webinar')
-                            ->placeholder('Contoh: Pelatihan Pemanfaatan AI untuk Pembelajaran Interaktif')
+                            ->placeholder('Contoh: Pelatihan Pemanfaatan Teknologi Digital untuk Pembelajaran Interaktif')
                             ->required()
                             ->maxLength(255)
                             ->columnSpanFull(),

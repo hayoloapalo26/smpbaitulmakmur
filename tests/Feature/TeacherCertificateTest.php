@@ -86,19 +86,19 @@ class TeacherCertificateTest extends TestCase
 
         $cert = TeacherCertificate::create([
             'teacher_id' => $this->guru->id,
-            'nama_kegiatan' => 'Pelatihan AI Canva Guru',
+            'nama_kegiatan' => 'Pelatihan Desain Media Pembelajaran Guru',
             'penyelenggara' => 'Balai Guru Penggerak',
             'kategori' => 'Pelatihan / Bimtek',
             'tanggal_pelaksanaan' => '2026-10-25',
             'jumlah_jam' => 32,
             'drive_url' => 'https://drive.google.com/file/d/abc123xyz/view',
-            'keterangan' => 'Belajar Canva AI',
+            'keterangan' => 'Belajar Canva Desain',
         ]);
 
         $this->assertEquals($this->smp->id, $cert->institution_id);
         $this->assertDatabaseHas('teacher_certificates', [
             'id' => $cert->id,
-            'nama_kegiatan' => 'Pelatihan AI Canva Guru',
+            'nama_kegiatan' => 'Pelatihan Desain Media Pembelajaran Guru',
             'teacher_id' => $this->guru->id,
             'institution_id' => $this->smp->id,
         ]);

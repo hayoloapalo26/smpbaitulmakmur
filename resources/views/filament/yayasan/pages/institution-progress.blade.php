@@ -45,14 +45,14 @@
                         </div>
                     </div>
                     
-                    {{-- AI SUMMARY SECTION --}}
+                    {{-- SUMMARY SECTION --}}
                     <div class="bg-black/10 backdrop-blur-md rounded-2xl p-5 border border-white/10 mb-6 shadow-sm">
                         <div class="flex items-start gap-4">
                             <div class="p-3 rounded-xl mt-0.5 shadow-sm bg-white text-[#D84315]">
                                 <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20"><path d="M10 2a6 6 0 00-6 6v3.586l-.707.707A1 1 0 004 14h12a1 1 0 00.707-1.707L16 11.586V8a6 6 0 00-6-6zM10 18a3 3 0 01-3-3h6a3 3 0 01-3 3z"></path></svg>
                             </div>
                             <div class="flex-1">
-                                <p class="font-bold text-xs mb-2 uppercase tracking-wider drop-shadow-md text-white/90">Ringkasan Analisis AI BM-OS</p>
+                                <p class="font-bold text-xs mb-2 uppercase tracking-wider drop-shadow-md text-white/90">Ringkasan Analisis Sistem BM-OS</p>
                                 <div class="text-sm text-white leading-relaxed font-medium [&>p]:mb-3 last:[&>p]:mb-0">
                                     {!! str()->markdown($this->aiSummary) !!}
                                 </div>

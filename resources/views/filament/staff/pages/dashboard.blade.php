@@ -307,19 +307,19 @@
                         <p class="mt-6 text-sm font-bold bg-white text-[#D84315] px-6 py-2.5 rounded-full shadow-md uppercase tracking-wider">{{ $totalSelesai }} / {{ $totalSemua }} Tugas Tuntas</p>
                         
                         <div class="mt-4 text-xs font-bold text-white/80 hover:text-white transition-colors flex items-center gap-1">
-                            Klik untuk detail AI 
+                            Klik untuk detail analisis 
                             <svg class="w-3 h-3 transform transition-transform" :class="showSummary ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
                         </div>
                     </div>
 
-                    {{-- HIDDEN AI SUMMARY SECTION (Tied to the indicator) --}}
+                    {{-- HIDDEN SUMMARY SECTION (Tied to the indicator) --}}
                     <div x-show="showSummary" x-collapse x-cloak class="mt-4 w-full">
                         <div class="bg-black/30 backdrop-blur-md rounded-2xl p-5 border border-white/10 shadow-inner">
                             <div class="flex items-center gap-3 mb-3">
                                 <div class="p-1.5 rounded-lg shadow-sm" style="background-color: #ffbb88; color: #34332E;">
                                     <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M10 2a6 6 0 00-6 6v3.586l-.707.707A1 1 0 004 14h12a1 1 0 00.707-1.707L16 11.586V8a6 6 0 00-6-6zM10 18a3 3 0 01-3-3h6a3 3 0 01-3 3z"></path></svg>
                                 </div>
-                                <p class="font-bold text-xs uppercase tracking-wider drop-shadow-sm" style="color: #ffbb88;">Analisis AI BM-OS</p>
+                                <p class="font-bold text-xs uppercase tracking-wider drop-shadow-sm" style="color: #ffbb88;">Analisis Sistem BM-OS</p>
                             </div>
                             <div class="text-xs text-white leading-relaxed font-semibold max-w-none [&>ul]:list-disc [&>ul]:ml-4 [&>p]:mb-2 last:[&>p]:mb-0">
                                 {!! str()->markdown($this->aiSummary) !!}
