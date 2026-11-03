@@ -140,6 +140,7 @@ class TeacherAttendanceResource extends Resource
                             ])
                             ->toArray();
                     })
+                    ->searchable()
                     ->placeholder('Pilih jadwal mengajar atau kosongkan untuk izin harian...')
                     ->helperText('Pilih jam mengajar spesifik atau kosongkan jika izin berlaku seharian penuh tanpa jadwal tertentu.')
                     ->live()
@@ -169,6 +170,7 @@ class TeacherAttendanceResource extends Resource
                         'dinas_luar' => 'Dinas Luar / Tugas',
                     ])
                     ->default('masuk')
+                    ->searchable()
                     ->required()
                     ->live(),
 
@@ -374,13 +376,15 @@ class TeacherAttendanceResource extends Resource
             ->filters([
                 Tables\Filters\SelectFilter::make('teacher_id')
                     ->label('Guru Utama')
+                    ->searchable()
+                    ->preload()
                     ->options(fn () => \App\Models\User::withoutGlobalScopes()
                         ->where(function ($q) {
                             $q->whereHas('roles', fn ($r) => $r->whereIn('name', array_merge(['guru_mapel', 'wali_kelas', 'guru_kelas', 'waka_kurikulum'], \App\Models\User::QURAN_TEACHER_ROLES)))
                               ->orWhereHas('schedules');
                         })
                         ->where('name', 'not like', '%piket%')
-                        ->where('username', 'not like', '%piket%')
+                        ->where(fn ($q) => $q->whereNull('username')->orWhere('username', 'not like', '%piket%'))
                         ->where('email', 'not like', '%piket%')
                         ->where('email', 'not like', '%@smp.com')
                         ->whereNotIn('id', [1, 2, 3, 25, 30, 31, 32])
@@ -390,8 +394,11 @@ class TeacherAttendanceResource extends Resource
                     ),
                 Tables\Filters\SelectFilter::make('substitute_teacher_id')
                     ->label('Guru Pengganti (Inval)')
+                    ->searchable()
+                    ->preload()
                     ->options(fn () => \App\Models\User::getSubstituteTeacherOptions()),
                 Tables\Filters\SelectFilter::make('status')
+                    ->searchable()
                     ->options([
                         'masuk' => 'Masuk',
                         'izin' => 'Izin',
@@ -410,6 +417,7 @@ class TeacherAttendanceResource extends Resource
                     }),
                 Tables\Filters\SelectFilter::make('bulan')
                     ->label('Periode Bulan')
+                    ->searchable()
                     ->options([
                         '01' => 'Januari',
                         '02' => 'Februari',

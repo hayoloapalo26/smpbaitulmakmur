@@ -232,6 +232,7 @@ class TeachingJournalResource extends Resource
 
                         Forms\Components\Select::make('schedule_id')
                             ->label('Pilih Jadwal Mengajar Hari Ini (Jadwal Kurikulum)')
+                            ->searchable()
                             ->placeholder(function (Forms\Get $get) {
                                 $tanggal = $get('tanggal') ?: Carbon::today()->format('Y-m-d');
                                 $hari = Schedule::getIndonesianDayName($tanggal);

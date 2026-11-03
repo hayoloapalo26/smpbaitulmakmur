@@ -1,6 +1,7 @@
 @php
     $month = $selectedMonth ?? (int) request('bulan', date('m'));
     $year = $selectedYear ?? (int) request('tahun', date('Y'));
+    $selectedTeacherId = $selectedTeacherId ?? request('teacher_id');
 
     $startOfMonth = \Carbon\Carbon::create($year, $month, 1)->startOfMonth();
     $endOfMonth = \Carbon\Carbon::create($year, $month, 1)->endOfMonth();
@@ -30,18 +31,22 @@
     }
 
     // Ambil guru riil (tanpa dummy @smp.com dan tanpa akun Guru Piket)
-    $teachers = \App\Models\User::withoutGlobalScopes()
+    $teachersQuery = \App\Models\User::withoutGlobalScopes()
         ->where(function ($q) {
-            $q->whereHas('roles', fn ($r) => $r->whereIn('name', ['guru_mapel', 'guru_alquran', 'wali_kelas', 'guru_kelas', 'waka_kurikulum']))
+            $q->whereHas('roles', fn ($r) => $r->whereIn('name', array_merge(['guru_mapel', 'guru_alquran', 'wali_kelas', 'guru_kelas', 'waka_kurikulum'], \App\Models\User::QURAN_TEACHER_ROLES)))
               ->orWhereHas('schedules');
         })
         ->where('name', 'not like', '%piket%')
-        ->where('username', 'not like', '%piket%')
+        ->where(fn ($q) => $q->whereNull('username')->orWhere('username', 'not like', '%piket%'))
         ->where('email', 'not like', '%piket%')
         ->where('email', 'not like', '%@smp.com')
-        ->whereNotIn('id', [1, 2, 3, 25, 30, 31, 32])
-        ->orderBy('name')
-        ->get();
+        ->whereNotIn('id', [1, 2, 3, 25, 30, 31, 32]);
+
+    if (!empty($selectedTeacherId)) {
+        $teachersQuery->where('id', $selectedTeacherId);
+    }
+
+    $teachers = $teachersQuery->orderBy('name')->get();
 
     $reportData = [];
     $totals = [
@@ -127,7 +132,24 @@
     $namaBulan = \Carbon\Carbon::create($year, $month, 1)->translatedFormat('F Y');
 @endphp
 
-<div class="space-y-6 p-4 text-gray-900 dark:text-gray-100">
+<div x-data="{
+    searchQuery: '',
+    filterType: 'all',
+    matches(name, nip, selisih, persen) {
+        let q = (this.searchQuery || '').toLowerCase().trim();
+        let matchText = true;
+        if (q) {
+            matchText = ((name || '').toLowerCase().includes(q)) || ((nip || '').toLowerCase().includes(q));
+        }
+        let matchFilter = true;
+        if (this.filterType === 'minus') {
+            matchFilter = parseFloat(selisih) < 0;
+        } else if (this.filterType === 'tuntas') {
+            matchFilter = parseFloat(persen) >= 100;
+        }
+        return matchText && matchFilter;
+    }
+}" class="space-y-6 p-4 text-gray-900 dark:text-gray-100">
     <!-- Action Header (Hidden saat Cetak) -->
     <div class="flex justify-between items-center border-b pb-4 print:hidden">
         <div>
@@ -138,6 +160,60 @@
             <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
             Cetak Dokumen / PDF
         </button>
+    </div>
+
+    <!-- Panel Pencarian Guru & Filter Cepat (Hidden saat Cetak) -->
+    <div class="flex flex-col sm:flex-row items-center justify-between gap-3 p-3.5 bg-gray-50 dark:bg-gray-800/80 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm print:hidden">
+        <div class="flex items-center gap-2 w-full sm:w-auto flex-1 max-w-md">
+            <div class="relative w-full">
+                <input
+                    type="text"
+                    x-model="searchQuery"
+                    placeholder="🔍 Ketik nama guru atau NIP untuk mencari..."
+                    class="w-full text-xs rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white pl-9 pr-4 py-2 focus:ring-primary-500 focus:border-primary-500 shadow-sm"
+                />
+                <span class="absolute left-2.5 top-2.5 text-gray-400">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                </span>
+            </div>
+            <button
+                type="button"
+                class="inline-flex items-center gap-1.5 px-3.5 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg text-xs font-semibold shadow-sm transition">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                <span>Cari</span>
+            </button>
+        </div>
+        <div class="flex items-center gap-1.5 flex-wrap">
+            <span class="text-[11px] text-gray-500 font-medium mr-1">Filter:</span>
+            <button
+                type="button"
+                @click="filterType = 'all'"
+                :class="filterType === 'all' ? 'bg-primary-600 text-white font-bold shadow-sm' : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-600'"
+                class="px-2.5 py-1.5 rounded-lg text-xs transition">
+                Semua ({{ count($reportData) }})
+            </button>
+            <button
+                type="button"
+                @click="filterType = 'minus'"
+                :class="filterType === 'minus' ? 'bg-rose-600 text-white font-bold shadow-sm' : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-600'"
+                class="px-2.5 py-1.5 rounded-lg text-xs transition">
+                ⚠️ Jam Kurang
+            </button>
+            <button
+                type="button"
+                @click="filterType = 'tuntas'"
+                :class="filterType === 'tuntas' ? 'bg-emerald-600 text-white font-bold shadow-sm' : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-600'"
+                class="px-2.5 py-1.5 rounded-lg text-xs transition">
+                ✓ Tuntas (≥100%)
+            </button>
+            <button
+                type="button"
+                x-show="searchQuery || filterType !== 'all'"
+                @click="searchQuery = ''; filterType = 'all'"
+                class="px-2 py-1.5 bg-gray-200 hover:bg-gray-300 dark:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-lg text-xs transition">
+                Reset
+            </button>
+        </div>
     </div>
 
     <!-- Kop Cetak Resmi -->
@@ -192,7 +268,7 @@
             </thead>
             <tbody>
                 @forelse ($reportData as $index => $row)
-                    <tr class="hover:bg-gray-50 dark:hover:bg-gray-800/50">
+                    <tr x-show="matches('{{ addslashes($row['name']) }}', '{{ addslashes($row['nip']) }}', '{{ $row['selisih_jp'] }}', '{{ $row['persen'] }}')" class="hover:bg-gray-50 dark:hover:bg-gray-800/50">
                         <td class="border border-gray-300 dark:border-gray-700 px-2 py-2 text-center">{{ $index + 1 }}</td>
                         <td class="border border-gray-300 dark:border-gray-700 px-3 py-2 font-medium">
                             <div class="font-semibold">{{ $row['name'] }}</div>
