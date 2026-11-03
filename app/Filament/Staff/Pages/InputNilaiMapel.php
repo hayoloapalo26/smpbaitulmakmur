@@ -176,8 +176,36 @@ class InputNilaiMapel extends Page
         }
     }
 
+    public function canEditCurrentSubject(): bool
+    {
+        $user = Auth::user();
+        if (!$user) return false;
+
+        // Superadmin memiliki hak akses penuh
+        if ($user->hasRole('superadmin')) {
+            return true;
+        }
+
+        if (!$this->selectedSubjectId) {
+            return false;
+        }
+
+        // Khusus Waka Kurikulum, Kepala Sekolah, Guru Mapel, dll:
+        // Hanya bisa menginput / mengubah nilai pada mata pelajaran yang diampu!
+        return $user->teachesSubject($this->selectedSubjectId);
+    }
+
     public function saveScores(): void
     {
+        if (!$this->canEditCurrentSubject()) {
+            Notification::make()
+                ->title('Akses Ditolak')
+                ->body('Anda hanya memiliki izin melihat (View Only) pada mata pelajaran ini karena bukan guru pengampu.')
+                ->danger()
+                ->send();
+            return;
+        }
+
         if (!$this->selectedSubjectId || !$this->selectedClassroomId || !$this->selectedAcademicYearId) {
             Notification::make()
                 ->title('Harap pilih Mata Pelajaran, Kelas, dan Periode terlebih dahulu')
@@ -240,6 +268,15 @@ class InputNilaiMapel extends Page
 
     public function applyQuickFill(string $type): void
     {
+        if (!$this->canEditCurrentSubject()) {
+            Notification::make()
+                ->title('Akses Ditolak')
+                ->body('Anda tidak dapat menerapkan nilai pada mata pelajaran yang tidak Anda ampu.')
+                ->danger()
+                ->send();
+            return;
+        }
+
         $val = match ($type) {
             'pengetahuan'  => $this->quickScorePengetahuan,
             'keterampilan' => $this->quickScoreKeterampilan,
@@ -444,6 +481,8 @@ class InputNilaiMapel extends Page
             'completeCount'     => $completeCount,
             'averageScore'      => $averageScore,
             'tuntasPercent'     => $tuntasPercent,
+            'canEdit'           => $this->canEditCurrentSubject(),
+            'teachedSubjectIds' => Auth::user()?->getTeachedSubjectIds() ?? [],
         ];
     }
 }

@@ -41,21 +41,23 @@
                 </div>
 
                 <div class="flex flex-wrap items-center gap-2">
-                    <a href="{{ url('/staff/grades?action=input_nilai_rombel') }}" 
-                       class="text-xs inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-primary-600 hover:bg-primary-500 text-white rounded-lg transition font-bold shadow-sm">
-                        <x-heroicon-o-user-group class="w-4 h-4 text-white" />
-                        ⚡ Input Nilai Rombel (1 Form Sekelas Seperti Jurnal Mengajar)
-                    </a>
+                    @if(auth()->user()->hasRole('superadmin') || count($teachedSubjectIds ?? []) > 0)
+                        <a href="{{ url('/staff/grades?action=input_nilai_rombel') }}" 
+                           class="text-xs inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-primary-600 hover:bg-primary-500 text-white rounded-lg transition font-bold shadow-sm">
+                            <x-heroicon-o-user-group class="w-4 h-4 text-white" />
+                            ⚡ Input Nilai Rombel (1 Form Sekelas Seperti Jurnal Mengajar)
+                        </a>
+                    @endif
 
                     <a href="{{ url('/staff/grades') }}" 
-                       class="text-xs inline-flex items-center gap-1.5 px-3 py-1.5 bg-primary-50 hover:bg-primary-100 dark:bg-primary-950/60 dark:hover:bg-primary-900/60 text-primary-700 dark:text-primary-300 rounded-lg transition font-semibold border border-primary-200 dark:border-primary-800 shadow-sm">
+                       class="text-xs inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-primary-50 hover:bg-primary-100 dark:bg-primary-950/60 dark:hover:bg-primary-900/60 text-primary-700 dark:text-primary-300 rounded-lg transition font-semibold border border-primary-200 dark:border-primary-800 shadow-sm">
                         <x-heroicon-o-academic-cap class="w-4 h-4 text-primary-600" />
                         📋 Daftar Nilai Siswa
                     </a>
 
                     @if(auth()->user()->hasAnyRole(['waka_kurikulum', 'superadmin']))
                         <a href="{{ route('filament.staff.resources.teacher-subject-classes.index') }}" 
-                           class="text-xs inline-flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg transition font-medium">
+                           class="text-xs inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg transition font-medium">
                             <x-heroicon-o-link class="w-4 h-4 text-primary-500" />
                             Kelola Setting Guru Mapel
                         </a>
@@ -68,6 +70,7 @@
                 @forelse($subjects as $subj)
                     @php
                         $isActive = $selectedSubjectId === $subj->id;
+                        $isSubjTeached = auth()->user()->hasRole('superadmin') || in_array($subj->id, $teachedSubjectIds ?? []);
                     @endphp
                     <button type="button" 
                             wire:click="selectSubject({{ $subj->id }})"
@@ -79,9 +82,20 @@
                             <span class="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded {{ $isActive ? 'bg-primary-600 text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300' }}">
                                 {{ $subj->kode ?? 'MPL' }}
                             </span>
-                            @if($isActive)
-                                <span class="w-2 h-2 rounded-full bg-primary-500 animate-pulse"></span>
-                            @endif
+                            <div class="flex items-center gap-1">
+                                @if(!$isSubjTeached)
+                                    <span class="text-[9px] font-semibold px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300">
+                                        View
+                                    </span>
+                                @else
+                                    <span class="text-[9px] font-semibold px-1.5 py-0.5 rounded bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300">
+                                        Diampu
+                                    </span>
+                                @endif
+                                @if($isActive)
+                                    <span class="w-2 h-2 rounded-full bg-primary-500 animate-pulse"></span>
+                                @endif
+                            </div>
                         </div>
 
                         <span class="text-sm font-semibold truncate w-full {{ $isActive ? 'text-primary-700 dark:text-primary-300' : 'text-gray-800 dark:text-gray-200' }}">
@@ -104,9 +118,16 @@
                 <div class="lg:col-span-2 bg-gradient-to-br from-primary-500/10 via-white to-gray-50 dark:from-primary-950/30 dark:via-gray-900 dark:to-gray-900 border border-primary-200/80 dark:border-primary-800/40 rounded-2xl p-5 shadow-sm flex flex-col justify-between">
                     <div>
                         <div class="flex items-center gap-2 mb-2">
-                            <span class="px-2.5 py-1 text-xs font-bold rounded-lg bg-primary-600 text-white uppercase tracking-wider">
-                                Rumah Mapel Aktif
-                            </span>
+                            @if($canEdit)
+                                <span class="px-2.5 py-1 text-xs font-bold rounded-lg bg-primary-600 text-white uppercase tracking-wider">
+                                    Rumah Mapel Aktif (Dapat Diinput)
+                                </span>
+                            @else
+                                <span class="px-2.5 py-1 text-xs font-bold rounded-lg bg-amber-600 text-white uppercase tracking-wider flex items-center gap-1">
+                                    <x-heroicon-o-eye class="w-3.5 h-3.5" />
+                                    Mode Hanya Lihat (Tabel Pantauan)
+                                </span>
+                            @endif
                             <span class="text-xs font-medium text-gray-500 dark:text-gray-400">
                                 Kode: <strong class="text-gray-800 dark:text-gray-200">{{ $selectedSubject->kode }}</strong>
                             </span>
@@ -202,7 +223,29 @@
 
             </div>
 
-            {{-- 3. TABEL SPREADSHEET INPUT NILAI SISWA PER MAPEL --}}
+            {{-- Alert Informasi Mode Hanya Lihat (Jika Bukan Guru Pengampu) --}}
+            @if(!$canEdit)
+                <div class="p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-amber-800 dark:text-amber-200">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-xl bg-amber-100 dark:bg-amber-900 text-amber-600 flex items-center justify-center shrink-0">
+                            <x-heroicon-o-eye class="w-6 h-6" />
+                        </div>
+                        <div>
+                            <h4 class="text-sm font-bold text-amber-900 dark:text-amber-200">
+                                Mode Hanya Lihat (View Only) — Tabel Rekapitulasi Nilai
+                            </h4>
+                            <p class="text-xs text-amber-700 dark:text-amber-400 mt-0.5">
+                                Anda sedang melihat rekapitulasi nilai mata pelajaran <strong>{{ $selectedSubject->name }}</strong>. Karena Anda tidak mengampu mata pelajaran ini, data disajikan dalam format tabel pantauan (tidak dapat menginput atau mengubah nilai). Penginputan nilai hanya dapat dilakukan oleh guru pengampu: <strong>{{ $assignedTeacher?->name ?? 'Guru Pengampu' }}</strong>.
+                            </p>
+                        </div>
+                    </div>
+                    <span class="px-3 py-1.5 text-xs font-bold rounded-xl bg-amber-200 dark:bg-amber-900 text-amber-950 dark:text-amber-100 uppercase tracking-wider shrink-0 border border-amber-300 dark:border-amber-700 self-start sm:self-auto">
+                        👁️ View Only
+                    </span>
+                </div>
+            @endif
+
+            {{-- 3. TABEL SPREADSHEET INPUT / VIEW NILAI SISWA PER MAPEL --}}
             <div class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl shadow-sm overflow-hidden">
                 
                 {{-- Header Aksi Tabel --}}
@@ -228,14 +271,16 @@
                             Cetak Lembar Nilai
                         </button>
 
-                        <button type="button" 
-                                wire:click="saveScores"
-                                wire:loading.attr="disabled"
-                                class="inline-flex items-center gap-1.5 px-4 py-1.5 text-xs font-bold rounded-xl bg-primary-600 hover:bg-primary-700 text-white shadow-sm transition disabled:opacity-50">
-                            <x-heroicon-o-check-circle class="w-4 h-4" />
-                            <span wire:loading.remove wire:target="saveScores">Simpan Semua Nilai ({{ $selectedSubject->kode }})</span>
-                            <span wire:loading wire:target="saveScores">Menyimpan Nilai...</span>
-                        </button>
+                        @if($canEdit)
+                            <button type="button" 
+                                    wire:click="saveScores"
+                                    wire:loading.attr="disabled"
+                                    class="inline-flex items-center gap-1.5 px-4 py-1.5 text-xs font-bold rounded-xl bg-primary-600 hover:bg-primary-700 text-white shadow-sm transition disabled:opacity-50">
+                                <x-heroicon-o-check-circle class="w-4 h-4" />
+                                <span wire:loading.remove wire:target="saveScores">Simpan Semua Nilai ({{ $selectedSubject->kode }})</span>
+                                <span wire:loading wire:target="saveScores">Menyimpan Nilai...</span>
+                            </button>
+                        @endif
                     </div>
                 </div>
 
@@ -307,37 +352,55 @@
                                         </div>
                                     </td>
                                     
-                                    {{-- Input Nilai Pengetahuan --}}
+                                    {{-- Nilai Pengetahuan --}}
                                     <td class="py-2.5 px-3 text-center">
-                                        <input type="number" 
-                                               min="0" 
-                                               max="100" 
-                                               step="0.5"
-                                               wire:model.live.debounce.400ms="scores.{{ $student->id }}.pengetahuan"
-                                               placeholder="0 - 100"
-                                               class="w-24 px-2 py-1 text-center font-bold text-xs rounded-lg border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-primary-500 focus:border-primary-500 shadow-sm">
+                                        @if($canEdit)
+                                            <input type="number" 
+                                                   min="0" 
+                                                   max="100" 
+                                                   step="0.5"
+                                                   wire:model.live.debounce.400ms="scores.{{ $student->id }}.pengetahuan"
+                                                   placeholder="0 - 100"
+                                                   class="w-24 px-2 py-1 text-center font-bold text-xs rounded-lg border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-primary-500 focus:border-primary-500 shadow-sm">
+                                        @else
+                                            <span class="inline-block min-w-14 px-2.5 py-1 text-xs font-bold rounded-lg {{ !empty($row['pengetahuan']) ? 'bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-200 border border-gray-200 dark:border-gray-700' : 'text-gray-400 italic' }}">
+                                                {{ !empty($row['pengetahuan']) ? $row['pengetahuan'] : '-' }}
+                                            </span>
+                                        @endif
                                     </td>
 
-                                    {{-- Input Nilai Keterampilan --}}
+                                    {{-- Nilai Keterampilan --}}
                                     <td class="py-2.5 px-3 text-center">
-                                        <input type="number" 
-                                               min="0" 
-                                               max="100" 
-                                               step="0.5"
-                                               wire:model.live.debounce.400ms="scores.{{ $student->id }}.keterampilan"
-                                               placeholder="0 - 100"
-                                               class="w-24 px-2 py-1 text-center font-bold text-xs rounded-lg border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-primary-500 focus:border-primary-500 shadow-sm">
+                                        @if($canEdit)
+                                            <input type="number" 
+                                                   min="0" 
+                                                   max="100" 
+                                                   step="0.5"
+                                                   wire:model.live.debounce.400ms="scores.{{ $student->id }}.keterampilan"
+                                                   placeholder="0 - 100"
+                                                   class="w-24 px-2 py-1 text-center font-bold text-xs rounded-lg border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-primary-500 focus:border-primary-500 shadow-sm">
+                                        @else
+                                            <span class="inline-block min-w-14 px-2.5 py-1 text-xs font-bold rounded-lg {{ !empty($row['keterampilan']) ? 'bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-200 border border-gray-200 dark:border-gray-700' : 'text-gray-400 italic' }}">
+                                                {{ !empty($row['keterampilan']) ? $row['keterampilan'] : '-' }}
+                                            </span>
+                                        @endif
                                     </td>
 
-                                    {{-- Input Nilai Ujian --}}
+                                    {{-- Nilai Ujian --}}
                                     <td class="py-2.5 px-3 text-center">
-                                        <input type="number" 
-                                               min="0" 
-                                               max="100" 
-                                               step="0.5"
-                                               wire:model.live.debounce.400ms="scores.{{ $student->id }}.ujian"
-                                               placeholder="0 - 100"
-                                               class="w-24 px-2 py-1 text-center font-bold text-xs rounded-lg border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-primary-500 focus:border-primary-500 shadow-sm">
+                                        @if($canEdit)
+                                            <input type="number" 
+                                                   min="0" 
+                                                   max="100" 
+                                                   step="0.5"
+                                                   wire:model.live.debounce.400ms="scores.{{ $student->id }}.ujian"
+                                                   placeholder="0 - 100"
+                                                   class="w-24 px-2 py-1 text-center font-bold text-xs rounded-lg border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-primary-500 focus:border-primary-500 shadow-sm">
+                                        @else
+                                            <span class="inline-block min-w-14 px-2.5 py-1 text-xs font-bold rounded-lg {{ !empty($row['ujian']) ? 'bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-200 border border-gray-200 dark:border-gray-700' : 'text-gray-400 italic' }}">
+                                                {{ !empty($row['ujian']) ? $row['ujian'] : '-' }}
+                                            </span>
+                                        @endif
                                     </td>
 
                                     {{-- Nilai Akhir (Kalkulasi Otomatis) --}}
@@ -379,14 +442,21 @@
                         <span>Bobot Nilai Akhir: 30% Pengetahuan + 30% Keterampilan + 40% Ujian. KKM Kelulusan = 75.</span>
                     </div>
 
-                    <button type="button" 
-                            wire:click="saveScores"
-                            wire:loading.attr="disabled"
-                            class="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-6 py-2 text-sm font-bold rounded-xl bg-primary-600 hover:bg-primary-700 text-white shadow-md transition disabled:opacity-50">
-                        <x-heroicon-o-check-circle class="w-5 h-5" />
-                        <span wire:loading.remove wire:target="saveScores">Simpan Perubahan Nilai {{ $selectedSubject->name }}</span>
-                        <span wire:loading wire:target="saveScores">Menyimpan Nilai...</span>
-                    </button>
+                    @if($canEdit)
+                        <button type="button" 
+                                wire:click="saveScores"
+                                wire:loading.attr="disabled"
+                                class="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-6 py-2 text-sm font-bold rounded-xl bg-primary-600 hover:bg-primary-700 text-white shadow-md transition disabled:opacity-50">
+                            <x-heroicon-o-check-circle class="w-5 h-5" />
+                            <span wire:loading.remove wire:target="saveScores">Simpan Perubahan Nilai {{ $selectedSubject->name }}</span>
+                            <span wire:loading wire:target="saveScores">Menyimpan Nilai...</span>
+                        </button>
+                    @else
+                        <div class="text-xs text-amber-700 dark:text-amber-400 font-semibold flex items-center gap-1.5 bg-amber-50 dark:bg-amber-950/40 px-4 py-2 rounded-xl border border-amber-200 dark:border-amber-800">
+                            <x-heroicon-m-eye class="w-4 h-4 text-amber-600" />
+                            <span>Tabel Pantauan (Hanya Lihat): Penginputan dan perubahan nilai mata pelajaran ini hanya dapat dilakukan oleh guru pengampu.</span>
+                        </div>
+                    @endif
                 </div>
 
             </div>
@@ -395,7 +465,7 @@
             <div class="p-12 text-center bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl">
                 <x-heroicon-o-book-open class="w-12 h-12 text-gray-300 dark:text-gray-600 mx-auto mb-3" />
                 <h3 class="text-base font-bold text-gray-800 dark:text-gray-200">Silakan Pilih Mata Pelajaran Terlebih Dahulu</h3>
-                <p class="text-xs text-gray-500 mt-1">Pilih salah satu mata pelajaran di bagian atas untuk membuka ruang input nilai.</p>
+                <p class="text-xs text-gray-500 mt-1">Pilih salah satu mata pelajaran di bagian atas untuk membuka ruang nilai.</p>
             </div>
         @endif
 

@@ -118,21 +118,29 @@ class ManageGrades extends ManageRecords
                                 ->options(function () {
                                     $user = Auth::user();
                                     if (!$user) return [];
-                                    $isPrivileged = $user->hasAnyRole(['waka_kurikulum', 'superadmin', 'kepala_sekolah']);
-                                    $isWaliKelas = $user->hasRole('wali_kelas');
-                                    if ($isPrivileged || $isWaliKelas) {
+                                    if ($user->hasRole('superadmin')) {
                                         return Subject::akademik()->orderBy('name')->pluck('name', 'id');
                                     }
-                                    $subjectIds = TeacherSubjectClass::where('teacher_id', $user->id)->pluck('subject_id')->toArray();
-                                    $assignedAkademik = Subject::akademik()->whereIn('id', $subjectIds)->orderBy('name')->pluck('name', 'id');
-                                    if ($assignedAkademik->isNotEmpty()) {
-                                        return $assignedAkademik;
+                                    // Kurikulum, Guru Mapel, Wali Kelas, dll:
+                                    // HANYA MATA PELAJARAN YANG DIAMPU!
+                                    $subjectIds = $user->getTeachedSubjectIds();
+                                    if ($user->hasRole('waka_kurikulum') && empty($subjectIds)) {
+                                        return Subject::akademik()->orderBy('name')->pluck('name', 'id');
                                     }
-                                    return Subject::akademik()->orderBy('name')->pluck('name', 'id');
+                                    return Subject::akademik()->whereIn('id', $subjectIds)->orderBy('name')->pluck('name', 'id');
                                 })
                                 ->searchable()
                                 ->preload()
                                 ->required()
+                                ->helperText(function () {
+                                    $user = Auth::user();
+                                    if (!$user || $user->hasRole('superadmin')) return null;
+                                    $teached = $user->getTeachedSubjectIds();
+                                    if (empty($teached)) {
+                                        return '⚠️ Anda tidak memiliki mata pelajaran yang diampu. Penginputan nilai hanya untuk guru pengampu.';
+                                    }
+                                    return 'Hanya mata pelajaran yang Anda ampu yang dapat dipilih untuk penginputan nilai.';
+                                })
                                 ->live(),
 
                             Forms\Components\Select::make('academic_year_id')
@@ -363,6 +371,16 @@ class ManageGrades extends ManageRecords
                     $customBentukPenilaian = $data['custom_bentuk_penilaian'] ?? null;
                     $studentScores = $data['student_scores'] ?? [];
                     $teacherId = Auth::id();
+                    $user = Auth::user();
+
+                    if (!$user->hasRole('superadmin') && !$user->teachesSubject($subjectId)) {
+                        Notification::make()
+                            ->title('Akses Ditolak')
+                            ->body('Anda tidak memiliki hak akses untuk menginput nilai pada mata pelajaran ini karena bukan guru pengampu.')
+                            ->danger()
+                            ->send();
+                        return;
+                    }
 
                     if (empty($studentScores) || !is_array($studentScores)) {
                         Notification::make()

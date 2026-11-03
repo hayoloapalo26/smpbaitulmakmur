@@ -30,13 +30,6 @@ class StudentCaseResource extends Resource
 
     public static function getNavigationGroup(): ?string
     {
-        $user = Auth::user();
-        if ($user?->hasRole('waka_kesiswaan')) {
-            return 'Kesiswaan & Karakter';
-        }
-        if ($user && $user->hasRole('wali_kelas') && !$user->hasAnyRole(['waka_kesiswaan', 'superadmin', 'kepala_sekolah'])) {
-            return 'Fitur Wali Kelas';
-        }
         return 'Kesiswaan & Karakter';
     }
 

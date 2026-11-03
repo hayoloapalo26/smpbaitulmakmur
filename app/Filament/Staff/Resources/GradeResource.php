@@ -291,15 +291,17 @@ class GradeResource extends Resource
 
                         Forms\Components\Select::make('subject_id')
                             ->label('3. Mata Pelajaran')
-                            ->options(function () use ($isPrivileged, $isWaliKelas, $subjectIds) {
-                                if ($isPrivileged || $isWaliKelas) {
+                            ->options(function () {
+                                $user = Auth::user();
+                                if (!$user) return [];
+                                if ($user->hasRole('superadmin')) {
                                     return Subject::akademik()->orderBy('name')->pluck('name', 'id');
                                 }
-                                $assignedAkademik = Subject::akademik()->whereIn('id', $subjectIds)->orderBy('name')->pluck('name', 'id');
-                                if ($assignedAkademik->isNotEmpty()) {
-                                    return $assignedAkademik;
+                                $subjectIds = $user->getTeachedSubjectIds();
+                                if ($user->hasRole('waka_kurikulum') && empty($subjectIds)) {
+                                    return Subject::akademik()->orderBy('name')->pluck('name', 'id');
                                 }
-                                return Subject::akademik()->orderBy('name')->pluck('name', 'id');
+                                return Subject::akademik()->whereIn('id', $subjectIds)->orderBy('name')->pluck('name', 'id');
                             })
                             ->searchable()
                             ->preload()

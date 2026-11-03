@@ -39,7 +39,15 @@ class GradePolicy
      */
     public function create($user): bool
     {
-        return $user->hasAnyRole(array_merge(['guru_mapel', 'guru_kelas', 'koordinator_madin', 'waka_kurikulum', 'superadmin'], \App\Models\User::QURAN_TEACHER_ROLES));
+        if ($user->hasRole('superadmin')) {
+            return true;
+        }
+
+        if ($user->hasRole('waka_kurikulum')) {
+            return true;
+        }
+
+        return $user->hasAnyRole(array_merge(['guru_mapel', 'guru_kelas', 'koordinator_madin'], \App\Models\User::QURAN_TEACHER_ROLES));
     }
 
     /**
@@ -47,7 +55,19 @@ class GradePolicy
      */
     public function update($user, $model): bool
     {
-        return $user->hasAnyRole(array_merge(['guru_mapel', 'guru_kelas', 'koordinator_madin', 'waka_kurikulum', 'superadmin'], \App\Models\User::QURAN_TEACHER_ROLES));
+        if ($user->hasRole('superadmin')) {
+            return true;
+        }
+
+        if ($user->hasRole('waka_kurikulum')) {
+            return $user->teachesSubject($model->subject_id);
+        }
+
+        if ($user->hasAnyRole(array_merge(['guru_mapel', 'guru_kelas', 'koordinator_madin'], \App\Models\User::QURAN_TEACHER_ROLES))) {
+            return $user->teachesSubject($model->subject_id) || $model->teacher_id === $user->id;
+        }
+
+        return false;
     }
 
     /**
@@ -55,7 +75,19 @@ class GradePolicy
      */
     public function delete($user, $model): bool
     {
-        return $user->hasAnyRole(array_merge(['guru_mapel', 'guru_kelas', 'waka_kurikulum', 'superadmin'], \App\Models\User::QURAN_TEACHER_ROLES));
+        if ($user->hasRole('superadmin')) {
+            return true;
+        }
+
+        if ($user->hasRole('waka_kurikulum')) {
+            return $user->teachesSubject($model->subject_id);
+        }
+
+        if ($user->hasAnyRole(array_merge(['guru_mapel', 'guru_kelas'], \App\Models\User::QURAN_TEACHER_ROLES))) {
+            return $user->teachesSubject($model->subject_id) || $model->teacher_id === $user->id;
+        }
+
+        return false;
     }
 
     /**

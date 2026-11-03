@@ -373,6 +373,33 @@ class User extends Authenticatable implements FilamentUser, HasAvatar
         return $this->belongsToMany(Subject::class, 'teacher_subject_classes', 'teacher_id', 'subject_id')->distinct();
     }
 
+    /**
+     * Cek apakah user mengampu mata pelajaran tertentu (berdasarkan TeacherSubjectClass atau Schedule).
+     */
+    public function teachesSubject(int $subjectId, ?int $classroomId = null): bool
+    {
+        $tscQuery = $this->teacherSubjectClasses()->where('subject_id', $subjectId);
+        $schQuery = $this->schedules()->where('subject_id', $subjectId);
+
+        if ($classroomId) {
+            $tscQuery->where('classroom_id', $classroomId);
+            $schQuery->where('classroom_id', $classroomId);
+        }
+
+        return $tscQuery->exists() || $schQuery->exists();
+    }
+
+    /**
+     * Dapatkan daftar ID mata pelajaran yang diampu oleh user ini.
+     */
+    public function getTeachedSubjectIds(): array
+    {
+        $tscIds = $this->teacherSubjectClasses()->pluck('subject_id')->toArray();
+        $schIds = $this->schedules()->pluck('subject_id')->toArray();
+
+        return array_values(array_unique(array_filter(array_merge($tscIds, $schIds))));
+    }
+
     public function certificates()
     {
         return $this->hasMany(TeacherCertificate::class, 'teacher_id');
