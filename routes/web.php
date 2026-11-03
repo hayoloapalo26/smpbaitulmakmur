@@ -81,7 +81,15 @@ Route::get('/report/prayer', function (\Illuminate\Http\Request $request) {
 })->name('report.prayer')->middleware('auth');
 
 Route::get('/report/osis', function () {
-    $programs = \App\Models\OsisProgram::all();
+    $user = auth()->user();
+    if (!$user || !$user->hasAnyRole(['pembina_osis', 'kepala_sekolah', 'superadmin'])) {
+        abort(403, 'Akses khusus Pembina OSIS, Kepala Sekolah, dan Superadmin.');
+    }
+    $query = \App\Models\OsisProgram::query();
+    if ($user->institution_id && !$user->hasRole('superadmin')) {
+        $query->where('institution_id', $user->institution_id);
+    }
+    $programs = $query->orderBy('tanggal', 'desc')->get();
     $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('pdf.osis_report', compact('programs'));
     return $pdf->download('laporan_program_osis.pdf');
 })->name('report.osis')->middleware('auth');

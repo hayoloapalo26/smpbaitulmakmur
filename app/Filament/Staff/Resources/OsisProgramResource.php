@@ -16,12 +16,12 @@ class OsisProgramResource extends Resource
 {
     public static function shouldRegisterNavigation(): bool
     {
-        return auth()->user()?->hasAnyRole(['waka_kesiswaan', 'kepala_sekolah', 'superadmin']) ?? false;
+        return auth()->user()?->hasAnyRole(['pembina_osis', 'kepala_sekolah', 'superadmin']) ?? false;
     }
 
     public static function canAccess(): bool
     {
-        return auth()->user()?->hasAnyRole(['waka_kesiswaan', 'kepala_sekolah', 'superadmin']) ?? false;
+        return auth()->user()?->hasAnyRole(['pembina_osis', 'kepala_sekolah', 'superadmin']) ?? false;
     }
 
     public static function getNavigationBadge(): ?string
@@ -41,23 +41,23 @@ class OsisProgramResource extends Resource
 
     protected static ?string $model = OsisProgram::class;
     protected static ?string $navigationIcon = 'heroicon-o-sparkles';
-    protected static ?string $navigationGroup = 'Kesiswaan & Karakter';
+    protected static ?string $navigationGroup = 'Tugas Pembina OSIS';
     protected static ?string $modelLabel = 'Program OSIS';
     protected static ?string $recordTitleAttribute = 'nama_program';
 
     public static function canCreate(): bool
     {
-        return auth()->user()?->hasAnyRole(['waka_kesiswaan', 'superadmin']) ?? false;
+        return auth()->user()?->hasAnyRole(['pembina_osis', 'superadmin']) ?? false;
     }
 
     public static function canEdit(\Illuminate\Database\Eloquent\Model $record): bool
     {
-        return auth()->user()?->hasAnyRole(['waka_kesiswaan', 'superadmin']) ?? false;
+        return auth()->user()?->hasAnyRole(['pembina_osis', 'superadmin']) ?? false;
     }
 
     public static function canDelete(\Illuminate\Database\Eloquent\Model $record): bool
     {
-        return auth()->user()?->hasAnyRole(['waka_kesiswaan', 'superadmin']) ?? false;
+        return auth()->user()?->hasAnyRole(['pembina_osis', 'superadmin']) ?? false;
     }
 
     public static function form(Form $form): Form
@@ -237,9 +237,9 @@ class OsisProgramResource extends Resource
                             ->send();
                     }),
                 Tables\Actions\EditAction::make()
-                    ->visible(fn () => auth()->user()?->hasAnyRole(['waka_kesiswaan', 'superadmin'])),
+                    ->visible(fn () => auth()->user()?->hasAnyRole(['pembina_osis', 'superadmin'])),
                 Tables\Actions\DeleteAction::make()
-                    ->visible(fn () => auth()->user()?->hasAnyRole(['waka_kesiswaan', 'superadmin'])),
+                    ->visible(fn () => auth()->user()?->hasAnyRole(['pembina_osis', 'superadmin'])),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([

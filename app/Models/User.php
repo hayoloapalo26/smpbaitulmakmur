@@ -80,6 +80,7 @@ class User extends Authenticatable implements FilamentUser, HasAvatar
             'sarpras' => '🏢 Sarana Prasarana',
             'humas' => '🤝 Hubungan Masyarakat',
             'bk' => '💬 Bimbingan Konseling',
+            'pembina_osis' => '⭐ Pembina OSIS',
             'orang_tua' => '👨‍👩‍👧 Orang Tua Siswa',
             'siswa' => '🎒 Siswa',
             default => ucwords(str_replace('_', ' ', $role)),
@@ -149,6 +150,11 @@ class User extends Authenticatable implements FilamentUser, HasAvatar
     public function isQuranTeacher(): bool
     {
         return $this->hasAnyRole(self::QURAN_TEACHER_ROLES);
+    }
+
+    public function isPembinaOsis(): bool
+    {
+        return $this->hasRole('pembina_osis');
     }
 
     public function getQuranSpecializationLabel(): ?string
@@ -459,7 +465,7 @@ class User extends Authenticatable implements FilamentUser, HasAvatar
     {
         // Hanya akun murni piket tanpa jabatan struktural/mapel yang selalu bernilai true
         if (method_exists($this, 'hasRole') && $this->hasRole('guru_piket') && !$this->hasAnyRole(array_merge([
-            'waka_kurikulum', 'waka_kesiswaan', 'kepala_sekolah', 'guru_mapel', 'wali_kelas', 'guru_kelas', 'superadmin'
+            'waka_kurikulum', 'waka_kesiswaan', 'kepala_sekolah', 'guru_mapel', 'wali_kelas', 'guru_kelas', 'pembina_osis', 'superadmin'
         ], self::QURAN_TEACHER_ROLES))) {
             return true;
         }

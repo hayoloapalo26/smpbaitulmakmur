@@ -18,26 +18,26 @@ class OsisProgramPolicy
 
     public function viewAny(User $user): bool
     {
-        return $user->hasAnyRole(['waka_kesiswaan', 'kepala_sekolah', 'superadmin']);
+        return $user->hasAnyRole(['pembina_osis', 'kepala_sekolah', 'superadmin']);
     }
 
     public function view(User $user, OsisProgram $model): bool
     {
-        return $user->hasAnyRole(['waka_kesiswaan', 'kepala_sekolah', 'superadmin']);
+        return $user->hasAnyRole(['pembina_osis', 'kepala_sekolah', 'superadmin']);
     }
 
     public function create(User $user): bool
     {
-        return $user->hasAnyRole(['waka_kesiswaan', 'superadmin']);
+        return $user->hasAnyRole(['pembina_osis', 'superadmin']);
     }
 
     public function update(User $user, OsisProgram $model): bool
     {
-        return $user->hasAnyRole(['waka_kesiswaan', 'kepala_sekolah', 'superadmin']);
+        return $user->hasAnyRole(['pembina_osis', 'kepala_sekolah', 'superadmin']);
     }
 
     public function delete(User $user, OsisProgram $model): bool
     {
-        return $user->hasAnyRole(['waka_kesiswaan', 'superadmin']);
+        return $user->hasAnyRole(['pembina_osis', 'superadmin']);
     }
 }

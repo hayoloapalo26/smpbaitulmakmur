@@ -51,5 +51,22 @@
             @endforelse
         </tbody>
     </table>
+
+    <table style="width: 100%; margin-top: 35px; border: none; font-size: 10.5px;">
+        <tr>
+            <td style="width: 50%; text-align: center; border: none;">
+                Mengetahui,<br>
+                <strong>Kepala Sekolah</strong>
+                <br><br><br><br>
+                <u><strong>( .................................................. )</strong></u>
+            </td>
+            <td style="width: 50%; text-align: center; border: none;">
+                Malang, {{ \Carbon\Carbon::now()->translatedFormat('d F Y') }}<br>
+                <strong>Pembina OSIS</strong>
+                <br><br><br><br>
+                <u><strong>( .................................................. )</strong></u>
+            </td>
+        </tr>
+    </table>
 </body>
 </html>

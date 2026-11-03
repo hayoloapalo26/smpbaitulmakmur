@@ -76,6 +76,8 @@ class StaffPanelProvider extends PanelProvider
                 'Kesiswaan & Karakter',
                 'Kesiswaan',
                 'Karakter & Evaluasi',
+                'Tugas Pembina OSIS',
+                'Pembina OSIS',
                 'Tugas Waka Sarpras',
                 'Sarpras',
                 'Perencanaan dan Pengadaan',

@@ -37,6 +37,7 @@ class RoleSeeder extends Seeder
             'sarpras',
             'humas',
             'bk',
+            'pembina_osis',
             'siswa',
             'orang_tua',
             'guru_ekstrakurikuler'
