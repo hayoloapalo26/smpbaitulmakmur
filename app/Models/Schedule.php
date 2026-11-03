@@ -98,6 +98,76 @@ class Schedule extends Model
         return static::getJamTime($this->jam_ke);
     }
 
+    /**
+     * Memeriksa potensi bentrok jadwal untuk kombinasi kelas, guru, hari, dan jam_ke.
+     * Mencegah guru mengajar ganda di jam sama, kelas terisi ganda di jam sama, atau duplikasi guru di kelas sama.
+     *
+     * @param int|string|null $classroomId
+     * @param int|string|null $teacherId
+     * @param array $days Daftar hari (misal ['Senin', 'Selasa'])
+     * @param array $jams Daftar jam_ke (misal [1, 2])
+     * @param int|null $ignoreScheduleId ID jadwal yang dikecualikan (saat edit)
+     * @return array Daftar pesan bentrok (kosong jika tidak ada bentrok)
+     */
+    public static function checkClashes($classroomId, $teacherId, array $days, array $jams, ?int $ignoreScheduleId = null): array
+    {
+        if (empty($classroomId) || empty($teacherId) || empty($days) || empty($jams)) {
+            return [];
+        }
+
+        $clashes = [];
+        $classroom = Classroom::withoutGlobalScopes()->find($classroomId);
+        $teacher = User::withoutGlobalScopes()->find($teacherId);
+        $className = $classroom?->name ?? "Kelas #{$classroomId}";
+        $teacherName = $teacher?->name ?? "Guru #{$teacherId}";
+
+        foreach ($days as $day) {
+            foreach ($jams as $jam) {
+                if ($jam === null || $jam === '') continue;
+                $jamInt = (int) $jam;
+                $jamSlot = static::getJamLabelWithTime($jamInt);
+
+                // 1. Cek Bentrok Guru: Apakah guru bersangkutan sudah mengajar di kelas lain (atau kelas ini) pada hari & jam ini?
+                $teacherSchedule = static::withoutGlobalScopes()
+                    ->where('teacher_id', $teacherId)
+                    ->where('hari', $day)
+                    ->where('jam_ke', $jamInt)
+                    ->when($ignoreScheduleId, fn ($q) => $q->where('id', '!=', $ignoreScheduleId))
+                    ->with(['classroom', 'subject'])
+                    ->first();
+
+                if ($teacherSchedule) {
+                    $otherClass = $teacherSchedule->classroom?->name ?? 'Kelas Lain';
+                    $mapel = $teacherSchedule->subject?->name ?? 'Mata Pelajaran';
+
+                    if ((int)$teacherSchedule->classroom_id === (int)$classroomId) {
+                        $clashes[] = "Bentrok Jadwal: Guru {$teacherName} sudah memiliki jadwal {$mapel} di {$className} pada hari {$day}, {$jamSlot}.";
+                    } else {
+                        $clashes[] = "Bentrok Jadwal Guru: Guru {$teacherName} sudah terjadwal mengajar di {$otherClass} (Mapel: {$mapel}) pada hari {$day}, {$jamSlot}.";
+                    }
+                    continue; // Lanjut ke jam berikutnya agar tidak dobel laporan
+                }
+
+                // 2. Cek Bentrok Kelas: Apakah kelas ini sudah diisi guru atau mata pelajaran lain pada hari & jam ini?
+                $classSchedule = static::withoutGlobalScopes()
+                    ->where('classroom_id', $classroomId)
+                    ->where('hari', $day)
+                    ->where('jam_ke', $jamInt)
+                    ->when($ignoreScheduleId, fn ($q) => $q->where('id', '!=', $ignoreScheduleId))
+                    ->with(['teacher', 'subject'])
+                    ->first();
+
+                if ($classSchedule) {
+                    $otherTeacher = $classSchedule->teacher?->name ?? 'Guru Lain';
+                    $mapel = $classSchedule->subject?->name ?? 'Mata Pelajaran';
+                    $clashes[] = "Bentrok Jadwal Kelas: {$className} pada hari {$day}, {$jamSlot} sudah terisi pelajaran {$mapel} bersama {$otherTeacher}.";
+                }
+            }
+        }
+
+        return $clashes;
+    }
+
     public function classroom()
     {
         return $this->belongsTo(Classroom::class, 'classroom_id');

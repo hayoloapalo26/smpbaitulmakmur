@@ -25,13 +25,36 @@ class ManageSchedules extends ManageRecords
             Actions\CreateAction::make()
                 ->modalWidth('3xl')
                 ->visible(fn () => auth()->user()?->hasAnyRole(['waka_kurikulum', 'kepala_sekolah', 'superadmin']) ?? false)
+                ->before(function (Actions\CreateAction $action, array $data) {
+                    $days = is_array($data['hari'] ?? []) ? $data['hari'] : (!empty($data['hari']) ? [$data['hari']] : []);
+                    $jams = is_array($data['jam_ke'] ?? []) ? $data['jam_ke'] : (isset($data['jam_ke']) && $data['jam_ke'] !== '' ? [$data['jam_ke']] : []);
+
+                    $clashes = Schedule::checkClashes($data['classroom_id'] ?? null, $data['teacher_id'] ?? null, $days, $jams);
+                    if (!empty($clashes)) {
+                        Notification::make()
+                            ->title('Gagal Menyimpan: Bentrok Jadwal Terdeteksi!')
+                            ->body(implode("\n", $clashes))
+                            ->danger()
+                            ->persistent()
+                            ->send();
+
+                        $action->halt();
+                    }
+                })
                 ->using(function (array $data, string $model): \Illuminate\Database\Eloquent\Model {
-                    $days = is_array($data['hari']) ? $data['hari'] : [$data['hari']];
-                    $jams = is_array($data['jam_ke']) ? $data['jam_ke'] : [$data['jam_ke']];
+                    $days = is_array($data['hari'] ?? []) ? $data['hari'] : (!empty($data['hari']) ? [$data['hari']] : []);
+                    $jams = is_array($data['jam_ke'] ?? []) ? $data['jam_ke'] : (isset($data['jam_ke']) && $data['jam_ke'] !== '' ? [$data['jam_ke']] : []);
+
+                    $clashes = Schedule::checkClashes($data['classroom_id'] ?? null, $data['teacher_id'] ?? null, $days, $jams);
+                    if (!empty($clashes)) {
+                        throw \Illuminate\Validation\ValidationException::withMessages([
+                            'jam_ke' => $clashes,
+                        ]);
+                    }
 
                     $institutionId = auth()->user()?->institution_id ?? 2;
                     if (!empty($data['classroom_id'])) {
-                        $classroom = \App\Models\Classroom::find($data['classroom_id']);
+                        $classroom = \App\Models\Classroom::withoutGlobalScopes()->find($data['classroom_id']);
                         if ($classroom && $classroom->institution_id) {
                             $institutionId = $classroom->institution_id;
                         }

@@ -7,11 +7,13 @@ use App\Models\Schedule;
 use App\Models\User;
 use Filament\Forms;
 use Filament\Forms\Form;
+use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\HtmlString;
 
 class ScheduleResource extends Resource
 {
@@ -63,6 +65,7 @@ class ScheduleResource extends Resource
                             ->relationship('classroom', 'name')
                             ->searchable()
                             ->preload()
+                            ->live()
                             ->required(),
                         Forms\Components\Select::make('subject_id')
                             ->label('Mata Pelajaran')
@@ -89,6 +92,7 @@ class ScheduleResource extends Resource
                             })
                             ->searchable()
                             ->preload()
+                            ->live()
                             ->required()
                             ->columnSpanFull(),
                     ])->columns(2),
@@ -107,6 +111,7 @@ class ScheduleResource extends Resource
                                 'Sabtu' => 'Sabtu',
                             ])
                             ->columns(3)
+                            ->live()
                             ->required()
                             ->helperText('Centang satu atau beberapa hari mengajar untuk mata pelajaran ini.'),
 
@@ -123,13 +128,57 @@ class ScheduleResource extends Resource
                             ->bulkToggleable()
                             ->live()
                             ->required()
-                            ->helperText(function (Forms\Get $get) {
+                            ->rules([
+                                function (Forms\Get $get, ?\App\Models\Schedule $record) {
+                                    return function (string $attribute, $value, \Closure $fail) use ($get, $record) {
+                                        $classroomId = $get('classroom_id');
+                                        $teacherId = $get('teacher_id');
+                                        $hari = $get('hari');
+                                        $jams = is_array($value) ? $value : (!empty($value) ? [$value] : []);
+                                        $days = is_array($hari) ? $hari : (!empty($hari) ? [$hari] : []);
+
+                                        if ($classroomId && $teacherId && !empty($days) && !empty($jams)) {
+                                            $clashes = \App\Models\Schedule::checkClashes($classroomId, $teacherId, $days, $jams, $record?->id);
+                                            if (!empty($clashes)) {
+                                                $fail(implode(' | ', $clashes));
+                                            }
+                                        }
+                                    };
+                                },
+                            ])
+                            ->helperText(function (Forms\Get $get, ?\App\Models\Schedule $record) {
                                 $selected = $get('jam_ke');
                                 $count = is_array($selected) ? count($selected) : 0;
-                                if ($count > 0) {
-                                    return "✓ Terpilih: {$count} JP (Jam Pelajaran). Sistem otomatis mencatat {$count} jam mengajar untuk guru ini.";
+                                $classroomId = $get('classroom_id');
+                                $teacherId = $get('teacher_id');
+                                $hari = $get('hari');
+                                $days = is_array($hari) ? $hari : (!empty($hari) ? [$hari] : []);
+                                $jams = is_array($selected) ? $selected : (!empty($selected) ? [$selected] : []);
+
+                                $warningHtml = '';
+                                if ($classroomId && $teacherId && !empty($days) && !empty($jams)) {
+                                    $clashes = \App\Models\Schedule::checkClashes($classroomId, $teacherId, $days, $jams, $record?->id);
+                                    if (!empty($clashes)) {
+                                        $items = '';
+                                        foreach ($clashes as $clash) {
+                                            $items .= "<div class='text-xs text-rose-500 font-medium py-0.5'>⚠️ {$clash}</div>";
+                                        }
+                                        $warningHtml = "<div class='mt-2.5 p-3 rounded-lg border border-rose-500/30 bg-rose-500/10 dark:bg-rose-950/30'>
+                                            <div class='text-xs font-bold text-rose-600 dark:text-rose-400 uppercase tracking-wider mb-1'>Peringatan Bentrok Jadwal Terdeteksi!</div>
+                                            {$items}
+                                        </div>";
+                                    }
                                 }
-                                return 'Setiap opsi bernilai 1 JP. Centang jam ke berapa saja guru tersebut mengajar (misal 1 JP centang 1 pilihan, 2 JP centang 2 pilihan, atau 3 JP centang 3 pilihan).';
+
+                                $baseInfo = $count > 0
+                                    ? "✓ Terpilih: {$count} JP (Jam Pelajaran). Sistem otomatis mencatat {$count} jam mengajar untuk guru ini."
+                                    : 'Setiap opsi bernilai 1 JP. Centang jam ke berapa saja guru tersebut mengajar (misal 1 JP centang 1 pilihan, 2 JP centang 2 pilihan, atau 3 JP centang 3 pilihan).';
+
+                                if ($warningHtml) {
+                                    return new HtmlString("{$baseInfo}{$warningHtml}");
+                                }
+
+                                return $baseInfo;
                             }),
                     ]),
             ]);
@@ -218,9 +267,32 @@ class ScheduleResource extends Resource
                         }
                         return $data;
                     })
+                    ->before(function (Tables\Actions\EditAction $action, \App\Models\Schedule $record, array $data) {
+                        $days = is_array($data['hari'] ?? []) ? $data['hari'] : (!empty($data['hari']) ? [$data['hari']] : []);
+                        $jams = is_array($data['jam_ke'] ?? []) ? $data['jam_ke'] : (isset($data['jam_ke']) && $data['jam_ke'] !== '' ? [$data['jam_ke']] : []);
+
+                        $clashes = \App\Models\Schedule::checkClashes($data['classroom_id'] ?? null, $data['teacher_id'] ?? null, $days, $jams, $record->id);
+                        if (!empty($clashes)) {
+                            Notification::make()
+                                ->title('Gagal Menyimpan: Bentrok Jadwal Terdeteksi!')
+                                ->body(implode("\n", $clashes))
+                                ->danger()
+                                ->persistent()
+                                ->send();
+
+                            $action->halt();
+                        }
+                    })
                     ->using(function (\App\Models\Schedule $record, array $data): \App\Models\Schedule {
-                        $days = is_array($data['hari']) ? $data['hari'] : [$data['hari']];
-                        $jams = is_array($data['jam_ke']) ? $data['jam_ke'] : [$data['jam_ke']];
+                        $days = is_array($data['hari'] ?? []) ? $data['hari'] : (!empty($data['hari']) ? [$data['hari']] : []);
+                        $jams = is_array($data['jam_ke'] ?? []) ? $data['jam_ke'] : (isset($data['jam_ke']) && $data['jam_ke'] !== '' ? [$data['jam_ke']] : []);
+
+                        $clashes = \App\Models\Schedule::checkClashes($data['classroom_id'] ?? null, $data['teacher_id'] ?? null, $days, $jams, $record->id);
+                        if (!empty($clashes)) {
+                            throw \Illuminate\Validation\ValidationException::withMessages([
+                                'jam_ke' => $clashes,
+                            ]);
+                        }
 
                         $firstDay = array_shift($days);
                         $firstJam = array_shift($jams);
@@ -250,6 +322,11 @@ class ScheduleResource extends Resource
                                 ]);
                             }
                         }
+
+                        Notification::make()
+                            ->title('Jadwal Pelajaran Berhasil Diperbarui')
+                            ->success()
+                            ->send();
 
                         return $record;
                     }),
