@@ -15,6 +15,11 @@ class ListRppms extends ListRecords
     protected function getHeaderActions(): array
     {
         return [
+            Actions\Action::make('open_generator')
+                ->label('🚀 Generator Pembuatan RPPM')
+                ->icon('heroicon-o-arrow-top-right-on-square')
+                ->color('success')
+                ->url('https://gemini.google.com/share/d/1e2rmqWovfw8uUldDF8Ql-uBCv6_Z1_Nv?usp=sharing', shouldOpenInNewTab: true),
             Actions\Action::make('perangkat_ajar')
                 ->label('Tautan Dokumen / Perangkat Ajar')
                 ->icon('heroicon-o-book-open')

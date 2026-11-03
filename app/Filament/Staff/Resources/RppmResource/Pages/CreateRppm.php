@@ -25,6 +25,12 @@ class CreateRppm extends CreateRecord
     protected function getHeaderActions(): array
     {
         return [
+            Actions\Action::make('open_generator')
+                ->label('🚀 Bantuan Generator Pembuatan RPPM')
+                ->icon('heroicon-o-arrow-top-right-on-square')
+                ->color('success')
+                ->url('https://gemini.google.com/share/d/1e2rmqWovfw8uUldDF8Ql-uBCv6_Z1_Nv?usp=sharing', shouldOpenInNewTab: true),
+
             Actions\Action::make('saveDraftHeader')
                 ->label('💾 Simpan Sementara (Draft)')
                 ->color('warning')

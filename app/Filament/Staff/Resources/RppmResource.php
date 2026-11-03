@@ -86,6 +86,10 @@ class RppmResource extends Resource
     {
         return $form
             ->schema([
+                Forms\Components\ViewField::make('generator_rppm_banner')
+                    ->view('filament.staff.components.rppm-generator-banner')
+                    ->columnSpanFull(),
+
                 Forms\Components\Section::make('Informasi Dasar & Input Perangkat Ajar (CP, TP, ATP)')
                     ->description('Input atau pilih Capaian Pembelajaran (CP) dan Tujuan Pembelajaran (TP) yang berlaku 1 semester hingga 1 tahun ajaran.')
                     ->schema([
@@ -94,6 +98,13 @@ class RppmResource extends Resource
 
                         // Tombol Aksi Input & Simpan Langsung (Dengan Tombol Submit & Modal)
                         Forms\Components\Actions::make([
+                            Forms\Components\Actions\Action::make('open_generator_rppm')
+                                ->label('🚀 Buka Generator Pembuatan RPPM')
+                                ->icon('heroicon-o-arrow-top-right-on-square')
+                                ->color('success')
+                                ->button()
+                                ->url('https://gemini.google.com/share/d/1e2rmqWovfw8uUldDF8Ql-uBCv6_Z1_Nv?usp=sharing', shouldOpenInNewTab: true),
+
                             Forms\Components\Actions\Action::make('modal_create_cp')
                                 ->label('+ Input & Simpan CP Baru')
                                 ->icon('heroicon-o-plus-circle')
