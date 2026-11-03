@@ -69,7 +69,14 @@ class ParentSummonResource extends Resource
 
     public static function getNavigationGroup(): ?string
     {
-        return Auth::user()?->hasRole('wali_kelas') ? 'Fitur Wali Kelas' : 'Kesiswaan & Karakter';
+        $user = Auth::user();
+        if ($user?->hasRole('waka_kesiswaan')) {
+            return 'Kesiswaan & Karakter';
+        }
+        if ($user && $user->hasRole('wali_kelas') && !$user->hasAnyRole(['waka_kesiswaan', 'superadmin', 'kepala_sekolah'])) {
+            return 'Fitur Wali Kelas';
+        }
+        return 'Kesiswaan & Karakter';
     }
 
     public static function getEloquentQuery(): Builder

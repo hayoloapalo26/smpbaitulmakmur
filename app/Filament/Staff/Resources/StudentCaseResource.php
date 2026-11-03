@@ -30,7 +30,14 @@ class StudentCaseResource extends Resource
 
     public static function getNavigationGroup(): ?string
     {
-        return Auth::user()?->hasRole('wali_kelas') ? 'Fitur Wali Kelas' : 'Kesiswaan & Karakter';
+        $user = Auth::user();
+        if ($user?->hasRole('waka_kesiswaan')) {
+            return 'Kesiswaan & Karakter';
+        }
+        if ($user && $user->hasRole('wali_kelas') && !$user->hasAnyRole(['waka_kesiswaan', 'superadmin', 'kepala_sekolah'])) {
+            return 'Fitur Wali Kelas';
+        }
+        return 'Kesiswaan & Karakter';
     }
 
     public static function shouldRegisterNavigation(): bool
@@ -50,17 +57,17 @@ class StudentCaseResource extends Resource
         ]);
     }
 
-    /** Wali kelas dan superadmin bisa CREATE kasus */
+    /** Wali kelas, kesiswaan, dan superadmin bisa CREATE kasus */
     public static function canCreate(): bool
     {
-        return Auth::user()->hasAnyRole(['wali_kelas', 'superadmin']);
+        return Auth::user()->hasAnyRole(['wali_kelas', 'waka_kesiswaan', 'superadmin']);
     }
 
-    /** BK/Kesiswaan/Kepsek tidak bisa create — mereka hanya menerima eskalasi */
     public static function canEdit($record): bool
     {
         $user = Auth::user();
         if ($user->hasRole('superadmin'))     return true;
+        if ($user->hasRole('waka_kesiswaan')) return ($record->recommended_to_kesiswaan || $record->ditangani_oleh === 'kesiswaan') && $record->status !== 'selesai';
         if ($user->hasRole('wali_kelas')) {
             // Hanya bisa edit jika masih di level wali kelas
             return $record->wali_kelas_id === $user->id
@@ -68,7 +75,6 @@ class StudentCaseResource extends Resource
                 && $record->status !== 'selesai';
         }
         if ($user->hasRole('bk'))             return $record->recommended_to_bk && $record->status !== 'selesai';
-        if ($user->hasRole('waka_kesiswaan')) return $record->recommended_to_kesiswaan && $record->status !== 'selesai';
         if ($user->hasRole('kepala_sekolah')) return true;
         return false;
     }
@@ -84,10 +90,11 @@ class StudentCaseResource extends Resource
         }
 
         if ($user->hasRole('waka_kesiswaan')) {
-            // Hanya kasus yang sudah direkomendasikan ke kesiswaan ATAU masih di wali kelas
+            // Kasus yang direkomendasikan ke kesiswaan, kepsek, atau ditangani kesiswaan
             return $query->where(function ($q) {
                 $q->where('recommended_to_kesiswaan', true)
-                  ->orWhere('recommended_to_kepsek', true);
+                  ->orWhere('recommended_to_kepsek', true)
+                  ->orWhere('ditangani_oleh', 'kesiswaan');
             });
         }
 
@@ -108,9 +115,9 @@ class StudentCaseResource extends Resource
     public static function form(Form $form): Form
     {
         $user = Auth::user();
-        $isWaliKelas = $user->hasRole('wali_kelas');
+        $isWaliKelasOnly = $user->hasRole('wali_kelas') && !$user->hasAnyRole(['waka_kesiswaan', 'superadmin', 'kepala_sekolah']);
 
-        $classroomIds = $isWaliKelas
+        $classroomIds = $isWaliKelasOnly
             ? Classroom::where('wali_kelas_id', $user->id)->pluck('id')
             : [];
 
@@ -129,7 +136,7 @@ class StudentCaseResource extends Resource
                     Forms\Components\Select::make('student_id')
                         ->label('Nama Siswa')
                         ->options(
-                            $isWaliKelas
+                            $isWaliKelasOnly
                                 ? Student::whereIn('classroom_id', $classroomIds)
                                     ->orderBy('name')->pluck('name', 'id')
                                 : Student::orderBy('name')->pluck('name', 'id')
@@ -137,7 +144,15 @@ class StudentCaseResource extends Resource
                         ->searchable()
                         ->required()
                         ->live()
-                        ->disabled(fn ($record) => $record !== null && !$isWaliKelas),
+                        ->afterStateUpdated(function (Forms\Set $set, $state) {
+                            if ($state) {
+                                $st = Student::with('classroom')->find($state);
+                                if ($st?->classroom?->wali_kelas_id) {
+                                    $set('wali_kelas_id', $st->classroom->wali_kelas_id);
+                                }
+                            }
+                        })
+                        ->disabled(fn ($record) => $record !== null && $isWaliKelasOnly),
 
                     Forms\Components\Placeholder::make('student_profile_preview')
                         ->label('Profil Siswa & Rekam Jejak Terkait')
