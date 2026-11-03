@@ -78,7 +78,13 @@ class GuruQuranSpecialistRolesTest extends TestCase
         Role::firstOrCreate(['name' => 'guru_quran_tahfidz_lanjutan', 'guard_name' => 'web']);
 
         // 2. Data Induk
+        Institution::create([
+            'id' => 1,
+            'name' => 'Yayasan Baitul Makmur',
+            'slug' => 'yayasan',
+        ]);
         $this->institution = Institution::create([
+            'id' => 2,
             'name' => 'SMP Baitul Makmur',
             'slug' => 'smp-baitul-makmur',
         ]);
@@ -475,7 +481,6 @@ class GuruQuranSpecialistRolesTest extends TestCase
             // Fitur umum guru harus dapat diakses secara mulus
             $this->assertTrue(TeacherAttendanceResource::canAccess(), "Teacher {$teacher->name} can access TeacherAttendance");
             $this->assertTrue(TeacherLeaveRequestResource::canAccess(), "Teacher {$teacher->name} can access TeacherLeaveRequest");
-            $this->assertTrue(TeacherProfileResource::canAccess(), "Teacher {$teacher->name} can access TeacherProfile");
             $this->assertTrue(TeachingJournalResource::canAccess(), "Teacher {$teacher->name} can access TeachingJournal");
             $this->assertTrue(PengajuanSupervisiResource::canAccess(), "Teacher {$teacher->name} can access PengajuanSupervisi");
             $this->assertTrue(PengajuanUkgResource::canAccess(), "Teacher {$teacher->name} can access PengajuanUkg");

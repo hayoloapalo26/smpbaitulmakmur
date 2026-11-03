@@ -41,6 +41,9 @@ class User extends Authenticatable implements FilamentUser, HasAvatar
         'guru_quran_tahsin',
         'guru_quran_tahfidz_dasar',
         'guru_quran_tahfidz_lanjutan',
+        'guru_yanbua',
+        'guru_tahsin',
+        'guru_tahfidz',
     ];
 
     public static function getQuranTeacherRoleLabels(): array
@@ -150,10 +153,11 @@ class User extends Authenticatable implements FilamentUser, HasAvatar
 
     public function getQuranSpecializationLabel(): ?string
     {
-        if ($this->hasRole(self::ROLE_GURU_QURAN_YANBUA)) return 'Yanbu\'a';
-        if ($this->hasRole(self::ROLE_GURU_QURAN_TAHSIN)) return 'Tahsin';
-        if ($this->hasRole(self::ROLE_GURU_QURAN_TAHFIDZ_DASAR)) return 'Tahfidz Dasar';
-        if ($this->hasRole(self::ROLE_GURU_QURAN_TAHFIDZ_LANJUTAN)) return 'Tahfidz Lanjutan';
+        if ($this->hasRole(self::ROLE_GURU_QURAN_YANBUA) || $this->hasRole('guru_yanbua')) return 'Yanbu\'a';
+        if ($this->hasRole(self::ROLE_GURU_QURAN_TAHSIN) || $this->hasRole('guru_tahsin')) return 'Tahsin';
+        if ($this->hasRole(self::ROLE_GURU_QURAN_TAHFIDZ_DASAR) || $this->hasRole('guru_tahfidz_dasar')) return 'Tahfidz Dasar';
+        if ($this->hasRole(self::ROLE_GURU_QURAN_TAHFIDZ_LANJUTAN) || $this->hasRole('guru_tahfidz_lanjutan')) return 'Tahfidz Lanjutan';
+        if ($this->hasRole('guru_tahfidz')) return 'Tahfidz';
 
         if ($this->hasRole('guru_alquran')) {
             $jabatan = strtolower($this->jabatan ?? '');
@@ -180,10 +184,11 @@ class User extends Authenticatable implements FilamentUser, HasAvatar
 
     public function getQuranSpecializationKey(): ?string
     {
-        if ($this->hasRole(self::ROLE_GURU_QURAN_YANBUA)) return 'yanbua';
-        if ($this->hasRole(self::ROLE_GURU_QURAN_TAHSIN)) return 'tahsin';
-        if ($this->hasRole(self::ROLE_GURU_QURAN_TAHFIDZ_DASAR)) return 'tahfidz_dasar';
-        if ($this->hasRole(self::ROLE_GURU_QURAN_TAHFIDZ_LANJUTAN)) return 'tahfidz_lanjutan';
+        if ($this->hasRole(self::ROLE_GURU_QURAN_YANBUA) || $this->hasRole('guru_yanbua')) return 'yanbua';
+        if ($this->hasRole(self::ROLE_GURU_QURAN_TAHSIN) || $this->hasRole('guru_tahsin')) return 'tahsin';
+        if ($this->hasRole(self::ROLE_GURU_QURAN_TAHFIDZ_DASAR) || $this->hasRole('guru_tahfidz_dasar')) return 'tahfidz_dasar';
+        if ($this->hasRole(self::ROLE_GURU_QURAN_TAHFIDZ_LANJUTAN) || $this->hasRole('guru_tahfidz_lanjutan')) return 'tahfidz_lanjutan';
+        if ($this->hasRole('guru_tahfidz')) return 'tahfidz';
 
         if ($this->hasRole('guru_alquran')) {
             $label = $this->getQuranSpecializationLabel();
@@ -326,6 +331,16 @@ class User extends Authenticatable implements FilamentUser, HasAvatar
     public function santriQuran()
     {
         return $this->hasMany(Student::class, 'guru_quran_id');
+    }
+
+    public function quranAchievements()
+    {
+        return $this->hasMany(QuranAchievement::class, 'teacher_id');
+    }
+
+    public function readingQualityScores()
+    {
+        return $this->hasMany(ReadingQualityScore::class, 'teacher_id');
     }
 
     public function guardian()

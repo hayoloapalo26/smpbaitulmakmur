@@ -10,6 +10,7 @@ use App\Models\AcademicYear;
 use App\Models\Grade;
 use App\Models\QuranAchievement;
 use App\Models\ReadingQualityScore;
+use App\Models\User;
 use Illuminate\Support\Facades\Auth;
 use Filament\Notifications\Notification;
 
@@ -18,15 +19,21 @@ class RekapNilaiKelas extends Page
     public static function shouldRegisterNavigation(): bool
     {
         $user = Auth::user();
-        if (!$user || $user->isQuranTeacher()) return false;
+        if (!$user) return false;
+        if ($user->isQuranTeacher() && !$user->hasAnyRole(['koordinator_madin', 'waka_kurikulum', 'kepala_sekolah', 'superadmin'])) {
+            return false;
+        }
         return static::canAccess();
     }
 
     public static function canAccess(): bool
     {
         $user = Auth::user();
-        if (!$user || $user->isQuranTeacher()) return false;
-        return $user->hasAnyRole(['wali_kelas', 'guru_kelas', 'waka_kurikulum', 'kepala_sekolah', 'superadmin']);
+        if (!$user) return false;
+        if ($user->isQuranTeacher() && !$user->hasAnyRole(['koordinator_madin', 'waka_kurikulum', 'kepala_sekolah', 'superadmin'])) {
+            return false;
+        }
+        return $user->hasAnyRole(['wali_kelas', 'guru_kelas', 'koordinator_madin', 'waka_kurikulum', 'kepala_sekolah', 'superadmin']);
     }
 
     protected static ?string $navigationIcon = 'heroicon-o-table-cells';
@@ -39,6 +46,9 @@ class RekapNilaiKelas extends Page
     public static function getNavigationGroup(): ?string
     {
         $user = Auth::user();
+        if ($user?->hasRole('koordinator_madin')) {
+            return 'Madrasah Diniyah (Madin)';
+        }
         if ($user?->hasRole('kepala_sekolah')) {
             return 'Perencanaan Administrasi Pembelajaran';
         }
@@ -50,7 +60,11 @@ class RekapNilaiKelas extends Page
 
     public static function getNavigationLabel(): string
     {
-        if (Auth::user()?->hasRole('kepala_sekolah')) {
+        $user = Auth::user();
+        if ($user?->hasRole('koordinator_madin')) {
+            return 'Rekapitulasi Nilai Al-Qur\'an';
+        }
+        if ($user?->hasRole('kepala_sekolah')) {
             return 'Rekap & Input Nilai';
         }
         return 'Rekap & Input Nilai Kelas';
@@ -68,7 +82,11 @@ class RekapNilaiKelas extends Page
 
     public static function getNavigationSort(): ?int
     {
-        if (Auth::user()?->hasRole('kepala_sekolah')) {
+        $user = Auth::user();
+        if ($user?->hasRole('koordinator_madin')) {
+            return 2;
+        }
+        if ($user?->hasRole('kepala_sekolah')) {
             return 3;
         }
         return 2;
@@ -94,6 +112,7 @@ class RekapNilaiKelas extends Page
     }
 
     public ?int $selectedClassroomId = null;
+    public ?int $selectedTeacherId = null;
     public ?int $selectedAcademicYearId = null;
     public string $selectedSemester = 'Ganjil';
     public string $activeTab = 'mapel'; // 'mapel', 'tahfidz', 'input_ujian'
@@ -106,11 +125,25 @@ class RekapNilaiKelas extends Page
     {
         $user = Auth::user();
 
+        if (request()->has('tab')) {
+            $this->activeTab = request('tab');
+        } elseif ($user?->hasRole('koordinator_madin')) {
+            $this->activeTab = 'tahfidz';
+        }
+
+        if (request()->has('teacher_id')) {
+            $this->selectedTeacherId = (int) request('teacher_id');
+        }
+
         // Cari kelas yang dibina wali kelas ini (khusus kelas akademik)
-        $myClass = Classroom::reguler()->where('wali_kelas_id', $user->id)->first();
-        if ($myClass) {
-            $this->selectedClassroomId = $myClass->id;
-        } else {
+        if ($user && $user->hasRole('wali_kelas')) {
+            $myClass = Classroom::reguler()->where('wali_kelas_id', $user->id)->first();
+            if ($myClass) {
+                $this->selectedClassroomId = $myClass->id;
+            }
+        }
+
+        if (!$this->selectedClassroomId && !$user?->hasRole('koordinator_madin')) {
             $firstClass = Classroom::reguler()->orderBy('name')->first() ?? Classroom::orderBy('name')->first();
             $this->selectedClassroomId = $firstClass?->id;
         }
@@ -129,6 +162,11 @@ class RekapNilaiKelas extends Page
     public function updatedSelectedClassroomId(): void
     {
         $this->loadExamScores();
+    }
+
+    public function updatedSelectedTeacherId(): void
+    {
+        $this->activeTab = 'tahfidz';
     }
 
     public function updatedSelectedAcademicYearId(): void
@@ -160,7 +198,8 @@ class RekapNilaiKelas extends Page
             return;
         }
 
-        $students = Student::where('classroom_id', $this->selectedClassroomId)->orderBy('name')->get();
+        $selectedClass = Classroom::find($this->selectedClassroomId);
+        $students = $selectedClass ? $selectedClass->getRealStudents() : Student::where('classroom_id', $this->selectedClassroomId)->orderBy('name')->get();
         $this->examScores = [];
 
         foreach ($students as $student) {
@@ -211,24 +250,55 @@ class RekapNilaiKelas extends Page
     protected function getViewData(): array
     {
         $user = Auth::user();
+        $instId = $user?->institution_id;
 
-        // Daftar kelas akademik yang dapat dipilih
-        $availableClasses = $user->hasAnyRole(['waka_kurikulum', 'kepala_sekolah', 'superadmin'])
-            ? Classroom::reguler()->orderBy('name')->get()
+        // 1. Daftar kelas yang dapat dipilih
+        $isFullAccess = $user->hasAnyRole(['koordinator_madin', 'waka_kurikulum', 'kepala_sekolah', 'superadmin']);
+        $availableClasses = $isFullAccess
+            ? Classroom::when($instId && !$user->hasRole('superadmin'), fn ($q) => $q->where('institution_id', $instId))->orderBy('name')->get()
             : Classroom::reguler()->where('wali_kelas_id', $user->id)->get();
 
-        // Jika wali kelas belum memiliki kelas yang terdaftar, ambil semua kelas reguler agar tidak kosong
         if ($availableClasses->isEmpty()) {
-            $availableClasses = Classroom::reguler()->orderBy('name')->get();
+            $availableClasses = Classroom::orderBy('name')->get();
         }
 
         $academicYears = AcademicYear::orderByDesc('id')->get();
         $subjects = Subject::orderBy('name')->get();
 
-        $selectedClass = Classroom::find($this->selectedClassroomId);
-        $students = $this->selectedClassroomId
-            ? Student::where('classroom_id', $this->selectedClassroomId)->orderBy('name')->get()
-            : collect();
+        // 2. Daftar seluruh Guru Al-Qur'an untuk filter Koordinator Madin / Kurikulum
+        $quranRoleNames = array_merge(User::QURAN_TEACHER_ROLES, ['guru_yanbua', 'guru_tahsin', 'guru_tahfidz']);
+        $quranTeachers = User::where(function ($uq) use ($quranRoleNames) {
+                $uq->whereHas('roles', fn ($q) => $q->whereIn('name', $quranRoleNames))
+                   ->orWhereHas('santriQuran')
+                   ->orWhereHas('quranClassesAsPengampu')
+                   ->orWhereHas('quranAchievements')
+                   ->orWhereHas('readingQualityScores');
+            })
+            ->when($instId && !$user->hasRole('superadmin'), fn ($q) => $q->where('institution_id', $instId))
+            ->orderBy('name')
+            ->get();
+
+        // 3. Ambil data siswa
+        $selectedClass = $this->selectedClassroomId ? Classroom::find($this->selectedClassroomId) : null;
+        
+        if ($selectedClass) {
+            $studentsQuery = $selectedClass->getRealStudents();
+            if ($this->selectedTeacherId) {
+                $studentsQuery = $studentsQuery->filter(function ($s) {
+                    return $s->guru_quran_id == $this->selectedTeacherId;
+                });
+            }
+            $students = $studentsQuery;
+        } else {
+            $stQ = Student::with(['classroom', 'guruQuran']);
+            if ($instId && !$user->hasRole('superadmin')) {
+                $stQ->where('institution_id', $instId);
+            }
+            if ($this->selectedTeacherId) {
+                $stQ->where('guru_quran_id', $this->selectedTeacherId);
+            }
+            $students = $stQ->orderBy('name')->get();
+        }
 
         // 1. REKAP NILAI MAPEL
         $mapelReport = [];
@@ -300,7 +370,7 @@ class RekapNilaiKelas extends Page
                 })->count();
 
                 $latestAchievement = $achievements->first();
-                $latestTeacher = $latestAchievement?->teacher?->name ?? '-';
+                $teacherName = $latestAchievement?->teacher?->name ?? $student->guruQuran?->name ?? '-';
 
                 $qualityScore = ReadingQualityScore::where('student_id', $student->id)
                     ->orderByDesc('tanggal')
@@ -308,7 +378,8 @@ class RekapNilaiKelas extends Page
 
                 $tahfidzReport[] = [
                     'student'           => $student,
-                    'teacher_name'      => $latestTeacher,
+                    'classroom_name'    => $student->classroom?->name ?? '-',
+                    'teacher_name'      => $teacherName,
                     'total_ziyadah'     => $totalZiyadah,
                     'total_murajaah'    => $totalMurajaah,
                     'last_juz'          => $latestAchievement?->juz ?? '-',
@@ -318,6 +389,7 @@ class RekapNilaiKelas extends Page
                     'catatan'           => $latestAchievement?->catatan ?? '-',
                     'quality_scale'     => $qualityScore?->scale_score ?? null,
                     'quality_program'   => $qualityScore?->program ?? null,
+                    'quality_predikat'  => $qualityScore?->predikat ?? null,
                 ];
             }
         }
@@ -330,6 +402,8 @@ class RekapNilaiKelas extends Page
             'students'         => $students,
             'mapelReport'      => $mapelReport,
             'tahfidzReport'    => $tahfidzReport,
+            'quranTeachers'    => $quranTeachers,
+            'isFullAccess'     => $isFullAccess,
         ];
     }
 }

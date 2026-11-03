@@ -2,15 +2,30 @@
     <div class="space-y-6">
         <!-- Filter Bar -->
         <div class="p-5 bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div class="grid grid-cols-1 sm:grid-cols-2 {{ ($isFullAccess ?? false) ? 'lg:grid-cols-4' : 'lg:grid-cols-3' }} gap-4">
                 <div>
-                    <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Pilih Kelas</label>
+                    <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Pilih Kelas / Rombel</label>
                     <select wire:model.live="selectedClassroomId" class="w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 text-sm focus:border-amber-500 focus:ring-amber-500">
+                        @if($isFullAccess ?? false)
+                            <option value="">-- Seluruh Kelas / Rombel (Semua Siswa) --</option>
+                        @endif
                         @foreach($availableClasses as $c)
                             <option value="{{ $c->id }}">{{ $c->name }} (Tingkat {{ $c->tingkat }})</option>
                         @endforeach
                     </select>
                 </div>
+
+                @if($isFullAccess ?? false)
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Guru Al-Qur'an</label>
+                        <select wire:model.live="selectedTeacherId" class="w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 text-sm focus:border-amber-500 focus:ring-amber-500">
+                            <option value="">-- Seluruh Guru Al-Qur'an --</option>
+                            @foreach($quranTeachers ?? [] as $gt)
+                                <option value="{{ $gt->id }}">{{ $gt->name }} [{{ $gt->getQuranSpecializationLabel() ?? 'Al-Qur\'an' }}]</option>
+                            @endforeach
+                        </select>
+                    </div>
+                @endif
 
                 <div>
                     <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Tahun Ajaran</label>
@@ -140,14 +155,21 @@
         <!-- TAB 2: REKAP NILAI & CAPAIAN TAHFIDZ -->
         @if($activeTab === 'tahfidz')
             <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
-                <div class="p-4 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center bg-gray-50/50 dark:bg-gray-700/30">
+                <div class="p-4 border-b border-gray-100 dark:border-gray-700 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 bg-gray-50/50 dark:bg-gray-700/30">
                     <div>
-                        <h3 class="font-bold text-gray-800 dark:text-gray-100">Rekap Capaian & Mutu Al-Qur'an Siswa</h3>
-                        <p class="text-xs text-gray-500">Dihimpun dari inputan setoran hafalan (Ziyadah & Murajaah) serta penilaian mutu bacaan guru Al-Qur'an.</p>
+                        <h3 class="font-bold text-gray-800 dark:text-gray-100">Rekap Capaian & Mutu Al-Qur'an Santri</h3>
+                        <p class="text-xs text-gray-500">Dihimpun dari inputan setoran hafalan (Ziyadah & Murajaah) serta penilaian mutu bacaan dari seluruh guru Al-Qur'an.</p>
                     </div>
-                    <span class="text-xs px-2.5 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-md font-medium">
-                        Kelas: {{ $selectedClass?->name ?? '-' }}
-                    </span>
+                    <div class="flex items-center gap-2">
+                        <span class="text-xs px-2.5 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-md font-medium">
+                            Kelas: {{ $selectedClass?->name ?? 'Seluruh Kelas & Rombel' }}
+                        </span>
+                        @if($selectedTeacherId && !empty($quranTeachers))
+                            <span class="text-xs px-2.5 py-1 bg-amber-50 text-amber-700 border border-amber-200 rounded-md font-medium">
+                                Guru: {{ $quranTeachers->firstWhere('id', $selectedTeacherId)?->name ?? 'Guru Pengampu' }}
+                            </span>
+                        @endif
+                    </div>
                 </div>
 
                 @if(count($tahfidzReport) > 0)
@@ -158,11 +180,12 @@
                                     <th class="px-3 py-3 text-center w-12">No</th>
                                     <th class="px-3 py-3 w-28">NIS</th>
                                     <th class="px-4 py-3 min-w-[160px]">Nama Siswa</th>
+                                    <th class="px-3 py-3 min-w-[110px]">Kelas / Rombel</th>
                                     <th class="px-3 py-3 text-center">Total Ziyadah</th>
                                     <th class="px-3 py-3 text-center">Total Murajaah</th>
                                     <th class="px-4 py-3 min-w-[150px]">Capaian Terakhir</th>
                                     <th class="px-3 py-3 text-center">Skor Mutu Bacaan</th>
-                                    <th class="px-4 py-3 min-w-[140px]">Guru Pengampu</th>
+                                    <th class="px-4 py-3 min-w-[140px]">Guru Pengampu Al-Qur'an</th>
                                     <th class="px-4 py-3 min-w-[200px]">Catatan Perkembangan</th>
                                 </tr>
                             </thead>
@@ -172,6 +195,11 @@
                                         <td class="px-3 py-3 text-center text-gray-500">{{ $idx + 1 }}</td>
                                         <td class="px-3 py-3 font-mono text-gray-600 dark:text-gray-400">{{ $tRow['student']->nis }}</td>
                                         <td class="px-4 py-3 font-semibold text-gray-900 dark:text-gray-100">{{ $tRow['student']->name }}</td>
+                                        <td class="px-3 py-3 font-semibold text-gray-700 dark:text-gray-300">
+                                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200">
+                                                {{ $tRow['classroom_name'] }}
+                                            </span>
+                                        </td>
                                         <td class="px-3 py-3 text-center">
                                             <span class="px-2 py-0.5 rounded-full text-xs font-bold bg-blue-50 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">
                                                 {{ $tRow['total_ziyadah'] }}x
@@ -196,12 +224,20 @@
                                             @if($tRow['quality_scale'] !== null)
                                                 <span class="inline-block px-2.5 py-1 rounded-md text-xs font-bold {{ $tRow['quality_scale'] >= 80 ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800' }}">
                                                     {{ $tRow['quality_scale'] }} ({{ ucfirst($tRow['quality_program']) }})
+                                                    @if(!empty($tRow['quality_predikat']))
+                                                        <span class="text-[10px] block font-normal">[{{ $tRow['quality_predikat'] }}]</span>
+                                                    @endif
                                                 </span>
                                             @else
                                                 <span class="text-gray-400">-</span>
                                             @endif
                                         </td>
-                                        <td class="px-4 py-3 text-gray-700 dark:text-gray-300">{{ $tRow['teacher_name'] }}</td>
+                                        <td class="px-4 py-3 text-gray-700 dark:text-gray-300 font-medium">
+                                            <div class="flex items-center gap-1.5">
+                                                <span class="text-xs">📖</span>
+                                                <span>{{ $tRow['teacher_name'] }}</span>
+                                            </div>
+                                        </td>
                                         <td class="px-4 py-3 text-gray-500 text-xs italic">{{ $tRow['catatan'] }}</td>
                                     </tr>
                                 @endforeach

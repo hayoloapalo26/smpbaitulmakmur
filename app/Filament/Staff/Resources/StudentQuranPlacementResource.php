@@ -48,6 +48,15 @@ class StudentQuranPlacementResource extends Resource
         return auth()->user()?->hasAnyRole(['waka_kurikulum', 'koordinator_madin', 'kepala_sekolah', 'superadmin']) ?? false;
     }
 
+    public static function getNavigationGroup(): ?string
+    {
+        $user = auth()->user();
+        if ($user?->hasRole('koordinator_madin')) {
+            return 'Madrasah Diniyah (Madin)';
+        }
+        return 'Akademik & Kurikulum';
+    }
+
     public static function canCreate(): bool
     {
         return false;

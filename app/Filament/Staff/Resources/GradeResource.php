@@ -29,8 +29,8 @@ class GradeResource extends Resource
         $user = auth()->user();
         if (!$user) return false;
 
-        // Guru Al-Qur'an TIDAK PERNAH melihat daftar nilai mapel umum di sidebar
-        if ($user->isQuranTeacher()) {
+        // Guru Al-Qur'an murni TIDAK PERNAH melihat daftar nilai mapel umum di sidebar
+        if ($user->isQuranTeacher() && !$user->hasAnyRole(['koordinator_madin', 'waka_kurikulum', 'kepala_sekolah', 'superadmin'])) {
             return false;
         }
 
@@ -42,8 +42,8 @@ class GradeResource extends Resource
         $user = auth()->user();
         if (!$user) return false;
 
-        // Guru Al-Qur'an memiliki sistem penilaian khusus (Tahfidz & Mutu Bacaan) tanpa CP, TP, dan ATP
-        if ($user->isQuranTeacher()) {
+        // Guru Al-Qur'an murni memiliki sistem penilaian khusus (Tahfidz & Mutu Bacaan) tanpa CP, TP, dan ATP
+        if ($user->isQuranTeacher() && !$user->hasAnyRole(['koordinator_madin', 'waka_kurikulum', 'kepala_sekolah', 'superadmin'])) {
             return false;
         }
 
@@ -51,6 +51,7 @@ class GradeResource extends Resource
             'guru_mapel',
             'guru_kelas',
             'wali_kelas',
+            'koordinator_madin',
             'waka_kurikulum',
             'kepala_sekolah',
             'superadmin',

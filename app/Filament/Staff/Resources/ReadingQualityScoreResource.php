@@ -26,9 +26,9 @@ class ReadingQualityScoreResource extends Resource
         $user = auth()->user();
         if (!$user) return false;
 
-        // Guru Al-Qur'an menggunakan 1 fitur terintegrasi satu pintu "Penilaian & Capaian Al-Qur'an",
+        // Guru Al-Qur'an murni menggunakan 1 fitur terintegrasi satu pintu "Penilaian & Capaian Al-Qur'an",
         // sehingga menu terpisah ini dinonaktifkan dari navigasi mereka agar tidak dua kali kerja.
-        if ($user->isQuranTeacher()) {
+        if ($user->isQuranTeacher() && !$user->hasAnyRole(['koordinator_madin', 'waka_kurikulum', 'kepala_sekolah', 'superadmin'])) {
             return false;
         }
 

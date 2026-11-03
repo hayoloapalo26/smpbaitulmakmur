@@ -189,10 +189,16 @@
         {{-- TAB 1: MONITORING GURU AL-QUR'AN --}}
         @if($activeTab === 'monitoring_guru')
             <div class="overflow-hidden bg-white border border-gray-200 rounded-xl shadow-sm dark:bg-gray-800 dark:border-gray-700">
-                <div class="p-4 border-b border-gray-200 bg-gray-50 dark:bg-gray-800/80 dark:border-gray-700 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                <div class="p-4 border-b border-gray-200 bg-gray-50 dark:bg-gray-800/80 dark:border-gray-700 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                     <div>
                         <h3 class="font-bold text-gray-900 dark:text-white">Rekapitulasi Penyerahan Nilai per Guru Al-Qur'an</h3>
                         <p class="text-xs text-gray-500 dark:text-gray-400">Pantau progres penginputan nilai dan terima setoran nilai dari masing-masing guru Al-Qur'an.</p>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <a href="{{ url('/staff/rekap-nilai-kelas?tab=tahfidz') }}" class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg shadow-sm transition">
+                            <x-heroicon-o-table-cells class="w-4 h-4" />
+                            <span>📊 Buka Rekapitulasi Nilai Santri</span>
+                        </a>
                     </div>
                 </div>
 
@@ -271,18 +277,29 @@
                                         {{ $item['last_input'] }}
                                     </td>
                                     <td class="px-4 py-3 text-center">
-                                        @if($item['pending_all'] > 0)
-                                            <button
-                                                wire:click="terimaSemuaDariGuru({{ $item['teacher']->id }})"
-                                                wire:confirm="Apakah Anda yakin menerima dan memverifikasi seluruh inputan nilai ({{ $item['pending_all'] }} data) dari {{ $item['teacher']->name }}?"
-                                                class="inline-flex items-center px-3 py-1.5 text-xs font-semibold text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 shadow-sm transition"
+                                        <div class="flex items-center justify-center gap-1.5 flex-wrap">
+                                            <a
+                                                href="{{ url('/staff/rekap-nilai-kelas?tab=tahfidz&teacher_id=' . $item['teacher']->id) }}"
+                                                title="Lihat Rekapitulasi Nilai Santri Binaan {{ $item['teacher']->name }}"
+                                                class="inline-flex items-center px-2.5 py-1 text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-300 rounded-lg hover:bg-emerald-100 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-700 transition"
                                             >
-                                                <x-heroicon-m-check class="w-4 h-4 mr-1" />
-                                                Terima Semua
-                                            </button>
-                                        @else
-                                            <span class="text-xs text-emerald-600 font-semibold dark:text-emerald-400">✓ Tervalidasi</span>
-                                        @endif
+                                                <x-heroicon-m-eye class="w-3.5 h-3.5 mr-1" />
+                                                Rekap Nilai
+                                            </a>
+
+                                            @if($item['pending_all'] > 0)
+                                                <button
+                                                    wire:click="terimaSemuaDariGuru({{ $item['teacher']->id }})"
+                                                    wire:confirm="Apakah Anda yakin menerima dan memverifikasi seluruh inputan nilai ({{ $item['pending_all'] }} data) dari {{ $item['teacher']->name }}?"
+                                                    class="inline-flex items-center px-2.5 py-1 text-xs font-semibold text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 shadow-sm transition"
+                                                >
+                                                    <x-heroicon-m-check class="w-3.5 h-3.5 mr-1" />
+                                                    Terima Semua
+                                                </button>
+                                            @else
+                                                <span class="text-xs text-emerald-600 font-semibold dark:text-emerald-400">✓ Tervalidasi</span>
+                                            @endif
+                                        </div>
                                     </td>
                                 </tr>
                             @empty
