@@ -3,134 +3,65 @@
     $year = $selectedYear ?? (int) request('tahun', date('Y'));
     $selectedTeacherId = $selectedTeacherId ?? request('teacher_id');
 
-    $startOfMonth = \Carbon\Carbon::create($year, $month, 1)->startOfMonth();
-    $endOfMonth = \Carbon\Carbon::create($year, $month, 1)->endOfMonth();
-
-    // Hitung kemunculan hari dalam bulan
-    $dayCounts = [
-        'Senin' => 0,
-        'Selasa' => 0,
-        'Rabu' => 0,
-        'Kamis' => 0,
-        'Jumat' => 0,
-        'Sabtu' => 0,
-        'Minggu' => 0,
-    ];
-
-    $cursor = $startOfMonth->copy();
-    $totalHariAktif = 0;
-    while ($cursor->lte($endOfMonth)) {
-        $dayName = \App\Models\Schedule::getIndonesianDayName($cursor);
-        if (isset($dayCounts[$dayName])) {
-            $dayCounts[$dayName]++;
-        }
-        if (in_array($cursor->dayOfWeek, [1, 2, 3, 4, 5])) {
-            $totalHariAktif++;
-        }
-        $cursor->addDay();
-    }
-
-    // Ambil guru riil (tanpa dummy @smp.com dan tanpa akun Guru Piket)
-    $teachersQuery = \App\Models\User::withoutGlobalScopes()
-        ->where(function ($q) {
-            $q->whereHas('roles', fn ($r) => $r->whereIn('name', array_merge(['guru_mapel', 'guru_alquran', 'wali_kelas', 'guru_kelas', 'waka_kurikulum'], \App\Models\User::QURAN_TEACHER_ROLES)))
-              ->orWhereHas('schedules');
-        })
-        ->where('name', 'not like', '%piket%')
-        ->where(fn ($q) => $q->whereNull('username')->orWhere('username', 'not like', '%piket%'))
-        ->where('email', 'not like', '%piket%')
-        ->where('email', 'not like', '%@smp.com')
-        ->whereNotIn('id', [1, 2, 3, 25, 30, 31, 32]);
-
-    if (!empty($selectedTeacherId)) {
-        $teachersQuery->where('id', $selectedTeacherId);
-    }
-
-    $teachers = $teachersQuery->orderBy('name')->get();
-
-    $reportData = [];
-    $totals = [
-        'weekly_jp' => 0,
-        'monthly_target_jp' => 0,
-        'hadir_jp' => 0,
-        'inval_jp' => 0,
-        'total_kehadiran_jp' => 0,
-        'izin_jp' => 0,
-        'sakit_jp' => 0,
-        'alpa_jp' => 0,
-        'dinas_jp' => 0,
-        'selisih_jp' => 0,
-    ];
-
-    foreach ($teachers as $t) {
-        if (str_contains(strtolower($t->name), 'piket') || str_contains(strtolower($t->username ?? ''), 'piket') || str_contains(strtolower($t->email ?? ''), 'piket')) {
-            continue;
-        }
-        $schedules = \App\Models\Schedule::withoutGlobalScopes()->where('teacher_id', $t->id)->get();
-        $weeklyJP = $schedules->count();
-
-        // Tanggung jawab bulanan (target JP wajib sesuai kalender aktif)
-        $monthlyTargetJP = 0;
-        foreach ($schedules as $s) {
-            $monthlyTargetJP += ($dayCounts[$s->hari] ?? 4);
-        }
-
-        $attendances = \App\Models\TeacherAttendance::withoutGlobalScopes()
-            ->where('teacher_id', $t->id)
-            ->whereYear('tanggal', $year)
-            ->whereMonth('tanggal', $month)
-            ->get();
-
-        $hadirJP = $attendances->whereIn('status', ['masuk', 'hadir'])->count();
-        $izinJP = $attendances->where('status', 'izin')->count();
-        $sakitJP = $attendances->where('status', 'sakit')->count();
-        $alpaJP = $attendances->where('status', 'alpa')->count();
-        $dinasJP = $attendances->where('status', 'dinas_luar')->count();
-
-        $invalJP = \App\Models\TeacherAttendance::withoutGlobalScopes()
-            ->where('substitute_teacher_id', $t->id)
-            ->whereYear('tanggal', $year)
-            ->whereMonth('tanggal', $month)
-            ->count();
-
-        $totalKehadiranJP = $hadirJP + $invalJP;
-        $selisihJP = $totalKehadiranJP - $monthlyTargetJP;
-        $persen = $monthlyTargetJP > 0 ? round(($totalKehadiranJP / $monthlyTargetJP) * 100, 1) : ($totalKehadiranJP > 0 ? 100 : 0);
-
-        $totals['weekly_jp'] += $weeklyJP;
-        $totals['monthly_target_jp'] += $monthlyTargetJP;
-        $totals['hadir_jp'] += $hadirJP;
-        $totals['inval_jp'] += $invalJP;
-        $totals['total_kehadiran_jp'] += $totalKehadiranJP;
-        $totals['izin_jp'] += $izinJP;
-        $totals['sakit_jp'] += $sakitJP;
-        $totals['alpa_jp'] += $alpaJP;
-        $totals['dinas_jp'] += $dinasJP;
-        $totals['selisih_jp'] += $selisihJP;
-
-        $reportData[] = [
-            'name' => $t->name,
-            'nip' => $t->nuptk ?: ($t->no_induk_yayasan ?: '-'),
-            'weekly_jp' => $weeklyJP,
-            'monthly_target_jp' => $monthlyTargetJP,
-            'hadir_jp' => $hadirJP,
-            'inval_jp' => $invalJP,
-            'total_kehadiran_jp' => $totalKehadiranJP,
-            'izin_jp' => $izinJP,
-            'sakit_jp' => $sakitJP,
-            'alpa_jp' => $alpaJP,
-            'dinas_jp' => $dinasJP,
-            'selisih_jp' => $selisihJP,
-            'persen' => $persen,
-        ];
-    }
-
-    $avgPersen = $totals['monthly_target_jp'] > 0
-        ? round(($totals['total_kehadiran_jp'] / $totals['monthly_target_jp']) * 100, 1)
-        : 0;
-
-    $namaBulan = \Carbon\Carbon::create($year, $month, 1)->translatedFormat('F Y');
+    $reportState = \App\Services\TeacherAttendanceReportService::getReportData($month, $year, $selectedTeacherId);
+    $reportData = $reportState['reportData'];
+    $totals = $reportState['totals'];
+    $avgPersen = $reportState['avgPersen'];
+    $namaBulan = $reportState['namaBulan'];
+    $totalHariAktif = $reportState['totalHariAktif'];
 @endphp
+
+<style>
+@media print {
+    @page {
+        size: A4 landscape;
+        margin: 8mm 10mm 10mm 10mm;
+    }
+    nav, aside, header, .fi-topbar, .fi-sidebar, .fi-modal-close-overlay, .fi-modal-header, .fi-modal-footer, .print\:hidden, button, input {
+        display: none !important;
+        visibility: hidden !important;
+    }
+    html, body, .fi-modal, .fi-modal-window, .fi-modal-content, .fi-page, .fi-main {
+        position: static !important;
+        overflow: visible !important;
+        max-height: none !important;
+        height: auto !important;
+        width: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        box-shadow: none !important;
+        border: none !important;
+        background: white !important;
+        color: black !important;
+    }
+    #attendance-report-printable {
+        display: block !important;
+        position: static !important;
+        width: 100% !important;
+        overflow: visible !important;
+        background: white !important;
+        color: black !important;
+    }
+    table {
+        width: 100% !important;
+        page-break-inside: auto !important;
+        border-collapse: collapse !important;
+    }
+    thead {
+        display: table-header-group !important;
+    }
+    tfoot {
+        display: table-footer-group !important;
+    }
+    tr {
+        page-break-inside: avoid !important;
+        page-break-after: auto !important;
+    }
+    .avoid-page-break {
+        page-break-inside: avoid !important;
+    }
+}
+</style>
 
 <div x-data="{
     searchQuery: '',
@@ -149,17 +80,25 @@
         }
         return matchText && matchFilter;
     }
-}" class="space-y-6 p-4 text-gray-900 dark:text-gray-100">
+}" class="space-y-6 p-4 text-gray-900 dark:text-gray-100" id="attendance-report-printable">
     <!-- Action Header (Hidden saat Cetak) -->
-    <div class="flex justify-between items-center border-b pb-4 print:hidden">
+    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b pb-4 print:hidden">
         <div>
             <h3 class="text-lg font-bold">Laporan Rekapitulasi Beban & Kehadiran Jam Guru</h3>
             <p class="text-xs text-gray-500">Periode: <strong class="text-primary-600">{{ $namaBulan }}</strong> ({{ $totalHariAktif }} Hari Efektif Belajar)</p>
         </div>
-        <button onclick="window.print()" class="inline-flex items-center px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white text-xs font-semibold rounded-lg shadow-sm transition">
-            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
-            Cetak Dokumen / PDF
-        </button>
+        <div class="flex items-center gap-2 flex-wrap">
+            <a href="{{ route('academic.teacher-attendance.rekap.pdf', ['bulan' => $month, 'tahun' => $year, 'teacher_id' => $selectedTeacherId]) }}"
+               target="_blank"
+               class="inline-flex items-center px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold rounded-lg shadow-sm transition">
+                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                Unduh / Cetak PDF Resmi
+            </a>
+            <button type="button" onclick="window.print()" class="inline-flex items-center px-3.5 py-2 bg-gray-600 hover:bg-gray-700 text-white text-xs font-semibold rounded-lg shadow-sm transition">
+                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
+                Print Langsung
+            </button>
+        </div>
     </div>
 
     <!-- Panel Pencarian Guru & Filter Cepat (Hidden saat Cetak) -->

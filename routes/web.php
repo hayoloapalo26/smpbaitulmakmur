@@ -140,6 +140,9 @@ Route::middleware('auth')->prefix('print')->name('academic.')->group(function ()
 
     // 11. Sertifikat & Portofolio Guru
     Route::get('/certificate/{certificate}', [\App\Http\Controllers\AcademicPrintController::class, 'certificatePdf'])->name('certificate.pdf');
+
+    // 12. Rekapitulasi Presensi & Beban Jam Mengajar Guru Bulanan
+    Route::get('/teacher-attendance-rekap', [\App\Http\Controllers\AcademicPrintController::class, 'teacherAttendanceReportPdf'])->name('teacher-attendance.rekap.pdf');
 });
 
 

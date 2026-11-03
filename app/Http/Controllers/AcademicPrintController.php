@@ -262,4 +262,21 @@ class AcademicPrintController extends Controller
 
         return $this->generatePdf('pdf.teacher_certificate', compact('certificate'), 'a4', 'portrait', $filename);
     }
+
+    /**
+     * 14. Cetak Rekapitulasi Presensi & Beban Jam Mengajar Guru Bulanan (Landscape A4)
+     */
+    public function teacherAttendanceReportPdf(Request $request)
+    {
+        $month = (int) $request->query('bulan', date('m'));
+        $year = (int) $request->query('tahun', date('Y'));
+        $teacherId = $request->filled('teacher_id') ? (int) $request->query('teacher_id') : null;
+
+        $data = \App\Services\TeacherAttendanceReportService::getReportData($month, $year, $teacherId);
+
+        $namaBulanSlug = Str::slug($data['namaBulan']);
+        $filename = "rekap-presensi-beban-jam-guru-{$namaBulanSlug}.pdf";
+
+        return $this->generatePdf('pdf.teacher_attendance_report', $data, 'a4', 'landscape', $filename);
+    }
 }
