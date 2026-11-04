@@ -64,6 +64,8 @@ class StaffPanelProvider extends PanelProvider
                 'Fitur Wali Kelas',
                 'Tugas Guru Piket',
                 'Piket',
+                'Tugas Guru Ekstrakurikuler',
+                'Ekstrakurikuler',
 
                 // 3. TUGAS JABATAN (Ditaruh setelah Tugas Guru)
                 'Tugas Kepala Sekolah',

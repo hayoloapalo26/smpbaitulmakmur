@@ -10,10 +10,17 @@ class Extracurricular extends Model
 
     protected $guarded = ['id'];
 
-    //
+    protected $casts = [
+        'is_active' => 'boolean',
+    ];
 
     public function pembina()
     {
         return $this->belongsTo(User::class, 'pembina_id');
+    }
+
+    public function attendances()
+    {
+        return $this->hasMany(ExtracurricularAttendance::class, 'extracurricular_id');
     }
 }

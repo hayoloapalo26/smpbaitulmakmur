@@ -94,6 +94,76 @@ Route::get('/report/osis', function () {
     return $pdf->download('laporan_program_osis.pdf');
 })->name('report.osis')->middleware('auth');
 
+Route::get('/report/extracurricular-attendance', function (\Illuminate\Http\Request $request) {
+    $user = auth()->user();
+    if (!$user || !$user->hasAnyRole(['guru_ekstrakurikuler', 'waka_kesiswaan', 'kepala_sekolah', 'superadmin'])) {
+        abort(403, 'Akses khusus Guru Ekstrakurikuler, Waka Kesiswaan, dan Kepala Sekolah.');
+    }
+
+    $extracurricularId = $request->query('extracurricular_id');
+    $extracurricular = $extracurricularId ? \App\Models\Extracurricular::with('pembina')->find($extracurricularId) : null;
+
+    $month = $request->query('month');
+    $year = $request->query('year', date('Y'));
+
+    $query = \App\Models\ExtracurricularAttendance::with(['student.classroom', 'extracurricular']);
+
+    if ($extracurricularId) {
+        $query->where('extracurricular_id', $extracurricularId);
+    } elseif ($user->hasRole('guru_ekstrakurikuler') && !$user->hasAnyRole(['waka_kesiswaan', 'superadmin', 'kepala_sekolah'])) {
+        $myEskuls = \App\Models\Extracurricular::where('pembina_id', $user->id)->pluck('id');
+        $query->whereIn('extracurricular_id', $myEskuls);
+    }
+
+    if ($month) {
+        $query->whereMonth('tanggal', $month);
+    }
+    if ($year) {
+        $query->whereYear('tanggal', $year);
+    }
+
+    $attendances = $query->orderBy('tanggal', 'desc')->get();
+
+    $studentsGrouped = $attendances->groupBy('student_id');
+    $recapData = [];
+
+    foreach ($studentsGrouped as $studentId => $records) {
+        $firstRec = $records->first();
+        $student = $firstRec->student;
+        $total = $records->count();
+        $hadir = $records->where('status', 'hadir')->count();
+        $izin = $records->where('status', 'izin')->count();
+        $sakit = $records->where('status', 'sakit')->count();
+        $alpa = $records->where('status', 'alpa')->count();
+        $percent = $total > 0 ? round(($hadir / $total) * 100) : 0;
+
+        $recapData[] = [
+            'nis' => $student?->nis ?? '-',
+            'name' => $student?->name ?? 'Siswa #' . $studentId,
+            'kelas' => $student?->classroom?->name ?? '-',
+            'hadir' => $hadir,
+            'izin' => $izin,
+            'sakit' => $sakit,
+            'alpa' => $alpa,
+            'total' => $total,
+            'percent' => $percent,
+        ];
+    }
+
+    usort($recapData, fn ($a, $b) => strcmp($a['name'], $b['name']));
+
+    $monthNames = [
+        1 => 'Januari', 2 => 'Februari', 3 => 'Maret', 4 => 'April',
+        5 => 'Mei', 6 => 'Juni', 7 => 'Juli', 8 => 'Agustus',
+        9 => 'September', 10 => 'Oktober', 11 => 'November', 12 => 'Desember',
+    ];
+
+    $periodeLabel = $month ? ($monthNames[(int)$month] ?? '') . ' ' . $year : 'Tahun ' . $year;
+
+    $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('pdf.extracurricular_attendance_report', compact('extracurricular', 'recapData', 'periodeLabel'));
+    return $pdf->download('rekap_presensi_ekstrakurikuler.pdf');
+})->name('report.extracurricular-attendance')->middleware('auth');
+
 Route::get('/supervisi/report-card/{supervision}/pdf', [\App\Http\Controllers\SupervisiReportCardController::class, 'downloadPdf'])
     ->name('supervisi.report-card.pdf')
     ->middleware('auth');

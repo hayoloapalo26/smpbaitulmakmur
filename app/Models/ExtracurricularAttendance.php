@@ -10,7 +10,9 @@ class ExtracurricularAttendance extends Model
 
     protected $guarded = ['id'];
 
-    //
+    protected $casts = [
+        'tanggal' => 'date',
+    ];
 
     public function student()
     {
@@ -20,5 +22,10 @@ class ExtracurricularAttendance extends Model
     public function extracurricular()
     {
         return $this->belongsTo(Extracurricular::class, 'extracurricular_id');
+    }
+
+    public function pembina()
+    {
+        return $this->belongsTo(User::class, 'pembina_id');
     }
 }

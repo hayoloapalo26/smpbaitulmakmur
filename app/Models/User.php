@@ -81,6 +81,7 @@ class User extends Authenticatable implements FilamentUser, HasAvatar
             'humas' => '🤝 Hubungan Masyarakat',
             'bk' => '💬 Bimbingan Konseling',
             'pembina_osis' => '⭐ Pembina OSIS',
+            'guru_ekstrakurikuler' => '🏸 Guru Ekstrakurikuler',
             'orang_tua' => '👨‍👩‍👧 Orang Tua Siswa',
             'siswa' => '🎒 Siswa',
             default => ucwords(str_replace('_', ' ', $role)),
@@ -155,6 +156,11 @@ class User extends Authenticatable implements FilamentUser, HasAvatar
     public function isPembinaOsis(): bool
     {
         return $this->hasRole('pembina_osis');
+    }
+
+    public function isGuruEkstrakurikuler(): bool
+    {
+        return $this->hasRole('guru_ekstrakurikuler');
     }
 
     public function getQuranSpecializationLabel(): ?string
