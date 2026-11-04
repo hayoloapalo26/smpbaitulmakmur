@@ -1051,6 +1051,13 @@ class StudentResource extends Resource
                     ->color('danger')
                     ->url(fn (Student $record) => route('academic.student.pdf', $record))
                     ->openUrlInNewTab(),
+                Tables\Actions\Action::make('cetak_rapor_akademik')
+                    ->label('Cetak Rapor')
+                    ->icon('heroicon-o-document-chart-bar')
+                    ->color('primary')
+                    ->url(fn (Student $record) => route('report.rapor.student.pdf', $record))
+                    ->openUrlInNewTab()
+                    ->visible(fn () => Auth::user()->hasAnyRole(['wali_kelas', 'guru_kelas', 'waka_kurikulum', 'kepala_sekolah', 'superadmin', 'tata_usaha'])),
                 Tables\Actions\EditAction::make(),
                 Tables\Actions\Action::make('download_pdf')
                     ->label('Rapor Karakter')

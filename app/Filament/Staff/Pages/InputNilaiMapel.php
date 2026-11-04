@@ -370,16 +370,14 @@ class InputNilaiMapel extends Page
         $k = ($k !== '' && $k !== null) ? (float)$k : null;
         $u = ($u !== '' && $u !== null) ? (float)$u : null;
 
-        if ($p !== null && $k !== null && $u !== null) {
-            return round(($p * 0.3) + ($k * 0.3) + ($u * 0.4), 1);
-        } elseif ($p !== null && $u !== null) {
-            return round(($p * 0.5) + ($u * 0.5), 1);
-        } elseif ($p !== null && $k !== null) {
-            return round(($p * 0.5) + ($k * 0.5), 1);
-        } elseif ($u !== null) {
-            return round($u, 1);
-        } elseif ($p !== null) {
-            return round($p, 1);
+        // Gunakan formula resmi rapor:
+        // NA Pengetahuan = (RT-NH + 2 * UTS) / 3
+        $naP = \App\Services\RaporCalculationService::calculateNaPengetahuan($p, $u);
+
+        if ($naP !== null && $k !== null) {
+            return round(($naP + $k) / 2, 1);
+        } elseif ($naP !== null) {
+            return round($naP, 1);
         } elseif ($k !== null) {
             return round($k, 1);
         }

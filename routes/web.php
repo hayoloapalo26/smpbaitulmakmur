@@ -20,7 +20,7 @@ Route::get('/portal', function () {
 Route::get('/portal/student', \App\Livewire\Portal\StudentDashboard::class)->name('portal.student')->middleware('auth');
 Route::get('/portal/parent', \App\Livewire\Portal\ParentDashboard::class)->name('portal.parent')->middleware('auth');
 
-Route::get('/portal/rapor/{student}', function (\App\Models\Student $student) {
+Route::get('/portal/rapor/{student}', function (\App\Models\Student $student, \Illuminate\Http\Request $request) {
     if (!auth()->check()) return redirect('/staff/login');
     
     // Pastikan administrasi lunas
@@ -28,18 +28,43 @@ Route::get('/portal/rapor/{student}', function (\App\Models\Student $student) {
         abort(403, 'Akses ditolak: Administrasi belum lunas.');
     }
 
-    // Pastikan user adalah orang tua dari anak ini atau anak itu sendiri
-    $user = auth()->user();
-    if ($user->hasRole('siswa') && $student->id !== $user->student_id) {
-        // Wait, how do we verify if it's the correct student for the siswa?
-        // Since we don't have user_id on students table, we rely on the logic used in StudentDashboard
-        // But for now, we just pass since this is a demo. We can just allow if authenticated.
-    }
-    
-    $grades = \App\Models\Grade::where('student_id', $student->id)->with('subject')->get();
-    $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('pdf.rapor_akademik', compact('student', 'grades'));
+    $academicYearId = $request->query('academic_year_id');
+    $semester = $request->query('semester', 'Ganjil');
+
+    $rapor = \App\Services\RaporCalculationService::getRaporData($student, $academicYearId, $semester);
+    $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('pdf.rapor_akademik', compact('rapor'));
     return $pdf->download('e-rapor_'.$student->nis.'.pdf');
 })->name('portal.rapor')->middleware('auth');
+
+Route::get('/report/rapor/{student}', function (\App\Models\Student $student, \Illuminate\Http\Request $request) {
+    if (!auth()->check()) return redirect('/staff/login');
+    $user = auth()->user();
+    if (!$user->hasAnyRole(['wali_kelas', 'guru_kelas', 'waka_kurikulum', 'kepala_sekolah', 'superadmin', 'tata_usaha'])) {
+        abort(403, 'Akses ditolak.');
+    }
+
+    $academicYearId = $request->query('academic_year_id');
+    $semester = $request->query('semester', 'Ganjil');
+
+    $rapor = \App\Services\RaporCalculationService::getRaporData($student, $academicYearId, $semester);
+    $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('pdf.rapor_akademik', compact('rapor'));
+    return $pdf->download('rapor_'.$student->nis.'.pdf');
+})->name('report.rapor.student.pdf')->middleware('auth');
+
+Route::get('/report/rapor-leger/{classroom}', function (\App\Models\Classroom $classroom, \Illuminate\Http\Request $request) {
+    if (!auth()->check()) return redirect('/staff/login');
+    $user = auth()->user();
+    if (!$user->hasAnyRole(['wali_kelas', 'guru_kelas', 'waka_kurikulum', 'kepala_sekolah', 'superadmin', 'tata_usaha'])) {
+        abort(403, 'Akses ditolak.');
+    }
+
+    $academicYearId = $request->query('academic_year_id');
+    $semester = $request->query('semester', 'Ganjil');
+
+    $leger = \App\Services\RaporCalculationService::getClassLeger($classroom->id, $academicYearId, $semester);
+    $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('pdf.leger_nilai_kelas', compact('leger'));
+    return $pdf->download('leger_kelas_'.$classroom->name.'.pdf');
+})->name('report.rapor.leger.pdf')->middleware('auth');
 
 Route::get('/report/character/{student}', function (\App\Models\Student $student) {
     $logs = \App\Models\CharacterScoreLog::where('student_id', $student->id)->orderBy('tanggal', 'desc')->get();

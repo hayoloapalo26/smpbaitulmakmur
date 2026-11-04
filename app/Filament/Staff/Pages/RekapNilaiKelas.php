@@ -320,9 +320,9 @@ class RekapNilaiKelas extends Page
 
                     $finalScore = null;
                     if ($harian !== null && $ujian !== null) {
-                        $finalScore = round(($harian * 0.6) + ($ujian * 0.4), 1);
+                        $finalScore = \App\Services\RaporCalculationService::calculateNaPengetahuan((float)$harian, (float)$ujian);
                     } elseif ($ujian !== null) {
-                        $finalScore = $ujian;
+                        $finalScore = round($ujian, 1);
                     } elseif ($harian !== null) {
                         $finalScore = round($harian, 1);
                     }

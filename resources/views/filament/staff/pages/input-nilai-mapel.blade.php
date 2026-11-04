@@ -439,7 +439,7 @@
                 <div class="p-4 bg-gray-50/80 dark:bg-gray-800/50 border-t border-gray-200 dark:border-gray-800 flex flex-col sm:flex-row items-center justify-between gap-3">
                     <div class="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-2">
                         <span class="inline-block w-2 h-2 rounded-full bg-emerald-500"></span>
-                        <span>Bobot Nilai Akhir: 30% Pengetahuan + 30% Keterampilan + 40% Ujian. KKM Kelulusan = 75.</span>
+                        <span>Rumus Nilai Rapor Resmi: NA Pengetahuan = (Nilai Harian + 2 × UTS) / 3 | Keterampilan = Nilai Praktik/Tugas. Konversi Skala 1 - 4: (NA / 15) - 2.66.</span>
                     </div>
 
                     @if($canEdit)
