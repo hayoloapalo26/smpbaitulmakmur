@@ -102,40 +102,39 @@ class ResetLaunchDataCommand extends Command
                 $log('Tabel teacher_certificates berhasil dikosongkan.');
             }
 
-            // 5. Reset Status Program Kerja ke 'Rencana' (Pilar Kurikulum, Kesiswaan, Sarpras, Humas, BK -> mulai 0%)
+            // 5. Bersihkan Seluruh Data Dummy Program Kerja (Kurikulum, Kesiswaan, Sarpras, Humas, BK, KS)
+            // agar murni hanya menampilkan program kerja riil yang diinput oleh yang bersangkutan
             if (Schema::hasTable('program_kurikulums')) {
-                DB::table('program_kurikulums')->update(['status_pelaksanaan' => 'Rencana']);
-                $log('Program Kerja Kurikulum diatur ke status Rencana.');
+                DB::table('program_kurikulums')->delete();
+                $log('Tabel program_kurikulums (Data Dummy Kurikulum) berhasil dikosongkan.');
             }
             if (Schema::hasTable('program_kesiswaans')) {
-                DB::table('program_kesiswaans')->update(['status_pelaksanaan' => 'Rencana']);
-                $log('Program Kerja Kesiswaan diatur ke status Rencana.');
+                DB::table('program_kesiswaans')->delete();
+                $log('Tabel program_kesiswaans (Data Dummy Kesiswaan) berhasil dikosongkan.');
             }
             if (Schema::hasTable('program_sarpras')) {
-                DB::table('program_sarpras')->update(['status_pelaksanaan' => 'Rencana']);
-                $log('Program Kerja Sarpras diatur ke status Rencana.');
+                DB::table('program_sarpras')->delete();
+                $log('Tabel program_sarpras (Data Dummy Sarpras) berhasil dikosongkan.');
             }
             if (Schema::hasTable('program_humas')) {
-                DB::table('program_humas')->update(['status_pelaksanaan' => 'Rencana']);
-                $log('Program Kerja Humas diatur ke status Rencana.');
+                DB::table('program_humas')->delete();
+                $log('Tabel program_humas (Data Dummy Humas) berhasil dikosongkan.');
             }
             if (Schema::hasTable('humas_programs')) {
-                DB::table('humas_programs')->update(['status' => 'belum']);
-                $log('Humas Programs diatur ke status belum.');
+                DB::table('humas_programs')->delete();
+                $log('Tabel humas_programs (Data Dummy Humas) berhasil dikosongkan.');
             }
             if (Schema::hasTable('bk_work_programs')) {
-                DB::table('bk_work_programs')->update(['status' => 'Rencana']);
-                $log('Program Kerja BK diatur ke status Rencana.');
+                DB::table('bk_work_programs')->delete();
+                $log('Tabel bk_work_programs (Data Dummy BK) berhasil dikosongkan.');
             }
-
-            // 6. Reset Tugas Statis Pilar SOP
+            if (Schema::hasTable('work_programs')) {
+                DB::table('work_programs')->delete();
+                $log('Tabel work_programs (Data Dummy Work Programs) berhasil dikosongkan.');
+            }
             if (Schema::hasTable('school_pillar_tasks')) {
-                DB::table('school_pillar_tasks')->update([
-                    'status' => 'belum',
-                    'completed_at' => null,
-                    'completed_by' => null,
-                ]);
-                $log('Tugas SOP Pilar diatur ke status belum.');
+                DB::table('school_pillar_tasks')->delete();
+                $log('Tabel school_pillar_tasks (Tugas Statis Dummy) berhasil dikosongkan.');
             }
 
             // 7. Reset Jurnal dan Nilai Ekstrakurikuler Testing (jika ada)

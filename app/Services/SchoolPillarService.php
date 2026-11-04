@@ -352,7 +352,8 @@ class SchoolPillarService
                         ];
                     })->all();
                 } else {
-                    $tasks = self::mapStaticTasks($pillar->tasks, 'WKr', 'program-kurikulums');
+                    $tasks = [];
+                    $customPercentage = 0;
                 }
                 break;
 
@@ -436,7 +437,8 @@ class SchoolPillarService
                         ];
                     })->all();
                 } else {
-                    $tasks = self::mapStaticTasks($pillar->tasks, 'WKs', 'program-kesiswaans');
+                    $tasks = [];
+                    $customPercentage = 0;
                 }
                 break;
 
@@ -459,7 +461,8 @@ class SchoolPillarService
                         ];
                     })->all();
                 } else {
-                    $tasks = self::mapStaticTasks($pillar->tasks, 'SP', 'program-sarpras');
+                    $tasks = [];
+                    $customPercentage = 0;
                 }
                 break;
 
@@ -535,7 +538,8 @@ class SchoolPillarService
                         ];
                     })->all();
                 } else {
-                    $tasks = self::mapStaticTasks($pillar->tasks, 'Hm', 'program-humas');
+                    $tasks = [];
+                    $customPercentage = 0;
                 }
                 break;
 
@@ -559,7 +563,8 @@ class SchoolPillarService
                         ];
                     })->all();
                 } else {
-                    $tasks = self::mapStaticTasks($pillar->tasks, 'BK', 'bk-work-programs');
+                    $tasks = [];
+                    $customPercentage = 0;
                 }
                 break;
 
@@ -602,7 +607,7 @@ class SchoolPillarService
     /**
      * Ambil URL halaman/resource secara aman (aman dari exception).
      */
-    protected static function resolveUrlForRoute(string $routeKey): string
+    public static function resolveUrlForRoute(string $routeKey): string
     {
         return rescue(function () use ($routeKey) {
             return match ($routeKey) {

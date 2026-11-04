@@ -134,7 +134,11 @@
                             </div>
                             <h3 class="font-extrabold text-gray-900 leading-tight text-lg mb-1">{{ $pillar->name }}</h3>
                             @if($hasPercentage)
-                            <p class="text-sm font-semibold text-gray-600">{{ $selesai }} dari {{ $total }} tugas tuntas</p>
+                                @if($total > 0)
+                                <p class="text-sm font-semibold text-gray-600">{{ $selesai }} dari {{ $total }} tugas tuntas</p>
+                                @else
+                                <p class="text-sm font-semibold text-amber-600">Belum ada program kerja diinput</p>
+                                @endif
                             @else
                             <p class="text-sm font-semibold text-rose-600">Klik untuk melihat status pembayaran SPP siswa</p>
                             @endif
@@ -150,7 +154,7 @@
                     <div x-show="expanded" x-collapse x-cloak>
                         <div class="p-4 bg-gray-50/50 dark:bg-gray-800/20">
                             <div class="space-y-3 max-h-[350px] overflow-y-auto pr-2 custom-scrollbar">
-                                @foreach($tasks as $task)
+                                @forelse($tasks as $task)
                                     @if(isset($task->url))
                                     <a href="{{ $task->url }}" class="flex items-start gap-4 p-4 rounded-2xl bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 shadow-sm hover:shadow transition-shadow relative overflow-hidden hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer block">
                                     @else
@@ -228,7 +232,31 @@
                                     @else
                                     </div>
                                     @endif
-                                @endforeach
+                                @empty
+                                    <div class="text-center py-6 px-4 bg-white dark:bg-gray-800 rounded-2xl border border-dashed border-gray-200 dark:border-gray-700">
+                                        <div class="w-10 h-10 mx-auto mb-2 rounded-full bg-amber-50 dark:bg-amber-900/30 flex items-center justify-center text-amber-500">
+                                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                                        </div>
+                                        <p class="text-sm font-bold text-gray-800 dark:text-gray-200 mb-0.5">Belum Ada Program Kerja</p>
+                                        <p class="text-xs text-gray-500 dark:text-gray-400 mb-3 max-w-xs mx-auto">Ketercapaian pilar ini dihitung murni dari program kerja yang diinputkan oleh penanggung jawab.</p>
+                                        @php
+                                            $targetRoute = match((int) $pillar->order) {
+                                                3 => 'program-kurikulums',
+                                                5 => 'program-kesiswaans',
+                                                6 => 'program-sarpras',
+                                                8 => 'program-humas',
+                                                9 => 'bk-work-programs',
+                                                default => null,
+                                            };
+                                            $inputUrl = $targetRoute ? \App\Services\SchoolPillarService::resolveUrlForRoute($targetRoute) : null;
+                                        @endphp
+                                        @if($inputUrl)
+                                        <a href="{{ $inputUrl }}" class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-white bg-primary-600 hover:bg-primary-700 rounded-xl shadow-sm transition-all hover:scale-105 active:scale-95">
+                                            Input Program Kerja Sekarang &rarr;
+                                        </a>
+                                        @endif
+                                    </div>
+                                @endforelse
                             </div>
                         </div>
                     </div>

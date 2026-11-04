@@ -214,8 +214,8 @@ class ResetLaunchDataTest extends TestCase
         $this->assertEquals(0, StudentAchievement::count(), 'StudentAchievement harus kosong.');
         $this->assertEquals(0, TeacherCertificate::count(), 'TeacherCertificate harus kosong.');
 
-        // Verifikasi Status Program Kerja diatur kembali ke 'Rencana'
-        $this->assertEquals('Rencana', ProgramKurikulum::first()->status_pelaksanaan);
+        // Verifikasi Data Dummy Program Kerja BERSIH (0)
+        $this->assertEquals(0, ProgramKurikulum::count(), 'ProgramKurikulum dummy harus kosong.');
 
         // Verifikasi DATA SISWA TETAP ADA & UTUH
         $this->assertEquals(1, Student::count());
