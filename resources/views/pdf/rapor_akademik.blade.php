@@ -1,8 +1,18 @@
+@php
+    if (!isset($rapor)) {
+        $stObj = $student ?? (isset($grades) && $grades instanceof \Illuminate\Support\Collection ? $grades->first()?->student : null);
+        if ($stObj) {
+            $rapor = \App\Services\RaporCalculationService::getRaporData($stObj);
+        }
+    }
+    $st = $rapor['student'] ?? ($student ?? null);
+    $instName = $st?->institution?->name ?? 'SMP ISLAM BAITUL MAKMUR MALANG';
+@endphp
 <!DOCTYPE html>
 <html>
 <head>
     <meta charset="utf-8">
-    <title>Buku Rapor - {{ $rapor['student']->name }}</title>
+    <title>Buku Rapor - {{ $st?->name ?? 'Siswa' }}</title>
     <style>
         @page {
             size: A4 portrait;
@@ -107,17 +117,8 @@
     </style>
 </head>
 <body>
-    @php
-        $st = $rapor['student'];
-        $instName = $st->institution?->name ?? 'SMP ISLAM BAITUL MAKMUR MALANG';
-    @endphp
-
-    {{-- KOP SEKOLAH --}}
-    <div class="header-kop">
-        <h1>YAYASAN PENDIDIKAN ISLAM BAITUL MAKMUR</h1>
-        <h2>{{ $instName }}</h2>
-        <p>Jl. Sawojajar No. 17 B, Kec. Kedungkandang, Kota Malang, Jawa Timur 65138</p>
-    </div>
+    {{-- KOP SEKOLAH RESMI --}}
+    @include('pdf.kop_surat', ['institutionName' => $instName])
 
     <div class="doc-title">
         <h3>LAPORAN HASIL PENILAIAN CAPAIAN KOMPETENSI PESERTA DIDIK</h3>
@@ -332,11 +333,8 @@
     {{-- HALAMAN 2: LEMBAR DESKRIPSI KOMPETENSI (Sheet 3 / Deskripsi Excel) --}}
     <div class="page-break"></div>
 
-    <div class="header-kop">
-        <h1>YAYASAN PENDIDIKAN ISLAM BAITUL MAKMUR</h1>
-        <h2>{{ $instName }}</h2>
-        <p>Jl. Sawojajar No. 17 B, Kec. Kedungkandang, Kota Malang, Jawa Timur 65138</p>
-    </div>
+    {{-- KOP SEKOLAH RESMI (HALAMAN 2) --}}
+    @include('pdf.kop_surat', ['institutionName' => $instName])
 
     <div class="doc-title">
         <h3>DESKRIPSI CAPAIAN KOMPETENSI PESERTA DIDIK</h3>
