@@ -1,0 +1,160 @@
+<?php
+
+namespace App\Console\Commands;
+
+use Illuminate\Console\Command;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
+
+class ResetLaunchDataCommand extends Command
+{
+    /**
+     * The name and signature of the console command.
+     *
+     * @var string
+     */
+    protected $signature = 'app:reset-launch-data {--force : Jalankan reset data tanpa konfirmasi manual}';
+
+    /**
+     * The console command description.
+     *
+     * @var string
+     */
+    protected $description = 'Reset jadwal pelajaran, routing/setting guru mapel, dan progress pilar untuk persiapan launching resmi';
+
+    /**
+     * Execute the console command.
+     */
+    public function handle(): int
+    {
+        $force = (bool) $this->option('force');
+
+        if (!$force && !$this->confirm('Apakah Anda yakin ingin mereset jadwal pelajaran, routing guru mapel, dan progress persentase untuk launching? (Data Siswa & Guru tetap aman)')) {
+            $this->warn('Operasi dibatalkan.');
+            return Command::SUCCESS;
+        }
+
+        $this->info('Memulai reset data untuk launching...');
+
+        self::executeReset(function ($msg) {
+            $this->line(" - {$msg}");
+        });
+
+        $this->newLine();
+        $this->info('=====================================================');
+        $this->info('✅ SUKSES: Jadwal pelajaran, setting guru mapel, dan progress pilar telah direset ke awal!');
+        $this->info('🛡️ DATA TERJAGA: Data siswa, data guru, jabatan, kelas, dan akun yayasan 100% tetap aman.');
+        $this->info('=====================================================');
+
+        return Command::SUCCESS;
+    }
+
+    /**
+     * Logika eksekusi reset terpusat (dapat dipanggil dari Artisan Command maupun Migration).
+     */
+    public static function executeReset(?callable $logger = null): void
+    {
+        $log = $logger ?: function ($msg) {};
+
+        $driver = DB::getDriverName();
+        if ($driver === 'mysql') {
+            DB::statement('SET FOREIGN_KEY_CHECKS=0;');
+        }
+
+        try {
+            // 1. Reset Routing / Setting Guru Mapel
+            if (Schema::hasTable('teacher_subject_classes')) {
+                DB::table('teacher_subject_classes')->delete();
+                $log('Tabel teacher_subject_classes (Setting Guru Mapel) berhasil dikosongkan.');
+            }
+
+            // 2. Reset Pembagian Jadwal Pelajaran & Jurnal Mengajar
+            if (Schema::hasTable('subject_attendances')) {
+                DB::table('subject_attendances')->delete();
+                $log('Tabel subject_attendances berhasil dikosongkan.');
+            }
+            if (Schema::hasTable('teaching_journals')) {
+                DB::table('teaching_journals')->delete();
+                $log('Tabel teaching_journals berhasil dikosongkan.');
+            }
+            if (Schema::hasTable('schedules')) {
+                DB::table('schedules')->delete();
+                $log('Tabel schedules (Jadwal Pelajaran) berhasil dikosongkan.');
+            }
+
+            // 3. Reset Nilai & Prestasi (Pilar Mutu Lulusan -> mulai 0%)
+            if (Schema::hasTable('grades')) {
+                DB::table('grades')->delete();
+                $log('Tabel grades (Nilai Akademik) berhasil dikosongkan.');
+            }
+            if (Schema::hasTable('rapor_grades')) {
+                DB::table('rapor_grades')->delete();
+                $log('Tabel rapor_grades berhasil dikosongkan.');
+            }
+            if (Schema::hasTable('student_achievements')) {
+                DB::table('student_achievements')->delete();
+                $log('Tabel student_achievements (Prestasi Siswa) berhasil dikosongkan.');
+            }
+
+            // 4. Reset Sertifikat Guru (Pilar PTK)
+            if (Schema::hasTable('teacher_certificates')) {
+                DB::table('teacher_certificates')->delete();
+                $log('Tabel teacher_certificates berhasil dikosongkan.');
+            }
+
+            // 5. Reset Status Program Kerja ke 'Rencana' (Pilar Kurikulum, Kesiswaan, Sarpras, Humas, BK -> mulai 0%)
+            if (Schema::hasTable('program_kurikulums')) {
+                DB::table('program_kurikulums')->update(['status_pelaksanaan' => 'Rencana']);
+                $log('Program Kerja Kurikulum diatur ke status Rencana.');
+            }
+            if (Schema::hasTable('program_kesiswaans')) {
+                DB::table('program_kesiswaans')->update(['status_pelaksanaan' => 'Rencana']);
+                $log('Program Kerja Kesiswaan diatur ke status Rencana.');
+            }
+            if (Schema::hasTable('program_sarpras')) {
+                DB::table('program_sarpras')->update(['status_pelaksanaan' => 'Rencana']);
+                $log('Program Kerja Sarpras diatur ke status Rencana.');
+            }
+            if (Schema::hasTable('program_humas')) {
+                DB::table('program_humas')->update(['status_pelaksanaan' => 'Rencana']);
+                $log('Program Kerja Humas diatur ke status Rencana.');
+            }
+            if (Schema::hasTable('humas_programs')) {
+                DB::table('humas_programs')->update(['status' => 'belum']);
+                $log('Humas Programs diatur ke status belum.');
+            }
+            if (Schema::hasTable('bk_work_programs')) {
+                DB::table('bk_work_programs')->update(['status' => 'Rencana']);
+                $log('Program Kerja BK diatur ke status Rencana.');
+            }
+
+            // 6. Reset Tugas Statis Pilar SOP
+            if (Schema::hasTable('school_pillar_tasks')) {
+                DB::table('school_pillar_tasks')->update([
+                    'status' => 'belum',
+                    'completed_at' => null,
+                    'completed_by' => null,
+                ]);
+                $log('Tugas SOP Pilar diatur ke status belum.');
+            }
+
+            // 7. Reset Jurnal dan Nilai Ekstrakurikuler Testing (jika ada)
+            if (Schema::hasTable('extracurricular_grades')) {
+                DB::table('extracurricular_grades')->delete();
+                $log('Tabel extracurricular_grades berhasil dikosongkan.');
+            }
+            if (Schema::hasTable('extracurricular_journals')) {
+                DB::table('extracurricular_journals')->delete();
+                $log('Tabel extracurricular_journals berhasil dikosongkan.');
+            }
+            if (Schema::hasTable('extracurricular_attendances')) {
+                DB::table('extracurricular_attendances')->delete();
+                $log('Tabel extracurricular_attendances berhasil dikosongkan.');
+            }
+        } finally {
+            if ($driver === 'mysql') {
+                DB::statement('SET FOREIGN_KEY_CHECKS=1;');
+            }
+        }
+    }
+}

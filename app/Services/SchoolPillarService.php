@@ -368,7 +368,7 @@ class SchoolPillarService
 
                 // 1. Input Profil / Data Guru
                 $guruProfilLengkap = $teachers->filter(function($u) {
-                    return !empty($u->name) && !empty($u->email) && (!empty($u->nuptk) || !empty($u->phone) || !empty($u->nip) || !empty($u->nik));
+                    return !empty($u->name) && !empty($u->email) && (!empty($u->nuptk) || !empty($u->no_hp) || !empty($u->phone) || !empty($u->nip) || !empty($u->nik));
                 })->count();
                 $pctProfil = $totalGuru > 0 
                     ? min(100, (int) round(($guruProfilLengkap / $totalGuru) * 100))
