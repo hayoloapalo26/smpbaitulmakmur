@@ -24,10 +24,10 @@
 
                 <!-- OVERALL STATS -->
                 @php
-                    $allTasks = collect($this->pillars)->pluck('tasks')->flatten();
-                    $totalSelesai = $allTasks->where('status', 'selesai')->count();
-                    $totalSemua = $allTasks->count();
-                    $percentageOverall = $totalSemua > 0 ? round(($totalSelesai / $totalSemua) * 100) : 0;
+                    $percentageOverall = \App\Services\SchoolPillarService::getOverallProgress(auth()->user()?->institution_id, auth()->user());
+                    $allTasksWithPct = collect($this->pillars)->filter(fn($p) => !empty($p->has_percentage))->pluck('tasks')->flatten();
+                    $totalSelesai = $allTasksWithPct->where('status', 'selesai')->count();
+                    $totalSemua = $allTasksWithPct->count();
                     
                     // SVG Circle Math
                     $circumference = 2 * pi() * 45;
@@ -71,10 +71,11 @@
                     $tasks = $pillar->tasks;
                     $selesai = $pillar->selesai ?? $tasks->where('status', 'selesai')->count();
                     $total = $pillar->total ?? $tasks->count();
-                    $percentage = $pillar->percentage ?? ($total > 0 ? round(($selesai / $total) * 100) : 0);
+                    $hasPercentage = $pillar->has_percentage ?? true;
+                    $percentage = $hasPercentage ? ($pillar->percentage ?? ($total > 0 ? round(($selesai / $total) * 100) : 0)) : null;
                     
                     $circ = 2 * pi() * 32;
-                    $dashoffset = $circ - ($percentage / 100) * $circ;
+                    $dashoffset = $hasPercentage ? ($circ - (($percentage ?? 0) / 100) * $circ) : 0;
                     
                     // Ambil warna berdasarkan nomor order pilar (1-9)
                     $color = $palettes[$pillar->order % 10] ?? $palettes[1];
@@ -82,7 +83,7 @@
                     $lightHex = $color['light'];
                     
                     // Jika 100%, ubah semua jadi hijau sukses cerah
-                    if ($percentage == 100) {
+                    if ($hasPercentage && $percentage == 100) {
                         $baseHex = '#10B981'; // Emerald
                         $lightHex = '#D1FAE5'; 
                     }
@@ -113,6 +114,7 @@
                             <svg class="w-32 h-32" fill="{{$baseHex}}" viewBox="0 0 24 24"><path d="M12 2L2 22h20L12 2z"/></svg>
                         </div>
                         
+                        @if($hasPercentage)
                         <div class="relative w-24 h-24 shrink-0 flex items-center justify-center bg-white rounded-full shadow-md z-10">
                             <svg class="w-full h-full transform -rotate-90 p-1">
                                 <circle cx="40" cy="40" r="32" stroke="{{$lightHex}}" stroke-width="8" fill="none" />
@@ -120,12 +122,22 @@
                             </svg>
                             <span class="absolute inset-0 flex items-center justify-center text-lg font-black" style="color: {{$baseHex}}">{{ $percentage }}%</span>
                         </div>
+                        @else
+                        <div class="relative w-24 h-24 shrink-0 flex flex-col items-center justify-center bg-white rounded-full shadow-md z-10 p-2 text-center border-2 border-rose-200">
+                            <x-heroicon-o-banknotes class="w-8 h-8 text-rose-600 mb-0.5" />
+                            <span class="text-[9px] font-black tracking-wider uppercase text-rose-700">Data SPP</span>
+                        </div>
+                        @endif
                         <div class="flex-1 z-10">
                             <div class="mb-2">
                                 <x-dynamic-component :component="$pillarIcon" class="w-8 h-8 drop-shadow-sm" style="color: {{$baseHex}}" />
                             </div>
                             <h3 class="font-extrabold text-gray-900 leading-tight text-lg mb-1">{{ $pillar->name }}</h3>
+                            @if($hasPercentage)
                             <p class="text-sm font-semibold text-gray-600">{{ $selesai }} dari {{ $total }} tugas tuntas</p>
+                            @else
+                            <p class="text-sm font-semibold text-rose-600">Klik untuk melihat status pembayaran SPP siswa</p>
+                            @endif
                         </div>
                         <div class="shrink-0 z-10">
                             <button class="w-10 h-10 rounded-full bg-white shadow flex items-center justify-center text-gray-400 group-hover:text-gray-700 transition-colors">
@@ -139,7 +151,11 @@
                         <div class="p-4 bg-gray-50/50 dark:bg-gray-800/20">
                             <div class="space-y-3 max-h-[350px] overflow-y-auto pr-2 custom-scrollbar">
                                 @foreach($tasks as $task)
+                                    @if(isset($task->url))
+                                    <a href="{{ $task->url }}" class="flex items-start gap-4 p-4 rounded-2xl bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 shadow-sm hover:shadow transition-shadow relative overflow-hidden hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer block">
+                                    @else
                                     <div class="flex items-start gap-4 p-4 rounded-2xl bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 shadow-sm hover:shadow transition-shadow relative overflow-hidden">
+                                    @endif
                                         
                                         @if($task->status === 'selesai')
                                             <!-- Garis indikator selesai -->
@@ -148,14 +164,26 @@
 
                                         <!-- Tombol Centang -->
                                         <div class="shrink-0 mt-0.5">
-                                            @if($task->status === 'selesai')
-                                                <button wire:click="markTask({{ $task->id }}, 'belum')" class="focus:outline-none transition-transform hover:scale-110 active:scale-95" style="color: {{$baseHex}}">
-                                                    <svg class="w-7 h-7" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path></svg>
-                                                </button>
+                                            @if(is_numeric($task->id))
+                                                @if($task->status === 'selesai')
+                                                    <button type="button" wire:click.stop="markTask({{ $task->id }}, 'belum')" class="focus:outline-none transition-transform hover:scale-110 active:scale-95" style="color: {{$baseHex}}">
+                                                        <svg class="w-7 h-7" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path></svg>
+                                                    </button>
+                                                @else
+                                                    <button type="button" wire:click.stop="markTask({{ $task->id }}, 'selesai')" class="text-gray-300 dark:text-gray-600 focus:outline-none transition-transform hover:scale-110 active:scale-95 hover:text-gray-400">
+                                                        <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" stroke-width="2.5"></circle></svg>
+                                                    </button>
+                                                @endif
                                             @else
-                                                <button wire:click="markTask({{ $task->id }}, 'selesai')" class="text-gray-300 dark:text-gray-600 focus:outline-none transition-transform hover:scale-110 active:scale-95 hover:text-gray-400">
-                                                    <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" stroke-width="2.5"></circle></svg>
-                                                </button>
+                                                @if($task->status === 'selesai')
+                                                    <div class="focus:outline-none cursor-default" style="color: {{$baseHex}}">
+                                                        <svg class="w-7 h-7" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path></svg>
+                                                    </div>
+                                                @else
+                                                    <div class="text-gray-300 dark:text-gray-600 focus:outline-none cursor-default">
+                                                        <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" stroke-width="2.5"></circle></svg>
+                                                    </div>
+                                                @endif
                                             @endif
                                         </div>
 
@@ -165,6 +193,12 @@
                                                 <span class="text-[10px] uppercase tracking-wider bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 px-1.5 py-0.5 rounded mr-1.5 font-extrabold">{{ $task->code }}</span>
                                                 {{ $task->name }}
                                             </p>
+
+                                            @if(isset($task->desc))
+                                                <p class="text-xs font-semibold text-gray-500 dark:text-gray-400 mt-1">
+                                                    {{ $task->desc }}
+                                                </p>
+                                            @endif
                                             
                                             <div class="mt-2.5 flex flex-wrap gap-2 items-center">
                                                 @if($task->assigned_role)
@@ -180,10 +214,20 @@
                                                         SOP KHUSUS
                                                     </span>
                                                 @endif
+
+                                                @if(isset($task->url))
+                                                    <span class="inline-flex items-center gap-1 text-[10px] font-bold text-primary-600 hover:underline ml-auto">
+                                                        Buka Fitur &rarr;
+                                                    </span>
+                                                @endif
                                             </div>
                                         </div>
 
+                                    @if(isset($task->url))
+                                    </a>
+                                    @else
                                     </div>
+                                    @endif
                                 @endforeach
                             </div>
                         </div>

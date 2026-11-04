@@ -518,6 +518,7 @@
                             <svg class="w-32 h-32" fill="{{$baseHex}}" viewBox="0 0 24 24"><path d="M12 2L2 22h20L12 2z"/></svg>
                         </div>
                         
+                        @if(!empty($pillar['has_percentage']))
                         <div class="relative w-24 h-24 shrink-0 flex items-center justify-center bg-white rounded-full shadow-md z-10">
                             <svg class="w-full h-full transform -rotate-90 p-1">
                                 <circle cx="40" cy="40" r="32" stroke="{{$lightHex}}" stroke-width="8" fill="none" />
@@ -525,12 +526,22 @@
                             </svg>
                             <span class="absolute inset-0 flex items-center justify-center text-lg font-black" style="color: {{$baseHex}}">{{ $percentage }}%</span>
                         </div>
+                        @else
+                        <div class="relative w-24 h-24 shrink-0 flex flex-col items-center justify-center bg-white rounded-full shadow-md z-10 p-2 text-center border-2 border-rose-200">
+                            <x-heroicon-o-banknotes class="w-8 h-8 text-rose-600 mb-0.5" />
+                            <span class="text-[9px] font-black tracking-wider uppercase text-rose-700">Data SPP</span>
+                        </div>
+                        @endif
                         <div class="flex-1 z-10">
                             <div class="mb-2">
                                 <x-dynamic-component :component="$pillarIcon" class="w-8 h-8 drop-shadow-sm" style="color: {{$baseHex}}" />
                             </div>
                             <h3 class="font-extrabold text-gray-900 leading-tight text-lg mb-1">{{ $pillar['name'] }}</h3>
+                            @if(!empty($pillar['has_percentage']))
                             <p class="text-sm font-semibold text-gray-600">{{ $selesai }} dari {{ $total }} tugas tuntas</p>
+                            @else
+                            <p class="text-sm font-semibold text-rose-600">Klik untuk melihat status pembayaran SPP siswa</p>
+                            @endif
                         </div>
                         <div class="shrink-0 z-10">
                             <button class="w-10 h-10 rounded-full bg-white shadow flex items-center justify-center text-gray-400 group-hover:text-gray-700 transition-colors">

@@ -23,6 +23,7 @@ class SchoolPillarProgressTest extends TestCase
 
     protected Institution $smp;
     protected User $kepalaSekolah;
+    protected \App\Models\AcademicYear $academicYear;
 
     protected function setUp(): void
     {
@@ -41,6 +42,12 @@ class SchoolPillarProgressTest extends TestCase
             ['id' => 2],
             ['name' => 'SMP Islam Baitul Makmur', 'slug' => 'smp-islam-baitul-makmur']
         );
+
+        $this->academicYear = \App\Models\AcademicYear::create([
+            'name' => '2026/2027',
+            'semester' => 'Ganjil',
+            'is_active' => true,
+        ]);
 
         $this->kepalaSekolah = User::create([
             'name' => 'Kepala Sekolah',
@@ -102,13 +109,37 @@ class SchoolPillarProgressTest extends TestCase
      */
     public function test_pilar_1_reaches_100_percent_when_all_seven_constituents_reach_100(): void
     {
-        // 1. Mutu Lulusan (Pilar 2) -> Set all tasks to 'selesai'
-        $p2 = SchoolPillar::where('order', 2)->first();
-        SchoolPillarTask::create([
-            'school_pillar_id' => $p2->id,
-            'name' => 'Evaluasi Profil Lulusan',
-            'code' => '2.1',
-            'status' => 'selesai',
+        // 1. Mutu Lulusan (Pilar 2) -> Input Nilai Akademik Siswa + Input Prestasi Siswa
+        $student = \App\Models\Student::create([
+            'institution_id' => $this->smp->id,
+            'name' => 'Ahmad Fulan',
+            'nis' => '12345',
+            'jenis_kelamin' => 'L',
+            'tanggal_lahir' => '2010-01-01',
+        ]);
+        $subject = \App\Models\Subject::create([
+            'name' => 'Matematika',
+            'kode' => 'MTK',
+            'institution_id' => $this->smp->id,
+        ]);
+        \App\Models\Grade::create([
+            'institution_id' => $this->smp->id,
+            'student_id' => $student->id,
+            'subject_id' => $subject->id,
+            'teacher_id' => $this->kepalaSekolah->id,
+            'academic_year_id' => $this->academicYear->id,
+            'semester' => 'Ganjil',
+            'score' => 90,
+            'type' => 'formatif',
+        ]);
+        \App\Models\StudentAchievement::create([
+            'institution_id' => $this->smp->id,
+            'student_id' => $student->id,
+            'nama_prestasi' => 'Juara 1 OSN Matematika',
+            'kategori' => 'akademik',
+            'tingkat' => 'Kabupaten',
+            'tanggal' => now(),
+            'input_by' => $this->kepalaSekolah->id,
         ]);
 
         // 2. Kurikulum (Pilar 3) -> Set ProgramKurikulum all 'Selesai'
@@ -122,13 +153,22 @@ class SchoolPillarProgressTest extends TestCase
             'status_pelaksanaan' => 'Selesai',
         ]);
 
-        // 3. PTK (Pilar 4) -> Set tasks all 'selesai'
-        $p4 = SchoolPillar::where('order', 4)->first();
-        SchoolPillarTask::create([
-            'school_pillar_id' => $p4->id,
-            'name' => 'Supervisi PTK',
-            'code' => '4.1',
-            'status' => 'selesai',
+        // 3. PTK (Pilar 4) -> Input Profil Guru + Input Sertifikat Guru
+        $this->kepalaSekolah->update([
+            'nuptk' => '1234567890123456',
+            'phone' => '081234567890',
+            'nip' => '198501012010011001',
+        ]);
+        \App\Models\TeacherCertificate::create([
+            'institution_id' => $this->smp->id,
+            'teacher_id' => $this->kepalaSekolah->id,
+            'nama_kegiatan' => 'Pelatihan Implementasi Kurikulum Merdeka',
+            'kategori' => 'Pelatihan / Bimtek',
+            'penyelenggara' => 'Kemdikbudristek',
+            'nomor_sertifikat' => 'CERT-12345',
+            'tanggal_pelaksanaan' => now(),
+            'jumlah_jam' => 32,
+            'drive_url' => 'https://drive.google.com/test',
         ]);
 
         // 4. Kesiswaan (Pilar 5) -> Set ProgramKesiswaan all 'Selesai'
@@ -266,5 +306,251 @@ class SchoolPillarProgressTest extends TestCase
             ->assertSee('Bidang Manajemen')
             ->assertSee('Mutu Lulusan')
             ->assertSee('Bidang Kurikulum');
+    }
+
+    /**
+     * Test Pilar 2 (Mutu Lulusan) dihitung dari fitur nilai akademik dan prestasi siswa.
+     */
+    public function test_pilar_2_mutu_lulusan_progress_from_akademik_and_prestasi(): void
+    {
+        $student = \App\Models\Student::create([
+            'institution_id' => $this->smp->id,
+            'name' => 'Siswa Satu',
+            'nis' => '11111',
+            'jenis_kelamin' => 'L',
+            'tanggal_lahir' => '2010-01-01',
+        ]);
+
+        // Belum ada nilai dan belum ada prestasi -> 0%
+        $pillars = SchoolPillarService::getPillarsData($this->smp->id, $this->kepalaSekolah);
+        $pilar2 = collect($pillars)->firstWhere('order', 2);
+        $this->assertEquals(0, $pilar2['percentage']);
+
+        // Input Nilai Akademik Siswa -> 50%
+        $subject = \App\Models\Subject::create([
+            'name' => 'IPA',
+            'kode' => 'IPA',
+            'institution_id' => $this->smp->id,
+        ]);
+        \App\Models\Grade::create([
+            'institution_id' => $this->smp->id,
+            'student_id' => $student->id,
+            'subject_id' => $subject->id,
+            'teacher_id' => $this->kepalaSekolah->id,
+            'academic_year_id' => $this->academicYear->id,
+            'semester' => 'Ganjil',
+            'score' => 85,
+            'type' => 'formatif',
+        ]);
+        $pillars = SchoolPillarService::getPillarsData($this->smp->id, $this->kepalaSekolah);
+        $pilar2 = collect($pillars)->firstWhere('order', 2);
+        $this->assertEquals(50, $pilar2['percentage']);
+
+        // Input Prestasi Siswa -> 100%
+        \App\Models\StudentAchievement::create([
+            'institution_id' => $this->smp->id,
+            'student_id' => $student->id,
+            'nama_prestasi' => 'Juara 1 Lomba MTQ',
+            'kategori' => 'akademik',
+            'tingkat' => 'Kota',
+            'tanggal' => now(),
+            'input_by' => $this->kepalaSekolah->id,
+        ]);
+        $pillars = SchoolPillarService::getPillarsData($this->smp->id, $this->kepalaSekolah);
+        $pilar2 = collect($pillars)->firstWhere('order', 2);
+        $this->assertEquals(100, $pilar2['percentage']);
+    }
+
+    /**
+     * Test Pilar 4 (PTK) dihitung dari input profil guru dan input sertifikat guru.
+     */
+    public function test_pilar_4_ptk_progress_from_profil_and_sertifikat(): void
+    {
+        // Awal: Profil belum lengkap, sertifikat belum ada -> 0%
+        $pillars = SchoolPillarService::getPillarsData($this->smp->id, $this->kepalaSekolah);
+        $pilar4 = collect($pillars)->firstWhere('order', 4);
+        $this->assertEquals(0, $pilar4['percentage']);
+
+        // Lengkapi profil guru -> 50%
+        $this->kepalaSekolah->update([
+            'nuptk' => '9876543210123456',
+            'phone' => '08987654321',
+        ]);
+        $pillars = SchoolPillarService::getPillarsData($this->smp->id, $this->kepalaSekolah);
+        $pilar4 = collect($pillars)->firstWhere('order', 4);
+        $this->assertEquals(50, $pilar4['percentage']);
+
+        // Input sertifikat guru -> 100%
+        \App\Models\TeacherCertificate::create([
+            'institution_id' => $this->smp->id,
+            'teacher_id' => $this->kepalaSekolah->id,
+            'nama_kegiatan' => 'Workshop Media Pembelajaran Digital',
+            'kategori' => 'Workshop / Lokakarya',
+            'penyelenggara' => 'Dinas Pendidikan',
+            'tanggal_pelaksanaan' => now(),
+            'drive_url' => 'https://drive.google.com/cert-test',
+        ]);
+        $pillars = SchoolPillarService::getPillarsData($this->smp->id, $this->kepalaSekolah);
+        $pilar4 = collect($pillars)->firstWhere('order', 4);
+        $this->assertEquals(100, $pilar4['percentage']);
+    }
+
+    /**
+     * Test Pilar Kurikulum, Kesiswaan, Sarpras, Humas, dan BK hanya bertambah dari program kerja yang Selesai.
+     */
+    public function test_work_programs_pillars_progress(): void
+    {
+        // Kurikulum: 1 Selesai dari 2 = 50%
+        ProgramKurikulum::create([
+            'institution_id' => $this->smp->id,
+            'user_id' => $this->kepalaSekolah->id,
+            'nama_program' => 'Kurikulum 1',
+            'kategori' => 'Kurikulum',
+            'tipe_pelaksanaan' => 'Semesteran',
+            'sifat' => 'Wajib',
+            'status_pelaksanaan' => 'Selesai',
+        ]);
+        ProgramKurikulum::create([
+            'institution_id' => $this->smp->id,
+            'user_id' => $this->kepalaSekolah->id,
+            'nama_program' => 'Kurikulum 2',
+            'kategori' => 'Kurikulum',
+            'tipe_pelaksanaan' => 'Semesteran',
+            'sifat' => 'Wajib',
+            'status_pelaksanaan' => 'Sedang Berjalan',
+        ]);
+
+        // Sarpras: 1 Selesai = 100%
+        ProgramSarpras::create([
+            'institution_id' => $this->smp->id,
+            'user_id' => $this->kepalaSekolah->id,
+            'tahun_ajaran' => '2026/2027',
+            'nama_program' => 'Renovasi Musholla',
+            'kategori' => 'Sarpras',
+            'tipe_pelaksanaan' => 'Tahunan',
+            'sifat' => 'Wajib',
+            'tujuan' => 'Kenyamanan ibadah',
+            'status_pelaksanaan' => 'Selesai',
+        ]);
+
+        // Humas: 1 Selesai = 100%
+        ProgramHumas::create([
+            'institution_id' => $this->smp->id,
+            'user_id' => $this->kepalaSekolah->id,
+            'tahun_ajaran' => '2026/2027',
+            'nama_program' => 'Publikasi Kegiatan Sekolah',
+            'kategori' => 'Humas',
+            'tipe_pelaksanaan' => 'Bulanan',
+            'sifat' => 'Wajib',
+            'tujuan' => 'Meningkatkan citra positif',
+            'status_pelaksanaan' => 'Selesai',
+        ]);
+
+        // BK: 1 Belum Terlaksana = 0%
+        BkWorkProgram::create([
+            'institution_id' => $this->smp->id,
+            'user_id' => $this->kepalaSekolah->id,
+            'judul_program' => 'Tes Psikologi',
+            'bidang_layanan' => 'Pribadi',
+            'sasaran' => 'Kelas 7',
+            'waktu_pelaksanaan' => 'Semester 1',
+            'tujuan' => 'Pemetaan kepribadian siswa',
+            'status' => 'Rencana',
+        ]);
+
+        $pillars = SchoolPillarService::getPillarsData($this->smp->id, $this->kepalaSekolah);
+        $this->assertEquals(50, collect($pillars)->firstWhere('order', 3)['percentage']);
+        $this->assertEquals(100, collect($pillars)->firstWhere('order', 6)['percentage']);
+        $this->assertEquals(100, collect($pillars)->firstWhere('order', 8)['percentage']);
+        $this->assertEquals(0, collect($pillars)->firstWhere('order', 9)['percentage']);
+    }
+
+    /**
+     * Test Pilar Keuangan tidak memiliki persentase dan menampilkan monitoring SPP.
+     */
+    public function test_pilar_keuangan_has_no_percentage_and_shows_spp_monitoring(): void
+    {
+        $student1 = \App\Models\Student::create([
+            'institution_id' => $this->smp->id,
+            'name' => 'Siswa Lunas',
+            'nis' => '10001',
+            'jenis_kelamin' => 'L',
+            'tanggal_lahir' => '2010-01-01',
+            'is_administrasi_lunas' => true,
+        ]);
+        $student2 = \App\Models\Student::create([
+            'institution_id' => $this->smp->id,
+            'name' => 'Siswa Nunggak',
+            'nis' => '10002',
+            'jenis_kelamin' => 'P',
+            'tanggal_lahir' => '2010-02-02',
+            'is_administrasi_lunas' => false,
+        ]);
+
+        $pillars = SchoolPillarService::getPillarsData($this->smp->id, $this->kepalaSekolah);
+        $pilarKeuangan = collect($pillars)->firstWhere('order', 7);
+
+        $this->assertNotNull($pilarKeuangan);
+        $this->assertFalse($pilarKeuangan['has_percentage']);
+        $this->assertNull($pilarKeuangan['percentage']);
+        $this->assertStringContainsString('SPP', $pilarKeuangan['name']);
+
+        // Memuat tugas rekap SPP dan data per siswa
+        $tasks = collect($pilarKeuangan['tasks']);
+        $this->assertTrue($tasks->contains(fn($t) => str_contains($t->id, 'spp_summary')));
+        $this->assertTrue($tasks->contains(fn($t) => str_contains($t->name, 'Siswa Lunas')));
+        $this->assertTrue($tasks->contains(fn($t) => str_contains($t->name, 'Siswa Nunggak')));
+    }
+
+    /**
+     * Test getOverallProgress() hanya merata-rata 8 pilar yang memiliki persentase.
+     */
+    public function test_get_overall_progress_strictly_averages_eight_pillars(): void
+    {
+        // Kurikulum (order 3) = 100%
+        ProgramKurikulum::create([
+            'institution_id' => $this->smp->id,
+            'user_id' => $this->kepalaSekolah->id,
+            'nama_program' => 'Program Kurikulum 100',
+            'kategori' => 'Kurikulum',
+            'tipe_pelaksanaan' => 'Semesteran',
+            'sifat' => 'Wajib',
+            'status_pelaksanaan' => 'Selesai',
+        ]);
+
+        // Pilar 1 (Bidang Manajemen) dihitung dari rata-rata 7 konstituen:
+        // Konstituen: Pilar 2 (0), Pilar 3 (100), Pilar 4 (0), Pilar 5 (0), Pilar 6 (0), Pilar 8 (0), Pilar 9 (0)
+        // Pilar 1 = 100 / 7 = 14%
+        // Pilar dengan persentase:
+        // Pilar 1: 14%
+        // Pilar 2: 0%
+        // Pilar 3: 100%
+        // Pilar 4: 0%
+        // Pilar 5: 0%
+        // Pilar 6: 0%
+        // Pilar 8: 0%
+        // Pilar 9: 0%
+        // Pilar 7 (Keuangan): null (tidak ikut dihitung)
+        // Total dari 8 pilar = 14 + 0 + 100 + 0 + 0 + 0 + 0 + 0 = 114
+        // Overall progress = 114 / 8 = 14.25 -> 14%
+
+        $overall = SchoolPillarService::getOverallProgress($this->smp->id, $this->kepalaSekolah);
+        $this->assertEquals(14, $overall);
+    }
+
+    /**
+     * Test halaman Pilar Manajemen Dashboard memuat tampilan kartu dan accordion dengan benar.
+     */
+    public function test_pilar_manajemen_dashboard_page_renders_cleanly(): void
+    {
+        $this->actingAs($this->kepalaSekolah);
+        try {
+            \Filament\Facades\Filament::setCurrentPanel(\Filament\Facades\Filament::getPanel('staff'));
+        } catch (\Throwable $e) {}
+
+        \Livewire\Livewire::test(\App\Filament\Staff\Pages\PilarManajemenDashboard::class)
+            ->assertSuccessful()
+            ->assertSee('Bidang Manajemen')
+            ->assertSee('Data SPP');
     }
 }

@@ -3,6 +3,8 @@
 namespace App\Services;
 
 use App\Models\BkWorkProgram;
+use App\Models\Classroom;
+use App\Models\Grade;
 use App\Models\HumasProgram;
 use App\Models\Institution;
 use App\Models\ProgramHumas;
@@ -12,10 +14,14 @@ use App\Models\ProgramSarpras;
 use App\Models\SchoolPillar;
 use App\Models\SchoolPillarTask;
 use App\Models\Student;
+use App\Models\StudentAchievement;
+use App\Models\TeacherCertificate;
 use App\Models\TeacherSupervision;
 use App\Models\User;
+use Carbon\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Schema;
 
 class SchoolPillarService
 {
@@ -23,6 +29,7 @@ class SchoolPillarService
      * Daftar 7 Pilar Konstituen yang menentukan ketercapaian Pilar 1 (Bidang Manajemen).
      * Sesuai ketentuan: Mutu Lulusan (2), Kurikulum (3), PTK (4), Kesiswaan (5),
      * Sarpras (6), Humas (8), dan BK (9).
+     * Pilar Keuangan (7) tidak memiliki persentase dan tidak dimasukkan ke dalam agregasi.
      */
     public const PILLAR_1_CONSTITUENTS = [
         2 => [
@@ -44,7 +51,7 @@ class SchoolPillarService
             'code' => '1.3',
             'name' => 'Pilar PTK (Pendidik dan Tenaga Kependidikan)',
             'role' => 'KS / Kepegawaian',
-            'route' => 'supervisi-guru',
+            'route' => 'teacher-profiles',
         ],
         5 => [
             'order' => 5,
@@ -78,6 +85,7 @@ class SchoolPillarService
 
     /**
      * Hitung data ketercapaian 9 Pilar secara menyeluruh dan terintegrasi.
+     * Hanya 8 pilar yang memiliki persentase; Pilar Keuangan khusus monitoring pembayaran SPP tanpa persentase.
      *
      * @param int|null $institutionId
      * @param User|null $user
@@ -120,18 +128,32 @@ class SchoolPillarService
                 continue;
             }
 
-            $tasks = self::resolveTasksForPillar($pillar, $institutionId, $user);
+            $resolved = self::resolveTasksForPillar($pillar, $institutionId, $user);
+            $tasks = $resolved['tasks'];
             $total = count($tasks);
             $selesai = collect($tasks)->where('status', 'selesai')->count();
-            $percentage = $total > 0 ? (int) round(($selesai / $total) * 100) : 0;
+
+            // Aturan khusus: Pilar Keuangan (Order 7) persentasenya dihilangkan
+            if ($order === 7) {
+                $percentage = null;
+                $hasPercentage = false;
+                $pillarName = 'Keuangan (Data SPP Siswa)';
+            } else {
+                $percentage = isset($resolved['custom_percentage'])
+                    ? (int) $resolved['custom_percentage']
+                    : ($total > 0 ? (int) round(($selesai / $total) * 100) : 0);
+                $hasPercentage = true;
+                $pillarName = $pillar->name;
+            }
 
             $calculatedPillars[$order] = [
                 'id' => $pillar->id ?? $order,
                 'order' => $order,
-                'name' => $pillar->name,
+                'name' => $pillarName,
                 'total' => $total,
                 'selesai' => $selesai,
                 'percentage' => $percentage,
+                'has_percentage' => $hasPercentage,
                 'tasks' => collect($tasks),
             ];
         }
@@ -188,7 +210,7 @@ class SchoolPillarService
 
         foreach ($constituents as $order => $meta) {
             $subPillar = $calculatedPillars[$order] ?? null;
-            $pct = $subPillar ? (int) $subPillar['percentage'] : 0;
+            $pct = $subPillar ? (int) ($subPillar['percentage'] ?? 0) : 0;
             $percentages[] = $pct;
 
             $isDone = ($pct >= 100);
@@ -228,85 +250,104 @@ class SchoolPillarService
             'total' => $totalConstituents, // 7 Indikator Pilar
             'selesai' => $selesaiCount,    // Jumlah pilar yang sudah tuntas 100%
             'percentage' => $compositePercentage,
+            'has_percentage' => true,
             'tasks' => collect($tasksPilar1),
             'is_composite' => true,
         ];
     }
 
     /**
-     * Resolusi tugas dan indikator riil untuk pilar 2 hingga 9.
+     * Resolusi tugas dan indikator riil untuk pilar 2 hingga 9 sesuai spesifikasi user.
      */
     protected static function resolveTasksForPillar(SchoolPillar $pillar, int $institutionId, ?User $user): array
     {
         $order = (int) $pillar->order;
         $tasks = [];
+        $customPercentage = null;
 
         switch ($order) {
             case 2: // Mutu Lulusan
-                // Hubungkan dengan tugas mutu lulusan dan penilaian profil
-                $staticTasks = $pillar->tasks ?? collect();
-                if ($staticTasks->isNotEmpty()) {
-                    $tasks = $staticTasks->map(function ($t) {
-                        return (object) [
-                            'id' => $t->id,
-                            'name' => $t->name,
-                            'status' => $t->status,
-                            'code' => $t->code ?: '2.0',
-                            'assigned_role' => $t->assigned_role ?: 'WKr',
-                            'is_sop_merah' => (bool) $t->is_sop_merah,
-                            'desc' => 'Mutu Lulusan | Evaluasi Profil & Standar Kompetensi Siswa',
-                            'url' => self::resolveUrlForRoute('ketercapaian-profil-lulusan'),
-                        ];
-                    })->all();
-                } else {
-                    $tasks = [
-                        (object) [
-                            'id' => 'p2_task_1',
-                            'name' => 'Profil atau mutu lulusan siswa',
-                            'status' => 'belum',
-                            'code' => '2.1',
-                            'assigned_role' => 'WKr',
-                            'is_sop_merah' => false,
-                            'desc' => 'Standar capaian lulusan akademik, tahfidz, dan adab karakter',
-                            'url' => self::resolveUrlForRoute('ketercapaian-profil-lulusan'),
-                        ],
-                        (object) [
-                            'id' => 'p2_task_2',
-                            'name' => 'Penilaian ketercapaian profil lulusan',
-                            'status' => 'belum',
-                            'code' => '2.2',
-                            'assigned_role' => 'WKr',
-                            'is_sop_merah' => false,
-                            'desc' => 'Rekapitulasi penilaian komprehensif profil lulusan seluruh kelas',
-                            'url' => self::resolveUrlForRoute('ketercapaian-profil-lulusan'),
-                        ],
-                        (object) [
-                            'id' => 'p2_task_3',
-                            'name' => 'SOP penilaian profil atau mutu lulusan',
-                            'status' => 'belum',
-                            'code' => '2.3',
-                            'assigned_role' => 'KS',
-                            'is_sop_merah' => true,
-                            'desc' => 'Standar operasional prosedur penjaminan mutu kelulusan',
-                            'url' => self::resolveUrlForRoute('ketercapaian-profil-lulusan'),
-                        ],
-                    ];
-                }
+                // Ketercapaian pilar ini diambil dari 2 fitur:
+                // 1. Fitur Nilai Akademik Siswa
+                // 2. Fitur Input Prestasi Siswa
+                $totalSiswa = Student::query()
+                    ->when($institutionId, fn($q) => $q->where('institution_id', $institutionId))
+                    ->count();
+
+                // 1. Nilai Akademik Siswa
+                $siswaDinilai = Student::query()
+                    ->when($institutionId, fn($q) => $q->where('institution_id', $institutionId))
+                    ->where(function($q) {
+                        $q->whereHas('grades')->orWhereHas('raporGrades');
+                    })
+                    ->count();
+
+                $hasGrades = Grade::query()
+                    ->when($institutionId, fn($q) => $q->where('institution_id', $institutionId))
+                    ->exists() || \App\Models\RaporGrade::query()
+                    ->when($institutionId, fn($q) => $q->where('institution_id', $institutionId))
+                    ->exists();
+
+                $pctAkademik = $totalSiswa > 0 
+                    ? min(100, (int) round(($siswaDinilai / $totalSiswa) * 100))
+                    : ($hasGrades ? 100 : 0);
+                $isAkademikDone = ($pctAkademik >= 100);
+
+                // 2. Input Prestasi Siswa
+                $targetPrestasi = max(1, Classroom::query()
+                    ->when($institutionId, fn($q) => $q->where('institution_id', $institutionId))
+                    ->count());
+
+                $prestasiCount = StudentAchievement::query()
+                    ->when($institutionId, fn($q) => $q->where('institution_id', $institutionId))
+                    ->count();
+
+                $pctPrestasi = min(100, (int) round(($prestasiCount / $targetPrestasi) * 100));
+                $isPrestasiDone = ($pctPrestasi >= 100);
+
+                $tasks = [
+                    (object) [
+                        'id' => 'mutu_lulusan_akademik',
+                        'name' => 'Input Nilai Akademik Siswa',
+                        'status' => $isAkademikDone ? 'selesai' : 'belum',
+                        'code' => '2.1',
+                        'assigned_role' => 'WKr / Guru Mapel',
+                        'is_sop_merah' => false,
+                        'desc' => "Ketercapaian Nilai Akademik: {$siswaDinilai} dari {$totalSiswa} siswa tuntas ({$pctAkademik}%)",
+                        'url' => self::resolveUrlForRoute('grades'),
+                        'percentage' => $pctAkademik,
+                    ],
+                    (object) [
+                        'id' => 'mutu_lulusan_prestasi',
+                        'name' => 'Input Prestasi Siswa (Akademik & Non-Akademik)',
+                        'status' => $isPrestasiDone ? 'selesai' : 'belum',
+                        'code' => '2.2',
+                        'assigned_role' => 'WKs / WKr',
+                        'is_sop_merah' => false,
+                        'desc' => "Ketercapaian Prestasi: {$prestasiCount} prestasi tercatat dari target {$targetPrestasi} ({$pctPrestasi}%)",
+                        'url' => self::resolveUrlForRoute('student-achievements'),
+                        'percentage' => $pctPrestasi,
+                    ],
+                ];
+
+                $customPercentage = (int) round(($pctAkademik + $pctPrestasi) / 2);
                 break;
 
-            case 3: // Kurikulum & Pembelajaran
+            case 3: // Bidang Kurikulum
+                // Ketercapaian HANYA diambil dari program kerja kurikulum
                 $programs = self::filterByInstitution(ProgramKurikulum::query(), $institutionId, 'program_kurikulums')->get();
 
                 if ($programs->isNotEmpty()) {
                     $tasks = $programs->map(function ($m) {
+                        $isDone = strtolower($m->status_pelaksanaan ?? '') === 'selesai';
                         return (object) [
                             'id' => 'dynamic_kurikulum_' . $m->id,
                             'name' => $m->nama_program,
-                            'status' => strtolower($m->status_pelaksanaan) === 'selesai' ? 'selesai' : 'belum',
+                            'status' => $isDone ? 'selesai' : 'belum',
                             'code' => 'WKr',
                             'assigned_role' => 'WKr',
                             'is_sop_merah' => false,
-                            'desc' => 'Program Kurikulum | Kategori: ' . $m->kategori . ' | Sifat: ' . $m->sifat,
+                            'desc' => 'Program Kerja Kurikulum | Status: ' . ($m->status_pelaksanaan ?: 'Rencana') . ' | Sifat: ' . ($m->sifat ?? 'Wajib'),
                             'url' => self::resolveUrlForRoute('program-kurikulums'),
                         ];
                     })->all();
@@ -316,33 +357,81 @@ class SchoolPillarService
                 break;
 
             case 4: // PTK (Pendidik dan Tenaga Kependidikan)
-                $staticTasks = $pillar->tasks ?? collect();
-                if ($staticTasks->isNotEmpty()) {
-                    $tasks = self::mapStaticTasks($staticTasks, 'KS', 'supervisi-guru');
-                } else {
-                    // Fallback tugas standar PTK
-                    $tasks = [
-                        (object) ['id' => 'p4_1', 'name' => 'Rekrutmen & Pemetaan PTK', 'status' => 'belum', 'code' => '4.1', 'assigned_role' => 'KS', 'is_sop_merah' => false, 'desc' => 'Perencanaan kebutuhan tenaga pendidik dan kependidikan', 'url' => self::resolveUrlForRoute('supervisi-guru')],
-                        (object) ['id' => 'p4_2', 'name' => 'Penempatan & Beban Jam PTK', 'status' => 'belum', 'code' => '4.2', 'assigned_role' => 'KS', 'is_sop_merah' => false, 'desc' => 'Distribusi jadwal dan tugas pokok guru/karyawan', 'url' => self::resolveUrlForRoute('supervisi-guru')],
-                        (object) ['id' => 'p4_3', 'name' => 'Pembinaan dan Peningkatan Kompetensi PTK', 'status' => 'belum', 'code' => '4.3', 'assigned_role' => 'KS', 'is_sop_merah' => false, 'desc' => 'Pelatihan berkala, workshop pedagogik, dan keislaman', 'url' => self::resolveUrlForRoute('supervisi-guru')],
-                        (object) ['id' => 'p4_4', 'name' => 'Supervisi Akademik & Penilaian Kinerja Guru', 'status' => 'belum', 'code' => '4.4', 'assigned_role' => 'KS', 'is_sop_merah' => false, 'desc' => 'Observasi pembelajaran kelas dan evaluasi pedagogik', 'url' => self::resolveUrlForRoute('supervisi-guru')],
-                    ];
-                }
+                // Ketercapaian pilar ini diambil dari 2 fitur:
+                // 1. Fitur Input Sertifikat Guru
+                // 2. Fitur Input Profil / Data Guru
+                $teachers = User::query()
+                    ->when($institutionId, fn($q) => $q->where('institution_id', $institutionId))
+                    ->whereHas('roles', fn($q) => $q->whereNotIn('name', ['siswa', 'orang_tua']))
+                    ->get();
+                $totalGuru = $teachers->count();
+
+                // 1. Input Profil / Data Guru
+                $guruProfilLengkap = $teachers->filter(function($u) {
+                    return !empty($u->name) && !empty($u->email) && (!empty($u->nuptk) || !empty($u->phone) || !empty($u->nip) || !empty($u->nik));
+                })->count();
+                $pctProfil = $totalGuru > 0 
+                    ? min(100, (int) round(($guruProfilLengkap / $totalGuru) * 100))
+                    : 0;
+                $isProfilDone = ($pctProfil >= 100);
+
+                // 2. Input Sertifikat Guru
+                $guruPunyaSertifikat = TeacherCertificate::query()
+                    ->when($institutionId, fn($q) => $q->where('institution_id', $institutionId))
+                    ->distinct('teacher_id')
+                    ->count('teacher_id');
+                $totalSertifikat = TeacherCertificate::query()
+                    ->when($institutionId, fn($q) => $q->where('institution_id', $institutionId))
+                    ->count();
+
+                $pctSertifikat = $totalGuru > 0 
+                    ? min(100, (int) round(($guruPunyaSertifikat / $totalGuru) * 100))
+                    : ($totalSertifikat > 0 ? 100 : 0);
+                $isSertifikatDone = ($pctSertifikat >= 100);
+
+                $tasks = [
+                    (object) [
+                        'id' => 'ptk_profil_guru',
+                        'name' => 'Input Profil & Data Induk Guru',
+                        'status' => $isProfilDone ? 'selesai' : 'belum',
+                        'code' => '4.1',
+                        'assigned_role' => 'KS / TU',
+                        'is_sop_merah' => false,
+                        'desc' => "Kelengkapan Profil: {$guruProfilLengkap} dari {$totalGuru} guru lengkap ({$pctProfil}%)",
+                        'url' => self::resolveUrlForRoute('teacher-profiles'),
+                        'percentage' => $pctProfil,
+                    ],
+                    (object) [
+                        'id' => 'ptk_sertifikat_guru',
+                        'name' => 'Input Sertifikat Guru & Pelatihan',
+                        'status' => $isSertifikatDone ? 'selesai' : 'belum',
+                        'code' => '4.2',
+                        'assigned_role' => 'KS / Guru',
+                        'is_sop_merah' => false,
+                        'desc' => "Input Sertifikat: {$totalSertifikat} sertifikat ({$guruPunyaSertifikat} dari {$totalGuru} guru, {$pctSertifikat}%)",
+                        'url' => self::resolveUrlForRoute('teacher-certificates'),
+                        'percentage' => $pctSertifikat,
+                    ],
+                ];
+
+                $customPercentage = (int) round(($pctProfil + $pctSertifikat) / 2);
                 break;
 
             case 5: // Kesiswaan
+                // Ketercapaian HANYA diambil dari program kerja kesiswaan
                 $programs = self::filterByInstitution(ProgramKesiswaan::query(), $institutionId, 'program_kesiswaans')->get();
 
                 if ($programs->isNotEmpty()) {
                     $tasks = $programs->map(function ($m) {
+                        $isDone = strtolower($m->status_pelaksanaan ?? '') === 'selesai';
                         return (object) [
                             'id' => 'dynamic_kesiswaan_' . $m->id,
                             'name' => $m->nama_program,
-                            'status' => strtolower($m->status_pelaksanaan) === 'selesai' ? 'selesai' : 'belum',
+                            'status' => $isDone ? 'selesai' : 'belum',
                             'code' => 'WKs',
                             'assigned_role' => 'WKs',
                             'is_sop_merah' => false,
-                            'desc' => 'Program Kesiswaan | Kategori: ' . $m->kategori . ' | Sifat: ' . $m->sifat,
+                            'desc' => 'Program Kerja Kesiswaan | Status: ' . ($m->status_pelaksanaan ?: 'Rencana') . ' | Sifat: ' . ($m->sifat ?? 'Wajib'),
                             'url' => self::resolveUrlForRoute('program-kesiswaans'),
                         ];
                     })->all();
@@ -352,18 +441,20 @@ class SchoolPillarService
                 break;
 
             case 6: // Sarpras
+                // Ketercapaian HANYA diambil dari program kerja sarpras
                 $programs = self::filterByInstitution(ProgramSarpras::query(), $institutionId, 'program_sarpras')->get();
 
                 if ($programs->isNotEmpty()) {
                     $tasks = $programs->map(function ($m) {
+                        $isDone = strtolower($m->status_pelaksanaan ?? '') === 'selesai';
                         return (object) [
                             'id' => 'dynamic_sarpras_' . $m->id,
                             'name' => $m->nama_program,
-                            'status' => strtolower($m->status_pelaksanaan) === 'selesai' ? 'selesai' : 'belum',
+                            'status' => $isDone ? 'selesai' : 'belum',
                             'code' => 'SP',
                             'assigned_role' => 'SP',
                             'is_sop_merah' => false,
-                            'desc' => 'Program Sarpras | Kategori: ' . $m->kategori . ' | Sifat: ' . $m->sifat,
+                            'desc' => 'Program Kerja Sarpras | Status: ' . ($m->status_pelaksanaan ?: 'Rencana') . ' | Sifat: ' . ($m->sifat ?? 'Wajib'),
                             'url' => self::resolveUrlForRoute('program-sarpras'),
                         ];
                     })->all();
@@ -372,31 +463,55 @@ class SchoolPillarService
                 }
                 break;
 
-            case 7: // Keuangan
-                $staticTasks = $pillar->tasks ?? collect();
-                if ($staticTasks->isNotEmpty()) {
-                    $tasks = self::mapStaticTasks($staticTasks, 'TU', 'students');
-                } else {
-                    $tasks = [
-                        (object) [
-                            'id' => 'p7_task_1',
-                            'name' => 'Input data status murid sudah membayar atau belum',
-                            'status' => 'belum',
-                            'code' => '7.1',
-                            'assigned_role' => 'TU',
-                            'is_sop_merah' => false,
-                            'desc' => 'Rekapitulasi administrasi keuangan dan SPP siswa',
-                            'url' => self::resolveUrlForRoute('students'),
-                        ],
+            case 7: // Keuangan & SPP Siswa
+                // Sesuai permintaan user: persentase DIHILANGKAN.
+                // Ketika diklik, menampilkan data siswa yang sudah membayar SPP atau belum per bulannya.
+                $students = Student::query()
+                    ->when($institutionId, fn($q) => $q->where('institution_id', $institutionId))
+                    ->with(['classroom', 'sppPayments'])
+                    ->orderBy('name')
+                    ->get();
+
+                $currentMonthName = Carbon::now()->translatedFormat('F');
+                $totalSiswa = $students->count();
+                $lunasCount = $students->filter(fn($st) => (bool) $st->is_administrasi_lunas)->count();
+                $belumLunasCount = max(0, $totalSiswa - $lunasCount);
+
+                $tasks = [];
+                // Ringkasan SPP per bulan berjalan
+                $tasks[] = (object) [
+                    'id' => 'spp_summary_current_month',
+                    'name' => "Rekapitulasi SPP Bulan {$currentMonthName}",
+                    'status' => $belumLunasCount === 0 && $totalSiswa > 0 ? 'selesai' : 'belum',
+                    'code' => 'SPP',
+                    'assigned_role' => 'TU / Keuangan',
+                    'is_sop_merah' => false,
+                    'desc' => "Status: {$lunasCount} Lunas, {$belumLunasCount} Belum Lunas (Total: {$totalSiswa} Siswa)",
+                    'url' => self::resolveUrlForRoute('students'),
+                ];
+
+                // Daftar status pembayaran SPP per siswa
+                foreach ($students as $st) {
+                    $isLunas = (bool) $st->is_administrasi_lunas;
+                    $tasks[] = (object) [
+                        'id' => 'spp_student_' . $st->id,
+                        'name' => $st->name . ' (' . ($st->classroom?->name ?? 'Tanpa Kelas') . ')',
+                        'status' => $isLunas ? 'selesai' : 'belum',
+                        'code' => 'NIS: ' . ($st->nis ?: '-'),
+                        'assigned_role' => 'TU',
+                        'is_sop_merah' => !$isLunas,
+                        'desc' => $isLunas 
+                            ? "Pembayaran SPP Bulan {$currentMonthName}: Lunas" 
+                            : "Pembayaran SPP Bulan {$currentMonthName}: Belum Membayar",
+                        'url' => self::resolveUrlForRoute('students'),
                     ];
                 }
                 break;
 
             case 8: // Humas
+                // Ketercapaian HANYA diambil dari program kerja humas
                 $programs = self::filterByInstitution(ProgramHumas::query(), $institutionId, 'program_humas')->get();
-
                 if ($programs->isEmpty()) {
-                    // Coba periksa model HumasProgram alternatif
                     $programs = self::filterByInstitution(HumasProgram::query(), $institutionId, 'humas_programs')->get();
                 }
 
@@ -410,12 +525,12 @@ class SchoolPillarService
                         }
                         return (object) [
                             'id' => 'dynamic_humas_' . $m->id,
-                            'name' => $m->nama_program ?? ($m->nama ?? 'Program Humas'),
+                            'name' => $m->nama_program ?? ($m->nama ?? 'Program Kerja Humas'),
                             'status' => $isDone ? 'selesai' : 'belum',
                             'code' => 'Hm',
                             'assigned_role' => 'Hm',
                             'is_sop_merah' => false,
-                            'desc' => 'Program Kehumasan | Sinergi Sekolah, Wali Murid & Masyarakat',
+                            'desc' => 'Program Kerja Humas | Sinergi Sekolah, Wali Murid & Masyarakat',
                             'url' => self::resolveUrlForRoute('program-humas'),
                         ];
                     })->all();
@@ -425,6 +540,7 @@ class SchoolPillarService
                 break;
 
             case 9: // Layanan Khusus / BK
+                // Ketercapaian HANYA diambil dari program kerja BK
                 $programs = self::filterByInstitution(BkWorkProgram::query(), $institutionId, 'bk_work_programs')->get();
 
                 if ($programs->isNotEmpty()) {
@@ -433,12 +549,12 @@ class SchoolPillarService
                         $isDone = in_array($statusStr, ['terlaksana', 'selesai']);
                         return (object) [
                             'id' => 'dynamic_bk_' . $m->id,
-                            'name' => $m->judul_program ?? 'Layanan Konseling / BK',
+                            'name' => $m->judul_program ?? 'Program Kerja BK',
                             'status' => $isDone ? 'selesai' : 'belum',
                             'code' => 'BK',
                             'assigned_role' => 'BK',
                             'is_sop_merah' => false,
-                            'desc' => 'Layanan Khusus / BK | Bidang: ' . ($m->bidang_layanan ?? 'Umum') . ' | Sasaran: ' . ($m->sasaran ?? 'Siswa'),
+                            'desc' => 'Program Kerja BK | Sasaran: ' . ($m->sasaran ?? 'Siswa') . ' | Bidang: ' . ($m->bidang_layanan ?? 'Umum'),
                             'url' => self::resolveUrlForRoute('bk-work-programs'),
                         ];
                     })->all();
@@ -452,7 +568,10 @@ class SchoolPillarService
                 break;
         }
 
-        return $tasks;
+        return [
+            'tasks' => $tasks,
+            'custom_percentage' => $customPercentage,
+        ];
     }
 
     /**
@@ -488,6 +607,10 @@ class SchoolPillarService
         return rescue(function () use ($routeKey) {
             return match ($routeKey) {
                 'ketercapaian-profil-lulusan' => \App\Filament\Staff\Pages\KetercapaianProfilLulusan::getUrl(),
+                'grades' => \App\Filament\Staff\Resources\GradeResource::getUrl('index'),
+                'student-achievements' => \App\Filament\Staff\Resources\StudentAchievementResource::getUrl('index'),
+                'teacher-profiles' => \App\Filament\Staff\Resources\TeacherProfileResource::getUrl('index'),
+                'teacher-certificates' => \App\Filament\Staff\Resources\TeacherCertificateResource::getUrl('index'),
                 'program-kurikulums' => \App\Filament\Staff\Resources\ProgramKurikulumResource::getUrl('index'),
                 'program-kesiswaans' => \App\Filament\Staff\Resources\ProgramKesiswaanResource::getUrl('index'),
                 'program-sarpras' => \App\Filament\Staff\Resources\ProgramSarprasResource::getUrl('index'),
@@ -522,7 +645,8 @@ class SchoolPillarService
     }
 
     /**
-     * Dapatkan persentase ketercapaian global (rata-rata keseluruhan pilar).
+     * Dapatkan persentase ketercapaian global.
+     * Hanya menghitung 8 pilar yang memiliki persentase (Pilar Keuangan tidak dihitung).
      */
     public static function getOverallProgress(?int $institutionId = null, ?User $user = null): int
     {
@@ -531,8 +655,14 @@ class SchoolPillarService
             return 0;
         }
 
-        $totalPercentages = array_sum(array_column($pillars, 'percentage'));
-        return (int) round($totalPercentages / count($pillars));
+        // Filter hanya pilar yang memiliki persentase resmi (8 pilar)
+        $pillarsWithPct = array_filter($pillars, fn($p) => isset($p['has_percentage']) && $p['has_percentage'] === true && $p['percentage'] !== null);
+        if (empty($pillarsWithPct)) {
+            return 0;
+        }
+
+        $totalPercentages = array_sum(array_column($pillarsWithPct, 'percentage'));
+        return (int) round($totalPercentages / count($pillarsWithPct));
     }
 
     /**
@@ -540,11 +670,11 @@ class SchoolPillarService
      */
     protected static function filterByInstitution($query, int $institutionId, string $table)
     {
-        if (\Illuminate\Support\Facades\Schema::hasColumn($table, 'institution_id')) {
+        if (Schema::hasColumn($table, 'institution_id')) {
             return $query->where($table . '.institution_id', $institutionId);
         }
 
-        if (\Illuminate\Support\Facades\Schema::hasColumn($table, 'user_id')) {
+        if (Schema::hasColumn($table, 'user_id')) {
             return $query->whereHas('user', function ($q) use ($institutionId) {
                 $q->where('institution_id', $institutionId);
             });
