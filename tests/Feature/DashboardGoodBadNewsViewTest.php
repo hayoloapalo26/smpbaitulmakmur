@@ -24,10 +24,19 @@ class DashboardGoodBadNewsViewTest extends TestCase
         Role::firstOrCreate(['name' => 'kepala_sekolah', 'guard_name' => 'web']);
         Role::firstOrCreate(['name' => 'guru_mapel', 'guard_name' => 'web']);
 
-        $this->institution = Institution::firstOrCreate(
-            ['slug' => 'smp-islam-baitul-makmur'],
-            ['name' => 'SMP Islam Baitul Makmur']
+        Institution::firstOrCreate(
+            ['id' => 1],
+            ['name' => 'Yayasan Baitul Makmur', 'slug' => 'yayasan']
         );
+
+        $this->institution = Institution::firstOrCreate(
+            ['id' => 2],
+            ['name' => 'SMP Islam Baitul Makmur', 'slug' => 'smp-islam-baitul-makmur']
+        );
+
+        try {
+            \Filament\Facades\Filament::setCurrentPanel(\Filament\Facades\Filament::getPanel('staff'));
+        } catch (\Throwable $e) {}
 
         $this->kepalaSekolah = User::create([
             'name' => 'Kepala Sekolah',

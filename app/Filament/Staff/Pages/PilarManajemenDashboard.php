@@ -40,33 +40,13 @@ class PilarManajemenDashboard extends Page
 
     public function getPillarsProperty()
     {
-        $picCodes = $this->getUserPicCodes();
-        $isKS = in_array('KS', $picCodes);
-
-        $pillars = SchoolPillar::orderBy('order')->with(['tasks' => function($q) {
-            $q->orderBy('order');
-        }])->get();
-
-        if (!$isKS) {
-            // Filter tasks based on assigned roles for non-KS users
-            $pillars->each(function($pillar) use ($picCodes) {
-                $pillar->setRelation('tasks', $pillar->tasks->filter(function($task) use ($picCodes) {
-                    foreach ($picCodes as $code) {
-                        if (str_contains($task->assigned_role, $code)) {
-                            return true;
-                        }
-                    }
-                    return false;
-                }));
-            });
-
-            // Hanya tampilkan pilar yang memiliki tugas untuk role tersebut
-            $pillars = $pillars->filter(function($pillar) {
-                return $pillar->tasks->count() > 0;
-            });
-        }
-
-        return $pillars;
+        $user = Auth::user();
+        $raw = \App\Services\SchoolPillarService::getPillarsData($user?->institution_id, $user);
+        return collect($raw)->map(function ($item) {
+            $obj = (object) $item;
+            $obj->tasks = collect($item['tasks']);
+            return $obj;
+        });
     }
 
     public function getProgressDataProperty()
@@ -75,16 +55,12 @@ class PilarManajemenDashboard extends Page
         $data = [];
 
         foreach ($pillars as $pillar) {
-            $total = $pillar->tasks->count();
-            $selesai = $pillar->tasks->where('status', 'selesai')->count();
-            $percentage = $total > 0 ? round(($selesai / $total) * 100) : 0;
-
             $data[] = [
                 'id' => $pillar->id,
                 'name' => $pillar->name,
-                'total' => $total,
-                'selesai' => $selesai,
-                'percentage' => $percentage,
+                'total' => $pillar->total,
+                'selesai' => $pillar->selesai,
+                'percentage' => $pillar->percentage,
             ];
         }
 

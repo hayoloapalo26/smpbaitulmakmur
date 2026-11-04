@@ -36,16 +36,8 @@ class InstitutionOverviewWidget extends Widget
                 $q->whereIn('name', array_merge(['guru_mapel', 'wali_kelas'], \App\Models\User::QURAN_TEACHER_ROLES));
             })->count();
 
-            // Real Percentage (Calculate from Pillar Tasks)
-            $totalTasks = \App\Models\SchoolPillarTask::withoutGlobalScopes()->whereHas('pillar', function($q) use ($instId) {
-                $q->where('institution_id', $instId);
-            })->count();
-            
-            $selesaiTasks = \App\Models\SchoolPillarTask::withoutGlobalScopes()->whereHas('pillar', function($q) use ($instId) {
-                $q->where('institution_id', $instId);
-            })->where('status', 'selesai')->count();
-
-            $percentage = $totalTasks > 0 ? round(($selesaiTasks / $totalTasks) * 100) : 0;
+            // Real Percentage (Calculate from SchoolPillarService)
+            $percentage = \App\Services\SchoolPillarService::getOverallProgress($instId);
 
             return [
                 'id' => $institution->id,

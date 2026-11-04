@@ -69,9 +69,9 @@
             @foreach($this->pillars as $pillar)
                 @php
                     $tasks = $pillar->tasks;
-                    $selesai = $tasks->where('status', 'selesai')->count();
-                    $total = $tasks->count();
-                    $percentage = $total > 0 ? round(($selesai / $total) * 100) : 0;
+                    $selesai = $pillar->selesai ?? $tasks->where('status', 'selesai')->count();
+                    $total = $pillar->total ?? $tasks->count();
+                    $percentage = $pillar->percentage ?? ($total > 0 ? round(($selesai / $total) * 100) : 0);
                     
                     $circ = 2 * pi() * 32;
                     $dashoffset = $circ - ($percentage / 100) * $circ;
