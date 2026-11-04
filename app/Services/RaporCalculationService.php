@@ -361,7 +361,7 @@ class RaporCalculationService
 
         // 6. Hitung rata-rata & Peringkat Kelas
         $averageNa = $totalSubjectsWithGrade > 0 ? round($totalNaSum / $totalSubjectsWithGrade, 2) : 0;
-        $classRank = self::calculateClassRank($student, $academicYear?->id, $semester);
+        $classRank = self::calculateClassRank($student, $academicYear?->id, $semester, $mode);
 
         return [
             'student'            => $student,
@@ -691,9 +691,9 @@ class RaporCalculationService
     }
 
     /**
-     * Hitung Peringkat Siswa di Kelas.
+     * Hitung Peringkat Siswa di Kelas (Mendukung mode 'olah' dan 'asli').
      */
-    protected static function calculateClassRank(Student $student, ?int $academicYearId, string $semester): array
+    protected static function calculateClassRank(Student $student, ?int $academicYearId, string $semester, string $mode = 'olah'): array
     {
         if (!$student->classroom_id) {
             return ['rank' => 1, 'total' => 1];
@@ -702,11 +702,44 @@ class RaporCalculationService
         $classmates = Student::where('classroom_id', $student->classroom_id)->pluck('id');
         $scores = [];
 
+        $allGrades = Grade::whereIn('student_id', $classmates)
+            ->when($academicYearId, fn ($q) => $q->where('academic_year_id', $academicYearId))
+            ->where('semester', $semester)
+            ->get()
+            ->groupBy('student_id');
+
+        $allAdjustments = RaporGrade::whereIn('student_id', $classmates)
+            ->when($academicYearId, fn ($q) => $q->where('academic_year_id', $academicYearId))
+            ->where('semester', $semester)
+            ->get()
+            ->groupBy('student_id');
+
         foreach ($classmates as $cmId) {
-            $sum = Grade::where('student_id', $cmId)
-                ->when($academicYearId, fn ($q) => $q->where('academic_year_id', $academicYearId))
-                ->where('semester', $semester)
-                ->sum('score');
+            $cmGrades = $allGrades->get($cmId, collect());
+            $cmAdjustments = $allAdjustments->get($cmId, collect())->keyBy('subject_id');
+
+            $sum = 0;
+            $bySubject = $cmGrades->groupBy('subject_id');
+            foreach ($bySubject as $subId => $sGrades) {
+                $rtNhP = $sGrades->where('type', 'pengetahuan')->first()?->score;
+                $uts = $sGrades->where('type', 'ujian')->first()?->score;
+                $naP = self::calculateNaPengetahuan($rtNhP, $uts);
+
+                $rtNhK = $sGrades->where('type', 'keterampilan')->first()?->score;
+                $naK = self::calculateNaKeterampilan($rtNhK);
+
+                if ($mode === 'olah') {
+                    $adj = $cmAdjustments->get($subId);
+                    if ($adj) {
+                        if ($adj->nilai_pengetahuan_olah !== null) $naP = (float)$adj->nilai_pengetahuan_olah;
+                        if ($adj->nilai_keterampilan_olah !== null) $naK = (float)$adj->nilai_keterampilan_olah;
+                    }
+                }
+
+                if ($naP !== null) $sum += $naP;
+                if ($naK !== null) $sum += $naK;
+            }
+
             $scores[$cmId] = (float) $sum;
         }
 
