@@ -248,7 +248,7 @@ class RaporCalculationService
         }
 
         // 3. Ekstrakurikuler
-        $extracurriculars = self::getStudentExtracurriculars($student);
+        $extracurriculars = self::getStudentExtracurriculars($student, $academicYear?->id, $semester);
 
         // 4. Ketidakhadiran
         $attendance = self::getStudentAttendanceSummary($student);
@@ -323,19 +323,57 @@ class RaporCalculationService
     /**
      * Ambil data presensi & nilai ekstrakurikuler siswa.
      */
-    protected static function getStudentExtracurriculars(Student $student): array
+    protected static function getStudentExtracurriculars(Student $student, ?int $academicYearId = null, ?string $semester = null): array
     {
+        // 1. Cek nilai akhir semester yang telah diinput oleh Guru Ekstrakurikuler
+        $grades = \App\Models\ExtracurricularGrade::with('extracurricular')
+            ->where('student_id', $student->id)
+            ->when($academicYearId, fn ($q) => $q->where('academic_year_id', $academicYearId))
+            ->when($semester, fn ($q) => $q->where('semester', $semester))
+            ->get();
+
+        if ($grades->isNotEmpty()) {
+            $result = [];
+            foreach ($grades as $g) {
+                $result[] = [
+                    'name' => $g->extracurricular?->name ?? 'Ekstrakurikuler',
+                    'nilai' => $g->predikat ?: 'A',
+                    'deskripsi' => $g->deskripsi ?: 'Sangat baik, aktif dan berprestasi dalam kegiatan ekstrakurikuler.',
+                ];
+            }
+            return $result;
+        }
+
+        // 2. Jika belum ada nilai akhir semester, hitung dari akumulasi kehadiran eskul
         $attendances = ExtracurricularAttendance::with('extracurricular')
             ->where('student_id', $student->id)
             ->get();
 
         if ($attendances->isEmpty()) {
-            // Ambil dari master ekstrakurikuler jika ada eskul wajib (misal: Pramuka)
+            // Ambil dari routing anggota eskul jika siswa terdaftar
+            $memberships = \App\Models\ExtracurricularMember::with('extracurricular')
+                ->where('student_id', $student->id)
+                ->where('is_active', true)
+                ->get();
+
+            if ($memberships->isNotEmpty()) {
+                $res = [];
+                foreach ($memberships as $m) {
+                    $res[] = [
+                        'name' => $m->extracurricular?->name ?? 'Ekstrakurikuler',
+                        'nilai' => 'A',
+                        'deskripsi' => 'Sangat baik, aktif dalam kegiatan ekstrakurikuler.',
+                    ];
+                }
+                return $res;
+            }
+
+            // Fallback default
             $defaultEskuls = Extracurricular::where('is_active', true)->take(2)->get();
             $result = [];
             foreach ($defaultEskuls as $eskul) {
                 $result[] = [
-                    'name' => $eskul->nama,
+                    'name' => $eskul->name,
                     'nilai' => 'A',
                     'deskripsi' => 'Sangat baik, aktif dalam setiap kegiatan dan latihan berkala.',
                 ];
@@ -360,7 +398,7 @@ class RaporCalculationService
             };
 
             $result[] = [
-                'name' => $eskul?->nama ?? 'Ekstrakurikuler',
+                'name' => $eskul?->name ?? 'Ekstrakurikuler',
                 'nilai' => $nilai,
                 'deskripsi' => $desc,
             ];

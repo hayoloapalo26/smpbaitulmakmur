@@ -23,4 +23,26 @@ class Extracurricular extends Model
     {
         return $this->hasMany(ExtracurricularAttendance::class, 'extracurricular_id');
     }
+
+    public function members()
+    {
+        return $this->hasMany(ExtracurricularMember::class, 'extracurricular_id');
+    }
+
+    public function students()
+    {
+        return $this->belongsToMany(Student::class, 'extracurricular_members', 'extracurricular_id', 'student_id')
+            ->withPivot(['is_active', 'catatan'])
+            ->withTimestamps();
+    }
+
+    public function journals()
+    {
+        return $this->hasMany(ExtracurricularJournal::class, 'extracurricular_id');
+    }
+
+    public function grades()
+    {
+        return $this->hasMany(ExtracurricularGrade::class, 'extracurricular_id');
+    }
 }

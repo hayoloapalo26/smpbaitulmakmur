@@ -4,9 +4,12 @@ namespace App\Filament\Staff\Resources;
 
 use App\Filament\Staff\Resources\ExtracurricularResource\Pages;
 use App\Models\Extracurricular;
+use App\Models\ExtracurricularMember;
+use App\Models\Student;
 use App\Models\User;
 use Filament\Forms;
 use Filament\Forms\Form;
+use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
@@ -155,6 +158,13 @@ class ExtracurricularResource extends Resource
                     ->label('Aktif')
                     ->boolean(),
 
+                Tables\Columns\TextColumn::make('members_count')
+                    ->counts('members')
+                    ->label('Anggota Siswa')
+                    ->badge()
+                    ->color('warning')
+                    ->sortable(),
+
                 Tables\Columns\TextColumn::make('attendances_count')
                     ->counts('attendances')
                     ->label('Total Presensi')
@@ -176,6 +186,77 @@ class ExtracurricularResource extends Resource
                     ->label('Status Aktif'),
             ])
             ->actions([
+                Tables\Actions\Action::make('routing_siswa')
+                    ->label('Routing Anggota')
+                    ->icon('heroicon-o-user-group')
+                    ->color('warning')
+                    ->modalHeading(fn (Extracurricular $record) => "Routing Anggota Santri/Siswa: {$record->name}")
+                    ->modalDescription('Tentukan santri/siswa yang mengikuti kegiatan ekstrakurikuler ini. Siswa yang dirouting akan otomatis muncul di jurnal mengajar dan presensi.')
+                    ->modalWidth('3xl')
+                    ->fillForm(fn (Extracurricular $record) => [
+                        'student_ids' => $record->members()->where('is_active', true)->pluck('student_id')->toArray(),
+                    ])
+                    ->form([
+                        Forms\Components\Select::make('filter_classroom_id')
+                            ->label('Saring Tampilan Berdasarkan Kelas (Opsional)')
+                            ->options(fn () => \App\Models\Classroom::reguler()->orderBy('name')->pluck('name', 'id'))
+                            ->searchable()
+                            ->preload()
+                            ->live(),
+
+                        Forms\Components\CheckboxList::make('student_ids')
+                            ->label('Daftar Santri / Siswa Anggota Eskul')
+                            ->options(function (Forms\Get $get) {
+                                $query = Student::query();
+                                $clsId = $get('filter_classroom_id');
+                                if ($clsId) {
+                                    $query->where('classroom_id', $clsId);
+                                }
+                                return $query->orderBy('name')->get()->mapWithKeys(function ($s) {
+                                    $kelas = $s->classroom ? " [{$s->classroom->name}]" : '';
+                                    return [$s->id => "{$s->name}{$kelas}"];
+                                });
+                            })
+                            ->searchable()
+                            ->bulkToggleable()
+                            ->columns(2)
+                            ->required(),
+                    ])
+                    ->action(function (Extracurricular $record, array $data) {
+                        $selectedStudentIds = $data['student_ids'] ?? [];
+                        
+                        foreach ($selectedStudentIds as $sid) {
+                            ExtracurricularMember::updateOrCreate(
+                                [
+                                    'extracurricular_id' => $record->id,
+                                    'student_id'         => $sid,
+                                ],
+                                [
+                                    'is_active'          => true,
+                                    'institution_id'     => $record->institution_id ?? auth()->user()?->institution_id,
+                                ]
+                            );
+                        }
+
+                        if (!empty($data['filter_classroom_id'])) {
+                            $classStudentIds = Student::where('classroom_id', $data['filter_classroom_id'])->pluck('id')->toArray();
+                            ExtracurricularMember::where('extracurricular_id', $record->id)
+                                ->whereIn('student_id', $classStudentIds)
+                                ->whereNotIn('student_id', $selectedStudentIds)
+                                ->delete();
+                        } else {
+                            ExtracurricularMember::where('extracurricular_id', $record->id)
+                                ->whereNotIn('student_id', $selectedStudentIds)
+                                ->delete();
+                        }
+
+                        Notification::make()
+                            ->title('Routing Siswa Berhasil Disimpan')
+                            ->body("Data anggota {$record->name} berhasil diperbarui.")
+                            ->success()
+                            ->send();
+                    }),
+
                 Tables\Actions\Action::make('presensi')
                     ->label('Presensi')
                     ->icon('heroicon-o-clipboard-document-check')

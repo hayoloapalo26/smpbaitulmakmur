@@ -119,6 +119,23 @@ class Student extends Model
         return $this->hasMany(ExtracurricularAttendance::class);
     }
 
+    public function extracurricularMembers()
+    {
+        return $this->hasMany(ExtracurricularMember::class, 'student_id');
+    }
+
+    public function extracurriculars()
+    {
+        return $this->belongsToMany(Extracurricular::class, 'extracurricular_members', 'student_id', 'extracurricular_id')
+            ->withPivot(['is_active', 'catatan'])
+            ->withTimestamps();
+    }
+
+    public function extracurricularGrades()
+    {
+        return $this->hasMany(ExtracurricularGrade::class, 'student_id');
+    }
+
     public function dcmResponses()
     {
         return $this->hasMany(DcmResponse::class);

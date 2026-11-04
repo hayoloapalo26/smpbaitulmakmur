@@ -28,4 +28,9 @@ class ExtracurricularAttendance extends Model
     {
         return $this->belongsTo(User::class, 'pembina_id');
     }
+
+    public function journal()
+    {
+        return $this->belongsTo(ExtracurricularJournal::class, 'extracurricular_journal_id');
+    }
 }
