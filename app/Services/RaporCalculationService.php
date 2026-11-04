@@ -8,6 +8,7 @@ use App\Models\DailyAttendance;
 use App\Models\Extracurricular;
 use App\Models\ExtracurricularAttendance;
 use App\Models\Grade;
+use App\Models\RaporGrade;
 use App\Models\Student;
 use App\Models\Subject;
 use Illuminate\Support\Collection;
@@ -157,8 +158,11 @@ class RaporCalculationService
 
     /**
      * Dapatkan Data Rapor Lengkap untuk 1 Siswa.
+     * Mode:
+     * - 'olah' (default): Menampilkan Nilai Rapor Olahan / Bantuan / Diedit (yang siap dicetak ke Rapor Resmi).
+     * - 'asli': Menampilkan Nilai Rapor Asli Murni dari inputan Guru Mapel.
      */
-    public static function getRaporData(Student $student, ?int $academicYearId = null, ?string $semester = null): array
+    public static function getRaporData(Student $student, ?int $academicYearId = null, ?string $semester = null, string $mode = 'olah'): array
     {
         $academicYear = $academicYearId 
             ? AcademicYear::find($academicYearId) 
@@ -173,46 +177,118 @@ class RaporCalculationService
             ->orderBy('name')
             ->get();
 
-        // 2. Ambil seluruh data nilai siswa pada periode ini
+        // 2. Ambil seluruh data nilai murni siswa pada periode ini dari guru mapel
         $grades = Grade::query()
             ->where('student_id', $student->id)
             ->when($academicYear, fn ($q) => $q->where('academic_year_id', $academicYear->id))
             ->when($semester, fn ($q) => $q->where('semester', $semester))
             ->get();
 
+        // 3. Ambil data penyesuaian / nilai bantuan / nilai olahan rapor jika ada
+        $raporAdjustments = RaporGrade::query()
+            ->where('student_id', $student->id)
+            ->when($academicYear, fn ($q) => $q->where('academic_year_id', $academicYear->id))
+            ->when($semester, fn ($q) => $q->where('semester', $semester))
+            ->get()
+            ->keyBy('subject_id');
+
         $subjectRows = [];
         $totalNaSum = 0;
         $totalSubjectsWithGrade = 0;
 
+        $totalNaAsli = 0;
+        $totalSubjectsAsli = 0;
+        $hasEditedAnySubject = false;
+
         foreach ($subjects as $idx => $subject) {
             $subGrades = $grades->where('subject_id', $subject->id);
+            $adjustment = $raporAdjustments->get($subject->id);
 
-            // Pengetahuan
-            $rtNhP = $subGrades->where('type', 'pengetahuan')->first()?->score;
-            $uts = $subGrades->where('type', 'ujian')->first()?->score;
-            $naP = self::calculateNaPengetahuan($rtNhP, $uts);
-            $konversiP = self::calculateKonversi($naP);
-            $predikatP = self::determinePredikat($konversiP, $naP);
-            $deskripsiP = self::generateDeskripsi('pengetahuan', $predikatP, $subject->name);
+            // --- A. NILAI ASLI (Murni dari Guru Mapel) ---
+            $rtNhP_asli = $subGrades->where('type', 'pengetahuan')->first()?->score;
+            $uts_asli = $subGrades->where('type', 'ujian')->first()?->score;
+            $naP_asli = self::calculateNaPengetahuan($rtNhP_asli, $uts_asli);
+            $konversiP_asli = self::calculateKonversi($naP_asli);
+            $predikatP_asli = self::determinePredikat($konversiP_asli, $naP_asli);
+            $deskripsiP_asli = self::generateDeskripsi('pengetahuan', $predikatP_asli, $subject->name);
 
-            // Keterampilan
-            $rtNhK = $subGrades->where('type', 'keterampilan')->first()?->score;
-            $naK = self::calculateNaKeterampilan($rtNhK);
-            $konversiK = self::calculateKonversi($naK);
-            $predikatK = self::determinePredikat($konversiK, $naK);
-            $deskripsiK = self::generateDeskripsi('keterampilan', $predikatK, $subject->name);
+            $rtNhK_asli = $subGrades->where('type', 'keterampilan')->first()?->score;
+            $naK_asli = self::calculateNaKeterampilan($rtNhK_asli);
+            $konversiK_asli = self::calculateKonversi($naK_asli);
+            $predikatK_asli = self::determinePredikat($konversiK_asli, $naK_asli);
+            $deskripsiK_asli = self::generateDeskripsi('keterampilan', $predikatK_asli, $subject->name);
+
+            if ($naP_asli !== null) {
+                $totalNaAsli += $naP_asli;
+                $totalSubjectsAsli++;
+            }
+            if ($naK_asli !== null) {
+                $totalNaAsli += $naK_asli;
+                $totalSubjectsAsli++;
+            }
+
+            // --- B. NILAI OLAHAN / NILAI BANTUAN / DIEDIT ---
+            $isEdited = false;
+            $catatanBantuan = null;
+
+            if ($adjustment) {
+                $naP_olah = $adjustment->nilai_pengetahuan_olah !== null ? (float)$adjustment->nilai_pengetahuan_olah : $naP_asli;
+                $naK_olah = $adjustment->nilai_keterampilan_olah !== null ? (float)$adjustment->nilai_keterampilan_olah : $naK_asli;
+                $catatanBantuan = $adjustment->catatan_penyesuaian;
+
+                // Tandai jika ada selisih dengan nilai asli atau ada flag custom
+                if ($adjustment->is_custom || ($adjustment->nilai_pengetahuan_olah !== null && abs($adjustment->nilai_pengetahuan_olah - ($naP_asli ?? 0)) > 0.01) || ($adjustment->nilai_keterampilan_olah !== null && abs($adjustment->nilai_keterampilan_olah - ($naK_asli ?? 0)) > 0.01)) {
+                    $isEdited = true;
+                    $hasEditedAnySubject = true;
+                }
+            } else {
+                $naP_olah = $naP_asli;
+                $naK_olah = $naK_asli;
+            }
+
+            $konversiP_olah = self::calculateKonversi($naP_olah);
+            $predikatP_olah = self::determinePredikat($konversiP_olah, $naP_olah);
+            $deskripsiP_olah = ($adjustment && $adjustment->deskripsi_pengetahuan) ? $adjustment->deskripsi_pengetahuan : self::generateDeskripsi('pengetahuan', $predikatP_olah, $subject->name);
+
+            $konversiK_olah = self::calculateKonversi($naK_olah);
+            $predikatK_olah = self::determinePredikat($konversiK_olah, $naK_olah);
+            $deskripsiK_olah = ($adjustment && $adjustment->deskripsi_keterampilan) ? $adjustment->deskripsi_keterampilan : self::generateDeskripsi('keterampilan', $predikatK_olah, $subject->name);
+
+            // --- C. PILIH NILAI AKTIF SESUAI MODE ---
+            if ($mode === 'asli') {
+                $activeNaP = $naP_asli;
+                $activeKonversiP = $konversiP_asli;
+                $activePredikatP = $predikatP_asli;
+                $activeDeskripsiP = $deskripsiP_asli;
+
+                $activeNaK = $naK_asli;
+                $activeKonversiK = $konversiK_asli;
+                $activePredikatK = $predikatK_asli;
+                $activeDeskripsiK = $deskripsiK_asli;
+            } else {
+                // Mode olah (default): gunakan nilai bantuan / olahan jika ada
+                $activeNaP = $naP_olah;
+                $activeKonversiP = $konversiP_olah;
+                $activePredikatP = $predikatP_olah;
+                $activeDeskripsiP = $deskripsiP_olah;
+
+                $activeNaK = $naK_olah;
+                $activeKonversiK = $konversiK_olah;
+                $activePredikatK = $predikatK_olah;
+                $activeDeskripsiK = $deskripsiK_olah;
+            }
 
             // Sikap
             $sikapScore = 85.0; // Nilai default sikap
             $predikatSikap = self::determineSikapPredikat($sikapScore);
             $deskripsiSikap = self::generateDeskripsi('sikap', $predikatSikap, $subject->name);
 
-            if ($naP !== null) {
-                $totalNaSum += $naP;
+            if ($activeNaP !== null) {
+                $totalNaSum += $activeNaP;
                 $totalSubjectsWithGrade++;
             }
-            if ($naK !== null) {
-                $totalNaSum += $naK;
+            if ($activeNaK !== null) {
+                $totalNaSum += $activeNaK;
                 $totalSubjectsWithGrade++;
             }
 
@@ -221,22 +297,28 @@ class RaporCalculationService
                 'subject' => $subject,
                 'name' => $subject->name,
                 'kelompok' => $subject->kelompok ?? 'Muatan Nasional',
+                'is_edited' => $isEdited,
+                'catatan_bantuan' => $catatanBantuan,
+
+                // Data nilai aktif (untuk cetak dan tampilan rapor)
                 'pengetahuan' => [
-                    'rt_nh' => $rtNhP,
-                    'uts' => $uts,
-                    'uts_konversi' => self::calculateKonversi($uts),
-                    'uts_predikat' => self::determinePredikat(self::calculateKonversi($uts), $uts),
-                    'na' => $naP,
-                    'konversi' => $konversiP,
-                    'predikat' => $predikatP,
-                    'deskripsi' => $deskripsiP,
+                    'rt_nh' => $rtNhP_asli,
+                    'uts' => $uts_asli,
+                    'uts_konversi' => self::calculateKonversi($uts_asli),
+                    'uts_predikat' => self::determinePredikat(self::calculateKonversi($uts_asli), $uts_asli),
+                    'na' => $activeNaP,
+                    'konversi' => $activeKonversiP,
+                    'predikat' => $activePredikatP,
+                    'deskripsi' => $activeDeskripsiP,
+                    'is_edited' => ($mode === 'olah' && $isEdited && $naP_olah != $naP_asli),
                 ],
                 'keterampilan' => [
-                    'rt_nh' => $rtNhK,
-                    'na' => $naK,
-                    'konversi' => $konversiK,
-                    'predikat' => $predikatK,
-                    'deskripsi' => $deskripsiK,
+                    'rt_nh' => $rtNhK_asli,
+                    'na' => $activeNaK,
+                    'konversi' => $activeKonversiK,
+                    'predikat' => $activePredikatK,
+                    'deskripsi' => $activeDeskripsiK,
+                    'is_edited' => ($mode === 'olah' && $isEdited && $naK_olah != $naK_asli),
                 ],
                 'sikap' => [
                     'score' => $sikapScore,
@@ -244,39 +326,68 @@ class RaporCalculationService
                     'predikat' => $predikatSikap,
                     'deskripsi' => $deskripsiSikap,
                 ],
+
+                // Komparasi Lengkap Asli vs Olahan
+                'nilai_asli' => [
+                    'pengetahuan' => $naP_asli,
+                    'konversi_p'  => $konversiP_asli,
+                    'predikat_p'  => $predikatP_asli,
+                    'deskripsi_p' => $deskripsiP_asli,
+                    'keterampilan'=> $naK_asli,
+                    'konversi_k'  => $konversiK_asli,
+                    'predikat_k'  => $predikatK_asli,
+                    'deskripsi_k' => $deskripsiK_asli,
+                    'rt_nh_p'     => $rtNhP_asli,
+                    'uts'         => $uts_asli,
+                ],
+                'nilai_olah' => [
+                    'pengetahuan' => $naP_olah,
+                    'konversi_p'  => $konversiP_olah,
+                    'predikat_p'  => $predikatP_olah,
+                    'deskripsi_p' => $deskripsiP_olah,
+                    'keterampilan'=> $naK_olah,
+                    'konversi_k'  => $konversiK_olah,
+                    'predikat_k'  => $predikatK_olah,
+                    'deskripsi_k' => $deskripsiK_olah,
+                ],
             ];
         }
 
-        // 3. Ekstrakurikuler
+        // 4. Ekstrakurikuler
         $extracurriculars = self::getStudentExtracurriculars($student, $academicYear?->id, $semester);
 
-        // 4. Ketidakhadiran
+        // 5. Ketidakhadiran
         $attendance = self::getStudentAttendanceSummary($student);
 
-        // 5. Hitung rata-rata & Peringkat Kelas
+        // 6. Hitung rata-rata & Peringkat Kelas
         $averageNa = $totalSubjectsWithGrade > 0 ? round($totalNaSum / $totalSubjectsWithGrade, 2) : 0;
         $classRank = self::calculateClassRank($student, $academicYear?->id, $semester);
 
         return [
-            'student'          => $student,
-            'academic_year'    => $academicYear,
-            'semester'         => $semester,
-            'subjects'         => $subjectRows,
-            'total_na'         => round($totalNaSum, 2),
-            'average_na'       => $averageNa,
-            'class_rank'       => $classRank['rank'],
-            'total_students'   => $classRank['total'],
-            'extracurriculars' => $extracurriculars,
-            'attendance'       => $attendance,
+            'student'            => $student,
+            'academic_year'      => $academicYear,
+            'semester'           => $semester,
+            'mode'               => $mode,
+            'has_edited_grades'  => $hasEditedAnySubject,
+            'subjects'           => $subjectRows,
+            'total_na'           => round($totalNaSum, 2),
+            'average_na'         => $averageNa,
+            'total_na_asli'      => round($totalNaAsli, 2),
+            'average_na_asli'    => $totalSubjectsAsli > 0 ? round($totalNaAsli / $totalSubjectsAsli, 2) : 0,
+            'class_rank'         => $classRank['rank'],
+            'total_students'     => $classRank['total'],
+            'extracurriculars'   => $extracurriculars,
+            'attendance'         => $attendance,
             'catatan_wali_kelas' => "Ananda menunjukkan perkembangan belajar yang positif, memiliki rasa ingin tahu tinggi, mandiri, disiplin, dan mampu bekerja sama dengan baik.",
-            'kkm'              => 75,
+            'kkm'                => 75,
         ];
     }
 
     /**
      * Dapatkan Data Leger Lengkap untuk 1 Kelas (Format Excel Matriks).
+     * Mode: 'olah' (Nilai Rapor Resmi/Bantuan) | 'asli' (Nilai Asli Guru Mapel)
      */
-    public static function getClassLeger(int $classroomId, ?int $academicYearId = null, ?string $semester = null): array
+    public static function getClassLeger(int $classroomId, ?int $academicYearId = null, ?string $semester = null, string $mode = 'olah'): array
     {
         $classroom = Classroom::with('waliKelas')->find($classroomId);
         if (!$classroom) {
@@ -298,7 +409,7 @@ class RaporCalculationService
         $studentLegerRows = [];
 
         foreach ($students as $student) {
-            $rapor = self::getRaporData($student, $academicYear?->id, $semester);
+            $rapor = self::getRaporData($student, $academicYear?->id, $semester, $mode);
             $studentLegerRows[] = $rapor;
         }
 
@@ -315,9 +426,167 @@ class RaporCalculationService
             'classroom'     => $classroom,
             'academic_year' => $academicYear,
             'semester'      => $semester,
+            'mode'          => $mode,
             'subjects'      => $subjects,
             'rows'          => $studentLegerRows,
         ];
+    }
+
+    /**
+     * Simpan / Perbarui Penyesuaian Nilai Bantuan (Olahan) Siswa untuk 1 Mata Pelajaran.
+     */
+    public static function saveRaporGradeAdjustment(
+        int $studentId,
+        int $subjectId,
+        ?int $academicYearId,
+        string $semester,
+        ?float $nilaiPOlah,
+        ?float $nilaiKOlah,
+        ?string $catatan = null,
+        ?string $deskripsiP = null,
+        ?string $deskripsiK = null,
+        ?int $updatedBy = null
+    ): RaporGrade {
+        $student = Student::find($studentId);
+        $subject = Subject::find($subjectId);
+
+        // Ambil nilai asli saat ini sebagai baseline referensi
+        $existingGrades = Grade::where([
+            'student_id'       => $studentId,
+            'subject_id'       => $subjectId,
+            'academic_year_id' => $academicYearId,
+            'semester'         => $semester,
+        ])->get();
+
+        $rtNhP = $existingGrades->where('type', 'pengetahuan')->first()?->score;
+        $uts = $existingGrades->where('type', 'ujian')->first()?->score;
+        $naP_asli = self::calculateNaPengetahuan($rtNhP, $uts);
+
+        $rtNhK = $existingGrades->where('type', 'keterampilan')->first()?->score;
+        $naK_asli = self::calculateNaKeterampilan($rtNhK);
+
+        $isCustom = false;
+        if ($nilaiPOlah !== null && $naP_asli !== null && abs($nilaiPOlah - $naP_asli) > 0.01) {
+            $isCustom = true;
+        }
+        if ($nilaiKOlah !== null && $naK_asli !== null && abs($nilaiKOlah - $naK_asli) > 0.01) {
+            $isCustom = true;
+        }
+        if (!empty($catatan)) {
+            $isCustom = true;
+        }
+
+        $predikatPOlah = $nilaiPOlah !== null ? self::determinePredikat(self::calculateKonversi($nilaiPOlah), $nilaiPOlah) : null;
+        $predikatKOlah = $nilaiKOlah !== null ? self::determinePredikat(self::calculateKonversi($nilaiKOlah), $nilaiKOlah) : null;
+
+        $predikatPAsli = $naP_asli !== null ? self::determinePredikat(self::calculateKonversi($naP_asli), $naP_asli) : null;
+        $predikatKAsli = $naK_asli !== null ? self::determinePredikat(self::calculateKonversi($naK_asli), $naK_asli) : null;
+
+        return RaporGrade::updateOrCreate(
+            [
+                'student_id'       => $studentId,
+                'subject_id'       => $subjectId,
+                'academic_year_id' => $academicYearId,
+                'semester'         => $semester,
+            ],
+            [
+                'classroom_id'               => $student?->classroom_id,
+                'nilai_pengetahuan_asli'     => $naP_asli,
+                'nilai_keterampilan_asli'    => $naK_asli,
+                'nilai_akhir_asli'           => ($naP_asli !== null && $naK_asli !== null) ? round(($naP_asli + $naK_asli) / 2, 2) : ($naP_asli ?? $naK_asli),
+                'predikat_pengetahuan_asli'  => $predikatPAsli,
+                'predikat_keterampilan_asli' => $predikatKAsli,
+
+                'nilai_pengetahuan_olah'     => $nilaiPOlah,
+                'nilai_keterampilan_olah'    => $nilaiKOlah,
+                'nilai_akhir_olah'           => ($nilaiPOlah !== null && $nilaiKOlah !== null) ? round(($nilaiPOlah + $nilaiKOlah) / 2, 2) : ($nilaiPOlah ?? $nilaiKOlah),
+                'predikat_pengetahuan_olah'  => $predikatPOlah,
+                'predikat_keterampilan_olah' => $predikatKOlah,
+
+                'deskripsi_pengetahuan'      => $deskripsiP ?: ($subject ? self::generateDeskripsi('pengetahuan', $predikatPOlah ?? 'B', $subject->name) : null),
+                'deskripsi_keterampilan'     => $deskripsiK ?: ($subject ? self::generateDeskripsi('keterampilan', $predikatKOlah ?? 'B', $subject->name) : null),
+
+                'is_custom'                  => $isCustom,
+                'catatan_penyesuaian'        => $catatan,
+                'updated_by'                 => $updatedBy ?? auth()->id(),
+                'institution_id'             => $student?->institution_id ?? auth()->user()?->institution_id,
+            ]
+        );
+    }
+
+    /**
+     * Katrol Otomatis Nilai Bawah KKM (75) untuk Seluruh Siswa 1 Rombel/Kelas.
+     * Nilai asli dari guru mapel tetap aman dan tidak berubah sama sekali.
+     */
+    public static function autoBoostClassroomToKkm(
+        int $classroomId,
+        ?int $academicYearId,
+        string $semester,
+        float $kkm = 75.0,
+        ?int $updatedBy = null
+    ): int {
+        $classroom = Classroom::find($classroomId);
+        if (!$classroom) return 0;
+
+        $students = $classroom->getRealStudents();
+        $updatedCount = 0;
+
+        foreach ($students as $student) {
+            $rapor = self::getRaporData($student, $academicYearId, $semester, 'asli');
+            foreach ($rapor['subjects'] as $subData) {
+                $sub = $subData['subject'];
+                $naP = $subData['pengetahuan']['na'];
+                $naK = $subData['keterampilan']['na'];
+
+                $needsBoostP = ($naP !== null && $naP < $kkm);
+                $needsBoostK = ($naK !== null && $naK < $kkm);
+
+                if ($needsBoostP || $needsBoostK) {
+                    $newP = $needsBoostP ? $kkm : $naP;
+                    $newK = $needsBoostK ? $kkm : $naK;
+
+                    self::saveRaporGradeAdjustment(
+                        $student->id,
+                        $sub->id,
+                        $academicYearId,
+                        $semester,
+                        $newP,
+                        $newK,
+                        "Nilai Bantuan KKM ({$kkm})",
+                        null,
+                        null,
+                        $updatedBy
+                    );
+                    $updatedCount++;
+                }
+            }
+        }
+
+        return $updatedCount;
+    }
+
+    /**
+     * Reset Seluruh Nilai Bantuan Siswa Kembali ke Nilai Asli Murni Guru Mapel.
+     */
+    public static function resetStudentToAsli(int $studentId, ?int $academicYearId, string $semester): int
+    {
+        return RaporGrade::where([
+            'student_id'       => $studentId,
+            'academic_year_id' => $academicYearId,
+            'semester'         => $semester,
+        ])->delete();
+    }
+
+    /**
+     * Reset Seluruh Nilai Bantuan Kelas Kembali ke Nilai Asli Murni Guru Mapel.
+     */
+    public static function resetClassroomToAsli(int $classroomId, ?int $academicYearId, string $semester): int
+    {
+        $studentIds = Student::where('classroom_id', $classroomId)->pluck('id');
+        return RaporGrade::whereIn('student_id', $studentIds)
+            ->when($academicYearId, fn ($q) => $q->where('academic_year_id', $academicYearId))
+            ->where('semester', $semester)
+            ->delete();
     }
 
     /**

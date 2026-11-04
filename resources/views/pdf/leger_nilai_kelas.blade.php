@@ -104,6 +104,15 @@
 
     <div class="doc-title">
         <h3>LEGER REKAPITULASI NILAI RAPOR SISWA (FORMAT RESMI)</h3>
+        @if(!empty($leger['mode']) && $leger['mode'] === 'asli')
+            <p style="font-size: 7.5pt; color: #b91c1c; font-weight: bold; margin: 2px 0 0 0; text-transform: uppercase;">
+                [ ARSIP REKAPITULASI: NILAI ASLI MURNI DARI INPUT GURU MAPEL ]
+            </p>
+        @else
+            <p style="font-size: 7.5pt; color: #1e3a8a; font-weight: bold; margin: 2px 0 0 0; text-transform: uppercase;">
+                [ DOKUMEN RESMI: MENGGUNAKAN NILAI RAPOR OLAHAN / BANTUAN ]
+            </p>
+        @endif
     </div>
 
     <table class="meta-table">

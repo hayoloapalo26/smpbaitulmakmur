@@ -121,6 +121,11 @@
 
     <div class="doc-title">
         <h3>LAPORAN HASIL PENILAIAN CAPAIAN KOMPETENSI PESERTA DIDIK</h3>
+        @if(!empty($rapor['mode']) && $rapor['mode'] === 'asli')
+            <p style="font-size: 8pt; color: #b91c1c; font-weight: bold; margin: 2px 0 0 0; text-transform: uppercase;">
+                [ ARSIP REKAPITULASI: NILAI ASLI MURNI DARI INPUT GURU MAPEL ]
+            </p>
+        @endif
     </div>
 
     {{-- IDENTITAS SISWA (Persis Format Sheet 1 Excel) --}}

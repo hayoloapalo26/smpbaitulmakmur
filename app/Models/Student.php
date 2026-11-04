@@ -136,6 +136,11 @@ class Student extends Model
         return $this->hasMany(ExtracurricularGrade::class, 'student_id');
     }
 
+    public function raporGrades()
+    {
+        return $this->hasMany(RaporGrade::class, 'student_id');
+    }
+
     public function dcmResponses()
     {
         return $this->hasMany(DcmResponse::class);

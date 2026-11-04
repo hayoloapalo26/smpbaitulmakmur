@@ -31,7 +31,8 @@ Route::get('/portal/rapor/{student}', function (\App\Models\Student $student, \I
     $academicYearId = $request->query('academic_year_id');
     $semester = $request->query('semester', 'Ganjil');
 
-    $rapor = \App\Services\RaporCalculationService::getRaporData($student, $academicYearId, $semester);
+    // Rapor resmi portal menggunakan nilai olahan / resmi
+    $rapor = \App\Services\RaporCalculationService::getRaporData($student, $academicYearId, $semester, 'olah');
     $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('pdf.rapor_akademik', compact('rapor'));
     return $pdf->download('e-rapor_'.$student->nis.'.pdf');
 })->name('portal.rapor')->middleware('auth');
@@ -45,8 +46,9 @@ Route::get('/report/rapor/{student}', function (\App\Models\Student $student, \I
 
     $academicYearId = $request->query('academic_year_id');
     $semester = $request->query('semester', 'Ganjil');
+    $mode = $request->query('mode', 'olah');
 
-    $rapor = \App\Services\RaporCalculationService::getRaporData($student, $academicYearId, $semester);
+    $rapor = \App\Services\RaporCalculationService::getRaporData($student, $academicYearId, $semester, $mode);
     $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('pdf.rapor_akademik', compact('rapor'));
     return $pdf->download('rapor_'.$student->nis.'.pdf');
 })->name('report.rapor.student.pdf')->middleware('auth');
@@ -60,8 +62,9 @@ Route::get('/report/rapor-leger/{classroom}', function (\App\Models\Classroom $c
 
     $academicYearId = $request->query('academic_year_id');
     $semester = $request->query('semester', 'Ganjil');
+    $mode = $request->query('mode', 'olah');
 
-    $leger = \App\Services\RaporCalculationService::getClassLeger($classroom->id, $academicYearId, $semester);
+    $leger = \App\Services\RaporCalculationService::getClassLeger($classroom->id, $academicYearId, $semester, $mode);
     $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('pdf.leger_nilai_kelas', compact('leger'));
     return $pdf->download('leger_kelas_'.$classroom->name.'.pdf');
 })->name('report.rapor.leger.pdf')->middleware('auth');

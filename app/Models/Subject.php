@@ -81,4 +81,9 @@ class Subject extends Model
             }
         });
     }
+
+    public function raporGrades()
+    {
+        return $this->hasMany(RaporGrade::class, 'subject_id');
+    }
 }

@@ -18,16 +18,32 @@
 
                 <div class="flex items-center gap-2 flex-wrap">
                     @if($selectedClass)
-                        <a href="{{ route('report.rapor.leger.pdf', ['classroom' => $selectedClass->id, 'academic_year_id' => $selectedAcademicYearId, 'semester' => $selectedSemester]) }}"
+                        <a href="{{ route('report.rapor.leger.pdf', ['classroom' => $selectedClass->id, 'academic_year_id' => $selectedAcademicYearId, 'semester' => $selectedSemester, 'mode' => $modeNilai]) }}"
                            target="_blank"
-                           class="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-semibold shadow-sm transition">
+                           class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-semibold shadow-sm transition">
                             <x-heroicon-o-printer class="w-4 h-4" />
-                            Cetak Leger Nilai (PDF)
+                            Cetak Leger (PDF)
                         </a>
+
+                        <button type="button"
+                                wire:click="autoKatrolKelasMassal"
+                                wire:confirm="Apakah Anda yakin ingin memberikan Nilai Bantuan (Katrol KKM 75) untuk seluruh santri yang nilainya di bawah 75 pada kelas ini? Nilai asli guru mapel tetap aman tersimpan."
+                                class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-semibold shadow-sm transition">
+                            <x-heroicon-o-bolt class="w-4 h-4" />
+                            Katrol KKM Kelas
+                        </button>
+
+                        <button type="button"
+                                wire:click="resetKelasMassal"
+                                wire:confirm="Kembalikan seluruh nilai kelas ini ke Nilai Asli Murni Guru Mapel? Seluruh nilai bantuan akan dibersihkan."
+                                class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg text-xs font-medium transition">
+                            <x-heroicon-o-arrow-path class="w-4 h-4" />
+                            Reset Nilai Asli
+                        </button>
                     @endif
 
                     <a href="{{ url('/staff/input-nilai-mapel') }}" 
-                       class="text-xs inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg transition font-medium">
+                       class="text-xs inline-flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg transition font-medium">
                         <x-heroicon-o-pencil-square class="w-4 h-4 text-primary-500" />
                         Input Nilai Guru Mapel
                     </a>
@@ -35,7 +51,7 @@
             </div>
 
             {{-- Filter Selector Grid --}}
-            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-4">
+            <div class="grid grid-cols-1 sm:grid-cols-4 gap-3 pt-4">
                 <div>
                     <label class="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">Pilih Kelas (Rombel)</label>
                     <select wire:model.live="selectedClassroomId"
@@ -62,6 +78,15 @@
                             class="w-full text-xs font-semibold rounded-xl border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-primary-500 focus:border-primary-500 shadow-sm py-2">
                         <option value="Ganjil">Semester 1 (Ganjil)</option>
                         <option value="Genap">Semester 2 (Genap)</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">Versi Nilai Rapor</label>
+                    <select wire:model.live="modeNilai"
+                            class="w-full text-xs font-semibold rounded-xl border-gray-300 dark:border-gray-700 bg-primary-50/50 dark:bg-primary-950/30 text-primary-900 dark:text-primary-300 focus:ring-primary-500 focus:border-primary-500 shadow-sm py-2">
+                        <option value="olah">📘 Nilai Rapot Olahan / Bantuan (Resmi)</option>
+                        <option value="asli">📄 Nilai Rapot Asli Murni (Guru Mapel)</option>
                     </select>
                 </div>
             </div>
@@ -114,8 +139,9 @@
                                 <th class="py-3 px-3 text-center">Rata-rata NA</th>
                                 <th class="py-3 px-3 text-center">Peringkat</th>
                                 <th class="py-3 px-3 text-center">Ketuntasan (KKM 75)</th>
+                                <th class="py-3 px-3 text-center">Status Nilai</th>
                                 <th class="py-3 px-3 text-center">Status Administrasi</th>
-                                <th class="py-3 px-4 text-center w-48">Aksi Rapor</th>
+                                <th class="py-3 px-4 text-center w-56">Aksi Rapor</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-gray-100 dark:divide-gray-800">
@@ -151,6 +177,17 @@
                                         </span>
                                     </td>
                                     <td class="py-3 px-3 text-center">
+                                        @if(!empty($row['has_edited_grades']))
+                                            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-300" title="Rapor siswa ini menggunakan nilai bantuan / olahan">
+                                                ✨ Nilai Bantuan
+                                            </span>
+                                        @else
+                                            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400" title="Menggunakan nilai asli murni dari inputan guru mapel">
+                                                📄 Asli Murni
+                                            </span>
+                                        @endif
+                                    </td>
+                                    <td class="py-3 px-3 text-center">
                                         @if($student->is_administrasi_lunas)
                                             <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800">
                                                 Lunas
@@ -162,17 +199,32 @@
                                         @endif
                                     </td>
                                     <td class="py-3 px-4 text-center">
-                                        <div class="flex items-center justify-center gap-1.5">
+                                        <div class="flex items-center justify-center gap-1.5 flex-wrap">
+                                            <button type="button"
+                                                    wire:click="openEditRaporModal({{ $student->id }})"
+                                                    class="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-700 dark:bg-amber-950/50 dark:hover:bg-amber-900/50 dark:text-amber-300 text-xs font-semibold transition border border-amber-300 dark:border-amber-800"
+                                                    title="Edit / Beri Nilai Bantuan untuk Rapor">
+                                                <x-heroicon-o-pencil-square class="w-3.5 h-3.5 text-amber-600" />
+                                                Edit Bantuan
+                                            </button>
+
                                             <button type="button"
                                                     wire:click="openPreviewRapor({{ $student->id }})"
-                                                    class="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-primary-50 hover:bg-primary-100 text-primary-700 dark:bg-primary-950/50 dark:hover:bg-primary-900/50 dark:text-primary-300 text-xs font-semibold transition border border-primary-200 dark:border-primary-800">
+                                                    class="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-primary-50 hover:bg-primary-100 text-primary-700 dark:bg-primary-950/50 dark:hover:bg-primary-900/50 dark:text-primary-300 text-xs font-semibold transition border border-primary-200 dark:border-primary-800"
+                                                    title="Lihat Buku Rapor">
                                                 <x-heroicon-o-eye class="w-3.5 h-3.5" />
                                                 Lihat
                                             </button>
                                             
-                                            <a href="{{ route('report.rapor.student.pdf', ['student' => $student->id, 'academic_year_id' => $selectedAcademicYearId, 'semester' => $selectedSemester]) }}"
+                                            <a href="{{ route('report.rapor.student.pdf', ['student' => $student->id, 'academic_year_id' => $selectedAcademicYearId, 'semester' => $selectedSemester, 'mode' => $modeNilai]) }}"
                                                target="_blank"
-                                               class="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold transition shadow-sm">
+                                               class="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold transition shadow-sm"
+                                               title="Cetak PDF Rapor">
+                                                <x-heroicon-o-printer class="w-3.5 h-3.5" />
+                                                PDF
+                                            </a>
+                                        </div>
+                                    </td>
                                                 <x-heroicon-o-printer class="w-3.5 h-3.5" />
                                                 Cetak PDF
                                             </a>
@@ -499,6 +551,141 @@
                             Tutup
                         </button>
                     </div>
+                </div>
+            </div>
+        @endif
+
+        {{-- 5. MODAL EDIT NILAI OLAHAN / BANTUAN RAPOR SISWA --}}
+        @if($showEditRaporModal && $editingStudent)
+            <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm overflow-y-auto">
+                <div class="bg-white dark:bg-gray-900 rounded-3xl max-w-4xl w-full p-6 shadow-2xl border border-gray-200 dark:border-gray-800 space-y-4 max-h-[92vh] overflow-y-auto">
+                    
+                    {{-- Modal Header --}}
+                    <div class="flex items-start justify-between border-b border-gray-200 dark:border-gray-800 pb-3">
+                        <div>
+                            <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 mb-1 border border-amber-300">
+                                ✏️ Kelola & Edit Nilai Rapor (Bantuan)
+                            </span>
+                            <h3 class="text-base font-bold text-gray-900 dark:text-white">
+                                {{ $editingStudent->name }} (NIS: {{ $editingStudent->nis }})
+                            </h3>
+                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                                Kelas: <strong>{{ $editingStudent->classroom?->name ?? '-' }}</strong> | Semester: <strong>{{ $selectedSemester }}</strong>. Nilai Asli dari guru mapel tetap aman dan tidak akan hilang.
+                            </p>
+                        </div>
+
+                        <button type="button" 
+                                wire:click="closeEditRaporModal"
+                                class="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 transition">
+                            <x-heroicon-o-x-mark class="w-5 h-5" />
+                        </button>
+                    </div>
+
+                    {{-- Quick Action Buttons --}}
+                    <div class="flex items-center justify-between gap-2 p-3 bg-amber-50/70 dark:bg-amber-950/30 rounded-2xl border border-amber-200/80 dark:border-amber-900/40">
+                        <div class="text-xs text-amber-900 dark:text-amber-200 font-medium">
+                            💡 <strong>Petunjuk:</strong> Kolom nilai olahan menentukan angka yang tercetak di Rapor Resmi. Kosongkan jika ingin selalu sama persis dengan nilai asli guru mapel.
+                        </div>
+                        <div class="flex items-center gap-2 flex-shrink-0">
+                            <button type="button"
+                                    wire:click="applyAutoKkmForCurrentStudent"
+                                    class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold shadow-sm transition">
+                                <x-heroicon-o-bolt class="w-4 h-4" />
+                                Auto Katrol KKM (75)
+                            </button>
+                            <button type="button"
+                                    wire:click="resetCurrentStudentToAsli"
+                                    class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gray-200 hover:bg-gray-300 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-xl text-xs font-semibold transition">
+                                <x-heroicon-o-arrow-path class="w-4 h-4" />
+                                Reset ke Asli
+                            </button>
+                        </div>
+                    </div>
+
+                    {{-- Table Input Nilai Olahan --}}
+                    <div class="overflow-x-auto border border-gray-200 dark:border-gray-800 rounded-2xl">
+                        <table class="w-full text-xs text-left">
+                            <thead class="bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 text-[10px] uppercase font-bold tracking-wider">
+                                <tr>
+                                    <th class="py-2.5 px-3 w-10 text-center">No</th>
+                                    <th class="py-2.5 px-3 min-w-44">Mata Pelajaran</th>
+                                    <th class="py-2.5 px-3 text-center bg-gray-200/60 dark:bg-gray-800/80 w-32">Nilai Asli Mapel<br><span class="text-[9px] font-normal lowercase">(pengetahuan / ktr)</span></th>
+                                    <th class="py-2.5 px-3 text-center bg-primary-50 dark:bg-primary-950/40 w-28">Nilai Olah (P)</th>
+                                    <th class="py-2.5 px-3 text-center bg-emerald-50 dark:bg-emerald-950/40 w-28">Nilai Olah (K)</th>
+                                    <th class="py-2.5 px-3 min-w-40">Catatan Bantuan / Alasan</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-100 dark:divide-gray-800">
+                                @forelse($editingSubjectGrades as $subId => $item)
+                                    <tr class="hover:bg-gray-50/60 dark:hover:bg-gray-800/40 transition">
+                                        <td class="py-2.5 px-3 text-center font-bold text-gray-500">{{ $loop->iteration }}</td>
+                                        <td class="py-2.5 px-3">
+                                            <div class="font-bold text-gray-900 dark:text-white">{{ $item['name'] }}</div>
+                                            @if($item['is_edited'])
+                                                <span class="inline-flex items-center gap-0.5 text-[9px] font-bold text-amber-600 dark:text-amber-400">
+                                                    ● Menggunakan nilai bantuan
+                                                </span>
+                                            @endif
+                                        </td>
+                                        <td class="py-2.5 px-3 text-center bg-gray-50/50 dark:bg-gray-800/30">
+                                            <div class="font-mono text-xs text-gray-700 dark:text-gray-300">
+                                                P: <strong>{{ $item['asli_p'] !== null ? $item['asli_p'] : '-' }}</strong> ({{ $item['asli_predikat_p'] }})
+                                            </div>
+                                            <div class="font-mono text-[10px] text-gray-500 mt-0.5">
+                                                K: <strong>{{ $item['asli_k'] !== null ? $item['asli_k'] : '-' }}</strong> ({{ $item['asli_predikat_k'] }})
+                                            </div>
+                                        </td>
+                                        <td class="py-2 px-2 text-center bg-primary-50/30 dark:bg-primary-950/20">
+                                            <input type="number"
+                                                   step="0.01"
+                                                   min="0"
+                                                   max="100"
+                                                   wire:model="editingSubjectGrades.{{ $subId }}.olah_p"
+                                                   placeholder="{{ $item['asli_p'] !== null ? $item['asli_p'] : '0' }}"
+                                                   class="w-24 text-center text-xs font-bold rounded-lg border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:ring-primary-500 focus:border-primary-500 py-1.5">
+                                        </td>
+                                        <td class="py-2 px-2 text-center bg-emerald-50/30 dark:bg-emerald-950/20">
+                                            <input type="number"
+                                                   step="0.01"
+                                                   min="0"
+                                                   max="100"
+                                                   wire:model="editingSubjectGrades.{{ $subId }}.olah_k"
+                                                   placeholder="{{ $item['asli_k'] !== null ? $item['asli_k'] : '0' }}"
+                                                   class="w-24 text-center text-xs font-bold rounded-lg border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:ring-primary-500 focus:border-primary-500 py-1.5">
+                                        </td>
+                                        <td class="py-2 px-3">
+                                            <input type="text"
+                                                   wire:model="editingSubjectGrades.{{ $subId }}.catatan"
+                                                   placeholder="Contoh: Bantuan KKM (75), Remedial, dll."
+                                                   class="w-full text-xs rounded-lg border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:ring-primary-500 focus:border-primary-500 py-1.5">
+                                        </td>
+                                    </tr>
+                                @empty
+                                    <tr>
+                                        <td colspan="6" class="py-6 text-center text-gray-500">
+                                            Tidak ada mata pelajaran yang ditemukan.
+                                        </td>
+                                    </tr>
+                                @endforelse
+                            </tbody>
+                        </table>
+                    </div>
+
+                    {{-- Modal Footer --}}
+                    <div class="flex items-center justify-end gap-2 pt-3 border-t border-gray-200 dark:border-gray-800">
+                        <button type="button" 
+                                wire:click="closeEditRaporModal"
+                                class="px-5 py-2 rounded-xl bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 text-xs font-semibold transition">
+                            Batal
+                        </button>
+                        <button type="button" 
+                                wire:click="saveStudentRaporGrades"
+                                class="px-6 py-2 rounded-xl bg-primary-600 hover:bg-primary-700 text-white text-xs font-bold shadow-md transition flex items-center gap-1.5">
+                            <x-heroicon-o-check class="w-4 h-4" />
+                            Simpan Nilai Olahan Rapor
+                        </button>
+                    </div>
+
                 </div>
             </div>
         @endif
