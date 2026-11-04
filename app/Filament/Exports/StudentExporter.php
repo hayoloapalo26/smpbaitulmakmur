@@ -30,6 +30,7 @@ class StudentExporter extends Exporter
             ExportColumn::make('anak_ke')->label('Anak ke-'),
             ExportColumn::make('jumlah_saudara_kandung')->label('Jumlah Saudara Kandung'),
             ExportColumn::make('asal_sekolah')->label('Asal sekolah'),
+            ExportColumn::make('kode_pos')->label('Kode Pos'),
             ExportColumn::make('alamat_siswa')->label('Alamat Rumah Siswa (Nama jalan, RT/RW, Desa, Kecamatan dan Kota/Kabupaten)'),
             ExportColumn::make('nama_ayah')->label('Nama Ayah'),
             ExportColumn::make('tempat_lahir_ayah')->label('Tempat Lahir (Ayah)'),

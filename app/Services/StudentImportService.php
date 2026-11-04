@@ -350,6 +350,7 @@ class StudentImportService
             $anakKe = $this->getVal($row, $columnMap, 'anak_ke');
             $jumlahSaudara = $this->getVal($row, $columnMap, 'jumlah_saudara');
             $asalSekolah = $this->getVal($row, $columnMap, 'asal_sekolah');
+            $kodePos = $this->getVal($row, $columnMap, 'kode_pos');
 
             // Synthesize address if separated
             $alamat = $this->resolveAddress($row, $columnMap);
@@ -407,6 +408,7 @@ class StudentImportService
                 'jumlah_saudara_kandung' => !empty($jumlahSaudara) && is_numeric($jumlahSaudara) ? (int) $jumlahSaudara : null,
                 'jumlah_saudara' => !empty($jumlahSaudara) && is_numeric($jumlahSaudara) ? (int) $jumlahSaudara : null,
                 'asal_sekolah' => $asalSekolah,
+                'kode_pos' => $kodePos,
                 'alamat_siswa' => $alamat,
 
                 'nama_ayah' => $namaAyah,

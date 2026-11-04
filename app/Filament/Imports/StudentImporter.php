@@ -87,6 +87,10 @@ class StudentImporter extends Importer
                 ->rules(['nullable', 'max:255'])
                 ->guess(['Asal sekolah', 'Sekolah Asal', 'Asal Sekolah', 'asal_sekolah']),
 
+            ImportColumn::make('kode_pos')
+                ->rules(['nullable', 'max:20'])
+                ->guess(['Kode Pos', 'KODEPOS', 'kodepos', 'kode_pos', 'Postal Code']),
+
             ImportColumn::make('alamat_siswa')
                 ->rules(['nullable', 'max:65535'])
                 ->guess([

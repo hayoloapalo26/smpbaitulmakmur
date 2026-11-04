@@ -195,6 +195,10 @@ class StudentResource extends Resource
                             ->label('No Telepon Siswa')
                             ->tel()
                             ->maxLength(255),
+                        Forms\Components\TextInput::make('kode_pos')
+                            ->label('Kode Pos')
+                            ->placeholder('Contoh: 65138')
+                            ->maxLength(10),
                         Forms\Components\Textarea::make('alamat_siswa')
                             ->label('Alamat Siswa')
                             ->columnSpanFull(),
@@ -471,6 +475,12 @@ class StudentResource extends Resource
                     ->formatStateUsing(fn (int $state): string => $state > 0 ? "🏆 {$state} Prestasi" : "-")
                     ->sortable(),
                 Tables\Columns\TextColumn::make('jenis_kelamin')->label('L/P'),
+                Tables\Columns\TextColumn::make('kode_pos')
+                    ->label('Kode Pos')
+                    ->placeholder('-')
+                    ->searchable()
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
                 Tables\Columns\TextColumn::make('character_score')->label('Skor Karakter'),
                 Tables\Columns\TextColumn::make('user_account_status')
                     ->label('Status Akun')
@@ -541,6 +551,48 @@ class StudentResource extends Resource
                     ->relationship('guruQuran', 'name')
                     ->searchable()
                     ->preload(),
+                Tables\Filters\Filter::make('kode_pos')
+                    ->label('Filter Kode Pos')
+                    ->form([
+                        Forms\Components\Select::make('kode_pos_select')
+                            ->label('Pilih Kode Pos Terdaftar')
+                            ->placeholder('-- Pilih Kode Pos --')
+                            ->options(function () {
+                                return Student::withoutGlobalScopes()
+                                    ->whereNotNull('kode_pos')
+                                    ->where('kode_pos', '!=', '')
+                                    ->distinct()
+                                    ->orderBy('kode_pos')
+                                    ->pluck('kode_pos', 'kode_pos')
+                                    ->toArray();
+                            })
+                            ->searchable(),
+                        Forms\Components\TextInput::make('kode_pos_custom')
+                            ->label('Atau Ketik Kode Pos')
+                            ->placeholder('Contoh: 65138')
+                            ->maxLength(10),
+                    ])
+                    ->query(function (Builder $query, array $data): Builder {
+                        $val = !empty($data['kode_pos_select'])
+                            ? $data['kode_pos_select']
+                            : (!empty($data['kode_pos_custom']) ? trim($data['kode_pos_custom']) : null);
+
+                        if (!$val) {
+                            return $query;
+                        }
+
+                        return $query->where(function ($q) use ($val) {
+                            $q->where('kode_pos', 'like', "%{$val}%")
+                              ->orWhere('alamat_siswa', 'like', "%{$val}%");
+                        });
+                    })
+                    ->indicateUsing(function (array $data): ?string {
+                        $val = !empty($data['kode_pos_select'])
+                            ? $data['kode_pos_select']
+                            : (!empty($data['kode_pos_custom']) ? trim($data['kode_pos_custom']) : null);
+
+                        return $val ? 'Kode Pos: ' . $val : null;
+                    }),
             ])
             ->actions([
                 Tables\Actions\Action::make('jadikan_alumni')

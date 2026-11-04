@@ -161,6 +161,13 @@
                         <td class="colon">:</td>
                         <td class="val">{{ $student->alamat_siswa ?? ($student->alamat ?? '-') }}</td>
                     </tr>
+                    @if(!empty($student->kode_pos))
+                    <tr>
+                        <td class="label">Kode Pos</td>
+                        <td class="colon">:</td>
+                        <td class="val">{{ $student->kode_pos }}</td>
+                    </tr>
+                    @endif
                     <tr>
                         <td class="label">No. Telepon / WhatsApp</td>
                         <td class="colon">:</td>

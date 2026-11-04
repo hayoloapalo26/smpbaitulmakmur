@@ -132,8 +132,12 @@
                 </tr>
                 <tr class="hover:bg-gray-50/50 dark:hover:bg-gray-750">
                     <td class="py-2.5 px-4 font-semibold text-gray-500 dark:text-gray-400 bg-gray-50/40 dark:bg-gray-700/20">Alamat Tempat Tinggal</td>
-                    <td colspan="3" class="py-2.5 px-4 text-gray-800 dark:text-gray-200 font-medium">
+                    <td class="py-2.5 px-4 text-gray-800 dark:text-gray-200 font-medium">
                         {{ $record?->alamat_siswa ?: 'Belum diisi' }}
+                    </td>
+                    <td class="py-2.5 px-4 font-semibold text-gray-500 dark:text-gray-400 bg-gray-50/40 dark:bg-gray-700/20">Kode Pos</td>
+                    <td class="py-2.5 px-4 text-gray-800 dark:text-gray-200 font-medium">
+                        {{ $record?->kode_pos ?: '-' }}
                     </td>
                 </tr>
             </tbody>
