@@ -18,17 +18,17 @@
     placement="bottom-end"
     :flip="false"
     :shift="true"
-    :offset="12"
-    teleport
+    :offset="10"
     :attributes="
         \Filament\Support\prepare_inherited_attributes($attributes)
             ->class(['fi-user-menu'])
     "
 >
-    <x-slot name="trigger">
+    <x-slot name="trigger" x-on:click.stop="toggle">
         <button
             aria-label="{{ __('filament-panels::layout.actions.open_user_menu.label') }}"
             type="button"
+            x-on:click.stop="toggle"
             class="shrink-0 flex items-center justify-center rounded-full transition hover:ring-2 hover:ring-primary-500/50 focus:outline-none"
         >
             <x-filament-panels::avatar.user :user="$user" />

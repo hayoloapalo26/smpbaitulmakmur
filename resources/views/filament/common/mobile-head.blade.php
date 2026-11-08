@@ -24,19 +24,34 @@
         scroll-behavior: smooth;
     }
 
-    /* Topbar Safe Area (iPhone Notch / Dynamic Island / Android Cutout) */
+    /* Topbar Safe Area (iPhone Notch / Dynamic Island / Android Cutout) & Overflow Visibility for iOS Safari */
     .fi-topbar {
         padding-top: var(--sat) !important;
         height: calc(4rem + var(--sat)) !important;
+        overflow: visible !important;
+    }
+    .fi-topbar > nav {
+        overflow: visible !important;
     }
 
-    /* Pastikan dropdown menu user (termasuk tombol Logout) selalu berada di bawah avatar dan tidak terpotong */
+    /* Pastikan dropdown menu user (termasuk tombol Logout dan Mode Gelap/Terang) selalu berada di bawah avatar dan tidak terpotong */
     .fi-user-menu {
         position: relative !important;
+        z-index: 99999 !important;
     }
     .fi-user-menu .fi-dropdown-panel,
-    body > .fi-dropdown-panel {
+    .fi-dropdown-panel {
         z-index: 999999 !important;
+        visibility: visible !important;
+        max-width: min(calc(100vw - 1rem), 20rem) !important;
+    }
+
+    /* Touch target sizing for dropdown items on iOS Safari */
+    .fi-user-menu .fi-dropdown-panel button,
+    .fi-user-menu .fi-dropdown-panel a,
+    .fi-user-menu .fi-dropdown-panel [role="menuitem"] {
+        touch-action: manipulation;
+        -webkit-tap-highlight-color: rgba(255, 130, 0, 0.15) !important;
     }
 
     /* Sleek Custom Scrollbar for Touch & Desktop */
@@ -145,6 +160,31 @@
 </style>
 
 <script>
+    // iOS Safari / Mobile Dropdown Event Stabilizer
+    const initIosDropdownFix = () => {
+        const triggers = document.querySelectorAll('.fi-user-menu .fi-dropdown-trigger, .fi-user-menu .fi-dropdown-trigger button');
+        triggers.forEach(el => {
+            if (el.dataset.iosDropdownFixed) return;
+            el.dataset.iosDropdownFixed = 'true';
+            
+            // Stop synthetic click from bubbling to window where outside-click handlers live
+            el.addEventListener('click', (e) => {
+                e.stopPropagation();
+            });
+            el.addEventListener('touchend', (e) => {
+                // Pre-stabilize for iOS WebKit
+                e.stopPropagation();
+            }, { passive: true });
+        });
+    };
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initIosDropdownFix);
+    } else {
+        initIosDropdownFix();
+    }
+    document.addEventListener('livewire:navigated', initIosDropdownFix);
+
     document.addEventListener('livewire:init', () => {
         if (typeof Livewire !== 'undefined') {
             Livewire.hook('request', ({ fail }) => {
