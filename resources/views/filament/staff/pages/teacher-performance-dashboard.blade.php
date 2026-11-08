@@ -91,7 +91,7 @@
     <div class="space-y-8 pb-10">
 
         {{-- HEADER CARD --}}
-        <div class="bmos-gradient-primary p-8 rounded-[2rem] shadow-xl flex flex-col md:flex-row justify-between items-center gap-6 relative overflow-hidden">
+        <div class="bmos-gradient-primary p-4 sm:p-6 md:p-8 rounded-[2rem] shadow-xl flex flex-col md:flex-row justify-between items-center gap-6 relative overflow-hidden">
             <!-- Decorative Elements -->
             <div class="absolute -right-10 -bottom-10 opacity-20 transform rotate-12">
                 <svg width="250" height="250" viewBox="0 0 24 24" fill="white"><path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z"/></svg>
@@ -107,7 +107,7 @@
                 <p class="font-medium text-lg max-w-xl" style="color: #F4EEDC;">Pemantauan progres dan pencapaian tugas harian guru secara real-time untuk meningkatkan produktivitas.</p>
             </div>
             
-            <div class="relative z-10 w-full md:w-auto" style="min-width: 300px;">
+            <div class="relative z-10 w-full md:w-auto md:min-w-[300px]">
                 <x-filament::tabs label="Periode">
                     <x-filament::tabs.item wire:click="$set('activeTab', 'harian')" :active="$activeTab === 'harian'" class="bg-white/80 dark:bg-gray-800 backdrop-blur-md rounded-xl">
                         Harian
@@ -139,7 +139,7 @@
 
         {{-- TOP 3 PODIUM --}}
         @if($top3->count() > 0)
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-8 items-end pt-16 pb-8 px-2 md:px-8">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6 md:gap-8 items-end pt-6 md:pt-16 pb-6 md:pb-8 px-2 md:px-8">
             
             {{-- Rank 2 (Silver) --}}
             @if($top3->count() >= 2)

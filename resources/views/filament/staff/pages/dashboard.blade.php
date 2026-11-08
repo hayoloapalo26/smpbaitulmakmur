@@ -94,7 +94,7 @@
     <div class="space-y-8" wire:poll.60s>
 
                         {{-- 1. HEADER & LEGEND CARD (with AlpineJS state for expanding summary) --}}
-        <div x-data="{ showSummary: false }" class="relative overflow-hidden rounded-3xl bmos-dashboard-header p-8 text-white shadow-xl">
+        <div x-data="{ showSummary: false }" class="relative overflow-hidden rounded-3xl bmos-dashboard-header p-4 sm:p-6 md:p-8 text-white shadow-xl">
             <!-- Decorative SVG -->
             <div class="absolute -right-20 -top-20 opacity-20 pointer-events-none">
                 <svg width="300" height="300" viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="none" stroke="currentColor" stroke-width="10"/><circle cx="50" cy="50" r="20" fill="currentColor"/></svg>
@@ -289,9 +289,9 @@
                     $circumference = 2 * pi() * $radius;
                     $offset = $circumference - ($percentageOverall / 100) * $circumference;
                 @endphp
-                <div class="flex flex-col items-center justify-start self-start md:sticky md:top-8" style="min-width: 320px;">
+                <div class="flex flex-col items-center justify-start self-start md:sticky md:top-8 w-full lg:w-auto lg:min-w-[320px]">
                     <!-- The Clickable Indicator -->
-                    <div @click="showSummary = !showSummary" class="flex flex-col items-center justify-center bg-black/10 hover:bg-black/20 transition-all cursor-pointer backdrop-blur-xl p-8 rounded-3xl border border-white/10 shadow-2xl w-full group">
+                    <div @click="showSummary = !showSummary" class="flex flex-col items-center justify-center bg-black/10 hover:bg-black/20 transition-all cursor-pointer backdrop-blur-xl p-5 sm:p-6 md:p-8 rounded-3xl border border-white/10 shadow-2xl w-full group">
                         <p class="text-xl font-black mb-4 tracking-wider uppercase text-center drop-shadow-md text-white/90 group-hover:text-white transition-colors">
                             Ketercapaian<br>Global
                         </p>
@@ -474,7 +474,7 @@
             ];
         @endphp
 
-        <div class="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-8">
+        <div class="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6 md:gap-8">
             @foreach($this->pillarsData as $pillar)
                 @php
                     $tasks = $pillar['tasks'];

@@ -110,8 +110,8 @@
                 <span class="text-[10px] tracking-tight mt-0.5 truncate">Jadwal</span>
             </a>
 
-        @elseif($user->hasRole('guru_alquran'))
-            {{-- ====== MODE KHUSUS GURU AL-QUR'AN ====== --}}
+        @elseif(method_exists($user, 'isQuranTeacher') ? $user->isQuranTeacher() : $user->hasRole('guru_alquran'))
+            {{-- ====== MODE KHUSUS GURU AL-QUR'AN (YANBU'A, TAHSIN, TAHFIDZ DASAR & LANJUTAN) ====== --}}
             {{-- 1. Dasbor Guru Al-Qur'an --}}
             <a href="{{ route('filament.staff.pages.dashboard') }}" 
                class="flex flex-col items-center justify-center flex-1 py-1 px-1 transition-all group active:scale-90 {{ $currentRoute === 'filament.staff.pages.dashboard' ? 'text-emerald-600 dark:text-emerald-400 font-bold' : 'text-gray-500 dark:text-gray-400' }}">
@@ -155,6 +155,91 @@
                     <x-filament::icon icon="heroicon-o-trophy" class="w-5 h-5 {{ str_contains($currentRoute, 'tahfidz-ranking') ? 'text-amber-600' : '' }}" />
                 </div>
                 <span class="text-[10px] tracking-tight mt-0.5 truncate">Ranking</span>
+            </a>
+
+        @elseif($user->hasRole('kepala_sekolah'))
+            {{-- ====== MODE KHUSUS KEPALA SEKOLAH ====== --}}
+            {{-- 1. Dasbor Utama --}}
+            <a href="{{ route('filament.staff.pages.dashboard') }}" 
+               class="flex flex-col items-center justify-center flex-1 py-1 px-1 transition-all group active:scale-90 {{ $currentRoute === 'filament.staff.pages.dashboard' ? 'text-primary-600 dark:text-primary-400 font-bold' : 'text-gray-500 dark:text-gray-400' }}">
+                <div class="p-1 rounded-xl transition-all {{ $currentRoute === 'filament.staff.pages.dashboard' ? 'bg-primary-50 dark:bg-primary-950/60' : '' }}">
+                    <x-filament::icon icon="heroicon-o-home" class="w-5 h-5 {{ $currentRoute === 'filament.staff.pages.dashboard' ? 'text-primary-600' : '' }}" />
+                </div>
+                <span class="text-[10px] tracking-tight mt-0.5 truncate">Dasbor</span>
+            </a>
+
+            {{-- 2. 9 Pilar Manajemen --}}
+            <a href="{{ route('filament.staff.pages.pilar-manajemen-dashboard') }}" 
+               class="flex flex-col items-center justify-center flex-1 py-1 px-1 transition-all group active:scale-90 {{ str_contains($currentRoute, 'pilar-manajemen') ? 'text-indigo-600 dark:text-indigo-400 font-bold' : 'text-gray-500 dark:text-gray-400' }}">
+                <div class="p-1 rounded-xl transition-all {{ str_contains($currentRoute, 'pilar-manajemen') ? 'bg-indigo-50 dark:bg-indigo-950/60' : '' }}">
+                    <x-filament::icon icon="heroicon-o-chart-pie" class="w-5 h-5 {{ str_contains($currentRoute, 'pilar-manajemen') ? 'text-indigo-600' : '' }}" />
+                </div>
+                <span class="text-[10px] tracking-tight mt-0.5 truncate">9 Pilar</span>
+            </a>
+
+            {{-- 3. Center Elevated: Penilaian Guru (Bulanan) --}}
+            <a href="{{ route('filament.staff.resources.principal-teacher-evaluations.index') }}" 
+               class="flex flex-col items-center justify-center -mt-5 relative z-10 group active:scale-90 transition-transform">
+                <div class="w-13 h-13 rounded-full flex items-center justify-center shadow-lg bg-gradient-to-tr from-primary-600 to-amber-500 text-white ring-4 ring-white dark:ring-gray-900 shadow-primary-500/30">
+                    <x-filament::icon icon="heroicon-o-clipboard-document-check" class="w-7 h-7" />
+                </div>
+                <span class="text-[10px] font-bold tracking-tight mt-1 text-gray-800 dark:text-gray-200 truncate">Nilai Guru</span>
+            </a>
+
+            {{-- 4. Ranking KPI Guru --}}
+            <a href="{{ route('filament.staff.pages.teacher-performance-dashboard') }}" 
+               class="flex flex-col items-center justify-center flex-1 py-1 px-1 transition-all group active:scale-90 {{ str_contains($currentRoute, 'teacher-performance') ? 'text-amber-600 dark:text-amber-400 font-bold' : 'text-gray-500 dark:text-gray-400' }}">
+                <div class="p-1 rounded-xl transition-all {{ str_contains($currentRoute, 'teacher-performance') ? 'bg-amber-50 dark:bg-amber-950/60' : '' }}">
+                    <x-filament::icon icon="heroicon-o-trophy" class="w-5 h-5 {{ str_contains($currentRoute, 'teacher-performance') ? 'text-amber-600' : '' }}" />
+                </div>
+                <span class="text-[10px] tracking-tight mt-0.5 truncate">Ranking</span>
+            </a>
+
+            {{-- 5. Program Kerja / Supervisi --}}
+            <a href="{{ route('filament.staff.resources.work-programs.index') }}" 
+               class="flex flex-col items-center justify-center flex-1 py-1 px-1 transition-all group active:scale-90 {{ str_contains($currentRoute, 'work-programs') ? 'text-emerald-600 dark:text-emerald-400 font-bold' : 'text-gray-500 dark:text-gray-400' }}">
+                <div class="p-1 rounded-xl transition-all {{ str_contains($currentRoute, 'work-programs') ? 'bg-emerald-50 dark:bg-emerald-950/60' : '' }}">
+                    <x-filament::icon icon="heroicon-o-briefcase" class="w-5 h-5 {{ str_contains($currentRoute, 'work-programs') ? 'text-emerald-600' : '' }}" />
+                </div>
+                <span class="text-[10px] tracking-tight mt-0.5 truncate">Supervisi</span>
+            </a>
+
+        @elseif($user->hasRole('guru_ekstrakurikuler'))
+            {{-- ====== MODE KHUSUS GURU EKSTRAKURIKULER ====== --}}
+            {{-- 1. Dasbor Utama --}}
+            <a href="{{ route('filament.staff.pages.dashboard') }}" 
+               class="flex flex-col items-center justify-center flex-1 py-1 px-1 transition-all group active:scale-90 {{ $currentRoute === 'filament.staff.pages.dashboard' ? 'text-indigo-600 dark:text-indigo-400 font-bold' : 'text-gray-500 dark:text-gray-400' }}">
+                <div class="p-1 rounded-xl transition-all {{ $currentRoute === 'filament.staff.pages.dashboard' ? 'bg-indigo-50 dark:bg-indigo-950/60' : '' }}">
+                    <x-filament::icon icon="heroicon-o-home" class="w-5 h-5 {{ $currentRoute === 'filament.staff.pages.dashboard' ? 'text-indigo-600' : '' }}" />
+                </div>
+                <span class="text-[10px] tracking-tight mt-0.5 truncate">Dasbor</span>
+            </a>
+
+            {{-- 2. Jurnal Eskul --}}
+            <a href="{{ route('filament.staff.resources.extracurricular-journals.index') }}" 
+               class="flex flex-col items-center justify-center flex-1 py-1 px-1 transition-all group active:scale-90 {{ str_contains($currentRoute, 'extracurricular-journals') ? 'text-indigo-600 dark:text-indigo-400 font-bold' : 'text-gray-500 dark:text-gray-400' }}">
+                <div class="p-1 rounded-xl transition-all {{ str_contains($currentRoute, 'extracurricular-journals') ? 'bg-indigo-50 dark:bg-indigo-950/60' : '' }}">
+                    <x-filament::icon icon="heroicon-o-book-open" class="w-5 h-5 {{ str_contains($currentRoute, 'extracurricular-journals') ? 'text-indigo-600' : '' }}" />
+                </div>
+                <span class="text-[10px] tracking-tight mt-0.5 truncate">Jurnal</span>
+            </a>
+
+            {{-- 3. Center Elevated: Absensi Eskul --}}
+            <a href="{{ route('filament.staff.resources.extracurricular-attendances.index') }}" 
+               class="flex flex-col items-center justify-center -mt-5 relative z-10 group active:scale-90 transition-transform">
+                <div class="w-13 h-13 rounded-full flex items-center justify-center shadow-lg bg-gradient-to-tr from-indigo-600 to-purple-500 text-white ring-4 ring-white dark:ring-gray-900 shadow-indigo-500/30">
+                    <x-filament::icon icon="heroicon-o-clipboard-document-check" class="w-7 h-7" />
+                </div>
+                <span class="text-[10px] font-bold tracking-tight mt-1 text-gray-800 dark:text-gray-200 truncate">Absensi</span>
+            </a>
+
+            {{-- 4. Nilai Eskul --}}
+            <a href="{{ route('filament.staff.resources.extracurricular-grades.index') }}" 
+               class="flex flex-col items-center justify-center flex-1 py-1 px-1 transition-all group active:scale-90 {{ str_contains($currentRoute, 'extracurricular-grades') ? 'text-indigo-600 dark:text-indigo-400 font-bold' : 'text-gray-500 dark:text-gray-400' }}">
+                <div class="p-1 rounded-xl transition-all {{ str_contains($currentRoute, 'extracurricular-grades') ? 'bg-indigo-50 dark:bg-indigo-950/60' : '' }}">
+                    <x-filament::icon icon="heroicon-o-academic-cap" class="w-5 h-5 {{ str_contains($currentRoute, 'extracurricular-grades') ? 'text-indigo-600' : '' }}" />
+                </div>
+                <span class="text-[10px] tracking-tight mt-0.5 truncate">Nilai</span>
             </a>
 
         @else

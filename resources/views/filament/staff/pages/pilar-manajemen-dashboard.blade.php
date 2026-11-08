@@ -7,7 +7,7 @@
     <div class="space-y-8" wire:poll.60s>
 
         {{-- 1. HEADER & LEGEND CARD --}}
-        <div class="relative overflow-hidden rounded-3xl bmos-dashboard-header p-8 text-white shadow-xl">
+        <div class="relative overflow-hidden rounded-3xl bmos-dashboard-header p-4 sm:p-6 md:p-8 text-white shadow-xl">
             <!-- Decorative SVG -->
             <div class="absolute -right-20 -top-20 opacity-20">
                 <svg width="300" height="300" viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="none" stroke="currentColor" stroke-width="10"/><circle cx="50" cy="50" r="20" fill="currentColor"/></svg>
@@ -33,7 +33,7 @@
                     $circumference = 2 * pi() * 45;
                     $offset = $circumference - ($percentageOverall / 100) * $circumference;
                 @endphp
-                <div class="flex flex-col items-center justify-center bg-black/10 hover:bg-black/20 transition-colors backdrop-blur-xl p-6 rounded-3xl border border-white/10 shadow-2xl group" style="min-width: 200px;">
+                <div class="flex flex-col items-center justify-center bg-black/10 hover:bg-black/20 transition-colors backdrop-blur-xl p-6 rounded-3xl border border-white/10 shadow-2xl group w-full md:w-auto md:min-w-[200px]">
                     <p class="text-sm font-black mb-2 tracking-wider uppercase text-white/90 group-hover:text-white transition-colors">Ketercapaian Global</p>
                     <div class="relative w-32 h-32 flex items-center justify-center drop-shadow-xl group-hover:scale-105 transition-transform">
                         <!-- Background Circle -->
@@ -65,7 +65,7 @@
             ];
         @endphp
 
-        <div class="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-8">
+        <div class="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6 md:gap-8">
             @foreach($this->pillars as $pillar)
                 @php
                     $tasks = $pillar->tasks;
