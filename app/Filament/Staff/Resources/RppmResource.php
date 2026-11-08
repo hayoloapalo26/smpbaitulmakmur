@@ -9,6 +9,7 @@ use Filament\Forms\Form;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
 
 class RppmResource extends Resource
 {
@@ -45,6 +46,38 @@ class RppmResource extends Resource
     protected static ?string $modelLabel = 'RPPM & Perangkat Ajar';
     protected static ?string $pluralModelLabel = 'RPPM & Perangkat Ajar';
     protected static ?int $navigationSort = 6;
+
+    /**
+     * Memastikan guru yang menginput RPPM hanya bisa melihat RPPM miliknya sendiri,
+     * sedangkan Waka Kurikulum, Kepala Sekolah, dan Yayasan/Superadmin dapat melihat semua untuk supervisi & ACC.
+     * Guru lain sama sekali tidak dapat melihat RPPM milik guru lain.
+     */
+    public static function getEloquentQuery(): Builder
+    {
+        $query = parent::getEloquentQuery()->with(['guru', 'capaianPembelajaran', 'alurTujuanPembelajaran']);
+        $user = auth()->user();
+
+        if (!$user) {
+            return $query->whereRaw('1 = 0');
+        }
+
+        // Kepala sekolah, Waka Kurikulum, superadmin, dan yayasan dapat melihat seluruh RPPM di lembaganya untuk supervisi & ACC
+        if ($user->hasAnyRole([
+            'superadmin',
+            'kepala_sekolah',
+            'waka_kurikulum',
+            'ketua_yayasan',
+            'pembina_yayasan',
+            'sekretaris_yayasan',
+            'tim_pengembang_penjamin_mutu_yayasan',
+            'pengembang_penjamin_mutu',
+        ])) {
+            return $query;
+        }
+
+        // Guru yang bersangkutan HANYA bisa melihat RPPM miliknya sendiri
+        return $query->where('guru_id', $user->id);
+    }
 
     public static function getNavigationGroup(): ?string
     {

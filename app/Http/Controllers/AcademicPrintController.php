@@ -46,6 +46,22 @@ class AcademicPrintController extends Controller
      */
     public function rppmPdf(Rppm $rppm)
     {
+        $user = auth()->user();
+        if ($user && !$user->hasAnyRole([
+            'superadmin',
+            'kepala_sekolah',
+            'waka_kurikulum',
+            'ketua_yayasan',
+            'pembina_yayasan',
+            'sekretaris_yayasan',
+            'tim_pengembang_penjamin_mutu_yayasan',
+            'pengembang_penjamin_mutu',
+        ])) {
+            if ((int) $rppm->guru_id !== (int) $user->id) {
+                abort(403, 'Akses Ditolak: Anda hanya dapat melihat dokumen RPPM milik Anda sendiri.');
+            }
+        }
+
         $rppm->load(['guru', 'capaianPembelajaran', 'alurTujuanPembelajaran']);
         $selectedTps = $rppm->selected_tps;
 
@@ -61,6 +77,22 @@ class AcademicPrintController extends Controller
      */
     public function journalPdf(TeachingJournal $journal)
     {
+        $user = auth()->user();
+        if ($user && !$user->hasAnyRole([
+            'superadmin',
+            'kepala_sekolah',
+            'waka_kurikulum',
+            'ketua_yayasan',
+            'pembina_yayasan',
+            'sekretaris_yayasan',
+            'tim_pengembang_penjamin_mutu_yayasan',
+            'pengembang_penjamin_mutu',
+        ])) {
+            if ((int) $journal->teacher_id !== (int) $user->id) {
+                abort(403, 'Akses Ditolak: Anda hanya dapat melihat jurnal mengajar milik Anda sendiri.');
+            }
+        }
+
         $journal->load(['teacher', 'classroom', 'subject', 'schedule', 'rppm', 'subjectAttendances.student']);
         $selectedTps = $journal->selected_tps;
 
