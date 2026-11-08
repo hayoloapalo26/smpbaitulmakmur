@@ -35,11 +35,13 @@ class TeacherKpiService
     }
 
     /**
-     * Hitung Nilai Evaluasi Kinerja Komprehensif Guru:
-     * - Kewajiban Jurnal Mengajar: 40%
-     * - Supervisi Guru: 20%
-     * - UKG / PKG Yayasan: 20%
-     * - Observasi Penjamin Mutu: 20%
+     * Hitung Nilai Evaluasi Kinerja Komprehensif Guru (5 Komponen Progress KPI Guru):
+     * - Kehadiran Pengisian Jurnal Setiap Selesai Mengajar: 30%
+     * - Supervisi Guru: 15%
+     * - PKG (Penilaian Kinerja Guru): 15%
+     * - Penilaian Observasi Yayasan: 20%
+     * - Penilaian Kinerja Guru oleh Kepala Sekolah Bulanan: 20%
+     * Total = 100%
      */
     public function calculateTeacherPerformanceEvaluation(int $teacherId, string $period = 'bulanan'): array
     {
@@ -63,13 +65,26 @@ class TeacherKpiService
             ->latest('tanggal_observasi')
             ->value('score') ?? 0);
 
-        $finalScore = ($jurnalScore * 0.40) + ($supervisiScore * 0.20) + ($ukgScore * 0.20) + ($observasiScore * 0.20);
+        $kepsekScore = (float) (\App\Models\PrincipalTeacherEvaluation::withoutGlobalScopes()
+            ->where('teacher_id', $teacherId)
+            ->whereNotNull('score')
+            ->latest('tanggal_penilaian')
+            ->value('score') ?? 0);
+
+        $finalScore = ($jurnalScore * 0.30)
+            + ($supervisiScore * 0.15)
+            + ($ukgScore * 0.15)
+            + ($observasiScore * 0.20)
+            + ($kepsekScore * 0.20);
 
         return [
             'jurnal_score' => round($jurnalScore, 2),
             'supervisi_score' => round($supervisiScore, 2),
             'ukg_score' => round($ukgScore, 2),
+            'pkg_score' => round($ukgScore, 2),
             'observasi_score' => round($observasiScore, 2),
+            'kepsek_score' => round($kepsekScore, 2),
+            'penilaian_kepsek_score' => round($kepsekScore, 2),
             'final_score' => round($finalScore, 2),
             'predikat' => \App\Models\TeacherObservation::determinePredicate($finalScore),
         ];

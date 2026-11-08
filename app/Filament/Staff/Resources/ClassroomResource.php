@@ -73,15 +73,66 @@ class ClassroomResource extends Resource
                             ->columnSpanFull()
                             ->helperText('Penting: Bedakan antara Rombel Akademik (Wali Kelas) dan Halaqah Al-Qur\'an (Guru Pengampu). Guru Al-Qur\'an TIDAK memiliki akses administrasi Wali Kelas.'),
 
+                        Forms\Components\Select::make('preset_quran')
+                            ->label('⚡ Pilihan Cepat Rombel Al-Qur\'an (Preset)')
+                            ->options([
+                                'yanbua'           => '📗 Yanbu\'a (Metode Baca Tulis Al-Qur\'an)',
+                                'tahsin'           => '📘 Tahsin (Kualitas & Kaidah Tajwid)',
+                                'tahfidz_dasar'    => '📙 Tahfidz Dasar (Hafalan Dasar)',
+                                'tahfidz_lanjutan' => '📕 Tahfidz Lanjutan (Hafalan Lanjutan & Mutqin)',
+                            ])
+                            ->visible(fn (Forms\Get $get) => $get('tipe') === Classroom::TIPE_QURAN)
+                            ->live()
+                            ->afterStateUpdated(function ($state, Forms\Set $set) {
+                                match ($state) {
+                                    'yanbua' => [
+                                        $set('name', 'Yanbu\'a'),
+                                        $set('tingkat', 'Yanbu\'a SMP'),
+                                    ],
+                                    'tahsin' => [
+                                        $set('name', 'Tahsin'),
+                                        $set('tingkat', 'Tahsin SMP'),
+                                    ],
+                                    'tahfidz_dasar' => [
+                                        $set('name', 'Tahfidz Dasar'),
+                                        $set('tingkat', 'Tahfidz Dasar SMP'),
+                                    ],
+                                    'tahfidz_lanjutan' => [
+                                        $set('name', 'Tahfidz Lanjutan'),
+                                        $set('tingkat', 'Tahfidz Lanjutan SMP'),
+                                    ],
+                                    default => null,
+                                };
+                            })
+                            ->helperText('Pilih salah satu spesialisasi untuk mengisi otomatis Nama dan Tingkat Rombel Al-Qur\'an.'),
+
                         Forms\Components\TextInput::make('name')
                             ->label('Nama Kelas / Kelompok')
-                            ->placeholder('Contoh: Kelas 7A / Yanbu\'a / Tahsin')
+                            ->placeholder('Contoh: Kelas 7A / Yanbu\'a / Tahsin / Tahfidz Dasar / Tahfidz Lanjutan')
+                            ->datalist([
+                                'Yanbu\'a',
+                                'Tahsin',
+                                'Tahfidz Dasar',
+                                'Tahfidz Lanjutan',
+                                'Kelas 7A',
+                                'Kelas 8A',
+                                'Kelas 9A',
+                            ])
                             ->required()
                             ->maxLength(255),
 
                         Forms\Components\TextInput::make('tingkat')
                             ->label('Tingkat / Keterangan')
-                            ->placeholder('Contoh: 7 / SMP / Tahsin SMP')
+                            ->placeholder('Contoh: 7 / SMP / Tahfidz Dasar SMP')
+                            ->datalist([
+                                '7',
+                                '8',
+                                '9',
+                                'Yanbu\'a SMP',
+                                'Tahsin SMP',
+                                'Tahfidz Dasar SMP',
+                                'Tahfidz Lanjutan SMP',
+                            ])
                             ->required()
                             ->maxLength(255),
 
@@ -287,6 +338,18 @@ class ClassroomResource extends Resource
 
                     if (!$user->isQuranTeacher()) {
                         $user->assignRole('guru_alquran');
+                    }
+
+                    // Sinkronisasi otomatis ke role spesialis Al-Qur'an
+                    $classNameLower = strtolower($record->name . ' ' . $record->tingkat);
+                    if (str_contains($classNameLower, 'yanbu')) {
+                        if (!$user->hasRole('guru_quran_yanbua')) $user->assignRole('guru_quran_yanbua');
+                    } elseif (str_contains($classNameLower, 'tahsin')) {
+                        if (!$user->hasRole('guru_quran_tahsin')) $user->assignRole('guru_quran_tahsin');
+                    } elseif (str_contains($classNameLower, 'dasar')) {
+                        if (!$user->hasRole('guru_quran_tahfidz_dasar')) $user->assignRole('guru_quran_tahfidz_dasar');
+                    } elseif (str_contains($classNameLower, 'lanjutan')) {
+                        if (!$user->hasRole('guru_quran_tahfidz_lanjutan')) $user->assignRole('guru_quran_tahfidz_lanjutan');
                     }
                 }
             }

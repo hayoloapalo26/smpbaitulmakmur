@@ -101,10 +101,13 @@ class Classroom extends Model
                 $quranKey = 'yanbua';
             } elseif (str_contains($nameLower, 'tahsin')) {
                 $quranKey = 'tahsin';
-            } elseif (str_contains($nameLower, 'dasar')) {
+            } elseif (str_contains($nameLower, 'dasar') || (str_contains($nameLower, 'tahfidz') && str_contains($nameLower, 'dasar'))) {
                 $quranKey = 'tahfidz_dasar';
-            } elseif (str_contains($nameLower, 'lanjutan')) {
+            } elseif (str_contains($nameLower, 'lanjutan') || (str_contains($nameLower, 'tahfidz') && str_contains($nameLower, 'lanjutan'))) {
                 $quranKey = 'tahfidz_lanjutan';
+            } elseif (str_contains($nameLower, 'tahfidz')) {
+                $teacher = $teacherId ? User::withoutGlobalScopes()->find($teacherId) : null;
+                $quranKey = ($teacher && $teacher->hasRole('guru_quran_tahfidz_lanjutan')) ? 'tahfidz_lanjutan' : 'tahfidz_dasar';
             }
 
             return Student::withoutGlobalScopes()
@@ -164,10 +167,13 @@ class Classroom extends Model
                 $quranKey = 'yanbua';
             } elseif (str_contains($nameLower, 'tahsin')) {
                 $quranKey = 'tahsin';
-            } elseif (str_contains($nameLower, 'dasar')) {
+            } elseif (str_contains($nameLower, 'dasar') || (str_contains($nameLower, 'tahfidz') && str_contains($nameLower, 'dasar'))) {
                 $quranKey = 'tahfidz_dasar';
-            } elseif (str_contains($nameLower, 'lanjutan')) {
+            } elseif (str_contains($nameLower, 'lanjutan') || (str_contains($nameLower, 'tahfidz') && str_contains($nameLower, 'lanjutan'))) {
                 $quranKey = 'tahfidz_lanjutan';
+            } elseif (str_contains($nameLower, 'tahfidz')) {
+                $teacher = $teacherId ? User::withoutGlobalScopes()->find($teacherId) : null;
+                $quranKey = ($teacher && $teacher->hasRole('guru_quran_tahfidz_lanjutan')) ? 'tahfidz_lanjutan' : 'tahfidz_dasar';
             }
 
             return Student::withoutGlobalScopes()

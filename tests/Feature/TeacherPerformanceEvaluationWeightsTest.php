@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Filament\Staff\Resources\TeacherObservationResource as StaffTeacherObservationResource;
 use App\Filament\Yayasan\Resources\TeacherEvaluationResource;
 use App\Filament\Yayasan\Resources\TeacherObservationResource as YayasanTeacherObservationResource;
+use App\Models\PrincipalTeacherEvaluation;
 use App\Models\Institution;
 use App\Models\Schedule;
 use App\Models\TeacherCompetencyTest;
@@ -90,11 +91,12 @@ class TeacherPerformanceEvaluationWeightsTest extends TestCase
     }
 
     /**
-     * Test exact mathematical formula:
-     * Jurnal Mengajar = 40%
-     * Supervisi Guru = 20%
-     * UKG = 20%
-     * Observasi Penjamin Mutu = 20%
+     * Test exact mathematical formula (5 komponen):
+     * Jurnal Mengajar = 30%
+     * Supervisi Guru = 15%
+     * PKG (Penilaian Kinerja Guru) = 15%
+     * Observasi Yayasan = 20%
+     * Penilaian Kepala Sekolah Bulanan = 20%
      */
     public function test_teacher_evaluation_exact_weight_calculation(): void
     {
@@ -140,7 +142,7 @@ class TeacherPerformanceEvaluationWeightsTest extends TestCase
             'status' => 'selesai',
         ]);
 
-        // Create Supervisi with score 80
+        // Create Supervisi with score 80 (15%)
         TeacherSupervision::create([
             'institution_id' => $this->institution->id,
             'teacher_id' => $this->teacher->id,
@@ -151,7 +153,7 @@ class TeacherPerformanceEvaluationWeightsTest extends TestCase
             'hasil' => 'Baik',
         ]);
 
-        // Create UKG with score 90
+        // Create UKG/PKG with score 90 (15%)
         TeacherCompetencyTest::create([
             'institution_id' => $this->institution->id,
             'teacher_id' => $this->teacher->id,
@@ -160,7 +162,7 @@ class TeacherPerformanceEvaluationWeightsTest extends TestCase
             'score' => 90.0,
         ]);
 
-        // Create Observasi with score 70
+        // Create Observasi with score 70 (20%)
         TeacherObservation::create([
             'institution_id' => $this->institution->id,
             'teacher_id' => $this->teacher->id,
@@ -170,9 +172,21 @@ class TeacherPerformanceEvaluationWeightsTest extends TestCase
             'materi_pembelajaran' => 'Deep Learning & Konsep Relasi',
         ]);
 
+        // Create Penilaian Kepala Sekolah Bulanan with score 85 (20%)
+        PrincipalTeacherEvaluation::create([
+            'institution_id' => $this->institution->id,
+            'teacher_id' => $this->teacher->id,
+            'evaluator_id' => $this->headmaster->id,
+            'bulan' => 10,
+            'tahun' => 2026,
+            'tanggal_penilaian' => now()->toDateString(),
+            'score' => 85.0,
+            'catatan' => 'Kinerja dan kedisiplinan mengajar sangat baik.',
+        ]);
+
         // Calculation check via TeacherKpiService:
-        // Expected: (100 * 0.40) + (80 * 0.20) + (90 * 0.20) + (70 * 0.20)
-        // = 40 + 16 + 18 + 14 = 88.0
+        // Expected: (100 * 0.30) + (80 * 0.15) + (90 * 0.15) + (70 * 0.20) + (85 * 0.20)
+        // = 30 + 12 + 13.5 + 14 + 17 = 86.5
         $kpiService = new TeacherKpiService();
         $eval = $kpiService->calculateTeacherPerformanceEvaluation($this->teacher->id, 'bulanan');
 
@@ -180,7 +194,8 @@ class TeacherPerformanceEvaluationWeightsTest extends TestCase
         $this->assertEquals(80.0, $eval['supervisi_score']);
         $this->assertEquals(90.0, $eval['ukg_score']);
         $this->assertEquals(70.0, $eval['observasi_score']);
-        $this->assertEquals(88.0, $eval['final_score']);
+        $this->assertEquals(85.0, $eval['kepsek_score']);
+        $this->assertEquals(86.5, $eval['final_score']);
         $this->assertEquals('Baik (B)', $eval['predikat']);
     }
 
@@ -285,6 +300,7 @@ class TeacherPerformanceEvaluationWeightsTest extends TestCase
             ->assertTableColumnExists('supervisi_score')
             ->assertTableColumnExists('ukg_score')
             ->assertTableColumnExists('observasi_score')
+            ->assertTableColumnExists('kepsek_score')
             ->assertTableColumnExists('final_score');
     }
 
@@ -304,7 +320,7 @@ class TeacherPerformanceEvaluationWeightsTest extends TestCase
         ]);
         $otherTeacher->assignRole('guru_mapel');
 
-        // Supervisi = 75
+        // Supervisi = 75 (15%)
         TeacherSupervision::create([
             'institution_id' => $this->institution->id,
             'teacher_id' => $otherTeacher->id,
@@ -315,7 +331,7 @@ class TeacherPerformanceEvaluationWeightsTest extends TestCase
             'hasil' => 'Cukup',
         ]);
 
-        // UKG = 80
+        // UKG = 80 (15%)
         TeacherCompetencyTest::create([
             'institution_id' => $this->institution->id,
             'teacher_id' => $otherTeacher->id,
@@ -324,7 +340,7 @@ class TeacherPerformanceEvaluationWeightsTest extends TestCase
             'score' => 80.0,
         ]);
 
-        // Observasi = 85
+        // Observasi = 85 (20%)
         TeacherObservation::create([
             'institution_id' => $this->institution->id,
             'teacher_id' => $otherTeacher->id,
@@ -333,8 +349,19 @@ class TeacherPerformanceEvaluationWeightsTest extends TestCase
             'score' => 85.0,
         ]);
 
-        // Expected: (0 * 0.40) + (75 * 0.20) + (80 * 0.20) + (85 * 0.20)
-        // = 0 + 15 + 16 + 17 = 48.0
+        // Penilaian Kepala Sekolah = 60 (20%)
+        PrincipalTeacherEvaluation::create([
+            'institution_id' => $this->institution->id,
+            'teacher_id' => $otherTeacher->id,
+            'evaluator_id' => $this->headmaster->id,
+            'bulan' => 10,
+            'tahun' => 2026,
+            'tanggal_penilaian' => now()->toDateString(),
+            'score' => 60.0,
+        ]);
+
+        // Expected: (0 * 0.30) + (75 * 0.15) + (80 * 0.15) + (85 * 0.20) + (60 * 0.20)
+        // = 0 + 11.25 + 12.0 + 17.0 + 12.0 = 52.25
         $kpiService = new TeacherKpiService();
         $eval = $kpiService->calculateTeacherPerformanceEvaluation($otherTeacher->id, 'bulanan');
 
@@ -342,7 +369,8 @@ class TeacherPerformanceEvaluationWeightsTest extends TestCase
         $this->assertEquals(75.0, $eval['supervisi_score']);
         $this->assertEquals(80.0, $eval['ukg_score']);
         $this->assertEquals(85.0, $eval['observasi_score']);
-        $this->assertEquals(48.0, $eval['final_score']);
+        $this->assertEquals(60.0, $eval['kepsek_score']);
+        $this->assertEquals(52.25, $eval['final_score']);
         $this->assertEquals('Perlu Bimbingan (D)', $eval['predikat']);
     }
 }

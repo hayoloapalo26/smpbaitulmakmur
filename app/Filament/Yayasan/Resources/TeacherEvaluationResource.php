@@ -66,8 +66,8 @@ class TeacherEvaluationResource extends Resource
                     ->sortable(),
 
                 Tables\Columns\TextColumn::make('kehadiran_score')
-                    ->label('Jurnal Mengajar (40%)')
-                    ->tooltip('Kewajiban menginput jurnal mengajar setelah pembelajaran')
+                    ->label('Jurnal Mengajar (30%)')
+                    ->tooltip('Kewajiban menginput jurnal mengajar setelah selesai pembelajaran (Bobot 30%)')
                     ->getStateUsing(function ($record) {
                         $kpiService = new \App\Services\TeacherKpiService();
                         return round($kpiService->calculateAttendancePercentage($record->id, 'bulanan'));
@@ -76,7 +76,8 @@ class TeacherEvaluationResource extends Resource
                     ->color(fn ($state) => $state >= 80 ? 'success' : 'danger'),
 
                 Tables\Columns\TextColumn::make('supervisi_score')
-                    ->label('Supervisi Guru (20%)')
+                    ->label('Supervisi Guru (15%)')
+                    ->tooltip('Penilaian supervisi klinis pembelajaran oleh Pengawas / KS (Bobot 15%)')
                     ->getStateUsing(function ($record) {
                         return TeacherSupervision::withoutGlobalScopes()
                             ->where('teacher_id', $record->id)
@@ -87,7 +88,8 @@ class TeacherEvaluationResource extends Resource
                     ->formatStateUsing(fn ($state) => number_format((float)$state, 1) . '%'),
 
                 Tables\Columns\TextColumn::make('ukg_score')
-                    ->label('UKG / PKG (20%)')
+                    ->label('PKG Guru (15%)')
+                    ->tooltip('Penilaian Kinerja Guru (PKG) / Uji Kompetensi (Bobot 15%)')
                     ->getStateUsing(function ($record) {
                         return TeacherCompetencyTest::withoutGlobalScopes()
                             ->where('teacher_id', $record->id)
@@ -98,8 +100,8 @@ class TeacherEvaluationResource extends Resource
                     ->formatStateUsing(fn ($state) => number_format((float)$state, 1) . '%'),
 
                 Tables\Columns\TextColumn::make('observasi_score')
-                    ->label('Observasi (20%)')
-                    ->tooltip('Observasi pembelajaran oleh Tim Pengembang & Penjamin Mutu')
+                    ->label('Observasi Yayasan (20%)')
+                    ->tooltip('Observasi pembelajaran oleh Tim Pengembang & Penjamin Mutu Yayasan (Bobot 20%)')
                     ->getStateUsing(function ($record) {
                         return TeacherObservation::withoutGlobalScopes()
                             ->where('teacher_id', $record->id)
@@ -110,8 +112,22 @@ class TeacherEvaluationResource extends Resource
                     ->formatStateUsing(fn ($state) => number_format((float)$state, 1) . '%')
                     ->color(fn ($state) => (float)$state >= 80 ? 'success' : ((float)$state >= 70 ? 'warning' : 'danger')),
 
+                Tables\Columns\TextColumn::make('kepsek_score')
+                    ->label('Penilaian Kepala Sekolah (20%)')
+                    ->tooltip('Penilaian kinerja guru bulanan oleh Kepala Sekolah (Bobot 20%)')
+                    ->getStateUsing(function ($record) {
+                        return \App\Models\PrincipalTeacherEvaluation::withoutGlobalScopes()
+                            ->where('teacher_id', $record->id)
+                            ->whereNotNull('score')
+                            ->latest('tanggal_penilaian')
+                            ->value('score') ?? 0;
+                    })
+                    ->formatStateUsing(fn ($state) => number_format((float)$state, 1) . '%')
+                    ->color(fn ($state) => (float)$state >= 80 ? 'success' : ((float)$state >= 70 ? 'warning' : 'danger')),
+
                 Tables\Columns\TextColumn::make('final_score')
-                    ->label('NILAI AKHIR')
+                    ->label('NILAI AKHIR (100%)')
+                    ->tooltip('Akumulasi 5 Komponen: 30% Jurnal + 15% Supervisi + 15% PKG + 20% Observasi Yayasan + 20% Penilaian Kepala Sekolah')
                     ->badge()
                     ->getStateUsing(function ($record) {
                         $kpiService = new \App\Services\TeacherKpiService();
@@ -282,6 +298,66 @@ class TeacherEvaluationResource extends Resource
                         ]);
                     })
                     ->visible(fn () => auth()->user()?->hasAnyRole(['superadmin', 'tim_pengembang_penjamin_mutu_yayasan', 'pengembang_penjamin_mutu', 'tim_pengembang_yayasan', 'ketua_yayasan'])),
+
+                Tables\Actions\Action::make('input_penilaian_kepsek')
+                    ->label('Nilai Kepala Sekolah (Bulanan)')
+                    ->icon('heroicon-o-clipboard-document-check')
+                    ->color('primary')
+                    ->modalHeading(fn (User $record) => 'Penilaian Kinerja Bulanan Guru: ' . $record->name)
+                    ->modalDescription('Input penilaian kinerja guru oleh Kepala Sekolah per 1 bulan sekali (Bobot 20% pada nilai KPI).')
+                    ->form([
+                        Forms\Components\Select::make('bulan')
+                            ->label('Bulan')
+                            ->options([
+                                1 => 'Januari', 2 => 'Februari', 3 => 'Maret', 4 => 'April',
+                                5 => 'Mei', 6 => 'Juni', 7 => 'Juli', 8 => 'Agustus',
+                                9 => 'September', 10 => 'Oktober', 11 => 'November', 12 => 'Desember',
+                            ])
+                            ->default(now()->month)
+                            ->required(),
+                        Forms\Components\TextInput::make('tahun')
+                            ->label('Tahun')
+                            ->numeric()
+                            ->default(now()->year)
+                            ->required(),
+                        Forms\Components\DatePicker::make('tanggal_penilaian')
+                            ->label('Tanggal Penilaian')
+                            ->default(now())
+                            ->required(),
+                        Forms\Components\TextInput::make('score')
+                            ->label('Nilai Kinerja Kepala Sekolah (0-100)')
+                            ->numeric()
+                            ->minValue(0)
+                            ->maxValue(100)
+                            ->step(0.1)
+                            ->default(85)
+                            ->required(),
+                        Forms\Components\Textarea::make('catatan')
+                            ->label('Catatan & Arahan Pembinaan Kepala Sekolah')
+                            ->placeholder('Catatan kinerja, evaluasi, dan arahan...')
+                            ->nullable(),
+                    ])
+                    ->action(function (User $record, array $data) {
+                        \App\Models\PrincipalTeacherEvaluation::create([
+                            'institution_id' => $record->institution_id,
+                            'teacher_id' => $record->id,
+                            'evaluator_id' => auth()->id(),
+                            'bulan' => $data['bulan'],
+                            'tahun' => $data['tahun'],
+                            'tanggal_penilaian' => $data['tanggal_penilaian'],
+                            'score' => $data['score'],
+                            'predikat' => \App\Models\PrincipalTeacherEvaluation::determinePredicate((float) $data['score']),
+                            'catatan' => $data['catatan'] ?? null,
+                            'status' => 'dinilai',
+                        ]);
+
+                        Notification::make()
+                            ->title('Penilaian Kepala Sekolah Disimpan')
+                            ->body("Nilai kinerja bulanan untuk {$record->name} berhasil disimpan dan masuk dalam KPI Guru (bobot 20%).")
+                            ->success()
+                            ->send();
+                    })
+                    ->visible(fn () => auth()->user()?->hasAnyRole(['superadmin', 'kepala_sekolah', 'tim_pengembang_penjamin_mutu_yayasan', 'pengembang_penjamin_mutu', 'ketua_yayasan'])),
             ]);
     }
 
