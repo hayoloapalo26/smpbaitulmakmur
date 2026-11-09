@@ -309,4 +309,11 @@ Route::prefix('api/hikvision')->group(function () {
         ->name('hikvision.attendance.get');
 });
 
+// =========================================================
+// ALIAS / FALLBACK ROUTES UNTUK MENCEGAH ROUTENOTFOUNDEXCEPTION
+// =========================================================
+Route::get('/staff/principal-teacher-evaluations', function () {
+    return redirect('/staff/penilaian-kinerja-guru-kepala-sekolah');
+})->name('filament.staff.resources.principal-teacher-evaluations.index');
+
 Route::get('/chk-usr', function() { require_once base_path('check_users.php'); });

@@ -335,7 +335,10 @@ class SchoolPillarService
 
             case 3: // Bidang Kurikulum
                 // Ketercapaian HANYA diambil dari program kerja kurikulum
-                $programs = self::filterByInstitution(ProgramKurikulum::query(), $institutionId, 'program_kurikulums')->get();
+                $programs = self::filterByInstitution(ProgramKurikulum::query(), $institutionId, 'program_kurikulums')
+                    ->where('nama_program', 'NOT LIKE', '%Pengembangan Modul Ajar%')
+                    ->where('nama_program', 'NOT LIKE', '%Dummy%')
+                    ->get();
 
                 if ($programs->isNotEmpty()) {
                     $tasks = $programs->map(function ($m) {
@@ -420,7 +423,9 @@ class SchoolPillarService
 
             case 5: // Kesiswaan
                 // Ketercapaian HANYA diambil dari program kerja kesiswaan
-                $programs = self::filterByInstitution(ProgramKesiswaan::query(), $institutionId, 'program_kesiswaans')->get();
+                $programs = self::filterByInstitution(ProgramKesiswaan::query(), $institutionId, 'program_kesiswaans')
+                    ->where('nama_program', 'NOT LIKE', '%Dummy%')
+                    ->get();
 
                 if ($programs->isNotEmpty()) {
                     $tasks = $programs->map(function ($m) {
@@ -444,7 +449,9 @@ class SchoolPillarService
 
             case 6: // Sarpras
                 // Ketercapaian HANYA diambil dari program kerja sarpras
-                $programs = self::filterByInstitution(ProgramSarpras::query(), $institutionId, 'program_sarpras')->get();
+                $programs = self::filterByInstitution(ProgramSarpras::query(), $institutionId, 'program_sarpras')
+                    ->where('nama_program', 'NOT LIKE', '%Dummy%')
+                    ->get();
 
                 if ($programs->isNotEmpty()) {
                     $tasks = $programs->map(function ($m) {
@@ -513,9 +520,13 @@ class SchoolPillarService
 
             case 8: // Humas
                 // Ketercapaian HANYA diambil dari program kerja humas
-                $programs = self::filterByInstitution(ProgramHumas::query(), $institutionId, 'program_humas')->get();
+                $programs = self::filterByInstitution(ProgramHumas::query(), $institutionId, 'program_humas')
+                    ->where('nama_program', 'NOT LIKE', '%Dummy%')
+                    ->get();
                 if ($programs->isEmpty()) {
-                    $programs = self::filterByInstitution(HumasProgram::query(), $institutionId, 'humas_programs')->get();
+                    $programs = self::filterByInstitution(HumasProgram::query(), $institutionId, 'humas_programs')
+                        ->where('nama', 'NOT LIKE', '%Dummy%')
+                        ->get();
                 }
 
                 if ($programs->isNotEmpty()) {
@@ -545,7 +556,9 @@ class SchoolPillarService
 
             case 9: // Layanan Khusus / BK
                 // Ketercapaian HANYA diambil dari program kerja BK
-                $programs = self::filterByInstitution(BkWorkProgram::query(), $institutionId, 'bk_work_programs')->get();
+                $programs = self::filterByInstitution(BkWorkProgram::query(), $institutionId, 'bk_work_programs')
+                    ->where('nama_program', 'NOT LIKE', '%Dummy%')
+                    ->get();
 
                 if ($programs->isNotEmpty()) {
                     $tasks = $programs->map(function ($m) {
