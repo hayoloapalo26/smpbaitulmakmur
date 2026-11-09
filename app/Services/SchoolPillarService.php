@@ -557,7 +557,7 @@ class SchoolPillarService
             case 9: // Layanan Khusus / BK
                 // Ketercapaian HANYA diambil dari program kerja BK
                 $programs = self::filterByInstitution(BkWorkProgram::query(), $institutionId, 'bk_work_programs')
-                    ->where('nama_program', 'NOT LIKE', '%Dummy%')
+                    ->where('judul_program', 'NOT LIKE', '%Dummy%')
                     ->get();
 
                 if ($programs->isNotEmpty()) {
