@@ -144,7 +144,7 @@ class TeachingJournalResource extends Resource
                                 $teacherId = $get('teacher_id') ?: Auth::id();
                                 $tanggal = $get('tanggal') ?: Carbon::today()->format('Y-m-d');
                                 $hari = Schedule::getIndonesianDayName($tanggal);
-                                $count = Schedule::where('teacher_id', $teacherId)->where('hari', $hari)->count();
+                                $count = Schedule::withoutGlobalScopes()->where('teacher_id', $teacherId)->where('hari', $hari)->count();
 
                                 if ($count === 0) {
                                     return new \Illuminate\Support\HtmlString("
@@ -244,7 +244,8 @@ class TeachingJournalResource extends Resource
                                 $hari = Schedule::getIndonesianDayName($tanggal);
 
                                 // Jadwal reguler kurikulum milik guru yang bersangkutan pada hari tersebut
-                                $regularSchedules = Schedule::with(['classroom', 'subject', 'teacher'])
+                                $regularSchedules = Schedule::withoutGlobalScopes()
+                                    ->with(['classroom', 'subject', 'teacher'])
                                     ->where('teacher_id', $teacherId)
                                     ->where('hari', $hari)
                                     ->orderBy('jam_ke')
@@ -274,7 +275,8 @@ class TeachingJournalResource extends Resource
                                     ->toArray();
 
                                 $substituteSchedules = !empty($substituteScheduleIds)
-                                    ? Schedule::with(['classroom', 'subject', 'teacher'])
+                                    ? Schedule::withoutGlobalScopes()
+                                        ->with(['classroom', 'subject', 'teacher'])
                                         ->whereIn('id', $substituteScheduleIds)
                                         ->where('hari', $hari)
                                         ->orderBy('jam_ke')

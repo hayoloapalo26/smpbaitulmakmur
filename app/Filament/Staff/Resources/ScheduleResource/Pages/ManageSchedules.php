@@ -63,7 +63,7 @@ class ManageSchedules extends ManageRecords
                     $created = [];
                     foreach ($days as $day) {
                         foreach ($jams as $jam) {
-                            $created[] = Schedule::firstOrCreate([
+                            $created[] = Schedule::withoutGlobalScopes()->firstOrCreate([
                                 'classroom_id' => $data['classroom_id'],
                                 'subject_id' => $data['subject_id'],
                                 'teacher_id' => $data['teacher_id'],

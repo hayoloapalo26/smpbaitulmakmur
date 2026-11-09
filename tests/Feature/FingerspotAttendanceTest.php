@@ -14,14 +14,30 @@ class FingerspotAttendanceTest extends TestCase
 {
     use RefreshDatabase;
 
+    protected Institution $institution;
+
     protected function setUp(): void
     {
         parent::setUp();
 
+        // Siapkan institusi ID 1 (Yayasan) dan ID 2 (SMP)
+        Institution::create([
+            'id'   => 1,
+            'name' => 'Yayasan LPI Baitul Makmur',
+            'slug' => 'yayasan',
+        ]);
+
+        $this->institution = Institution::create([
+            'id'   => 2,
+            'name' => 'SMP Islam Baitul Makmur',
+            'slug' => 'smpi',
+        ]);
+
         User::create([
-            'name'     => 'System Admin',
-            'email'    => 'admin@smpi.test',
-            'password' => bcrypt('password'),
+            'name'           => 'System Admin',
+            'email'          => 'admin@smpi.test',
+            'password'       => bcrypt('password'),
+            'institution_id' => $this->institution->id,
         ]);
     }
 
@@ -72,18 +88,14 @@ class FingerspotAttendanceTest extends TestCase
 
     public function test_fingerspot_webhook_records_attendance_on_time()
     {
-        $institution = Institution::create([
-            'name' => 'SMP Islam Baitul Makmur',
-            'slug' => 'smpi',
-        ]);
-
         $classroom = Classroom::create([
             'name'           => 'VII-A',
             'tingkat'        => 7,
-            'institution_id' => $institution->id,
+            'institution_id' => $this->institution->id,
         ]);
 
         $student = Student::create([
+            'institution_id' => $this->institution->id,
             'classroom_id'   => $classroom->id,
             'name'           => 'Ahmad Santoso',
             'nis'            => '10001',
@@ -125,18 +137,14 @@ class FingerspotAttendanceTest extends TestCase
 
     public function test_fingerspot_webhook_records_attendance_late()
     {
-        $institution = Institution::create([
-            'name' => 'SMP Islam Baitul Makmur',
-            'slug' => 'smpi',
-        ]);
-
         $classroom = Classroom::create([
             'name'           => 'VII-A',
             'tingkat'        => 7,
-            'institution_id' => $institution->id,
+            'institution_id' => $this->institution->id,
         ]);
 
         $student = Student::create([
+            'institution_id' => $this->institution->id,
             'classroom_id'   => $classroom->id,
             'name'           => 'Budi Pratama',
             'nis'            => '10002',
@@ -172,18 +180,14 @@ class FingerspotAttendanceTest extends TestCase
 
     public function test_fingerspot_adms_cdata_push()
     {
-        $institution = Institution::create([
-            'name' => 'SMP Islam Baitul Makmur',
-            'slug' => 'smpi',
-        ]);
-
         $classroom = Classroom::create([
             'name'           => 'VII-B',
             'tingkat'        => 7,
-            'institution_id' => $institution->id,
+            'institution_id' => $this->institution->id,
         ]);
 
         $student = Student::create([
+            'institution_id' => $this->institution->id,
             'classroom_id'   => $classroom->id,
             'name'           => 'Citra Kirana',
             'nis'            => '10003',
@@ -219,18 +223,14 @@ class FingerspotAttendanceTest extends TestCase
 
     public function test_fingerspot_prevents_duplicate_attendance()
     {
-        $institution = Institution::create([
-            'name' => 'SMP Islam Baitul Makmur',
-            'slug' => 'smpi-dup',
-        ]);
-
         $classroom = Classroom::create([
             'name'           => 'VII-C',
             'tingkat'        => 7,
-            'institution_id' => $institution->id,
+            'institution_id' => $this->institution->id,
         ]);
 
         $student = Student::create([
+            'institution_id' => $this->institution->id,
             'classroom_id'   => $classroom->id,
             'name'           => 'Doni Firmansyah',
             'nis'            => '10004',

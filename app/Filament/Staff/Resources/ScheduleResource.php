@@ -19,7 +19,7 @@ class ScheduleResource extends Resource
 {
     public static function shouldRegisterNavigation(): bool
     {
-        return ! (auth()->user()?->hasRole('kepala_sekolah') ?? false);
+        return true;
     }
 
     public static function canAccess(): bool
@@ -43,10 +43,14 @@ class ScheduleResource extends Resource
 
     public static function getEloquentQuery(): Builder
     {
-        $query = parent::getEloquentQuery();
+        $query = parent::getEloquentQuery()->withoutGlobalScopes();
         $user = Auth::user();
 
-        if ($user->hasAnyRole(['waka_kurikulum', 'kepala_sekolah', 'superadmin'])) {
+        if (!$user) {
+            return $query->whereRaw('1 = 0');
+        }
+
+        if ($user->hasAnyRole(['waka_kurikulum', 'kepala_sekolah', 'superadmin', 'yayasan', 'ketua_yayasan', 'pembina_yayasan', 'sekretaris_yayasan', 'tim_pengembang_penjamin_mutu_yayasan', 'pengembang_penjamin_mutu'])) {
             return $query;
         }
 
@@ -311,14 +315,14 @@ class ScheduleResource extends Resource
                         foreach ($allDays as $d) {
                             foreach ($allJams as $j) {
                                 if ($d == $firstDay && $j == $firstJam) continue;
-                                \App\Models\Schedule::firstOrCreate([
+                                \App\Models\Schedule::withoutGlobalScopes()->firstOrCreate([
                                     'classroom_id' => $data['classroom_id'],
                                     'subject_id' => $data['subject_id'],
                                     'teacher_id' => $data['teacher_id'],
                                     'hari' => $d,
                                     'jam_ke' => (int) $j,
                                 ], [
-                                    'institution_id' => $record->institution_id,
+                                    'institution_id' => $record->institution_id ?? 2,
                                 ]);
                             }
                         }

@@ -406,8 +406,8 @@ class User extends Authenticatable implements FilamentUser, HasAvatar
      */
     public function getTeachedSubjectIds(): array
     {
-        $tscIds = $this->teacherSubjectClasses()->pluck('subject_id')->toArray();
-        $schIds = $this->schedules()->pluck('subject_id')->toArray();
+        $tscIds = $this->teacherSubjectClasses()->withoutGlobalScopes()->pluck('subject_id')->toArray();
+        $schIds = $this->schedules()->withoutGlobalScopes()->pluck('subject_id')->toArray();
 
         return array_values(array_unique(array_filter(array_merge($tscIds, $schIds))));
     }

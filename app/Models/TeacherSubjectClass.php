@@ -23,7 +23,7 @@ class TeacherSubjectClass extends Model
                 }
 
                 $existing = $query->with(['teacher', 'subject', 'classroom'])->first();
-                if ($existing) {
+                if ($existing && (int)$existing->teacher_id !== (int)$tsc->teacher_id) {
                     $teacherName = $existing->teacher?->name ?? 'Guru Lain';
                     $subjectName = $existing->subject?->name ?? 'Mata pelajaran ini';
                     $className = $existing->classroom?->name ?? 'kelas terpilih';

@@ -36,6 +36,22 @@ class TeacherSubjectClassResource extends Resource
         return 3;
     }
 
+    public static function getEloquentQuery(): \Illuminate\Database\Eloquent\Builder
+    {
+        $query = parent::getEloquentQuery()->withoutGlobalScopes();
+        $user = auth()->user();
+
+        if (!$user) {
+            return $query->whereRaw('1 = 0');
+        }
+
+        if ($user->hasAnyRole(['waka_kurikulum', 'kepala_sekolah', 'superadmin', 'yayasan', 'ketua_yayasan', 'pembina_yayasan', 'sekretaris_yayasan', 'tim_pengembang_penjamin_mutu_yayasan', 'pengembang_penjamin_mutu'])) {
+            return $query;
+        }
+
+        return $query->where('teacher_id', $user->id);
+    }
+
     public static function getEligibleTeachersQuery(?\Illuminate\Database\Eloquent\Builder $query = null, ?User $user = null): \Illuminate\Database\Eloquent\Builder
     {
         $query = $query ?: User::query();
@@ -129,7 +145,7 @@ class TeacherSubjectClassResource extends Resource
                                             }
 
                                             $existing = $query->with(['teacher', 'subject', 'classroom'])->first();
-                                            if ($existing) {
+                                            if ($existing && (int)$existing->teacher_id !== (int)$get('teacher_id')) {
                                                 $teacherName = $existing->teacher?->name ?? 'Guru Lain';
                                                 $subjectName = $existing->subject?->name ?? 'Mata pelajaran ini';
                                                 $className = $existing->classroom?->name ?? 'kelas terpilih';
@@ -152,7 +168,7 @@ class TeacherSubjectClassResource extends Resource
                                     }
 
                                     $existing = $query->with('teacher')->first();
-                                    if ($existing) {
+                                    if ($existing && (int)$existing->teacher_id !== (int)$get('teacher_id')) {
                                         return "⚠️ Perhatian: Kelas ini sudah diampu oleh " . ($existing->teacher?->name ?? 'Guru Lain') . ". Sistem akan menolak jika disimpan.";
                                     }
                                 }

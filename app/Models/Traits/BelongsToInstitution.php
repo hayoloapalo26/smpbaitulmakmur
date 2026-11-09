@@ -46,9 +46,15 @@ trait BelongsToInstitution
                           ->orWhereNull($table . '.institution_id');
                     }
 
-                    // Khusus tabel students: izinkan staf SMP (institution_id = 2) melihat siswa jika sempat tercatat di ID 1 (Yayasan)
-                    if ($table === 'students' && in_array(2, $userInstitutionIds)) {
-                        $q->orWhere($table . '.institution_id', 1);
+                    // Khusus tabel penting akademik (students, schedules, classrooms, subjects, teacher_subject_classes):
+                    // Izinkan staf SMP (institution_id = 2) dan Yayasan (institution_id = 1) saling mengakses data terintegrasi
+                    if (in_array($table, ['students', 'schedules', 'classrooms', 'subjects', 'teacher_subject_classes'])) {
+                        if (in_array(2, $userInstitutionIds)) {
+                            $q->orWhere($table . '.institution_id', 1);
+                        }
+                        if (in_array(1, $userInstitutionIds)) {
+                            $q->orWhere($table . '.institution_id', 2);
+                        }
                     }
 
                     // Dukungan Guru Lintas Lembaga (Cross-Institution Teaching):
