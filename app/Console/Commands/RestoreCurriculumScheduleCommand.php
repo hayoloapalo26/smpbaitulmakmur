@@ -8,6 +8,8 @@ use App\Models\TeacherSubjectClass;
 use App\Models\Classroom;
 use App\Models\Subject;
 use App\Models\User;
+use App\Models\Institution;
+use Illuminate\Support\Facades\DB;
 
 class RestoreCurriculumScheduleCommand extends Command
 {
@@ -16,47 +18,59 @@ class RestoreCurriculumScheduleCommand extends Command
      *
      * @var string
      */
-    protected $signature = 'app:restore-curriculum-schedule {--force : Paksa generate ulang jadwal pelajaran}';
+    protected $signature = 'app:restore-curriculum-schedule {--force : Paksa generate ulang jadwal pelajaran & setting guru mapel}';
 
     /**
      * The console command description.
      *
      * @var string
      */
-    protected $description = 'Pulihkan dan susun jadwal pelajaran resmi SMP Islam Baitul Makmur secara terintegrasi dan bebas bentrok';
+    protected $description = 'Pulihkan dan susun jadwal pelajaran serta setting guru mapel resmi SMP Islam Baitul Makmur secara terintegrasi dan bebas bentrok';
 
     /**
      * Execute the console command.
      */
     public function handle(): int
     {
-        $this->info('Memulai pemulihan jadwal pelajaran kurikulum SMP...');
+        $this->info('Memulai pemulihan jadwal pelajaran dan setting guru mapel SMP...');
         $restored = static::restoreSchedule(function ($msg) {
             $this->line(" - {$msg}");
         }, (bool) $this->option('force'));
 
-        $this->info("✅ Selesai! Total {$restored} slot jadwal pelajaran berhasil dipulihkan.");
+        $this->info("✅ Selesai! Total {$restored} data berhasil dipulihkan.");
         return Command::SUCCESS;
     }
 
     /**
-     * Logika pemulihan jadwal terpusat (dapat dipanggil dari Artisan Command maupun Migration).
+     * Logika pemulihan jadwal dan setting guru mapel terpusat.
      */
     public static function restoreSchedule(?callable $logger = null, bool $force = false): int
     {
         $log = $logger ?: function ($msg) {};
         $institutionId = 2; // SMP Islam Baitul Makmur
 
-        // Jika tidak dipaksa dan sudah ada jadwal, jangan timpa
-        $existingCount = Schedule::withoutGlobalScopes()->where('institution_id', $institutionId)->count();
-        if ($existingCount > 0 && !$force) {
-            $log("Terdapat {$existingCount} jadwal pelajaran yang sudah ada. Lewati karena tidak dipaksa (--force).");
-            return $existingCount;
+        // Pastikan record institusi SMP (ID 2) tersedia
+        $smp = DB::table('institutions')->where('id', $institutionId)->first();
+        if (!$smp) {
+            DB::table('institutions')->insertOrIgnore([
+                'id' => $institutionId,
+                'name' => 'SMP Islam Baitul Makmur',
+                'slug' => 'smp',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        }
+
+        // Cek jika sudah ada data dan tidak dipaksa
+        $existingTsc = TeacherSubjectClass::withoutGlobalScopes()->where('institution_id', $institutionId)->count();
+        $existingSch = Schedule::withoutGlobalScopes()->where('institution_id', $institutionId)->count();
+
+        if ($existingTsc > 0 && $existingSch > 0 && !$force) {
+            $log("Data Setting Guru Mapel ({$existingTsc}) dan Jadwal ({$existingSch}) sudah ada. Lewati karena tidak dipaksa (--force).");
+            return $existingSch;
         }
 
         // 1. Dapatkan atau Buat Rombel Kelas SMP
-        $defaultWaliId = User::withoutGlobalScopes()->where('is_active', true)->value('id') ?? User::withoutGlobalScopes()->value('id');
-
         $classrooms = Classroom::withoutGlobalScopes()
             ->where(function ($q) use ($institutionId) {
                 $q->where('institution_id', $institutionId)
@@ -134,11 +148,16 @@ class RestoreCurriculumScheduleCommand extends Command
             ];
         }
 
-        // 3. Dapatkan Guru Pengampu Aktif
+        // 3. Dapatkan Seluruh Guru Pengampu Aktif
         $teachers = User::withoutGlobalScopes()
             ->where('is_active', true)
-            ->whereHas('roles', function ($q) {
-                $q->whereIn('name', array_merge(['guru_mapel', 'guru_kelas', 'guru_alquran', 'wali_kelas', 'waka_kurikulum'], User::QURAN_TEACHER_ROLES));
+            ->where(function ($q) use ($institutionId) {
+                $q->where('institution_id', $institutionId)
+                  ->orWhereNull('institution_id')
+                  ->orWhere('institution_id', 1)
+                  ->orWhereHas('roles', function ($rq) {
+                      $rq->whereIn('name', array_merge(['guru_mapel', 'guru_kelas', 'guru_alquran', 'wali_kelas', 'waka_kurikulum'], User::QURAN_TEACHER_ROLES));
+                  });
             })
             ->get();
 
@@ -169,7 +188,7 @@ class RestoreCurriculumScheduleCommand extends Command
                 default => [$kode],
             };
 
-            $matchedTeacher = $teachers->first(function ($t) use ($keywords, $kode) {
+            $matchedTeacher = $teachers->first(function ($t) use ($keywords) {
                 $str = strtolower(($t->jabatan ?? '') . ' ' . ($t->name ?? '') . ' ' . ($t->email ?? ''));
                 foreach ($keywords as $kw) {
                     if (str_contains($str, $kw)) return true;
@@ -187,6 +206,7 @@ class RestoreCurriculumScheduleCommand extends Command
         }
 
         // 4. Hubungkan ke TeacherSubjectClass untuk setiap rombel
+        $totalTsc = 0;
         foreach ($classrooms as $cls) {
             foreach ($mapelDefinitions as $mDef) {
                 $kode = $mDef['kode'];
@@ -200,9 +220,10 @@ class RestoreCurriculumScheduleCommand extends Command
                     'teacher_id'     => $teacher->id,
                     'institution_id' => $institutionId,
                 ]);
+                $totalTsc++;
             }
         }
-        $log("Mapping Setting Guru Mapel (TeacherSubjectClass) berhasil dikaitkan.");
+        $log("Mapping Setting Guru Mapel (TeacherSubjectClass) berhasil dikaitkan ({$totalTsc} data).");
 
         // 5. Susun Jadwal Pelajaran (Schedules) per JP Bebas Bentrok
         $scheduleGrid = [

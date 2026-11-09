@@ -9,6 +9,7 @@ use App\Models\Schedule;
 use App\Models\Subject;
 use App\Models\TeacherSubjectClass;
 use App\Models\User;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
@@ -20,16 +21,9 @@ class RestoreCurriculumScheduleTest extends TestCase
     public function test_restore_curriculum_schedule_creates_schedules_and_assignments_without_clashes()
     {
         // Setup Institusi
-        Institution::query()->delete();
-        $inst1 = Institution::create([
-            'id'   => 1,
-            'name' => 'Yayasan LPI Baitul Makmur',
-            'slug' => 'yayasan',
-        ]);
-        $inst2 = Institution::create([
-            'id'   => 2,
-            'name' => 'SMP Islam Baitul Makmur',
-            'slug' => 'smpi',
+        DB::table('institutions')->insertOrIgnore([
+            ['id' => 1, 'name' => 'Yayasan LPI Baitul Makmur', 'slug' => 'yayasan', 'created_at' => now(), 'updated_at' => now()],
+            ['id' => 2, 'name' => 'SMP Islam Baitul Makmur', 'slug' => 'smpi', 'created_at' => now(), 'updated_at' => now()],
         ]);
 
         Role::firstOrCreate(['name' => 'guru_mapel', 'guard_name' => 'web']);
