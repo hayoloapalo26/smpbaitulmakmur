@@ -30,9 +30,6 @@ return new class extends Migration
         if (Schema::hasTable('school_pillar_tasks')) {
             DB::table('school_pillar_tasks')->delete();
         }
-
-        // 3. Jalankan reset terpusat untuk data launching (menjaga data user, guru, siswa, kelas, yayasan)
-        ResetLaunchDataCommand::executeReset();
     }
 
     /**

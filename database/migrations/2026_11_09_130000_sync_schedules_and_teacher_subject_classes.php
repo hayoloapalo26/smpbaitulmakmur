@@ -65,6 +65,13 @@ return new class extends Migration
                 ]);
             }
         }
+
+        // 4. Jika schedules kosong dan institusi SMP (id=2) sudah ada, pulihkan jadwal kurikulum otomatis
+        $smpExists = DB::table('institutions')->where('id', 2)->exists();
+        $smpScheduleCount = DB::table('schedules')->where('institution_id', 2)->count();
+        if ($smpExists && $smpScheduleCount === 0) {
+            \App\Console\Commands\RestoreCurriculumScheduleCommand::restoreSchedule();
+        }
     }
 
     /**

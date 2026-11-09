@@ -62,25 +62,8 @@ class ResetLaunchDataCommand extends Command
         }
 
         try {
-            // 1. Reset Routing / Setting Guru Mapel
-            if (Schema::hasTable('teacher_subject_classes')) {
-                DB::table('teacher_subject_classes')->delete();
-                $log('Tabel teacher_subject_classes (Setting Guru Mapel) berhasil dikosongkan.');
-            }
-
-            // 2. Reset Pembagian Jadwal Pelajaran & Jurnal Mengajar
-            if (Schema::hasTable('subject_attendances')) {
-                DB::table('subject_attendances')->delete();
-                $log('Tabel subject_attendances berhasil dikosongkan.');
-            }
-            if (Schema::hasTable('teaching_journals')) {
-                DB::table('teaching_journals')->delete();
-                $log('Tabel teaching_journals berhasil dikosongkan.');
-            }
-            if (Schema::hasTable('schedules')) {
-                DB::table('schedules')->delete();
-                $log('Tabel schedules (Jadwal Pelajaran) berhasil dikosongkan.');
-            }
+            // Catatan: Jadwal Pelajaran (schedules) dan Setting Guru Mapel (teacher_subject_classes)
+            // adalah DATA MASTER RESMI SEKOLAH dan TIDAK BOLEH dihapus.
 
             // 3. Reset Nilai & Prestasi (Pilar Mutu Lulusan -> mulai 0%)
             if (Schema::hasTable('grades')) {
