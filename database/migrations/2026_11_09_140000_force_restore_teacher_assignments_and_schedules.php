@@ -26,13 +26,8 @@ return new class extends Migration
             ]);
         }
 
-        // 2. Pulihkan Setting Guru Mapel dan Jadwal Pelajaran jika kosong
-        $tscCount = TeacherSubjectClass::withoutGlobalScopes()->count();
-        $schCount = Schedule::withoutGlobalScopes()->count();
-
-        if ($tscCount === 0 || $schCount === 0) {
-            RestoreCurriculumScheduleCommand::restoreSchedule(null, true);
-        }
+        // 2. Pulihkan Setting Guru Mapel dan Jadwal Pelajaran secara penuh dan idempotent
+        RestoreCurriculumScheduleCommand::restoreSchedule(null, true);
     }
 
     /**
