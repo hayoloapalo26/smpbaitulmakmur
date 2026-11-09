@@ -320,6 +320,16 @@
         </tr>
     </table>
 
+    @if(!empty($rppm->catatan_kepala_sekolah))
+    <div style="margin-top: 15px; margin-bottom: 15px; padding: 10px 14px; background-color: #f8fafc; border: 1px solid #cbd5e1; border-left: 4px solid #0284c7; border-radius: 4px; font-size: 10pt;">
+        <strong>Catatan / Supervisi Kepala Sekolah:</strong><br>
+        <span style="font-style: italic; color: #334155;">"{{ $rppm->catatan_kepala_sekolah }}"</span>
+        @if($rppm->reviewed_at)
+        <div style="font-size: 8pt; color: #64748b; margin-top: 4px;">Ditinjau pada: {{ \Carbon\Carbon::parse($rppm->reviewed_at)->translatedFormat('d F Y H:i') }} @if($rppm->reviewer) oleh {{ $rppm->reviewer->name }} @endif</div>
+        @endif
+    </div>
+    @endif
+
     <!-- TANDA TANGAN -->
     <table class="signature-table">
         <tr>
@@ -327,8 +337,11 @@
                 Mengetahui,<br>
                 <strong>Kepala Sekolah</strong>
                 <br><br><br><br>
-                <strong><u>{{ \App\Models\User::role('kepala_sekolah')->first()?->name ?? 'Kepala SMP Islam Baitul Makmur' }}</u></strong><br>
+                <strong><u>{{ $rppm->reviewer?->name ?? \App\Models\User::role('kepala_sekolah')->first()?->name ?? 'Kepala SMP Islam Baitul Makmur' }}</u></strong><br>
                 NIP/NUPTK: 19780512 200501 1 003
+                @if($rppm->status === 'approved')
+                <div style="color: #15803d; font-size: 8pt; font-weight: bold; margin-top: 2px;">[STATUS: TELAH DI-ACC / DISETUJUI]</div>
+                @endif
             </td>
             <td>
                 Jawa Timur, {{ \Carbon\Carbon::parse($rppm->updated_at ?? now())->translatedFormat('d F Y') }}<br>

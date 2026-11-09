@@ -16,6 +16,14 @@ class EditRppm extends EditRecord
 
     public bool $isDraft = false;
 
+    protected function authorizeAccess(): void
+    {
+        if (auth()->user()?->hasRole('kepala_sekolah')) {
+            abort(403, 'Kepala Sekolah hanya memiliki akses untuk melihat (view), memberikan catatan, dan menyetujui (ACC) RPPM.');
+        }
+        parent::authorizeAccess();
+    }
+
     public function saveDraft(): void
     {
         $this->isDraft = true;

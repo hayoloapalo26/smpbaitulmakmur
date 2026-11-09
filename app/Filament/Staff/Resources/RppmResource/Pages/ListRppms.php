@@ -32,7 +32,8 @@ class ListRppms extends ListRecords
                 ->visible(fn () => auth()->user()?->hasAnyRole(['waka_kurikulum', 'kepala_sekolah', 'superadmin']) ?? false)
                 ->url(fn () => LearningPlanResource::getUrl()),
             Actions\CreateAction::make()
-                ->label('Buat RPPM Baru'),
+                ->label('Buat RPPM Baru')
+                ->visible(fn () => !auth()->user()?->hasRole('kepala_sekolah')),
         ];
     }
 }

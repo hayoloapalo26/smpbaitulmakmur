@@ -21,6 +21,9 @@ class Rppm extends Model
         'alur_tujuan_pembelajaran_id',
         'selected_tp_ids',
         'status',
+        'catatan_kepala_sekolah',
+        'reviewed_by',
+        'reviewed_at',
         'topik',
         'alokasi_waktu',
         'content',
@@ -29,11 +32,17 @@ class Rppm extends Model
     protected $casts = [
         'content'         => 'array',
         'selected_tp_ids' => 'array',
+        'reviewed_at'     => 'datetime',
     ];
 
     public function guru()
     {
         return $this->belongsTo(User::class, 'guru_id');
+    }
+
+    public function reviewer()
+    {
+        return $this->belongsTo(User::class, 'reviewed_by');
     }
 
     public function capaianPembelajaran()

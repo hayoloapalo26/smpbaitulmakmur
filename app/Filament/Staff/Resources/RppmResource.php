@@ -54,7 +54,7 @@ class RppmResource extends Resource
      */
     public static function getEloquentQuery(): Builder
     {
-        $query = parent::getEloquentQuery()->with(['guru', 'capaianPembelajaran', 'alurTujuanPembelajaran']);
+        $query = parent::getEloquentQuery()->with(['guru', 'capaianPembelajaran', 'alurTujuanPembelajaran', 'reviewer']);
         $user = auth()->user();
 
         if (!$user) {
@@ -115,12 +115,62 @@ class RppmResource extends Resource
 
     
 
+    public static function canCreate(): bool
+    {
+        if (auth()->user()?->hasRole('kepala_sekolah')) {
+            return false;
+        }
+        return parent::canCreate();
+    }
+
+    public static function canEdit(\Illuminate\Database\Eloquent\Model $record): bool
+    {
+        if (auth()->user()?->hasRole('kepala_sekolah')) {
+            return false;
+        }
+        return parent::canEdit($record);
+    }
+
+    public static function canDelete(\Illuminate\Database\Eloquent\Model $record): bool
+    {
+        if (auth()->user()?->hasRole('kepala_sekolah')) {
+            return false;
+        }
+        return parent::canDelete($record);
+    }
+
     public static function form(Form $form): Form
     {
         return $form
             ->schema([
                 Forms\Components\ViewField::make('generator_rppm_banner')
                     ->view('filament.staff.components.rppm-generator-banner')
+                    ->columnSpanFull(),
+
+                Forms\Components\Section::make('📌 Catatan Supervisi dari Kepala Sekolah')
+                    ->description(function (?Rppm $record) {
+                        if (!$record || !$record->reviewed_at) return null;
+                        $reviewer = $record->reviewer?->name ?? 'Kepala Sekolah';
+                        $statusText = match ($record->status) {
+                            'approved' => 'Disetujui (ACC)',
+                            'need_revision' => 'Membutuhkan Perbaikan',
+                            default => 'Ditinjau',
+                        };
+                        return "Status: {$statusText} • Ditinjau oleh {$reviewer} pada " . $record->reviewed_at->format('d M Y H:i');
+                    })
+                    ->icon('heroicon-o-chat-bubble-bottom-center-text')
+                    ->schema([
+                        Forms\Components\Placeholder::make('catatan_kepala_sekolah_box')
+                            ->label('Isi Catatan / Arahan KS:')
+                            ->content(fn (?Rppm $record) => $record?->catatan_kepala_sekolah ?? 'Belum ada catatan tertulis.')
+                            ->extraAttributes(function (?Rppm $record) {
+                                $isRevision = ($record?->status === 'need_revision');
+                                $bg = $isRevision ? 'bg-red-50 dark:bg-red-950/40 border-red-300 dark:border-red-700 text-red-900 dark:text-red-100' : 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-700 text-emerald-900 dark:text-emerald-100';
+                                return ['class' => "p-4 rounded-xl border font-medium text-sm leading-relaxed {$bg}"];
+                            }),
+                    ])
+                    ->visible(fn (?Rppm $record) => !empty($record?->catatan_kepala_sekolah) || $record?->status === 'need_revision' || $record?->status === 'approved')
+                    ->collapsible()
                     ->columnSpanFull(),
 
                 Forms\Components\Section::make('Informasi Dasar & Input Perangkat Ajar (CP, TP, ATP)')
@@ -908,13 +958,17 @@ class RppmResource extends Resource
                     ->label('Status')
                     ->badge()
                     ->color(fn (?string $state): string => match ($state) {
-                        'published' => 'success',
+                        'approved' => 'success',
+                        'published' => 'info',
+                        'need_revision' => 'danger',
                         'draft' => 'warning',
                         default => 'gray',
                     })
                     ->formatStateUsing(fn (?string $state): string => match ($state) {
-                        'published' => 'Selesai (Publikasi)',
-                        'draft' => 'Draft (Simpan Sementara)',
+                        'approved' => 'Disetujui (ACC)',
+                        'published' => 'Menunggu ACC',
+                        'need_revision' => 'Perlu Perbaikan',
+                        'draft' => 'Draft',
                         default => ucfirst($state ?? 'Draft'),
                     })
                     ->sortable(),
@@ -941,6 +995,13 @@ class RppmResource extends Resource
                 Tables\Columns\TextColumn::make('guru.name')
                     ->label('Penyusun')
                     ->searchable(),
+                Tables\Columns\TextColumn::make('catatan_kepala_sekolah')
+                    ->label('Catatan KS')
+                    ->limit(35)
+                    ->tooltip(fn (Rppm $record): ?string => $record->catatan_kepala_sekolah)
+                    ->placeholder('-')
+                    ->wrap()
+                    ->toggleable(),
                 Tables\Columns\TextColumn::make('updated_at')
                     ->label('Terakhir Diperbarui')
                     ->dateTime('d M Y H:i')
@@ -951,7 +1012,9 @@ class RppmResource extends Resource
                     ->label('Status RPPM')
                     ->options([
                         'draft' => 'Draft (Simpan Sementara)',
-                        'published' => 'Selesai (Publikasi)',
+                        'published' => 'Menunggu ACC (Publikasi)',
+                        'approved' => 'Disetujui (ACC)',
+                        'need_revision' => 'Perlu Perbaikan',
                     ]),
             ])
             ->actions([
@@ -961,20 +1024,95 @@ class RppmResource extends Resource
                     ->color('danger')
                     ->url(fn (Rppm $record): string => route('academic.rppm.pdf', $record))
                     ->openUrlInNewTab(),
+
+                Tables\Actions\ViewAction::make()
+                    ->label('Lihat Detail')
+                    ->icon('heroicon-o-eye')
+                    ->color('info'),
+
+                // Lanjutkan pengisian / Edit khusus Guru & Admin kurikulum (Kepala Sekolah tidak bisa edit)
                 Tables\Actions\Action::make('continue')
                     ->label('Lanjutkan Pengisian')
                     ->icon('heroicon-o-pencil-square')
                     ->color('warning')
                     ->button()
                     ->url(fn (Rppm $record): string => RppmResource::getUrl('edit', ['record' => $record]))
-                    ->visible(fn (Rppm $record): bool => ($record->status ?? 'draft') === 'draft'),
+                    ->visible(fn (Rppm $record): bool => !auth()->user()?->hasRole('kepala_sekolah') && in_array($record->status ?? 'draft', ['draft', 'need_revision'])),
+
                 Tables\Actions\EditAction::make()
-                    ->label(fn (Rppm $record) => ($record->status ?? 'draft') === 'draft' ? 'Edit Draft' : 'Edit'),
-                Tables\Actions\ViewAction::make(),
+                    ->label(fn (Rppm $record) => in_array($record->status ?? 'draft', ['draft', 'need_revision']) ? 'Edit / Perbaiki' : 'Edit')
+                    ->visible(fn (Rppm $record): bool => !auth()->user()?->hasRole('kepala_sekolah') && (auth()->id() === $record->guru_id || auth()->user()?->hasAnyRole(['superadmin', 'waka_kurikulum']))),
+
+                // Tombol ACC khusus Kepala Sekolah & Superadmin
+                Tables\Actions\Action::make('acc_rppm')
+                    ->label('ACC')
+                    ->icon('heroicon-o-check-circle')
+                    ->color('success')
+                    ->button()
+                    ->visible(fn (Rppm $record): bool => auth()->user()?->hasAnyRole(['kepala_sekolah', 'superadmin']))
+                    ->modalHeading('ACC / Setujui RPPM')
+                    ->modalDescription('Apakah Anda yakin ingin menyetujui RPPM ini? Anda dapat memberikan catatan supervisi.')
+                    ->modalSubmitActionLabel('Setujui (ACC)')
+                    ->form([
+                        Forms\Components\Textarea::make('catatan_kepala_sekolah')
+                            ->label('Catatan Supervisi / Persetujuan (Opsional)')
+                            ->placeholder('Contoh: RPPM telah sesuai kaidah kurikulum dan disetujui.')
+                            ->default(fn (Rppm $record) => $record->catatan_kepala_sekolah)
+                            ->rows(3),
+                    ])
+                    ->action(function (Rppm $record, array $data): void {
+                        $record->update([
+                            'status' => 'approved',
+                            'catatan_kepala_sekolah' => $data['catatan_kepala_sekolah'] ?? null,
+                            'reviewed_by' => auth()->id(),
+                            'reviewed_at' => now(),
+                        ]);
+
+                        \Filament\Notifications\Notification::make()
+                            ->title('RPPM Berhasil Disetujui (ACC)')
+                            ->body("RPPM {$record->mata_pelajaran} kelas {$record->kelas_fase} telah disetujui.")
+                            ->success()
+                            ->send();
+                    }),
+
+                // Tombol Perbaikan khusus Kepala Sekolah & Superadmin
+                Tables\Actions\Action::make('perbaikan_rppm')
+                    ->label('Perbaikan')
+                    ->icon('heroicon-o-arrow-path')
+                    ->color('warning')
+                    ->button()
+                    ->visible(fn (Rppm $record): bool => auth()->user()?->hasAnyRole(['kepala_sekolah', 'superadmin']))
+                    ->modalHeading('Minta Perbaikan / Revisi RPPM')
+                    ->modalDescription('Kembalikan RPPM kepada guru untuk diperbaiki beserta catatan perbaikan yang jelas.')
+                    ->modalSubmitActionLabel('Kirim Catatan Perbaikan')
+                    ->form([
+                        Forms\Components\Textarea::make('catatan_kepala_sekolah')
+                            ->label('Catatan Perbaikan dari Kepala Sekolah')
+                            ->placeholder('Contoh: Mohon perbaiki bagian kegiatan inti pembelajaran dan lengkapi rubrik asesmen formatif.')
+                            ->default(fn (Rppm $record) => $record->catatan_kepala_sekolah)
+                            ->required()
+                            ->rows(4)
+                            ->helperText('Catatan ini akan langsung tampil di akun guru penyusun RPPM.'),
+                    ])
+                    ->action(function (Rppm $record, array $data): void {
+                        $record->update([
+                            'status' => 'need_revision',
+                            'catatan_kepala_sekolah' => $data['catatan_kepala_sekolah'],
+                            'reviewed_by' => auth()->id(),
+                            'reviewed_at' => now(),
+                        ]);
+
+                        \Filament\Notifications\Notification::make()
+                            ->title('Status RPPM Diubah Menjadi Perbaikan')
+                            ->body("Catatan perbaikan telah dikirim ke guru penyusun.")
+                            ->warning()
+                            ->send();
+                    }),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\DeleteBulkAction::make(),
+                    Tables\Actions\DeleteBulkAction::make()
+                        ->visible(fn (): bool => !auth()->user()?->hasRole('kepala_sekolah')),
                 ]),
             ])
             ->defaultSort('updated_at', 'desc');
@@ -990,6 +1128,7 @@ class RppmResource extends Resource
         return [
             'index' => Pages\ListRppms::route('/'),
             'create' => Pages\CreateRppm::route('/create'),
+            'view' => Pages\ViewRppm::route('/{record}'),
             'edit' => Pages\EditRppm::route('/{record}/edit'),
         ];
     }
