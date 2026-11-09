@@ -63,17 +63,23 @@ class TujuanPembelajaranResource extends Resource
             return $query;
         }
 
-        $subjectIds = TeacherSubjectClass::where('teacher_id', $user->id)->pluck('subject_id')->toArray();
+        $subjectIds = $user ? $user->getTeachedSubjectIds() : [];
         return $query->where(function ($q) use ($user, $subjectIds) {
-            $q->where('guru_id', $user->id)
-              ->orWhereIn('subject_id', $subjectIds);
+            $q->where('guru_id', $user->id);
+            if (!empty($subjectIds)) {
+                $q->orWhereIn('subject_id', $subjectIds);
+            }
         });
     }
 
     public static function form(Form $form): Form
     {
         $user = Auth::user();
-        $isPrivileged = $user->hasAnyRole(['waka_kurikulum', 'kepala_sekolah', 'superadmin']);
+        $isPrivileged = $user && $user->hasAnyRole([
+            'superadmin', 'kepala_sekolah', 'waka_kurikulum',
+            'ketua_yayasan', 'pembina_yayasan', 'sekretaris_yayasan',
+            'tim_pengembang_penjamin_mutu_yayasan', 'pengembang_penjamin_mutu'
+        ]);
 
         return $form
             ->schema([
@@ -90,12 +96,19 @@ class TujuanPembelajaranResource extends Resource
                                 if ($isPrivileged) {
                                     return Subject::akademik()->orderBy('name')->pluck('name', 'id');
                                 }
-                                $subjectIds = TeacherSubjectClass::where('teacher_id', $user->id)->pluck('subject_id')->toArray();
-                                $assignedAkademik = Subject::akademik()->whereIn('id', $subjectIds)->orderBy('name')->pluck('name', 'id');
-                                if ($assignedAkademik->isNotEmpty()) {
-                                    return $assignedAkademik;
+                                $subjectIds = $user ? $user->getTeachedSubjectIds() : [];
+                                if (!empty($subjectIds)) {
+                                    $assignedAkademik = Subject::akademik()->whereIn('id', $subjectIds)->orderBy('name')->pluck('name', 'id');
+                                    if ($assignedAkademik->isNotEmpty()) {
+                                        return $assignedAkademik;
+                                    }
                                 }
                                 return Subject::akademik()->orderBy('name')->pluck('name', 'id');
+                            })
+                            ->default(function () use ($user) {
+                                if (!$user) return null;
+                                $subjectIds = $user->getTeachedSubjectIds();
+                                return !empty($subjectIds) ? $subjectIds[0] : null;
                             })
                             ->searchable()
                             ->preload()
@@ -105,11 +118,18 @@ class TujuanPembelajaranResource extends Resource
 
                         Forms\Components\Select::make('capaian_pembelajaran_id')
                             ->label('Rujukan Capaian Pembelajaran (CP)')
-                            ->options(function (Forms\Get $get) {
+                            ->options(function (Forms\Get $get) use ($isPrivileged, $user) {
                                 $subjectId = $get('subject_id');
-                                $query = CapaianPembelajaran::query();
+                                $query = CapaianPembelajaran::with('subject');
                                 if ($subjectId) {
                                     $query->where('subject_id', $subjectId);
+                                } elseif (!$isPrivileged && $user) {
+                                    $subjectIds = $user->getTeachedSubjectIds();
+                                    if (!empty($subjectIds)) {
+                                        $query->whereIn('subject_id', $subjectIds);
+                                    } else {
+                                        return [];
+                                    }
                                 }
                                 return $query->orderBy('tingkat')->orderBy('id')->get()->mapWithKeys(function ($cp) {
                                     $kode = $cp->kode_cp ? "[CP {$cp->kode_cp}] " : '';

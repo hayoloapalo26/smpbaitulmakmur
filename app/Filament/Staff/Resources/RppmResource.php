@@ -150,11 +150,40 @@ class RppmResource extends Resource
                                 ->form([
                                     Forms\Components\Select::make('modal_subject_id')
                                         ->label('Mata Pelajaran')
-                                        ->options(fn () => \App\Models\Subject::akademik()->orderBy('name')->pluck('name', 'id'))
-                                        ->default(function () {
-                                            $userSubj = \App\Models\TeacherSubjectClass::where('teacher_id', auth()->id())->value('subject_id');
-                                            if ($userSubj && \App\Models\Subject::akademik()->where('id', $userSubj)->exists()) {
-                                                return $userSubj;
+                                        ->options(function (Forms\Get $get) {
+                                            $user = auth()->user();
+                                            if (!$user) return [];
+
+                                            $isPrivileged = $user->hasAnyRole([
+                                                'superadmin', 'kepala_sekolah', 'waka_kurikulum',
+                                                'ketua_yayasan', 'pembina_yayasan', 'sekretaris_yayasan',
+                                                'tim_pengembang_penjamin_mutu_yayasan', 'pengembang_penjamin_mutu'
+                                            ]);
+
+                                            if ($isPrivileged) {
+                                                return \App\Models\Subject::akademik()->orderBy('name')->pluck('name', 'id');
+                                            }
+
+                                            $subjectIds = $user->getTeachedSubjectIds();
+                                            if (!empty($subjectIds)) {
+                                                $assigned = \App\Models\Subject::akademik()->whereIn('id', $subjectIds)->orderBy('name')->pluck('name', 'id');
+                                                if ($assigned->isNotEmpty()) {
+                                                    return $assigned;
+                                                }
+                                            }
+
+                                            return \App\Models\Subject::akademik()->orderBy('name')->pluck('name', 'id');
+                                        })
+                                        ->default(function (Forms\Get $get) {
+                                            $selectedMapel = $get('mata_pelajaran');
+                                            if ($selectedMapel) {
+                                                $subj = \App\Models\Subject::where('name', $selectedMapel)->first();
+                                                if ($subj) return $subj->id;
+                                            }
+                                            $user = auth()->user();
+                                            $subjectIds = $user ? $user->getTeachedSubjectIds() : [];
+                                            if (!empty($subjectIds)) {
+                                                return $subjectIds[0];
                                             }
                                             return \App\Models\Subject::akademik()->first()?->id;
                                         })
@@ -236,8 +265,27 @@ class RppmResource extends Resource
                                 ->form([
                                     Forms\Components\Select::make('modal_cp_id')
                                         ->label('Rujukan Capaian Pembelajaran (CP)')
-                                        ->options(function () {
-                                            return \App\Models\CapaianPembelajaran::with('subject')->get()->mapWithKeys(function ($cp) {
+                                        ->options(function (Forms\Get $get) {
+                                            $user = auth()->user();
+                                            $isPrivileged = $user && $user->hasAnyRole([
+                                                'superadmin', 'kepala_sekolah', 'waka_kurikulum',
+                                                'ketua_yayasan', 'pembina_yayasan', 'sekretaris_yayasan',
+                                                'tim_pengembang_penjamin_mutu_yayasan', 'pengembang_penjamin_mutu'
+                                            ]);
+
+                                            $query = \App\Models\CapaianPembelajaran::with('subject');
+                                            $selectedMapel = $get('mata_pelajaran');
+
+                                            if ($selectedMapel) {
+                                                $query->whereHas('subject', fn($q) => $q->where('name', $selectedMapel));
+                                            } elseif (!$isPrivileged && $user) {
+                                                $subjectIds = $user->getTeachedSubjectIds();
+                                                if (!empty($subjectIds)) {
+                                                    $query->whereIn('subject_id', $subjectIds);
+                                                }
+                                            }
+
+                                            return $query->orderBy('tingkat')->orderBy('id')->get()->mapWithKeys(function ($cp) {
                                                 $mapel = $cp->subject?->name ?? 'Mapel';
                                                 $cpKode = $cp->kode_cp ? "CP {$cp->kode_cp}" : "CP";
                                                 return [$cp->id => "[{$cpKode}] [{$mapel} - Kelas {$cp->tingkat}] {$cp->elemen} - " . \Illuminate\Support\Str::limit($cp->deskripsi_cp, 55)];
@@ -247,7 +295,7 @@ class RppmResource extends Resource
                                         ->searchable()
                                         ->preload()
                                         ->required()
-                                        ->helperText('Pilih Capaian Pembelajaran (CP) yang menjadi dasar pembuatan Tujuan Pembelajaran ini.'),
+                                        ->helperText('Pilih Capaian Pembelajaran (CP) dari mata pelajaran yang Anda ampu sebagai rujukan Tujuan Pembelajaran ini.'),
 
                                     Forms\Components\TextInput::make('modal_materi')
                                         ->label('Lingkup Materi Pokok (Opsional)')
@@ -317,11 +365,98 @@ class RppmResource extends Resource
                         ])
                         ->columnSpanFull(),
 
+                        // 1. Pilihan Mata Pelajaran & Kelas/Fase (Diletakkan di Awal untuk Memfilter CP & TP)
+                        Forms\Components\Grid::make(2)->schema([
+                            Forms\Components\Select::make('mata_pelajaran')
+                                ->label('Mata Pelajaran yang Diampu')
+                                ->options(function () {
+                                    $user = auth()->user();
+                                    if (!$user) return [];
+
+                                    $isPrivileged = $user->hasAnyRole([
+                                        'superadmin', 'kepala_sekolah', 'waka_kurikulum',
+                                        'ketua_yayasan', 'pembina_yayasan', 'sekretaris_yayasan',
+                                        'tim_pengembang_penjamin_mutu_yayasan', 'pengembang_penjamin_mutu'
+                                    ]);
+
+                                    if ($isPrivileged) {
+                                        return \App\Models\Subject::akademik()->orderBy('name')->pluck('name', 'name');
+                                    }
+
+                                    $subjectIds = $user->getTeachedSubjectIds();
+                                    if (!empty($subjectIds)) {
+                                        $assigned = \App\Models\Subject::akademik()->whereIn('id', $subjectIds)->orderBy('name')->pluck('name', 'name');
+                                        if ($assigned->isNotEmpty()) {
+                                            return $assigned;
+                                        }
+                                    }
+
+                                    return \App\Models\Subject::akademik()->orderBy('name')->pluck('name', 'name');
+                                })
+                                ->default(function () {
+                                    $user = auth()->user();
+                                    if (!$user) return null;
+                                    $subjectIds = $user->getTeachedSubjectIds();
+                                    if (!empty($subjectIds)) {
+                                        $first = \App\Models\Subject::akademik()->whereIn('id', $subjectIds)->first();
+                                        if ($first) {
+                                            return $first->name;
+                                        }
+                                    }
+                                    return null;
+                                })
+                                ->searchable()
+                                ->preload()
+                                ->required()
+                                ->live()
+                                ->afterStateUpdated(function ($state, Forms\Set $set) {
+                                    // Reset pilihan CP, ATP, dan TP saat ganti mapel agar tidak ada kebocoran antar mapel
+                                    $set('capaian_pembelajaran_id', null);
+                                    $set('content.capaian_pembelajaran_id', null);
+                                    $set('content.capaian_pembelajaran', null);
+                                    $set('alur_tujuan_pembelajaran_id', null);
+                                    $set('content.alur_tujuan_pembelajaran_id', null);
+                                    $set('selected_tp_ids', []);
+                                    $set('content.selected_tp_dropdown', []);
+                                    $set('content.tujuan_pembelajaran', []);
+                                })
+                                ->helperText('Mata pelajaran yang Anda ampu. Pilihan CP dan TP akan disesuaikan otomatis.'),
+
+                            Forms\Components\TextInput::make('kelas_fase')
+                                ->label('Kelas / Fase')
+                                ->placeholder('Contoh: VII / Fase D')
+                                ->default('Kelas 7 / Fase D')
+                                ->required(),
+                        ])->columnSpanFull(),
+
                         // Menu Dropdown Capaian Pembelajaran & Alur Tujuan Pembelajaran Otomatis
                         Forms\Components\Select::make('capaian_pembelajaran_id')
                             ->label('1. Capaian Pembelajaran (CP) [Menu Dropdown]')
-                            ->options(function () {
-                                return \App\Models\CapaianPembelajaran::with('subject')->get()->mapWithKeys(function ($cp) {
+                            ->options(function (Forms\Get $get) {
+                                $user = auth()->user();
+                                if (!$user) return [];
+
+                                $isPrivileged = $user->hasAnyRole([
+                                    'superadmin', 'kepala_sekolah', 'waka_kurikulum',
+                                    'ketua_yayasan', 'pembina_yayasan', 'sekretaris_yayasan',
+                                    'tim_pengembang_penjamin_mutu_yayasan', 'pengembang_penjamin_mutu'
+                                ]);
+
+                                $query = \App\Models\CapaianPembelajaran::with('subject');
+                                $selectedMapel = $get('mata_pelajaran');
+
+                                if ($selectedMapel) {
+                                    $query->whereHas('subject', fn($q) => $q->where('name', $selectedMapel));
+                                } elseif (!$isPrivileged) {
+                                    $subjectIds = $user->getTeachedSubjectIds();
+                                    if (!empty($subjectIds)) {
+                                        $query->whereIn('subject_id', $subjectIds);
+                                    } else {
+                                        return [];
+                                    }
+                                }
+
+                                return $query->orderBy('tingkat')->orderBy('id')->get()->mapWithKeys(function ($cp) {
                                     $mapel = $cp->subject?->name ?? 'Mapel';
                                     $cpKode = $cp->kode_cp ? "CP {$cp->kode_cp}" : "CP";
                                     return [$cp->id => "[{$cpKode}] [{$mapel} - Kelas {$cp->tingkat}] {$cp->elemen} - " . \Illuminate\Support\Str::limit($cp->deskripsi_cp, 60)];
@@ -337,7 +472,7 @@ class RppmResource extends Resource
                                         $set('content.capaian_pembelajaran_id', $cp->id);
                                         $set('content.capaian_pembelajaran', $cp->deskripsi_cp);
                                         $set('kelas_fase', "Kelas {$cp->tingkat} / Fase D");
-                                        if ($cp->subject) {
+                                        if ($cp->subject && !$get('mata_pelajaran')) {
                                             $set('mata_pelajaran', $cp->subject->name);
                                         }
 
@@ -378,17 +513,23 @@ class RppmResource extends Resource
                             ->options(function (Forms\Get $get) {
                                 $guruId = auth()->id();
                                 $cpId = $get('capaian_pembelajaran_id') ?? $get('content.capaian_pembelajaran_id');
+                                $selectedMapel = $get('mata_pelajaran');
                                 $subjectId = null;
                                 $tingkat = '7';
                                 if ($cpId) {
                                     $cp = \App\Models\CapaianPembelajaran::find($cpId);
                                     $subjectId = $cp?->subject_id;
                                     $tingkat = $cp?->tingkat ?? '7';
+                                } elseif ($selectedMapel) {
+                                    $subjectId = \App\Models\Subject::where('name', $selectedMapel)->value('id');
                                 }
-                                if (!$subjectId) {
-                                    $subjectId = \App\Models\TeacherSubjectClass::where('teacher_id', $guruId)->value('subject_id')
-                                        ?? \App\Models\Subject::first()?->id;
+
+                                if (!$subjectId && $guruId) {
+                                    $user = auth()->user();
+                                    $subjectIds = $user ? $user->getTeachedSubjectIds() : [];
+                                    $subjectId = !empty($subjectIds) ? $subjectIds[0] : null;
                                 }
+
                                 if ($guruId && $subjectId) {
                                     \App\Models\AlurTujuanPembelajaran::syncForTeacherAndSubject($guruId, $subjectId, $tingkat, '2026/2027', 'Ganjil', $cpId);
                                 }
@@ -413,17 +554,23 @@ class RppmResource extends Resource
                             ->default(function (Forms\Get $get) {
                                 $guruId = auth()->id();
                                 $cpId = $get('capaian_pembelajaran_id') ?? $get('content.capaian_pembelajaran_id');
+                                $selectedMapel = $get('mata_pelajaran');
                                 $subjectId = null;
                                 $tingkat = '7';
                                 if ($cpId) {
                                     $cp = \App\Models\CapaianPembelajaran::find($cpId);
                                     $subjectId = $cp?->subject_id;
                                     $tingkat = $cp?->tingkat ?? '7';
+                                } elseif ($selectedMapel) {
+                                    $subjectId = \App\Models\Subject::where('name', $selectedMapel)->value('id');
                                 }
-                                if (!$subjectId) {
-                                    $subjectId = \App\Models\TeacherSubjectClass::where('teacher_id', $guruId)->value('subject_id')
-                                        ?? \App\Models\Subject::first()?->id;
+
+                                if (!$subjectId && $guruId) {
+                                    $user = auth()->user();
+                                    $subjectIds = $user ? $user->getTeachedSubjectIds() : [];
+                                    $subjectId = !empty($subjectIds) ? $subjectIds[0] : null;
                                 }
+
                                 if ($guruId && $subjectId) {
                                     $atp = \App\Models\AlurTujuanPembelajaran::syncForTeacherAndSubject($guruId, $subjectId, $tingkat, '2026/2027', 'Ganjil', $cpId);
                                     return $atp?->id;
@@ -462,16 +609,37 @@ class RppmResource extends Resource
                             ->multiple()
                             ->options(function (Forms\Get $get) {
                                 $cpId = $get('capaian_pembelajaran_id') ?? $get('content.capaian_pembelajaran_id');
-                                $query = \App\Models\TujuanPembelajaran::query();
+                                $selectedMapel = $get('mata_pelajaran');
+                                $user = auth()->user();
+                                $isPrivileged = $user && $user->hasAnyRole([
+                                    'superadmin', 'kepala_sekolah', 'waka_kurikulum',
+                                    'ketua_yayasan', 'pembina_yayasan', 'sekretaris_yayasan',
+                                    'tim_pengembang_penjamin_mutu_yayasan', 'pengembang_penjamin_mutu'
+                                ]);
+
+                                $query = \App\Models\TujuanPembelajaran::with(['capaianPembelajaran', 'subject']);
+
                                 if ($cpId && is_numeric($cpId)) {
                                     $query->where('capaian_pembelajaran_id', $cpId);
+                                } elseif ($selectedMapel) {
+                                    $query->whereHas('subject', fn ($q) => $q->where('name', $selectedMapel));
+                                } elseif (!$isPrivileged && $user) {
+                                    $subjectIds = $user->getTeachedSubjectIds();
+                                    if (!empty($subjectIds)) {
+                                        $query->whereIn('subject_id', $subjectIds);
+                                    } else {
+                                        return [];
+                                    }
                                 }
+
                                 $tps = $query->get()->sort(function ($a, $b) {
                                     return strnatcmp($a->kode_tp ?? '', $b->kode_tp ?? '');
                                 });
+
                                 return $tps->mapWithKeys(function ($tp) {
                                     $prefix = $tp->materi ? "({$tp->materi}) " : '';
-                                    return [$tp->id => "[TP {$tp->kode_tp}] {$prefix}" . \Illuminate\Support\Str::limit($tp->deskripsi_tp, 65)];
+                                    $mapel = $tp->subject?->name ? "[{$tp->subject->name}] " : '';
+                                    return [$tp->id => "{$mapel}[TP {$tp->kode_tp}] {$prefix}" . \Illuminate\Support\Str::limit($tp->deskripsi_tp, 65)];
                                 });
                             })
                             ->searchable()
@@ -493,18 +661,10 @@ class RppmResource extends Resource
                             ->helperText('Pilih satu atau beberapa TP yang telah disimpan atau klik tombol "+ Input & Simpan TP Baru" di atas.')
                             ->columnSpanFull(),
 
-                        Forms\Components\TextInput::make('kelas_fase')
-                            ->label('Kelas / Fase')
-                            ->placeholder('Contoh: VII / Fase D')
-                            ->default('Kelas 7 / Fase D'),
-
-                        Forms\Components\TextInput::make('mata_pelajaran')
-                            ->label('Mata Pelajaran')
-                            ->placeholder('Contoh: Bahasa Indonesia'),
-
                         Forms\Components\TextInput::make('topik')
                             ->label('Topik / Materi Pokok')
-                            ->placeholder('Contoh: Teks Deskripsi'),
+                            ->placeholder('Contoh: Teks Deskripsi')
+                            ->required(),
 
                         Forms\Components\TextInput::make('alokasi_waktu')
                             ->label('Alokasi Waktu')
@@ -545,21 +705,48 @@ class RppmResource extends Resource
                             ->schema([
                                 Forms\Components\Select::make('content.capaian_pembelajaran_id')
                                     ->label('1. Capaian Pembelajaran (CP) [Menu Dropdown]')
-                                    ->options(function () {
-                                        return \App\Models\CapaianPembelajaran::with('subject')->get()->mapWithKeys(function ($cp) {
+                                    ->options(function (Forms\Get $get) {
+                                        $user = auth()->user();
+                                        if (!$user) return [];
+
+                                        $isPrivileged = $user->hasAnyRole([
+                                            'superadmin', 'kepala_sekolah', 'waka_kurikulum',
+                                            'ketua_yayasan', 'pembina_yayasan', 'sekretaris_yayasan',
+                                            'tim_pengembang_penjamin_mutu_yayasan', 'pengembang_penjamin_mutu'
+                                        ]);
+
+                                        $query = \App\Models\CapaianPembelajaran::with('subject');
+                                        $selectedMapel = $get('mata_pelajaran');
+
+                                        if ($selectedMapel) {
+                                            $query->whereHas('subject', fn($q) => $q->where('name', $selectedMapel));
+                                        } elseif (!$isPrivileged) {
+                                            $subjectIds = $user->getTeachedSubjectIds();
+                                            if (!empty($subjectIds)) {
+                                                $query->whereIn('subject_id', $subjectIds);
+                                            } else {
+                                                return [];
+                                            }
+                                        }
+
+                                        return $query->orderBy('tingkat')->orderBy('id')->get()->mapWithKeys(function ($cp) {
                                             $mapel = $cp->subject?->name ?? 'Mapel';
-                                            return [$cp->id => "[{$mapel} - Kelas {$cp->tingkat}] {$cp->elemen} - " . \Illuminate\Support\Str::limit($cp->deskripsi_cp, 60)];
+                                            $cpKode = $cp->kode_cp ? "CP {$cp->kode_cp}" : "CP";
+                                            return [$cp->id => "[{$cpKode}] [{$mapel} - Kelas {$cp->tingkat}] {$cp->elemen} - " . \Illuminate\Support\Str::limit($cp->deskripsi_cp, 60)];
                                         });
                                     })
                                     ->searchable()
                                     ->preload()
                                     ->live()
-                                    ->afterStateUpdated(function ($state, Forms\Set $set) {
+                                    ->afterStateUpdated(function ($state, Forms\Set $set, Forms\Get $get) {
                                         if ($state) {
-                                            $cp = \App\Models\CapaianPembelajaran::find($state);
+                                            $cp = \App\Models\CapaianPembelajaran::with('subject')->find($state);
                                             if ($cp) {
                                                 $set('content.capaian_pembelajaran', $cp->deskripsi_cp);
                                                 $set('capaian_pembelajaran_id', $cp->id);
+                                                if ($cp->subject && !$get('mata_pelajaran')) {
+                                                    $set('mata_pelajaran', $cp->subject->name);
+                                                }
                                             }
                                         }
                                     })
@@ -583,13 +770,37 @@ class RppmResource extends Resource
                                     ->multiple()
                                     ->options(function (Forms\Get $get) {
                                         $cpId = $get('content.capaian_pembelajaran_id') ?? $get('capaian_pembelajaran_id');
-                                        $query = \App\Models\TujuanPembelajaran::query();
+                                        $selectedMapel = $get('mata_pelajaran');
+                                        $user = auth()->user();
+                                        $isPrivileged = $user && $user->hasAnyRole([
+                                            'superadmin', 'kepala_sekolah', 'waka_kurikulum',
+                                            'ketua_yayasan', 'pembina_yayasan', 'sekretaris_yayasan',
+                                            'tim_pengembang_penjamin_mutu_yayasan', 'pengembang_penjamin_mutu'
+                                        ]);
+
+                                        $query = \App\Models\TujuanPembelajaran::with(['capaianPembelajaran', 'subject']);
+
                                         if ($cpId && is_numeric($cpId)) {
                                             $query->where('capaian_pembelajaran_id', $cpId);
+                                        } elseif ($selectedMapel) {
+                                            $query->whereHas('subject', fn ($q) => $q->where('name', $selectedMapel));
+                                        } elseif (!$isPrivileged && $user) {
+                                            $subjectIds = $user->getTeachedSubjectIds();
+                                            if (!empty($subjectIds)) {
+                                                $query->whereIn('subject_id', $subjectIds);
+                                            } else {
+                                                return [];
+                                            }
                                         }
-                                        return $query->get()->mapWithKeys(function ($tp) {
-                                            $prefix = $tp->materi ? "[{$tp->materi}] " : '';
-                                            return [$tp->id => "{$prefix}" . \Illuminate\Support\Str::limit($tp->deskripsi_tp, 65)];
+
+                                        $tps = $query->get()->sort(function ($a, $b) {
+                                            return strnatcmp($a->kode_tp ?? '', $b->kode_tp ?? '');
+                                        });
+
+                                        return $tps->mapWithKeys(function ($tp) {
+                                            $prefix = $tp->materi ? "({$tp->materi}) " : '';
+                                            $mapel = $tp->subject?->name ? "[{$tp->subject->name}] " : '';
+                                            return [$tp->id => "{$mapel}[TP {$tp->kode_tp}] {$prefix}" . \Illuminate\Support\Str::limit($tp->deskripsi_tp, 65)];
                                         });
                                     })
                                     ->searchable()
@@ -597,11 +808,13 @@ class RppmResource extends Resource
                                     ->live()
                                     ->afterStateUpdated(function ($state, Forms\Set $set) {
                                         if (!empty($state)) {
-                                            $tps = \App\Models\TujuanPembelajaran::whereIn('id', $state)->get();
+                                            $tps = \App\Models\TujuanPembelajaran::whereIn('id', $state)->get()->sort(function ($a, $b) {
+                                                return strnatcmp($a->kode_tp ?? '', $b->kode_tp ?? '');
+                                            });
                                             $tpItems = $tps->map(function ($tp) {
-                                                $prefix = $tp->materi ? "[{$tp->materi}] " : '';
-                                                return ['rumusan' => "{$prefix}{$tp->deskripsi_tp}"];
-                                            })->toArray();
+                                                $prefix = $tp->materi ? "({$tp->materi}) " : '';
+                                                return ['rumusan' => "[{$tp->kode_tp}] {$prefix}{$tp->deskripsi_tp}"];
+                                            })->values()->toArray();
                                             $set('selected_tp_ids', $state);
                                             $set('content.tujuan_pembelajaran', $tpItems);
                                         }
