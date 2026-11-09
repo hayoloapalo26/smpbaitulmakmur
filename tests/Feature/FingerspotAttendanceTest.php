@@ -270,4 +270,31 @@ class FingerspotAttendanceTest extends TestCase
         // Ensure only 1 record created in database
         $this->assertEquals(1, DailyAttendance::where('student_id', $student->id)->count());
     }
+
+    public function test_fingerspot_api_key_authentication()
+    {
+        config(['services.fingerspot.api_key' => 'secret_test_token_123']);
+
+        $payload = [
+            'type'     => 'attlog',
+            'cloud_id' => 'REVO_W230N_001',
+            'data'     => [],
+        ];
+
+        // 1. Without API key -> 401
+        $resUnauthorized = $this->postJson('/api/fingerspot/attendance', $payload);
+        $resUnauthorized->assertStatus(401);
+
+        // 2. With wrong API key -> 401
+        $resWrongKey = $this->withHeaders([
+            'X-API-KEY' => 'wrong_token',
+        ])->postJson('/api/fingerspot/attendance', $payload);
+        $resWrongKey->assertStatus(401);
+
+        // 3. With correct API key -> 200
+        $resValid = $this->withHeaders([
+            'X-API-KEY' => 'secret_test_token_123',
+        ])->postJson('/api/fingerspot/attendance', $payload);
+        $resValid->assertStatus(200);
+    }
 }

@@ -35,4 +35,9 @@ return [
         ],
     ],
 
+    'fingerspot' => [
+        'api_key' => env('FINGERSPOT_API_KEY'),
+        'cloud_id' => env('FINGERSPOT_CLOUD_ID'),
+    ],
+
 ];

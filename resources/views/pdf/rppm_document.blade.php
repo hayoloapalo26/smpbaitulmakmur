@@ -320,6 +320,38 @@
         </tr>
     </table>
 
+    @if(!empty($rppm->content['kktp']) && is_array($rppm->content['kktp']))
+        <div style="margin-top: 10px; margin-bottom: 4px; font-weight: bold; font-size: 9.5pt; color: #1e293b;">
+            Rubrik Kriteria Ketercapaian Tujuan Pembelajaran (KKTP):
+        </div>
+        <table class="table-grid" style="font-size: 8.5pt;">
+            <thead>
+                <tr style="background-color: #f1f5f9; text-align: center;">
+                    <th style="width: 28%; padding: 5px;">Kriteria Penilaian</th>
+                    <th style="width: 18%; padding: 5px; color: #b91c1c;">Perlu Bimbingan<br>(&lt; 70)</th>
+                    <th style="width: 18%; padding: 5px; color: #d97706;">Cukup<br>(70 - 79)</th>
+                    <th style="width: 18%; padding: 5px; color: #0284c7;">Baik<br>(80 - 89)</th>
+                    <th style="width: 18%; padding: 5px; color: #15803d;">Sangat Baik<br>(90 - 100)</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach($rppm->content['kktp'] as $kktp)
+                    <tr>
+                        <td style="font-weight: bold; padding: 5px;">{{ $kktp['kriteria'] ?? '-' }}</td>
+                        <td style="padding: 5px;">{{ $kktp['bimbingan'] ?? '-' }}</td>
+                        <td style="padding: 5px;">{{ $kktp['cukup'] ?? '-' }}</td>
+                        <td style="padding: 5px;">{{ $kktp['baik'] ?? '-' }}</td>
+                        <td style="padding: 5px;">{{ $kktp['sangat_baik'] ?? '-' }}</td>
+                    </tr>
+                @endforeach
+            </tbody>
+        </table>
+    @else
+        <div style="margin-top: 8px; font-size: 8.5pt; color: #475569;">
+            <strong>Skala Penilaian KKTP:</strong> Perlu Bimbingan (di bawah 70) • Cukup (70 - 79) • Baik (80 - 89) • Sangat Baik (90 - 100)
+        </div>
+    @endif
+
     @if(!empty($rppm->catatan_kepala_sekolah))
     <div style="margin-top: 15px; margin-bottom: 15px; padding: 10px 14px; background-color: #f8fafc; border: 1px solid #cbd5e1; border-left: 4px solid #0284c7; border-radius: 4px; font-size: 10pt;">
         <strong>Catatan / Supervisi Kepala Sekolah:</strong><br>

@@ -931,11 +931,11 @@ class RppmResource extends Resource
                                         Forms\Components\Repeater::make('content.kktp')
                                             ->label('')
                                             ->schema([
-                                                Forms\Components\TextInput::make('kriteria')->label('Kriteria Penilaian')->columnSpanFull(),
-                                                Forms\Components\Textarea::make('bimbingan')->label('Perlu Bimbingan (0-40)'),
-                                                Forms\Components\Textarea::make('cukup')->label('Cukup (41-65)'),
-                                                Forms\Components\Textarea::make('baik')->label('Baik (66-85)'),
-                                                Forms\Components\Textarea::make('sangat_baik')->label('Sangat Baik (86-100)'),
+                                                Forms\Components\TextInput::make('kriteria')->label('Kriteria Penilaian')->placeholder('Contoh: Ketepatan menyelesaikan masalah kontekstual materi')->columnSpanFull(),
+                                                Forms\Components\Textarea::make('bimbingan')->label('Perlu Bimbingan (Di Bawah 70)')->placeholder('Deskripsi capaian siswa jika nilai < 70...'),
+                                                Forms\Components\Textarea::make('cukup')->label('Cukup (70 - 79)')->placeholder('Deskripsi capaian siswa jika nilai 70 - 79...'),
+                                                Forms\Components\Textarea::make('baik')->label('Baik (80 - 89)')->placeholder('Deskripsi capaian siswa jika nilai 80 - 89...'),
+                                                Forms\Components\Textarea::make('sangat_baik')->label('Sangat Baik (90 - 100)')->placeholder('Deskripsi capaian siswa jika nilai 90 - 100...'),
                                             ])->columns(2)->defaultItems(0)
                                     ]),
                             ]),

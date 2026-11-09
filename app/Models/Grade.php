@@ -70,11 +70,13 @@ class Grade extends Model
         return $this->belongsTo(TujuanPembelajaran::class, 'tp_pengayaan_id');
     }
 
-    public const SCALE_EXCELLENT        = 'Excellent';
+    public const SCALE_EXCELLENT        = 'Sangat Baik';
     public const SCALE_SANGAT_BAIK     = 'Sangat Baik';
     public const SCALE_BAIK            = 'Baik';
-    public const SCALE_CUKUP_BAIK      = 'Cukup Baik';
-    public const SCALE_PERLU_PEMBINAAN = 'Perlu Pembinaan';
+    public const SCALE_CUKUP           = 'Cukup';
+    public const SCALE_CUKUP_BAIK      = 'Cukup';
+    public const SCALE_PERLU_BIMBINGAN = 'Perlu Bimbingan';
+    public const SCALE_PERLU_PEMBINAAN = 'Perlu Bimbingan';
 
     public static function determineScale(?float $score): array
     {
@@ -89,19 +91,10 @@ class Grade extends Model
 
         $score = (float)$score;
 
-        if ($score >= 100) {
-            return [
-                'predikat'  => self::SCALE_EXCELLENT,
-                'label'     => '100 : Excellent',
-                'color'     => 'amber',
-                'is_tuntas' => true,
-            ];
-        }
-
         if ($score >= 90) {
             return [
                 'predikat'  => self::SCALE_SANGAT_BAIK,
-                'label'     => '90 - 99 : Sangat Baik',
+                'label'     => '90 - 100 : Sangat Baik',
                 'color'     => 'success',
                 'is_tuntas' => true,
             ];
@@ -118,16 +111,16 @@ class Grade extends Model
 
         if ($score >= 70) {
             return [
-                'predikat'  => self::SCALE_CUKUP_BAIK,
-                'label'     => '70 - 79 : Cukup Baik',
+                'predikat'  => self::SCALE_CUKUP,
+                'label'     => '70 - 79 : Cukup',
                 'color'     => 'warning',
                 'is_tuntas' => true,
             ];
         }
 
         return [
-            'predikat'  => self::SCALE_PERLU_PEMBINAAN,
-            'label'     => '< 70 : Perlu Pembinaan',
+            'predikat'  => self::SCALE_PERLU_BIMBINGAN,
+            'label'     => 'Di Bawah 70 : Perlu Bimbingan',
             'color'     => 'danger',
             'is_tuntas' => false,
         ];

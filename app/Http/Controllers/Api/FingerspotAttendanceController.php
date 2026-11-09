@@ -41,6 +41,33 @@ class FingerspotAttendanceController extends Controller
             'headers' => $request->headers->all(),
         ]);
 
+        // Validasi API Key jika dikonfigurasi di .env
+        $configuredKey = config('services.fingerspot.api_key', env('FINGERSPOT_API_KEY'));
+        if (!empty($configuredKey)) {
+            $incomingKey = $request->header('X-API-KEY')
+                ?? $request->bearerToken()
+                ?? $request->header('Authorization')
+                ?? $request->query('api_key')
+                ?? $request->query('token')
+                ?? $request->input('api_key')
+                ?? $request->input('token');
+
+            if ($incomingKey) {
+                $incomingKey = trim(str_ireplace('Bearer ', '', $incomingKey));
+            }
+
+            if ($incomingKey !== $configuredKey) {
+                Log::warning('Fingerspot Webhook: Percobaan akses tanpa API Key yang valid', [
+                    'ip' => $request->ip(),
+                ]);
+
+                return response()->json([
+                    'status'  => 'error',
+                    'message' => 'Unauthorized: API Key tidak valid',
+                ], 401);
+            }
+        }
+
         try {
             $payload = $request->all();
 
