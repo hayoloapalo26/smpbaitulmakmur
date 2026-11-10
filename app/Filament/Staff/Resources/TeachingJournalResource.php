@@ -54,14 +54,14 @@ class TeachingJournalResource extends Resource
     public static function isQuranContext(Forms\Get $get): bool
     {
         $user = Auth::user();
-        if ($user && $user->isQuranTeacher() && !$user->hasAnyRole(['guru_mapel', 'guru_kelas', 'waka_kurikulum', 'kepala_sekolah', 'superadmin'])) {
+        if ($user && $user->isPureQuranTeacher()) {
             return true;
         }
 
         $teacherId = $get('teacher_id');
         if ($teacherId) {
             $teacher = User::find($teacherId);
-            if ($teacher && $teacher->isQuranTeacher() && !$teacher->hasAnyRole(['guru_mapel', 'guru_kelas'])) {
+            if ($teacher && $teacher->isPureQuranTeacher()) {
                 return true;
             }
         }
@@ -408,7 +408,7 @@ class TeachingJournalResource extends Resource
                                 $teacherId = $get('teacher_id') ?: Auth::id();
                                 $teacher = User::find($teacherId);
                                 $subjectName = $schedule->subject?->name;
-                                $isQuran = ($teacher && $teacher->isQuranTeacher() && !$teacher->hasAnyRole(['guru_mapel', 'guru_kelas']))
+                                $isQuran = ($teacher && $teacher->isPureQuranTeacher())
                                     || ($subjectName && (
                                         str_contains(strtolower($subjectName), 'qur')
                                         || str_contains(strtolower($subjectName), 'tahfidz')

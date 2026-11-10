@@ -12,22 +12,24 @@ class RppmPolicy
      */
     public function viewAny(User $user): bool
     {
-        if ($user->isQuranTeacher()) {
+        if ($user->isPureQuranTeacher()) {
             return false;
         }
 
-        return $user->hasAnyRole([
+        if ($user->hasAnyRole([
             'superadmin',
             'kepala_sekolah',
             'waka_kurikulum',
-            'guru_mapel',
-            'guru_kelas',
             'ketua_yayasan',
             'pembina_yayasan',
             'sekretaris_yayasan',
             'tim_pengembang_penjamin_mutu_yayasan',
             'pengembang_penjamin_mutu',
-        ]);
+        ])) {
+            return true;
+        }
+
+        return $user->isSubjectTeacher();
     }
 
     /**
@@ -37,7 +39,7 @@ class RppmPolicy
      */
     public function view(User $user, Rppm $rppm): bool
     {
-        if ($user->isQuranTeacher()) {
+        if ($user->isPureQuranTeacher()) {
             return false;
         }
 
@@ -62,11 +64,15 @@ class RppmPolicy
      */
     public function create(User $user): bool
     {
-        if ($user->isQuranTeacher()) {
+        if ($user->isPureQuranTeacher()) {
             return false;
         }
 
-        return $user->hasAnyRole(['superadmin', 'waka_kurikulum', 'kepala_sekolah', 'guru_mapel', 'guru_kelas']);
+        if ($user->hasAnyRole(['superadmin', 'waka_kurikulum'])) {
+            return true;
+        }
+
+        return $user->isSubjectTeacher();
     }
 
     /**
@@ -75,7 +81,7 @@ class RppmPolicy
      */
     public function update(User $user, Rppm $rppm): bool
     {
-        if ($user->isQuranTeacher()) {
+        if ($user->isPureQuranTeacher()) {
             return false;
         }
 

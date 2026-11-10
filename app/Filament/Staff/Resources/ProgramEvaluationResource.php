@@ -24,14 +24,14 @@ class ProgramEvaluationResource extends Resource
     public static function shouldRegisterNavigation(): bool
     {
         $user = auth()->user();
-        if (!$user || $user->isQuranTeacher()) return false;
+        if (!$user || $user->isPureQuranTeacher()) return false;
         return static::canAccess();
     }
 
     public static function canAccess(): bool
     {
         $user = auth()->user();
-        if (!$user || $user->isQuranTeacher()) return false;
+        if (!$user || $user->isPureQuranTeacher()) return false;
 
         return $user->hasAnyRole([
             'kepala_sekolah',

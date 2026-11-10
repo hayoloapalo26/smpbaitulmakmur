@@ -27,9 +27,9 @@ class CharacterScoreLogResource extends Resource
     public static function canAccess(): bool
     {
         $user = auth()->user();
-        if (!$user || $user->isQuranTeacher()) return false;
+        if (!$user || $user->isPureQuranTeacher()) return false;
 
-        return $user->hasAnyRole(['wali_kelas', 'guru_kelas', 'guru_mapel', 'waka_kesiswaan', 'kepala_sekolah', 'superadmin']);
+        return $user->hasAnyRole(['wali_kelas', 'guru_kelas', 'guru_mapel', 'guru_pai', 'waka_kesiswaan', 'kepala_sekolah', 'superadmin']) || $user->isSubjectTeacher();
     }
 
     protected static ?string $model = CharacterScoreLog::class;

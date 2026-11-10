@@ -153,6 +153,80 @@ class User extends Authenticatable implements FilamentUser, HasAvatar
         return $this->hasAnyRole(self::QURAN_TEACHER_ROLES);
     }
 
+    /**
+     * Menentukan apakah user merupakan guru pengampu mata pelajaran (akademik).
+     * Termasuk guru dengan role guru_mapel, guru_kelas, guru_pai, guru, pendidik,
+     * wali_kelas, waka_kurikulum, kepala_sekolah, superadmin,
+     * maupun guru yang memiliki penugasan mata pelajaran di
+     * teacher_subject_classes atau schedules.
+     */
+    public function isSubjectTeacher(): bool
+    {
+        // 1. Cek role pengampu mapel akademik / pengelola kurikulum
+        if ($this->hasAnyRole([
+            'guru_mapel',
+            'guru_kelas',
+            'guru_pai',
+            'guru',
+            'pendidik',
+            'wali_kelas',
+            'waka_kurikulum',
+            'kepala_sekolah',
+            'superadmin',
+        ])) {
+            return true;
+        }
+
+        // 2. Cek apakah memiliki penugasan mata pelajaran pada TeacherSubjectClass
+        try {
+            if ($this->teacherSubjectClasses()->withoutGlobalScopes()->exists()) {
+                return true;
+            }
+        } catch (\Throwable $e) {
+            // Abaikan jika tabel atau relasi belum siap
+        }
+
+        // 3. Cek apakah memiliki jadwal pelajaran pada Schedule
+        try {
+            if ($this->schedules()->withoutGlobalScopes()->exists()) {
+                return true;
+            }
+        } catch (\Throwable $e) {
+            // Abaikan jika tabel atau relasi belum siap
+        }
+
+        // 4. Cek daftar ID mata pelajaran yang diampu
+        try {
+            if (!empty($this->getTeachedSubjectIds())) {
+                return true;
+            }
+        } catch (\Throwable $e) {
+            // Abaikan
+        }
+
+        // 5. Cek jabatan jika mengandung kata 'guru' atau pengampu mapel selain tahfidz/yanbua murni
+        $jabatan = strtolower($this->jabatan ?? '');
+        if (str_contains($jabatan, 'guru') && !str_contains($jabatan, 'tahfidz') && !str_contains($jabatan, 'yanbua')) {
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * Menentukan apakah user merupakan Guru Al-Qur'an MURNI (hanya mengajar Al-Qur'an
+     * dan sama sekali tidak mengampu mata pelajaran sekolah/akademik apapun).
+     */
+    public function isPureQuranTeacher(): bool
+    {
+        if (!$this->isQuranTeacher()) {
+            return false;
+        }
+
+        // Jika dia adalah guru Quran tetapi juga mengampu mapel (seperti Guru PAI), dia BUKAN pure Quran teacher
+        return !$this->isSubjectTeacher();
+    }
+
     public function isPembinaOsis(): bool
     {
         return $this->hasRole('pembina_osis');

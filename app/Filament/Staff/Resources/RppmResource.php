@@ -18,8 +18,8 @@ class RppmResource extends Resource
         $user = auth()->user();
         if (!$user) return false;
 
-        // Role khusus Guru Al-Qur'an: TIDAK PERNAH melihat RPPM di sidebar
-        if ($user->isQuranTeacher()) {
+        // Role khusus Guru Al-Qur'an murni (yang tidak mengampu mapel): TIDAK PERNAH melihat RPPM di sidebar
+        if ($user->isPureQuranTeacher()) {
             return false;
         }
 
@@ -31,12 +31,27 @@ class RppmResource extends Resource
         $user = auth()->user();
         if (!$user) return false;
 
-        // Role khusus Guru Al-Qur'an: TIDAK PERNAH mengakses RPPM
-        if ($user->isQuranTeacher()) {
+        // Role khusus Guru Al-Qur'an murni (yang tidak mengampu mapel): TIDAK PERNAH mengakses RPPM
+        if ($user->isPureQuranTeacher()) {
             return false;
         }
 
-        return $user->hasAnyRole(['guru_mapel', 'guru_kelas', 'waka_kurikulum', 'kepala_sekolah', 'superadmin']);
+        // Pimpinan, kurikulum, yayasan, dan superadmin memiliki akses supervisi & monitoring penuh
+        if ($user->hasAnyRole([
+            'superadmin',
+            'kepala_sekolah',
+            'waka_kurikulum',
+            'ketua_yayasan',
+            'pembina_yayasan',
+            'sekretaris_yayasan',
+            'tim_pengembang_penjamin_mutu_yayasan',
+            'pengembang_penjamin_mutu',
+        ])) {
+            return true;
+        }
+
+        // Seluruh guru pengampu mata pelajaran (guru_mapel, guru_kelas, guru_pai, wali_kelas, maupun yang terdaftar di Setting Guru Mapel / Jadwal)
+        return $user->isSubjectTeacher();
     }
 
     protected static ?string $model = Rppm::class;
@@ -216,7 +231,7 @@ class RppmResource extends Resource
 
                                             $subjectIds = $user->getTeachedSubjectIds();
                                             if (!empty($subjectIds)) {
-                                                $assigned = \App\Models\Subject::akademik()->whereIn('id', $subjectIds)->orderBy('name')->pluck('name', 'id');
+                                                $assigned = \App\Models\Subject::whereIn('id', $subjectIds)->orderBy('name')->pluck('name', 'id');
                                                 if ($assigned->isNotEmpty()) {
                                                     return $assigned;
                                                 }
@@ -435,7 +450,7 @@ class RppmResource extends Resource
 
                                     $subjectIds = $user->getTeachedSubjectIds();
                                     if (!empty($subjectIds)) {
-                                        $assigned = \App\Models\Subject::akademik()->whereIn('id', $subjectIds)->orderBy('name')->pluck('name', 'name');
+                                        $assigned = \App\Models\Subject::whereIn('id', $subjectIds)->orderBy('name')->pluck('name', 'name');
                                         if ($assigned->isNotEmpty()) {
                                             return $assigned;
                                         }
@@ -448,10 +463,16 @@ class RppmResource extends Resource
                                     if (!$user) return null;
                                     $subjectIds = $user->getTeachedSubjectIds();
                                     if (!empty($subjectIds)) {
-                                        $first = \App\Models\Subject::akademik()->whereIn('id', $subjectIds)->first();
+                                        $first = \App\Models\Subject::whereIn('id', $subjectIds)->first();
                                         if ($first) {
                                             return $first->name;
                                         }
+                                    }
+                                    // Cek apakah jabatan mengandung mapel tertentu (misal: PAI / Agama)
+                                    $jabatan = strtolower($user->jabatan ?? '');
+                                    if (str_contains($jabatan, 'pai') || str_contains($jabatan, 'agama')) {
+                                        $pai = \App\Models\Subject::where('name', 'like', '%Pendidikan Agama Islam%')->orWhere('name', 'like', '%PAI%')->first();
+                                        if ($pai) return $pai->name;
                                     }
                                     return null;
                                 })

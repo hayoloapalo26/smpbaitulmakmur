@@ -22,14 +22,14 @@ class ParentSummonResource extends Resource
     public static function shouldRegisterNavigation(): bool
     {
         $user = Auth::user();
-        if (!$user || $user->isQuranTeacher()) return false;
+        if (!$user || $user->isPureQuranTeacher()) return false;
         return static::canAccess();
     }
 
     public static function canAccess(): bool
     {
         $user = Auth::user();
-        if (!$user || $user->isQuranTeacher()) return false;
+        if (!$user || $user->isPureQuranTeacher()) return false;
         return $user->hasAnyRole(['wali_kelas', 'bk', 'waka_kesiswaan', 'kepala_sekolah', 'superadmin']);
     }
 

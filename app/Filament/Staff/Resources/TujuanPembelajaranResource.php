@@ -27,18 +27,25 @@ class TujuanPembelajaranResource extends Resource
         $user = auth()->user();
         if (!$user) return false;
 
-        // Role khusus Guru Al-Qur'an: tidak ada akses dan tidak ada inputan TP
-        if ($user->isQuranTeacher()) {
+        // Role khusus Guru Al-Qur'an murni (yang tidak mengampu mapel): tidak ada akses dan tidak ada inputan TP
+        if ($user->isPureQuranTeacher()) {
             return false;
         }
 
-        return $user->hasAnyRole([
-            'guru_mapel',
-            'guru_kelas',
-            'waka_kurikulum',
-            'kepala_sekolah',
+        if ($user->hasAnyRole([
             'superadmin',
-        ]);
+            'kepala_sekolah',
+            'waka_kurikulum',
+            'ketua_yayasan',
+            'pembina_yayasan',
+            'sekretaris_yayasan',
+            'tim_pengembang_penjamin_mutu_yayasan',
+            'pengembang_penjamin_mutu',
+        ])) {
+            return true;
+        }
+
+        return $user->isSubjectTeacher();
     }
 
     protected static ?string $model = TujuanPembelajaran::class;

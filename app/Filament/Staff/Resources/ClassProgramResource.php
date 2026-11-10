@@ -28,14 +28,14 @@ class ClassProgramResource extends Resource
     public static function shouldRegisterNavigation(): bool
     {
         $user = Auth::user();
-        if (!$user || $user->isQuranTeacher()) return false;
+        if (!$user || $user->isPureQuranTeacher()) return false;
         return $user->hasAnyRole(['wali_kelas', 'guru_kelas', 'kepala_sekolah', 'superadmin']);
     }
 
     public static function canAccess(): bool
     {
         $user = Auth::user();
-        if (!$user || $user->isQuranTeacher()) return false;
+        if (!$user || $user->isPureQuranTeacher()) return false;
         return $user->hasAnyRole(['wali_kelas', 'guru_kelas', 'kepala_sekolah', 'superadmin']);
     }
 
