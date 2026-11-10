@@ -236,6 +236,49 @@ class ManagePresensiIzinSiswa extends ManageRecords
                     $this->dispatch('fingerspot-synced');
                 }),
 
+            Actions\Action::make('import_usb_log')
+                ->label('📥 Upload Log Flashdisk')
+                ->icon('heroicon-o-arrow-up-tray')
+                ->color('gray')
+                ->modalHeading('📥 Upload Log Absensi dari Flashdisk USB Mesin')
+                ->modalDescription('Solusi instan jika jaringan WiFi mesin sedang offline: Colokkan flashdisk ke mesin Revo W230N -> Menu -> Download Log Presensi (file attlog.dat / *.txt) -> upload di sini.')
+                ->modalSubmitActionLabel('Proses File Log')
+                ->form([
+                    Forms\Components\FileUpload::make('log_file')
+                        ->label('Pilih File Log dari Flashdisk (attlog.dat / *.txt / *.dat / *.csv)')
+                        ->acceptedFileTypes(['text/plain', 'text/csv', 'application/octet-stream'])
+                        ->storeFiles(false)
+                        ->required(),
+                ])
+                ->action(function (array $data) {
+                    $file = $data['log_file'] ?? null;
+                    if (!$file) return;
+
+                    $content = file_get_contents($file->getRealPath());
+                    $controller = new FingerspotAttendanceController();
+
+                    $lines = explode("\n", str_replace("\r", "", $content));
+                    $inserted = 0;
+                    foreach ($lines as $line) {
+                        $line = trim($line);
+                        if (empty($line)) continue;
+                        $cols = preg_split('/\t+|\s{2,}/', $line);
+                        if (count($cols) >= 2 && !empty(trim($cols[0]))) {
+                            $res = $controller->processAttendanceRecord(trim($cols[0]), trim($cols[1]), isset($cols[3]) ? (int) $cols[3] : 1, isset($cols[2]) ? (int) $cols[2] : 0);
+                            if (($res['status'] ?? '') === 'success') {
+                                $inserted++;
+                            }
+                        }
+                    }
+
+                    Notification::make()
+                        ->title("✅ {$inserted} Presensi Berhasil Dimasukkan dari File USB!")
+                        ->success()
+                        ->send();
+
+                    $this->dispatch('fingerspot-synced');
+                }),
+
             Actions\Action::make('rekap_lengkap_siswa')
                 ->label('Rekap Total Absensi & Sholat Siswa')
                 ->icon('heroicon-o-chart-bar-square')
