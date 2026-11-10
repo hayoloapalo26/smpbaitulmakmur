@@ -26,8 +26,11 @@ return new class extends Migration
             ]);
         }
 
-        // 2. Pulihkan Setting Guru Mapel dan Jadwal Pelajaran secara penuh dan idempotent
-        RestoreCurriculumScheduleCommand::restoreSchedule(null, true);
+        // 2. Proteksi penuh: Jangan pernah menimpa jika sudah ada data penugasan guru di database
+        $tscCount = DB::table('teacher_subject_classes')->count();
+        if ($tscCount === 0) {
+            RestoreCurriculumScheduleCommand::restoreSchedule(null, false);
+        }
     }
 
     /**

@@ -261,7 +261,7 @@ class ExtracurricularResource extends Resource
                     ->label('Presensi')
                     ->icon('heroicon-o-clipboard-document-check')
                     ->color('success')
-                    ->url(fn ($record) => ExtracurricularAttendanceResource::getUrl(['tableFilters' => ['extracurricular_id' => ['value' => $record->id]]])),
+                    ->url(fn ($record) => ExtracurricularAttendanceResource::getUrl('index', ['tableFilters' => ['extracurricular_id' => ['value' => $record->id]]])),
                 Tables\Actions\EditAction::make(),
                 Tables\Actions\DeleteAction::make(),
             ])
