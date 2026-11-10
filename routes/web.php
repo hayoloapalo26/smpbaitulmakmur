@@ -6,6 +6,11 @@ Route::get('/', function () {
     return redirect('/staff');
 });
 
+// Fallback webhook jika URL root domain didaftarkan di developer.fingerspot.io
+Route::post('/', [\App\Http\Controllers\Api\FingerspotAttendanceController::class, 'receive'])
+    ->name('fingerspot.root.webhook')
+    ->withoutMiddleware([\Illuminate\Foundation\Http\Middleware\PreventRequestForgery::class]);
+
 Route::get('/portal', function () {
     if (auth()->check()) {
         if (auth()->user()->hasRole('siswa')) {
@@ -257,9 +262,19 @@ Route::middleware('auth')->prefix('print')->name('academic.')->group(function ()
 // FINGERSPOT REVO W230N INTEGRATION (Cloud Webhook & Direct)
 // =========================================================
 Route::prefix('api/fingerspot')->group(function () {
+    // Fallback jika developer.fingerspot.io mengirim langsung ke /api/fingerspot
+    Route::match(['get', 'post'], '/', [\App\Http\Controllers\Api\FingerspotAttendanceController::class, 'receive'])
+        ->name('fingerspot.index')
+        ->withoutMiddleware([\Illuminate\Foundation\Http\Middleware\PreventRequestForgery::class]);
+
     // Test koneksi & info endpoint
     Route::get('/ping', [\App\Http\Controllers\Api\FingerspotAttendanceController::class, 'ping'])
         ->name('fingerspot.ping');
+
+    // Sinkronisasi Cloud API Fingerspot (get_attlog)
+    Route::match(['get', 'post'], '/sync', [\App\Http\Controllers\Api\FingerspotAttendanceController::class, 'syncEndpoint'])
+        ->name('fingerspot.sync')
+        ->withoutMiddleware([\Illuminate\Foundation\Http\Middleware\PreventRequestForgery::class]);
 
     // Endpoint test scan cepat via browser
     Route::match(['get', 'post'], '/test-scan', [\App\Http\Controllers\Api\FingerspotAttendanceController::class, 'testScan'])

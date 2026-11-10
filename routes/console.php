@@ -10,3 +10,4 @@ Artisan::command('inspire', function () {
 
 Schedule::command('app:notify-absent-teachers')->dailyAt('08:00');
 Schedule::command('app:notify-missing-todo-list')->dailyAt('15:00');
+Schedule::command('fingerspot:sync')->everyTwoMinutes()->withoutOverlapping();

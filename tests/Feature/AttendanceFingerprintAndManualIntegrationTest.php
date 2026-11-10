@@ -115,19 +115,20 @@ class AttendanceFingerprintAndManualIntegrationTest extends TestCase
      */
     public function test_fingerspot_morning_fingerprint_records_attendance(): void
     {
-        // Scan jam 07:05 (Tepat waktu)
+        // Siswa 1 scan jam 06:45 (Masuk 06.00 - 06.50 -> Tepat waktu)
+        // Siswa 2 scan jam 06:55 (> 06.50 -> Terlambat)
         $payload = [
             'type' => 'attlog',
             'data' => [
                 [
                     'pin' => '1001',
-                    'scan_date' => '2026-11-02 07:05:00',
+                    'scan_date' => '2026-11-02 06:45:00',
                     'verify' => 1, // Fingerprint
                     'status_scan' => 0,
                 ],
                 [
                     'pin' => '1002',
-                    'scan_date' => '2026-11-02 07:25:00', // Terlambat (> 07:15)
+                    'scan_date' => '2026-11-02 06:55:00', // Terlambat (> 06:50)
                     'verify' => 1, // Fingerprint
                     'status_scan' => 0,
                 ],

@@ -235,14 +235,14 @@ class PrayerAttendanceFingerprintAndPiketSyncTest extends TestCase
     }
 
     /**
-     * 4. Test Kombinasi 4 Waktu Fingerprint: Pagi (<12:00), Dhuhur (12:00-13:59), Ashar (14:00-15:59), Pulang (>=16:00)
+     * 4. Test Kombinasi 3 Sesi Fingerprint Resmi: Masuk (06.00-06.50), Dhuhur (12.00-12.15), Ashar & Pulang (15.00-15.15)
      */
     public function test_mesin_fingerprint_4_waktu_jam_dan_sinkronisasi_sholat_dhuhur_dan_ashar(): void
     {
         $controller = new FingerspotAttendanceController();
         $todayStr = Carbon::today()->toDateString();
 
-        // Waktu 1: Pagi (06:50) -> Kehadiran Pagi (Masuk)
+        // Waktu 1: Masuk Pagi (06:50) -> Kehadiran Pagi Tepat Waktu
         $pagiResult = $controller->processAttendanceRecord(
             $this->studentMale1->fingerspot_pin,
             "{$todayStr} 06:50:00",
@@ -250,15 +250,17 @@ class PrayerAttendanceFingerprintAndPiketSyncTest extends TestCase
         );
         $this->assertEquals('success', $pagiResult['status']);
         $this->assertEquals('masuk', $pagiResult['tipe']);
+        $this->assertFalse($pagiResult['is_late']);
         $this->assertDatabaseHas('daily_attendances', [
             'student_id'   => $this->studentMale1->id,
             'tanggal'      => $todayStr,
             'tipe_absen'   => 'masuk',
             'metode_absen' => 'fingerprint',
             'status'       => 'hadir',
+            'is_late'      => false,
         ]);
 
-        // Waktu 2: Sholat Dhuhur (12:15) -> Absensi Sholat Dhuhur Berjamaah
+        // Waktu 2: Sholat Dhuhur (12:15) -> Absensi Sholat Dhuhur Tepat Waktu
         $dhuhurResult = $controller->processAttendanceRecord(
             $this->studentMale1->fingerspot_pin,
             "{$todayStr} 12:15:30",
@@ -266,12 +268,14 @@ class PrayerAttendanceFingerprintAndPiketSyncTest extends TestCase
         );
         $this->assertEquals('success', $dhuhurResult['status']);
         $this->assertEquals('sholat_dhuhur', $dhuhurResult['tipe']);
+        $this->assertFalse($dhuhurResult['is_late']);
         $this->assertDatabaseHas('daily_attendances', [
             'student_id'   => $this->studentMale1->id,
             'tanggal'      => $todayStr,
             'tipe_absen'   => 'sholat_dhuhur',
             'metode_absen' => 'fingerprint',
             'status'       => 'hadir',
+            'is_late'      => false,
         ]);
         // Otomatis tersinkron ke PrayerAttendance Dhuhur = hadir
         $this->assertDatabaseHas('prayer_attendances', [
@@ -281,20 +285,22 @@ class PrayerAttendanceFingerprintAndPiketSyncTest extends TestCase
             'status'       => 'hadir',
         ]);
 
-        // Waktu 3: Sholat Ashar (14:30) -> Absensi Sholat Ashar Berjamaah
+        // Waktu 3: Sholat Ashar & Pulang (15:10) -> Tepat Waktu
         $asharResult = $controller->processAttendanceRecord(
             $this->studentMale1->fingerspot_pin,
-            "{$todayStr} 14:30:15",
+            "{$todayStr} 15:10:15",
             1
         );
         $this->assertEquals('success', $asharResult['status']);
         $this->assertEquals('sholat_ashar', $asharResult['tipe']);
+        $this->assertFalse($asharResult['is_late']);
         $this->assertDatabaseHas('daily_attendances', [
             'student_id'   => $this->studentMale1->id,
             'tanggal'      => $todayStr,
             'tipe_absen'   => 'sholat_ashar',
             'metode_absen' => 'fingerprint',
             'status'       => 'hadir',
+            'is_late'      => false,
         ]);
         // Otomatis tersinkron ke PrayerAttendance Ashar = hadir
         $this->assertDatabaseHas('prayer_attendances', [
@@ -304,20 +310,31 @@ class PrayerAttendanceFingerprintAndPiketSyncTest extends TestCase
             'status'       => 'hadir',
         ]);
 
-        // Waktu 4: Pulang (16:10) -> Kepulangan
-        $pulangResult = $controller->processAttendanceRecord(
+        // Waktu 3 Scan Ke-2 (16:10) pada siswa sama -> Harus terkunci sebagai duplicate
+        $lockedAshar = $controller->processAttendanceRecord(
             $this->studentMale1->fingerspot_pin,
             "{$todayStr} 16:10:00",
             1
         );
-        $this->assertEquals('success', $pulangResult['status']);
-        $this->assertEquals('pulang', $pulangResult['tipe']);
+        $this->assertEquals('duplicate', $lockedAshar['status']);
+        $this->assertTrue($lockedAshar['locked']);
+
+        // Siswa 2 scan lewat jam 15:15 (16:10) -> Masuk Ashar & Pulang Terlambat
+        $lateAshar = $controller->processAttendanceRecord(
+            $this->studentMale2->fingerspot_pin,
+            "{$todayStr} 16:10:00",
+            1
+        );
+        $this->assertEquals('success', $lateAshar['status']);
+        $this->assertEquals('sholat_ashar', $lateAshar['tipe']);
+        $this->assertTrue($lateAshar['is_late']);
         $this->assertDatabaseHas('daily_attendances', [
-            'student_id'   => $this->studentMale1->id,
+            'student_id'   => $this->studentMale2->id,
             'tanggal'      => $todayStr,
-            'tipe_absen'   => 'pulang',
+            'tipe_absen'   => 'sholat_ashar',
             'metode_absen' => 'fingerprint',
             'status'       => 'hadir',
+            'is_late'      => true,
         ]);
     }
 

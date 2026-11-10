@@ -3,72 +3,110 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\DailyAttendance;
 use App\Models\Student;
 use App\Models\StudentHalangan;
-use App\Models\DailyAttendance;
 use App\Models\TeacherAttendance;
 use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 
 /**
  * Controller Integrasi Mesin Absensi Fingerspot Revo W230N
- * 
- * Mendukung 3 Mode Komunikasi:
- * 1. Webhook Fingerspot.io (Cloud Developer API: developer.fingerspot.io)
- *    Endpoint: POST /api/fingerspot/attendance atau /api/fingerspot/webhook
- *    Format: JSON event dengan type "attlog", atau stringified JSON di form-data
- * 
- * 2. Direct ADMS / Push Server (Protokol IClock langsung dari mesin via WiFi/LAN)
- *    Endpoint: GET/POST /iclock/cdata & /iclock/getrequest
- *    Format: Raw text tab-separated ATTLOG
- * 
- * 3. Direct REST / HTTP Push / Test Scan (Browser / Script Lokal / POST biasa)
- *    Endpoint: POST/GET /api/fingerspot/attendance
- *    Endpoint: GET      /api/fingerspot/test-scan?pin=1
+ *
+ * Jadwal & Aturan Keterlambatan Resmi:
+ * - Masuk Pagi           : 06.00 - 06.50 (> 06.50 = Terlambat) [Rentang mesin: 00:00 - 11:29]
+ * - Sholat Dhuhur        : 12.00 - 12.15 (> 12.15 = Terlambat) [Rentang mesin: 11:30 - 14:29]
+ * - Sholat Ashar & Pulang: 15.00 - 15.15 (> 15.15 = Terlambat) [Rentang mesin: 14:30 - 23:59]
+ *
+ * Penguncian Anti-Dobel:
+ * - Siswa hanya bisa absen 1 kali per waktu/sesi.
+ * - Scan pertama kali langsung dikunci; scan ke-2 dst di sesi yang sama ditolak/diabaikan.
+ *
+ * Mendukung 4 Mode Komunikasi:
+ * 1. Webhook Fingerspot.io (developer.fingerspot.io -> POST /api/fingerspot/attendance, /webhook, /api/fingerspot, POST /)
+ * 2. Cloud API Pull (developer.fingerspot.io/api/get_attlog) via tombol & sinkronisasi otomatis
+ * 3. Direct ADMS / Push Server (GET/POST /iclock/cdata & /iclock/getrequest)
+ * 4. Direct REST / Test Scan (/api/fingerspot/test-scan)
  */
 class FingerspotAttendanceController extends Controller
 {
+    private const CONFIG_FILE = 'fingerspot_config.json';
+    private const WEBHOOK_LOG_FILE = 'fingerspot_webhook_logs.json';
+
+    /**
+     * Definisi aturan waktu per tipe absen:
+     * [cutoff_hour, cutoff_minute, label, check_tipes, lock_group]
+     */
+    private const SCHEDULE_RULES = [
+        'masuk' => [
+            'limit_hour'   => 6,
+            'limit_minute' => 50,
+            'limit_str'    => '06:50',
+            'label'        => 'Masuk Pagi',
+            'check_tipes'  => ['masuk'],
+            'lock_group'   => 'masuk',
+        ],
+        'sholat_dhuha' => [
+            'limit_hour'   => 9,
+            'limit_minute' => 30,
+            'limit_str'    => '09:30',
+            'label'        => 'Sholat Dhuha',
+            'check_tipes'  => ['sholat_dhuha'],
+            'lock_group'   => 'dhuha',
+        ],
+        'sholat_dhuhur' => [
+            'limit_hour'   => 12,
+            'limit_minute' => 15,
+            'limit_str'    => '12:15',
+            'label'        => 'Sholat Dhuhur',
+            'check_tipes'  => ['sholat_dhuhur'],
+            'lock_group'   => 'dhuhur',
+        ],
+        'sholat_ashar' => [
+            'limit_hour'   => 15,
+            'limit_minute' => 15,
+            'limit_str'    => '15:15',
+            'label'        => 'Sholat Ashar & Pulang',
+            'check_tipes'  => ['sholat_ashar', 'pulang'],
+            'lock_group'   => 'ashar_pulang',
+        ],
+        'pulang' => [
+            'limit_hour'   => 15,
+            'limit_minute' => 15,
+            'limit_str'    => '15:15',
+            'label'        => 'Sholat Ashar & Pulang',
+            'check_tipes'  => ['sholat_ashar', 'pulang'],
+            'lock_group'   => 'ashar_pulang',
+        ],
+    ];
+
     /**
      * Endpoint utama untuk menerima webhook / push log dari Fingerspot
-     * POST/GET /api/fingerspot/attendance
-     * POST     /api/fingerspot/webhook
+     * POST/GET /api/fingerspot/attendance, /api/fingerspot/webhook, /api/fingerspot, POST /
      */
     public function receive(Request $request)
     {
-        $rawContent = $request->getContent();
+        // Catat raw request ke log persisten SEBELUM validasi apapun agar audit selalu terlacak
+        $this->recordRawWebhookHit($request);
+
         Log::channel('daily')->info('Fingerspot Event Received', [
-            'ip'          => $request->ip(),
-            'method'      => $request->method(),
-            'headers'     => $request->headers->all(),
-            'query'       => $request->query(),
-            'post'        => $request->post(),
-            'body_length' => strlen($rawContent),
+            'ip'     => $request->ip(),
+            'method' => $request->method(),
+            'path'   => $request->path(),
+            'query'  => $request->query(),
+            'post'   => $request->post(),
         ]);
 
-        // Validasi API Key jika dikonfigurasi di .env atau config
-        $configuredKey = config('services.fingerspot.api_key', env('FINGERSPOT_API_KEY')) ?: '94PM7O0GL1A4M1MR';
-        $incomingKey = $request->header('X-API-KEY')
-            ?? $request->bearerToken()
-            ?? $request->header('Authorization')
-            ?? $request->header('api-key')
-            ?? $request->header('apikey')
-            ?? $request->header('key')
-            ?? $request->query('api_key')
-            ?? $request->query('token')
-            ?? $request->query('key')
-            ?? $request->input('api_key')
-            ?? $request->input('token')
-            ?? $request->input('key');
+        // Validasi API Key: tolak dengan 401 hanya jika pengirim menyertakan key yang SALAH
+        // (Webhook developer.fingerspot.io umumnya mengirim JSON murni tanpa header X-API-KEY)
+        $configuredKey = $this->getConfiguredApiKey();
+        $incomingKey = $this->extractIncomingApiKey($request);
 
-        if ($incomingKey) {
-            $incomingKey = trim(str_ireplace('Bearer ', '', $incomingKey));
-        }
-
-        // Jika webhook menyertakan API Key tapi tidak cocok, tolak dengan 401 Unauthorized
         if (!empty($incomingKey) && !empty($configuredKey) && $incomingKey !== $configuredKey) {
             Log::warning('Fingerspot Webhook: Percobaan akses dengan API Key yang tidak valid', [
                 'ip'           => $request->ip(),
@@ -85,32 +123,27 @@ class FingerspotAttendanceController extends Controller
             $records = $this->extractRecordsFromRequest($request);
 
             if (empty($records)) {
-                Log::info('Fingerspot Webhook: Tidak ada data log presensi (PIN) dalam request.', [
-                    'all'     => $request->all(),
-                    'content' => substr($rawContent, 0, 300),
-                ]);
-
                 return response()->json([
                     'status'  => 'ignored',
-                    'message' => 'Tidak ada data log presensi (PIN) yang valid dalam request',
+                    'message' => 'Tidak ada data log presensi (PIN) dalam request',
                 ], 200);
             }
 
-            // Proses setiap data log scan
+            // Urutkan secara kronologis dari waktu paling awal agar scan PERTAMA selalu terkunci lebih dulu
+            $records = $this->sortRecordsChronologically($records);
+
             $results = [];
             foreach ($records as $rec) {
-                if (empty($rec['pin'])) {
+                if (empty($rec['pin']) && $rec['pin'] !== '0') {
                     continue;
                 }
 
-                $res = $this->processAttendanceRecord(
+                $results[] = $this->processAttendanceRecord(
                     (string) $rec['pin'],
                     $rec['scan_date'] ?? null,
                     $rec['verify'] ?? 1,
                     $rec['status_scan'] ?? 0
                 );
-
-                $results[] = $res;
             }
 
             return response()->json([
@@ -133,14 +166,13 @@ class FingerspotAttendanceController extends Controller
     }
 
     /**
-     * Ekstrak array log scan dari berbagai format request Fingerspot
+     * Ekstrak array log scan dari berbagai format payload webhook Fingerspot
      */
     protected function extractRecordsFromRequest(Request $request): array
     {
         $payload = $request->all();
         $rawContent = $request->getContent();
 
-        // Jika $payload kosong tapi rawContent ada, coba decode JSON
         if (empty($payload) && !empty($rawContent)) {
             $decoded = json_decode($rawContent, true);
             if (is_array($decoded)) {
@@ -148,7 +180,6 @@ class FingerspotAttendanceController extends Controller
             }
         }
 
-        // Jika 'data' dikirim sebagai JSON string (sering terjadi di webhook fingerspot.io form-data)
         if (isset($payload['data']) && is_string($payload['data'])) {
             $decodedData = json_decode($payload['data'], true);
             if (is_array($decodedData)) {
@@ -156,46 +187,42 @@ class FingerspotAttendanceController extends Controller
             }
         }
 
+        // Jika webhook mengirim cloud_id, simpan otomatis agar Cloud Pull ikut aktif
+        if (!empty($payload['cloud_id']) && is_string($payload['cloud_id'])) {
+            $this->autoRememberCloudId($payload['cloud_id']);
+        }
+
         $records = [];
 
-        // Format 1: Format Resmi Webhook Fingerspot.io {"type": "attlog", "data": [...]}
-        if (isset($payload['type']) && ($payload['type'] === 'attlog' || $payload['type'] === 'attendance')) {
-            $rawRecords = $payload['data'] ?? [];
-            if (is_array($rawRecords) && !isset($rawRecords[0])) {
-                $rawRecords = [$rawRecords];
-            }
+        // Format 1: Event Fingerspot.io dengan wrapper 'data' (objek tunggal atau array)
+        if (!empty($payload['data']) && is_array($payload['data'])) {
+            $rawRecords = isset($payload['data'][0]) ? $payload['data'] : [$payload['data']];
             foreach ($rawRecords as $item) {
-                if (!is_array($item)) continue;
-                $records[] = [
-                    'pin'         => $item['pin'] ?? $item['PIN'] ?? $item['user_id'] ?? $item['badgenumber'] ?? $item['enroll_id'] ?? null,
-                    'scan_date'   => $item['scan_date'] ?? $item['scan'] ?? $item['date_time'] ?? $item['time'] ?? $item['timestamp'] ?? null,
-                    'verify'      => $item['verify'] ?? $item['verif_mode'] ?? $item['verify_mode'] ?? 1,
-                    'status_scan' => $item['status_scan'] ?? $item['status'] ?? 0,
-                ];
+                if (!is_array($item)) {
+                    continue;
+                }
+                if ($mapped = $this->normalizeScanItem($item)) {
+                    $records[] = $mapped;
+                }
             }
         }
+
         // Format 2: Array langsung dari daftar log scan [{"pin":"1",...}]
-        elseif (isset($payload[0]) && is_array($payload[0])) {
+        if (empty($records) && isset($payload[0]) && is_array($payload[0])) {
             foreach ($payload as $item) {
-                if (!is_array($item)) continue;
-                $records[] = [
-                    'pin'         => $item['pin'] ?? $item['PIN'] ?? $item['user_id'] ?? $item['employee_no'] ?? $item['badgenumber'] ?? null,
-                    'scan_date'   => $item['scan_date'] ?? $item['scan'] ?? $item['date_time'] ?? $item['time'] ?? $item['timestamp'] ?? null,
-                    'verify'      => $item['verify'] ?? $item['verif_mode'] ?? $item['verify_mode'] ?? 1,
-                    'status_scan' => $item['status_scan'] ?? $item['status'] ?? 0,
-                ];
+                if (!is_array($item)) {
+                    continue;
+                }
+                if ($mapped = $this->normalizeScanItem($item)) {
+                    $records[] = $mapped;
+                }
             }
         }
-        // Format 3: Single record (JSON datar atau form-urlencoded atau query param)
-        else {
-            $pin = $payload['pin'] ?? $payload['PIN'] ?? $payload['user_id'] ?? $payload['employee_no'] ?? $payload['badgenumber'] ?? $payload['id_finger'] ?? null;
-            if ($pin) {
-                $records[] = [
-                    'pin'         => $pin,
-                    'scan_date'   => $payload['scan_date'] ?? $payload['scan'] ?? $payload['date_time'] ?? $payload['time'] ?? $payload['timestamp'] ?? null,
-                    'verify'      => $payload['verify'] ?? $payload['verif_mode'] ?? $payload['verify_mode'] ?? 1,
-                    'status_scan' => $payload['status_scan'] ?? $payload['status'] ?? 0,
-                ];
+
+        // Format 3: Flat JSON / Form / Query (termasuk type='attlog' dengan pin di root object)
+        if (empty($records) && is_array($payload)) {
+            if ($mapped = $this->normalizeScanItem($payload)) {
+                $records[] = $mapped;
             }
         }
 
@@ -203,15 +230,53 @@ class FingerspotAttendanceController extends Controller
     }
 
     /**
-     * Handler untuk Protokol Direct ADMS / Push Server (IClock)
-     * Digunakan ketika Mesin Revo W230N langsung diarahkan ke IP Server kita.
+     * Normalisasi satu item log scan ke struktur standar
+     */
+    private function normalizeScanItem(array $item): ?array
+    {
+        $pin = $item['pin']
+            ?? $item['PIN']
+            ?? $item['user_id']
+            ?? $item['employee_no']
+            ?? $item['badgenumber']
+            ?? $item['enroll_id']
+            ?? $item['id_finger']
+            ?? null;
+
+        if ($pin === null || $pin === '') {
+            return null;
+        }
+
+        return [
+            'pin'         => (string) $pin,
+            'scan_date'   => $item['scan_date'] ?? $item['scan'] ?? $item['date_time'] ?? $item['time'] ?? $item['timestamp'] ?? $item['att_time'] ?? null,
+            'verify'      => $item['verify'] ?? $item['verif_mode'] ?? $item['verify_mode'] ?? 1,
+            'status_scan' => $item['status_scan'] ?? $item['status'] ?? $item['in_out'] ?? 0,
+        ];
+    }
+
+    /**
+     * Urutkan log scan menaik (terlama ke terbaru) agar scan pertama kali selalu dikunci
+     */
+    private function sortRecordsChronologically(array $records): array
+    {
+        usort($records, function ($a, $b) {
+            $tA = !empty($a['scan_date']) ? strtotime((string) $a['scan_date']) : 0;
+            $tB = !empty($b['scan_date']) ? strtotime((string) $b['scan_date']) : 0;
+            return $tA <=> $tB;
+        });
+
+        return $records;
+    }
+
+    /**
+     * Handler Protokol Direct ADMS / Push Server (IClock)
      * GET/POST /iclock/cdata
      */
     public function cdata(Request $request)
     {
         $sn = $request->query('SN') ?? $request->query('sn') ?? 'UNKNOWN';
 
-        // 1. Handshake awal dari mesin (GET /iclock/cdata)
         if ($request->isMethod('get')) {
             Log::info("Fingerspot ADMS Handshake from SN: {$sn}");
             $responseContent = "GET OPTION FROM: {$sn}\n" .
@@ -226,46 +291,42 @@ class FingerspotAttendanceController extends Controller
                 "Realtime=1\n" .
                 "Encrypt=0\n";
 
-            return response($responseContent, 200)
-                ->header('Content-Type', 'text/plain');
+            return response($responseContent, 200)->header('Content-Type', 'text/plain');
         }
 
-        // 2. Mesin Push Data Log (POST /iclock/cdata)
+        $this->recordRawWebhookHit($request);
         $rawBody = $request->getContent();
-        $table = $request->query('table') ?? 'ATTLOG';
+        $records = [];
 
-        Log::info("Fingerspot ADMS POST Received: SN={$sn}, table={$table}", [
-            'body_length' => strlen($rawBody),
-        ]);
-
-        $processedCount = 0;
-
-        // Parsing baris per baris log ATTLOG
-        // Format umum: PIN \t Date_Time \t Status \t Verify \t WorkCode ...
         if (!empty($rawBody)) {
             $lines = explode("\n", str_replace("\r", "", $rawBody));
             foreach ($lines as $line) {
                 $line = trim($line);
-                if (empty($line)) continue;
+                if (empty($line)) {
+                    continue;
+                }
 
                 $cols = preg_split('/\t+|\s{2,}/', $line);
-                if (count($cols) >= 2) {
-                    $pin        = trim($cols[0]);
-                    $scanDate   = trim($cols[1]);
-                    $statusScan = isset($cols[2]) ? (int) $cols[2] : 0;
-                    $verify     = isset($cols[3]) ? (int) $cols[3] : 1;
-
-                    if (!empty($pin)) {
-                        $this->processAttendanceRecord($pin, $scanDate, $verify, $statusScan);
-                        $processedCount++;
-                    }
+                if (count($cols) >= 2 && !empty(trim($cols[0]))) {
+                    $records[] = [
+                        'pin'         => trim($cols[0]),
+                        'scan_date'   => trim($cols[1]),
+                        'status_scan' => isset($cols[2]) ? (int) $cols[2] : 0,
+                        'verify'      => isset($cols[3]) ? (int) $cols[3] : 1,
+                    ];
                 }
             }
         }
 
-        // Mesin ZKTeco/Fingerspot mewajibkan respon text "OK" atau "OK: count"
-        return response("OK: {$processedCount}", 200)
-            ->header('Content-Type', 'text/plain');
+        $records = $this->sortRecordsChronologically($records);
+        $processedCount = 0;
+
+        foreach ($records as $rec) {
+            $this->processAttendanceRecord($rec['pin'], $rec['scan_date'], $rec['verify'], $rec['status_scan']);
+            $processedCount++;
+        }
+
+        return response("OK: {$processedCount}", 200)->header('Content-Type', 'text/plain');
     }
 
     /**
@@ -287,12 +348,13 @@ class FingerspotAttendanceController extends Controller
     }
 
     /**
-     * Endpoint Cek Koneksi / Ping Diagnostik
+     * Endpoint Cek Koneksi & Diagnostik Live
      * GET /api/fingerspot/ping
      */
     public function ping()
     {
-        $hasKey = !empty(config('services.fingerspot.api_key', env('FINGERSPOT_API_KEY')) ?: '94PM7O0GL1A4M1MR');
+        $config = $this->getCloudConfig();
+        $hasKey = !empty($this->getConfiguredApiKey());
 
         $studentsWithFinger = Student::withoutGlobalScopes()
             ->where(function ($q) {
@@ -323,7 +385,7 @@ class FingerspotAttendanceController extends Controller
                     $q->orWhereNotNull('fingerspot_pin')->where('fingerspot_pin', '!=', '');
                 }
             })
-            ->limit(5)
+            ->limit(10)
             ->get(['id', 'name', 'nis', 'id_finger', 'fingerspot_pin'])
             ->map(fn ($s) => [
                 'nama'      => $s->name,
@@ -331,33 +393,61 @@ class FingerspotAttendanceController extends Controller
                 'nis'       => $s->nis,
             ]);
 
+        $rawWebhooks = $this->readJsonFile(self::WEBHOOK_LOG_FILE, []);
         $recentScans = Cache::get('fingerspot_recent_scans', []);
         $unmatchedPins = Cache::get('fingerspot_last_unmatched_pins', []);
 
         return response()->json([
-            'status'                      => 'online',
-            'device_target'               => 'Fingerspot Revo W230N',
-            'server'                      => 'SMPI Baitul Makmur',
-            'time'                        => now()->setTimezone('Asia/Jakarta')->format('Y-m-d H:i:s T'),
-            'version'                     => '2.1',
-            'api_key_configured'          => $hasKey,
-            'students_with_finger_count'  => $studentsWithFinger,
-            'teachers_with_finger_count'  => $teachersWithFinger,
-            'sample_registered_students'  => $sampleStudents,
-            'recent_scans'                => array_slice($recentScans, 0, 5),
-            'last_unmatched_pins'         => array_slice($unmatchedPins, 0, 5),
-            'test_scan_url'               => url('/api/fingerspot/test-scan?pin=1'),
-            'endpoints'                   => [
+            'status'                     => 'online',
+            'device_target'              => 'Fingerspot Revo W230N',
+            'server'                     => 'SMPI Baitul Makmur',
+            'time'                       => now()->setTimezone('Asia/Jakarta')->format('Y-m-d H:i:s T'),
+            'version'                    => '2.2',
+            'api_key_configured'         => $hasKey,
+            'cloud_id_configured'        => $config['cloud_id'] ?? null,
+            'last_cloud_sync_at'         => $config['last_sync_at'] ?? null,
+            'schedule_rules'             => [
+                'masuk'         => '06:00 - 06:50 (> 06:50 Terlambat, batas scan pagi 11:29)',
+                'sholat_dhuhur' => '12:00 - 12:15 (> 12:15 Terlambat, aktif 11:30 - 14:29)',
+                'sholat_ashar'  => '15:00 - 15:15 (> 15:15 Terlambat, aktif 14:30 - 23:59, Ashar & Pulang)',
+                'anti_dobel'    => 'Siswa hanya bisa absen 1 kali per waktu (scan pertama dikunci)',
+            ],
+            'students_with_finger_count' => $studentsWithFinger,
+            'teachers_with_finger_count' => $teachersWithFinger,
+            'sample_registered_students' => $sampleStudents,
+            'webhook_hits_count'         => count($rawWebhooks),
+            'last_raw_webhooks'          => array_slice($rawWebhooks, 0, 5),
+            'recent_scans'               => array_slice($recentScans, 0, 10),
+            'last_unmatched_pins'        => array_slice($unmatchedPins, 0, 10),
+            'test_scan_url'              => url('/api/fingerspot/test-scan?pin=1'),
+            'sync_cloud_url'             => url('/api/fingerspot/sync'),
+            'endpoints'                  => [
                 'cloud_webhook' => url('/api/fingerspot/attendance'),
                 'cloud_alias'   => url('/api/fingerspot/webhook'),
+                'api_root'      => url('/api/fingerspot'),
                 'adms_push'     => url('/iclock/cdata'),
             ],
         ]);
     }
 
     /**
+     * Endpoint Sinkronisasi Langsung ke API Cloud developer.fingerspot.io
+     * GET/POST /api/fingerspot/sync
+     */
+    public function syncEndpoint(Request $request)
+    {
+        $cloudId = $request->input('cloud_id') ?? $request->query('cloud_id');
+        $startDate = $request->input('start_date') ?? $request->query('start_date');
+        $endDate = $request->input('end_date') ?? $request->query('end_date');
+
+        $result = $this->pullFromCloudApi($cloudId, $startDate, $endDate);
+
+        return response()->json($result, ($result['success'] ?? false) ? 200 : 422);
+    }
+
+    /**
      * Endpoint Cepat untuk Menguji Scan Presensi via Browser
-     * GET /api/fingerspot/test-scan?pin=1&tipe=auto
+     * GET /api/fingerspot/test-scan?pin=1&tipe=auto&time=06:45
      */
     public function testScan(Request $request)
     {
@@ -365,8 +455,7 @@ class FingerspotAttendanceController extends Controller
         $tipe = $request->query('tipe') ?? $request->input('tipe');
         $time = $request->query('time') ?? $request->input('time');
 
-        if (empty($pin)) {
-            // Berikan saran PIN yang sudah terdaftar
+        if (empty($pin) && $pin !== '0') {
             $firstStudent = Student::withoutGlobalScopes()
                 ->where(function ($q) {
                     if (Schema::hasColumn('students', 'id_finger')) {
@@ -403,7 +492,155 @@ class FingerspotAttendanceController extends Controller
     }
 
     /**
-     * Memproses satu record absensi siswa atau guru
+     * Tarik log absensi secara langsung dari API Cloud developer.fingerspot.io (/api/get_attlog)
+     */
+    public function pullFromCloudApi(?string $cloudId = null, ?string $startDate = null, ?string $endDate = null): array
+    {
+        $config = $this->getCloudConfig();
+        $apiKey = $this->getConfiguredApiKey();
+        $resolvedCloudId = trim((string) ($cloudId ?: ($config['cloud_id'] ?? '')));
+
+        if (!empty($cloudId)) {
+            $this->saveCloudConfig(['cloud_id' => $resolvedCloudId]);
+        }
+
+        if (empty($apiKey)) {
+            return [
+                'success' => false,
+                'message' => 'API Key Fingerspot belum dikonfigurasi.',
+            ];
+        }
+
+        if (empty($resolvedCloudId)) {
+            return [
+                'success' => false,
+                'message' => 'Cloud ID mesin Fingerspot belum diisi. Silakan salin Cloud ID mesin dari web developer.fingerspot.io.',
+            ];
+        }
+
+        $todayWib = now()->setTimezone('Asia/Jakarta')->toDateString();
+        $start = $startDate ?: $todayWib;
+        $end = $endDate ?: $todayWib;
+        $transId = (string) time();
+
+        // 1. Cek info perangkat (opsional, untuk memverifikasi Cloud ID & webhook_url)
+        $deviceInfo = null;
+        try {
+            $devResp = Http::withToken($apiKey)
+                ->timeout(8)
+                ->acceptJson()
+                ->post('https://developer.fingerspot.io/api/get_device', [
+                    'trans_id' => $transId,
+                    'cloud_id' => $resolvedCloudId,
+                ]);
+            if ($devResp->successful()) {
+                $deviceInfo = $devResp->json('data') ?? $devResp->json();
+            }
+        } catch (\Throwable $e) {
+            Log::warning('Fingerspot get_device failed: ' . $e->getMessage());
+        }
+
+        // 2. Tarik log absensi (get_attlog)
+        try {
+            $response = Http::withToken($apiKey)
+                ->timeout(12)
+                ->acceptJson()
+                ->post('https://developer.fingerspot.io/api/get_attlog', [
+                    'trans_id'   => $transId,
+                    'cloud_id'   => $resolvedCloudId,
+                    'start_date' => $start,
+                    'end_date'   => $end,
+                ]);
+
+            if (!$response->successful()) {
+                return [
+                    'success'     => false,
+                    'status_code' => $response->status(),
+                    'message'     => 'Gagal menghubungi API developer.fingerspot.io: HTTP ' . $response->status(),
+                    'device_info' => $deviceInfo,
+                    'raw'         => substr($response->body(), 0, 400),
+                ];
+            }
+
+            $json = $response->json();
+            $rawLogs = $json['data'] ?? [];
+            if (!is_array($rawLogs)) {
+                $rawLogs = [];
+            }
+
+            $records = [];
+            foreach ($rawLogs as $item) {
+                if (!is_array($item)) {
+                    continue;
+                }
+                if ($mapped = $this->normalizeScanItem($item)) {
+                    $records[] = $mapped;
+                }
+            }
+
+            // Urutkan kronologis agar scan pertama tiap sesi dikunci duluan
+            $records = $this->sortRecordsChronologically($records);
+
+            $inserted = 0;
+            $lockedDuplicates = 0;
+            $unmatchedPins = [];
+            $details = [];
+
+            foreach ($records as $rec) {
+                $res = $this->processAttendanceRecord(
+                    $rec['pin'],
+                    $rec['scan_date'],
+                    $rec['verify'],
+                    $rec['status_scan']
+                );
+                $details[] = $res;
+
+                if (($res['status'] ?? '') === 'success') {
+                    $inserted++;
+                } elseif (in_array($res['status'] ?? '', ['duplicate', 'excused'])) {
+                    $lockedDuplicates++;
+                } elseif (($res['status'] ?? '') === 'not_found') {
+                    $unmatchedPins[] = $rec['pin'];
+                }
+            }
+
+            $syncAt = now()->setTimezone('Asia/Jakarta')->format('Y-m-d H:i:s');
+            $this->saveCloudConfig([
+                'cloud_id'          => $resolvedCloudId,
+                'last_sync_at'      => $syncAt,
+                'last_sync_summary' => [
+                    'total'             => count($records),
+                    'inserted'          => $inserted,
+                    'duplicates_locked' => $lockedDuplicates,
+                    'unmatched_count'   => count(array_unique($unmatchedPins)),
+                ],
+            ]);
+
+            return [
+                'success'           => true,
+                'cloud_id'          => $resolvedCloudId,
+                'range'             => "{$start} s/d {$end}",
+                'total_logs'        => count($records),
+                'inserted'          => $inserted,
+                'duplicates_locked' => $lockedDuplicates,
+                'unmatched_pins'    => array_values(array_unique($unmatchedPins)),
+                'device_info'       => $deviceInfo,
+                'message'           => "Sinkronisasi selesai ({$start} s/d {$end}): {$inserted} presensi baru masuk, {$lockedDuplicates} sudah terkunci/tercatat, " . count(array_unique($unmatchedPins)) . ' PIN belum terdaftar.',
+                'details'           => $details,
+            ];
+        } catch (\Throwable $e) {
+            Log::error('Fingerspot Cloud Sync Error: ' . $e->getMessage());
+
+            return [
+                'success'     => false,
+                'device_info' => $deviceInfo,
+                'message'     => 'Koneksi ke server Fingerspot gagal: ' . $e->getMessage(),
+            ];
+        }
+    }
+
+    /**
+     * Memproses satu record absensi siswa atau guru dengan penguncian scan pertama
      */
     public function processAttendanceRecord(
         string $pin,
@@ -412,368 +649,529 @@ class FingerspotAttendanceController extends Controller
         $statusScan = 0,
         ?string $forcedTipe = null
     ): array {
-        $cleanPin = trim($pin);
+        $pinVariants = $this->buildPinVariants($pin);
 
-        // Varian PIN untuk pencocokan fleksibel (mendukung integer, leading-zeros, NISN, NIS, ID Finger)
-        $trimmedPin = ltrim($cleanPin, '0');
-        $pinVariants = array_values(array_unique(array_filter([
-            $cleanPin,
-            $trimmedPin ?: '0',
-            (is_numeric($cleanPin) && strlen($cleanPin) < 10) ? str_pad($cleanPin, 10, '0', STR_PAD_LEFT) : null,
-            (is_numeric($cleanPin) && strlen($cleanPin) < 4)  ? str_pad($cleanPin, 4, '0', STR_PAD_LEFT) : null,
-            (is_numeric($cleanPin) && strlen($cleanPin) < 5)  ? str_pad($cleanPin, 5, '0', STR_PAD_LEFT) : null,
-            (is_numeric($cleanPin) && strlen($cleanPin) < 6)  ? str_pad($cleanPin, 6, '0', STR_PAD_LEFT) : null,
-        ])));
+        // 1. Cari di data biometrik eksplisit Siswa terlebih dahulu, lalu Guru, lalu NISN/NIS
+        $student = $this->findStudentByBiometricPin($pinVariants);
 
-        // 1. Cari Siswa tanpa terhalang global scope institution
-        $student = Student::withoutGlobalScopes()
-            ->with(['classroom' => fn ($q) => $q->withoutGlobalScopes()])
-            ->where(function ($query) use ($pinVariants) {
-                if (Schema::hasColumn('students', 'id_finger')) {
-                    $query->whereIn('id_finger', $pinVariants);
-                }
-                if (Schema::hasColumn('students', 'fingerspot_pin')) {
-                    $query->orWhereIn('fingerspot_pin', $pinVariants);
-                }
-                if (Schema::hasColumn('students', 'nisn')) {
-                    $query->orWhereIn('nisn', $pinVariants);
-                }
-                $query->orWhereIn('nis', $pinVariants);
-
-                if (Schema::hasColumn('students', 'hikvision_employee_no')) {
-                    $query->orWhereIn('hikvision_employee_no', $pinVariants);
-                }
-                if (Schema::hasColumn('students', 'nfc_card_no')) {
-                    $query->orWhereIn('nfc_card_no', $pinVariants);
-                }
-                if (is_numeric($pinVariants[0])) {
-                    $query->orWhere('id', (int) $pinVariants[0]);
-                }
-            })
-            ->first();
-
-        // 2. Jika tidak ditemukan pada siswa, cek pada Guru / Pegawai (User)
         if (!$student) {
-            $teacher = User::withoutGlobalScopes()
-                ->where(function ($query) use ($pinVariants) {
-                    if (Schema::hasColumn('users', 'id_finger')) {
-                        $query->whereIn('id_finger', $pinVariants);
-                    }
-                    if (Schema::hasColumn('users', 'fingerspot_pin')) {
-                        $query->orWhereIn('fingerspot_pin', $pinVariants);
-                    }
-                    if (Schema::hasColumn('users', 'no_induk_yayasan')) {
-                        $query->orWhereIn('no_induk_yayasan', $pinVariants);
-                    }
-                    if (Schema::hasColumn('users', 'nuptk')) {
-                        $query->orWhereIn('nuptk', $pinVariants);
-                    }
-                    if (Schema::hasColumn('users', 'nik')) {
-                        $query->orWhereIn('nik', $pinVariants);
-                    }
-                    if (is_numeric($pinVariants[0])) {
-                        $query->orWhere('id', (int) $pinVariants[0]);
-                    }
-                })->first();
-
+            $teacher = $this->findTeacherByBiometricPin($pinVariants);
             if ($teacher) {
-                try {
-                    $now = $scanDate ? Carbon::parse($scanDate)->setTimezone('Asia/Jakarta') : Carbon::now('Asia/Jakarta');
-                } catch (\Throwable $e) {
-                    $now = Carbon::now('Asia/Jakarta');
-                }
-                $metode = $this->mapVerifyMode($verifyMode);
-                return $this->processTeacherAttendance($teacher, $now, $metode, $statusScan);
+                return $this->processTeacherScan($teacher, $scanDate, $verifyMode, $statusScan);
             }
 
-            // Simpan ke Cache Unmatched PINs untuk memudahkan diagnosa guru / admin
-            $unmatched = Cache::get('fingerspot_last_unmatched_pins', []);
-            array_unshift($unmatched, [
-                'pin'              => $pin,
-                'variants_checked' => $pinVariants,
-                'time'             => now()->setTimezone('Asia/Jakarta')->format('Y-m-d H:i:s'),
-            ]);
-            Cache::put('fingerspot_last_unmatched_pins', array_slice($unmatched, 0, 20), now()->addDays(7));
+            // Fallback ke NISN / NIS Siswa
+            $student = $this->findStudentByAcademicPin($pinVariants);
+        }
 
-            Log::warning("Fingerspot: PIN/ID Finger '{$pin}' tidak terdaftar di database siswa maupun guru.", [
-                'variants_checked' => $pinVariants,
-            ]);
+        if (!$student) {
+            // Fallback ke NIY / NUPTK Guru
+            $teacher = $this->findTeacherByEmployeePin($pinVariants);
+            if ($teacher) {
+                return $this->processTeacherScan($teacher, $scanDate, $verifyMode, $statusScan);
+            }
+
+            $this->recordUnmatchedPin($pin, $pinVariants);
 
             return [
                 'status'  => 'not_found',
                 'pin'     => $pin,
-                'message' => "Pengguna dengan PIN / ID Finger '{$pin}' belum didaftarkan di Data Siswa maupun Data Guru. Silakan masukkan angka '{$pin}' ke kolom 'ID Finger' di Data Siswa.",
+                'message' => "Pengguna dengan PIN / ID Finger '{$pin}' belum didaftarkan di Data Siswa maupun Data Guru. Silakan isi angka '{$pin}' ke kolom 'ID Finger' di Data Siswa.",
             ];
         }
 
-        // 3. Parse waktu scan (WIB)
-        try {
-            $now = $scanDate ? Carbon::parse($scanDate)->setTimezone('Asia/Jakarta') : Carbon::now('Asia/Jakarta');
-        } catch (\Throwable $e) {
-            $now = Carbon::now('Asia/Jakarta');
-        }
+        $now = $this->parseScanTimestamp($scanDate);
         $today = $now->toDateString();
-
-        // 4. Tentukan metode verifikasi
         $metode = $this->mapVerifyMode($verifyMode);
-
-        // 5. Deteksi tipe absen berdasarkan slot jam sekolah SMPI Baitul Makmur (atau tipe yang dipaksa)
         $tipe = $forcedTipe ?: $this->deteksiTipe($now, $statusScan);
+        $rule = self::SCHEDULE_RULES[$tipe] ?? self::SCHEDULE_RULES['masuk'];
 
-        // 6. Pastikan institution_id selalu mengarah ke unit SMP (ID = 2) dan bukan Yayasan (1)
         $institutionId = $student->institution_id ?: ($student->classroom?->institution_id ?: 2);
         if ($institutionId == 1) {
             $institutionId = 2; // SMPI Baitul Makmur
         }
 
-        $systemUserId = auth()->id() ?? User::withoutGlobalScopes()->where('institution_id', 2)->value('id') ?? 1;
+        $systemUserId = auth()->id()
+            ?? User::withoutGlobalScopes()->where('institution_id', 2)->value('id')
+            ?? User::withoutGlobalScopes()->value('id')
+            ?? 1;
 
-        // 7. Cek halangan siswi (untuk waktu sholat dhuhur & ashar)
-        if ($student->jenis_kelamin === 'P' && in_array($tipe, ['sholat_dhuhur', 'sholat_ashar'])) {
-            if (StudentHalangan::isHalangan($student->id, $today)) {
-                DailyAttendance::withoutGlobalScopes()->firstOrCreate(
-                    [
-                        'student_id' => $student->id,
-                        'tanggal'    => $today,
-                        'tipe_absen' => $tipe,
-                    ],
-                    [
-                        'institution_id' => $institutionId,
-                        'teacher_id'     => $systemUserId,
-                        'metode_absen'   => $metode,
-                        'status'         => 'halangan',
-                        'is_late'        => false,
-                        'keterangan'     => "Siswi halangan (Udzur Syar'i) - via Fingerspot Revo W230N",
-                    ]
-                );
+        // Eksekusi pengecekan + penyimpanan di dalam lock atomik per (siswa, tanggal, sesi)
+        // agar dua scan berdekatan atau webhook paralel tidak pernah menghasilkan data ganda
+        $lockKey = "fs_lock_{$student->id}_{$today}_{$rule['lock_group']}";
 
-                $this->recordRecentScan($student->name, $tipe, $metode, $now->format('H:i:s'), 'halangan');
-
-                Log::info("Fingerspot: Siswi halangan dicatat ({$student->name} - {$tipe})");
-                return [
-                    'status'  => 'success',
-                    'action'  => 'halangan',
-                    'student' => $student->name,
-                    'tipe'    => $tipe,
-                    'message' => "Siswi {$student->name} tercatat Halangan untuk {$tipe}",
-                ];
-            }
-        }
-
-        // 8. Cek apakah siswa sudah tercatat Sakit, Izin, atau Alpa hari ini oleh Guru Piket
-        $excusedToday = DailyAttendance::withoutGlobalScopes()
-            ->where('student_id', $student->id)
-            ->where('tanggal', $today)
-            ->whereIn('status', ['sakit', 'izin', 'alpa'])
-            ->first();
-
-        if ($excusedToday && in_array($tipe, ['sholat_dhuhur', 'sholat_ashar', 'pulang'])) {
-            Log::info("Fingerspot: Siswa {$student->name} tercatat {$excusedToday->status} hari ini oleh Guru Piket, scan {$tipe} diabaikan agar status izin tidak tertimpa.");
-            return [
-                'status'  => 'excused',
-                'action'  => 'ignored',
-                'student' => $student->name,
-                'tipe'    => $tipe,
-                'message' => "Siswa {$student->name} sudah tercatat {$excusedToday->status} hari ini oleh Guru Piket",
-            ];
-        }
-
-        // 9. Cek apakah sudah ada catatan absen pada tipe & tanggal yang sama
-        $exists = DailyAttendance::withoutGlobalScopes()
-            ->where('student_id', $student->id)
-            ->where('tanggal', $today)
-            ->where('tipe_absen', $tipe)
-            ->first();
-
-        if ($exists) {
-            return [
-                'status'  => 'duplicate',
-                'student' => $student->name,
-                'tipe'    => $tipe,
-                'message' => "Siswa {$student->name} sudah tercatat untuk {$tipe} hari ini pada jam {$exists->waktu_kedatangan}",
-            ];
-        }
-
-        // 10. Hitung Keterlambatan (hanya untuk absen masuk pagi)
-        $isLate = false;
-        $keterangan = ucfirst(str_replace('_', ' ', $tipe)) . " via Fingerspot ({$metode})";
-        if ($tipe === 'masuk') {
-            $batas = $now->copy()->setHour(7)->setMinute(15)->setSecond(0);
-            $isLate = $now->greaterThan($batas);
-            $keterangan = $isLate
-                ? "Terlambat ({$now->format('H:i')}) via Fingerspot ({$metode})"
-                : "Tepat Waktu via Fingerspot ({$metode})";
-        }
-
-        // 11. Simpan presensi utama
-        $attendance = DailyAttendance::withoutGlobalScopes()->create([
-            'student_id'       => $student->id,
-            'institution_id'   => $institutionId,
-            'teacher_id'       => $systemUserId,
-            'tanggal'          => $today,
-            'tipe_absen'       => $tipe,
-            'metode_absen'     => $metode,
-            'waktu_kedatangan' => in_array($tipe, ['masuk', 'sholat_dhuha', 'sholat_dhuhur', 'sholat_ashar']) ? $now->format('H:i:s') : null,
-            'waktu_kepulangan' => $tipe === 'pulang' ? $now->format('H:i:s') : null,
-            'status'           => 'hadir',
-            'is_late'          => $isLate,
-            'keterangan'       => $keterangan,
-        ]);
-
-        // 12. FITUR PINTAR INTEGRASI TOTAL:
-        // Jika scan dilakukan siang hari (sholat_dhuhur / sholat_ashar / pulang) dan siswa BELUM punya presensi masuk pagi ini,
-        // otomatis buatkan juga presensi masuk agar rekap "Kehadiran Harian" siswa tidak kosong/alpa!
-        if (in_array($tipe, ['sholat_dhuhur', 'sholat_ashar', 'pulang'])) {
-            $hasMasuk = DailyAttendance::withoutGlobalScopes()
+        return $this->runWithLock($lockKey, function () use ($student, $now, $today, $metode, $tipe, $rule, $institutionId, $systemUserId, $pin) {
+            // Cek apakah siswa sudah tercatat Sakit / Izin / Alpa hari ini oleh Guru Piket
+            $excusedToday = DailyAttendance::withoutGlobalScopes()
                 ->where('student_id', $student->id)
                 ->where('tanggal', $today)
-                ->where('tipe_absen', 'masuk')
-                ->exists();
+                ->whereIn('status', ['sakit', 'izin', 'alpa'])
+                ->first();
 
-            if (!$hasMasuk) {
-                DailyAttendance::withoutGlobalScopes()->create([
-                    'student_id'       => $student->id,
-                    'institution_id'   => $institutionId,
-                    'teacher_id'       => $systemUserId,
-                    'tanggal'          => $today,
-                    'tipe_absen'       => 'masuk',
-                    'metode_absen'     => $metode,
-                    'waktu_kedatangan' => $now->format('H:i:s'),
-                    'status'           => 'hadir',
-                    'is_late'          => false,
-                    'keterangan'       => "Hadir (Tercatat via Scan Siang {$tipe} Fingerspot)",
-                ]);
-                Log::info("Fingerspot: Otomatis mencatat presensi masuk pagi untuk {$student->name} dari scan siang ({$tipe})");
+            if ($excusedToday && $tipe !== 'masuk') {
+                Log::info("Fingerspot: Siswa {$student->name} berstatus {$excusedToday->status}, scan {$tipe} diabaikan.");
+                return [
+                    'status'  => 'excused',
+                    'action'  => 'ignored',
+                    'student' => $student->name,
+                    'tipe'    => $tipe,
+                    'message' => "Siswa {$student->name} sudah tercatat {$excusedToday->status} hari ini oleh Guru Piket",
+                ];
             }
+
+            // PENGUNCIAN SCAN PERTAMA: Cek apakah sudah ada record di sesi yang sama hari ini
+            $existingSession = DailyAttendance::withoutGlobalScopes()
+                ->where('student_id', $student->id)
+                ->where('tanggal', $today)
+                ->whereIn('tipe_absen', $rule['check_tipes'])
+                ->first();
+
+            if ($existingSession) {
+                // Jika sudah tercatat sakit/izin/alpa di pagi hari, laporkan status excused
+                if ($excusedToday && $tipe === 'masuk') {
+                    return [
+                        'status'  => 'excused',
+                        'action'  => 'ignored',
+                        'locked'  => true,
+                        'student' => $student->name,
+                        'tipe'    => $tipe,
+                        'message' => "Siswa {$student->name} sudah tercatat {$excusedToday->status} hari ini oleh Guru Piket",
+                    ];
+                }
+
+                return [
+                    'status'          => 'duplicate',
+                    'locked'          => true,
+                    'student'         => $student->name,
+                    'tipe'            => $tipe,
+                    'first_scan_time' => $existingSession->waktu_kedatangan,
+                    'message'         => "Terkunci: {$student->name} sudah absen {$rule['label']} pada jam " . ($existingSession->waktu_kedatangan ?? '-') . ' (1x per waktu)',
+                ];
+            }
+
+            // Cek halangan siswi (untuk sholat dhuhur & sholat ashar)
+            if ($student->jenis_kelamin === 'P' && in_array($tipe, ['sholat_dhuhur', 'sholat_ashar'])) {
+                if (StudentHalangan::isHalangan($student->id, $today)) {
+                    DailyAttendance::withoutGlobalScopes()->create([
+                        'student_id'       => $student->id,
+                        'institution_id'   => $institutionId,
+                        'teacher_id'       => $systemUserId,
+                        'tanggal'          => $today,
+                        'tipe_absen'       => $tipe,
+                        'metode_absen'     => $metode,
+                        'waktu_kedatangan' => $now->format('H:i:s'),
+                        'status'           => 'halangan',
+                        'is_late'          => false,
+                        'keterangan'       => "Siswi halangan (Udzur Syar'i) - scan {$now->format('H:i')} via Fingerspot Revo W230N",
+                    ]);
+
+                    $this->recordRecentScan($student->name, $tipe, $metode, $now->format('H:i:s'), 'halangan', false);
+
+                    return [
+                        'status'  => 'success',
+                        'action'  => 'halangan',
+                        'student' => $student->name,
+                        'tipe'    => $tipe,
+                        'message' => "Siswi {$student->name} tercatat Halangan untuk {$rule['label']}",
+                    ];
+                }
+            }
+
+            // Evaluasi ketepatan waktu sesuai jadwal resmi (06:50, 12:15, 15:15)
+            $timing = $this->evaluateAttendanceTiming($tipe, $now, $metode);
+
+            // Simpan presensi (1 scan = tepat 1 record terkunci untuk sesi ini)
+            DailyAttendance::withoutGlobalScopes()->create([
+                'student_id'       => $student->id,
+                'institution_id'   => $institutionId,
+                'teacher_id'       => $systemUserId,
+                'tanggal'          => $today,
+                'tipe_absen'       => $tipe,
+                'metode_absen'     => $metode,
+                'waktu_kedatangan' => $now->format('H:i:s'),
+                'status'           => 'hadir',
+                'is_late'          => $timing['is_late'],
+                'keterangan'       => $timing['keterangan'],
+            ]);
+
+            $this->recordRecentScan($student->name, $tipe, $metode, $now->format('H:i:s'), 'hadir', $timing['is_late']);
+
+            Log::info('Fingerspot: Presensi siswa tersimpan', [
+                'student' => $student->name,
+                'pin'     => $pin,
+                'tipe'    => $tipe,
+                'jam'     => $now->format('H:i:s'),
+                'is_late' => $timing['is_late'],
+            ]);
+
+            return [
+                'status'     => 'success',
+                'student'    => $student->name,
+                'nis'        => $student->nis,
+                'kelas'      => $student->classroom->name ?? '-',
+                'tipe'       => $tipe,
+                'label'      => $rule['label'],
+                'metode'     => $metode,
+                'jam'        => $now->format('H:i'),
+                'is_late'    => $timing['is_late'],
+                'keterangan' => $timing['keterangan'],
+            ];
+        });
+    }
+
+    /**
+     * Evaluasi keterlambatan & buat catatan keterangan otomatis untuk semua sesi:
+     * - Masuk: batas 06:50
+     * - Sholat Dhuhur: batas 12:15
+     * - Sholat Ashar & Pulang: batas 15:15
+     */
+    private function evaluateAttendanceTiming(string $tipe, Carbon $waktu, string $metode): array
+    {
+        $rule = self::SCHEDULE_RULES[$tipe] ?? self::SCHEDULE_RULES['masuk'];
+        $scanMinutes = ($waktu->hour * 60) + $waktu->minute;
+        $limitMinutes = ($rule['limit_hour'] * 60) + $rule['limit_minute'];
+        $isLate = $scanMinutes > $limitMinutes;
+        $jamScan = $waktu->format('H:i');
+
+        if ($isLate) {
+            $lateBy = $scanMinutes - $limitMinutes;
+            $keterangan = "Terlambat {$rule['label']} (+{$lateBy} menit, scan {$jamScan}, batas {$rule['limit_str']}) via Fingerspot ({$metode})";
+        } else {
+            $keterangan = "{$rule['label']} - Tepat Waktu ({$jamScan}) via Fingerspot ({$metode})";
         }
 
-        $this->recordRecentScan($student->name, $tipe, $metode, $now->format('H:i:s'), 'hadir');
-
-        Log::info("Fingerspot: Presensi berhasil disimpan", [
-            'student' => $student->name,
-            'pin'     => $pin,
-            'tipe'    => $tipe,
-            'metode'  => $metode,
-            'jam'     => $now->format('H:i:s'),
-            'is_late' => $isLate,
-        ]);
-
         return [
-            'status'   => 'success',
-            'student'  => $student->name,
-            'nis'      => $student->nis,
-            'kelas'    => $student->classroom->name ?? '-',
-            'tipe'     => $tipe,
-            'metode'   => $metode,
-            'jam'      => $now->format('H:i'),
-            'is_late'  => $isLate,
+            'is_late'    => $isLate,
+            'keterangan' => $keterangan,
         ];
     }
 
     /**
-     * Catat log scan sukses ke Cache untuk monitoring live
+     * Deteksi Sesi / Tipe Absen berdasarkan waktu scan WIB:
+     * - 00:00 - 11:29 : Masuk Pagi (Normal: 06.00 - 06.50, > 06.50 = Terlambat)
+     * - 11:30 - 14:29 : Sholat Dhuhur (Normal: 12.00 - 12.15, > 12.15 = Terlambat)
+     * - 14:30 - 23:59 : Sholat Ashar & Pulang (Normal: 15.00 - 15.15, > 15.15 = Terlambat)
      */
-    protected function recordRecentScan(string $name, string $tipe, string $metode, string $time, string $status): void
+    private function deteksiTipe(Carbon $waktu, $statusScan = null): string
+    {
+        $totalMinutes = ($waktu->hour * 60) + $waktu->minute;
+
+        // Sebelum 11:30 WIB -> Sesi Masuk Pagi
+        if ($totalMinutes < (11 * 60 + 30)) {
+            return 'masuk';
+        }
+
+        // 11:30 s/d 14:29 WIB -> Sesi Sholat Dhuhur
+        if ($totalMinutes < (14 * 60 + 30)) {
+            return 'sholat_dhuhur';
+        }
+
+        // 14:30 s/d 23:59 WIB -> Sesi Sholat Ashar & Pulang
+        return 'sholat_ashar';
+    }
+
+    /**
+     * Proses scan guru / pegawai (mengunci scan pertama hari ini)
+     */
+    protected function processTeacherScan(User $teacher, ?string $scanDate, $verifyMode, $statusScan): array
+    {
+        $now = $this->parseScanTimestamp($scanDate);
+        $metode = $this->mapVerifyMode($verifyMode);
+        $today = $now->toDateString();
+
+        $institutionId = $teacher->institution_id ?? 2;
+        if ($institutionId == 1) {
+            $institutionId = 2;
+        }
+
+        $lockKey = "fs_lock_teacher_{$teacher->id}_{$today}";
+
+        return $this->runWithLock($lockKey, function () use ($teacher, $now, $today, $institutionId, $metode) {
+            $existing = TeacherAttendance::withoutGlobalScopes()
+                ->where('teacher_id', $teacher->id)
+                ->where('tanggal', $today)
+                ->first();
+
+            if ($existing) {
+                return [
+                    'status'  => 'duplicate',
+                    'locked'  => true,
+                    'action'  => 'teacher_attendance',
+                    'teacher' => $teacher->name,
+                    'message' => "Terkunci: {$teacher->name} sudah absen masuk hari ini",
+                ];
+            }
+
+            TeacherAttendance::withoutGlobalScopes()->create([
+                'teacher_id'     => $teacher->id,
+                'institution_id' => $institutionId,
+                'tanggal'        => $today,
+                'status'         => 'masuk',
+                'created_at'     => $now,
+            ]);
+
+            $this->recordRecentScan($teacher->name, 'guru_masuk', $metode, $now->format('H:i:s'), 'masuk', false);
+
+            return [
+                'status'  => 'success',
+                'action'  => 'teacher_attendance',
+                'teacher' => $teacher->name,
+                'time'    => $now->toDateTimeString(),
+                'metode'  => $metode,
+            ];
+        });
+    }
+
+    /**
+     * Cari siswa berdasarkan kolom biometrik eksplisit (tanpa menabrak ID database acak)
+     */
+    private function findStudentByBiometricPin(array $pinVariants): ?Student
+    {
+        return Student::withoutGlobalScopes()
+            ->with(['classroom' => fn ($q) => $q->withoutGlobalScopes()])
+            ->where(function ($query) use ($pinVariants) {
+                $hasCondition = false;
+                foreach (['id_finger', 'fingerspot_pin', 'hikvision_employee_no', 'nfc_card_no'] as $col) {
+                    if (Schema::hasColumn('students', $col)) {
+                        $hasCondition ? $query->orWhereIn($col, $pinVariants) : $query->whereIn($col, $pinVariants);
+                        $hasCondition = true;
+                    }
+                }
+                if (!$hasCondition) {
+                    $query->whereRaw('1 = 0');
+                }
+            })
+            ->first();
+    }
+
+    private function findStudentByAcademicPin(array $pinVariants): ?Student
+    {
+        return Student::withoutGlobalScopes()
+            ->with(['classroom' => fn ($q) => $q->withoutGlobalScopes()])
+            ->where(function ($query) use ($pinVariants) {
+                $query->whereIn('nis', $pinVariants);
+                if (Schema::hasColumn('students', 'nisn')) {
+                    $query->orWhereIn('nisn', $pinVariants);
+                }
+            })
+            ->first();
+    }
+
+    private function findTeacherByBiometricPin(array $pinVariants): ?User
+    {
+        return User::withoutGlobalScopes()
+            ->where(function ($query) use ($pinVariants) {
+                $hasCondition = false;
+                foreach (['id_finger', 'fingerspot_pin'] as $col) {
+                    if (Schema::hasColumn('users', $col)) {
+                        $hasCondition ? $query->orWhereIn($col, $pinVariants) : $query->whereIn($col, $pinVariants);
+                        $hasCondition = true;
+                    }
+                }
+                if (!$hasCondition) {
+                    $query->whereRaw('1 = 0');
+                }
+            })
+            ->first();
+    }
+
+    private function findTeacherByEmployeePin(array $pinVariants): ?User
+    {
+        return User::withoutGlobalScopes()
+            ->where(function ($query) use ($pinVariants) {
+                $hasCondition = false;
+                foreach (['no_induk_yayasan', 'nuptk'] as $col) {
+                    if (Schema::hasColumn('users', $col)) {
+                        $hasCondition ? $query->orWhereIn($col, $pinVariants) : $query->whereIn($col, $pinVariants);
+                        $hasCondition = true;
+                    }
+                }
+                if (!$hasCondition) {
+                    $query->whereRaw('1 = 0');
+                }
+            })
+            ->first();
+    }
+
+    private function buildPinVariants(string $pin): array
+    {
+        $clean = trim($pin);
+        $trimmedZero = ltrim($clean, '0');
+        $variants = [
+            $clean,
+            $trimmedZero === '' ? '0' : $trimmedZero,
+            (is_numeric($clean) && strlen($clean) < 10) ? str_pad($clean, 10, '0', STR_PAD_LEFT) : null,
+            (is_numeric($clean) && strlen($clean) < 4)  ? str_pad($clean, 4, '0', STR_PAD_LEFT) : null,
+        ];
+
+        return array_values(array_unique(array_filter(
+            $variants,
+            fn ($v) => $v !== null && $v !== ''
+        )));
+    }
+
+    private function parseScanTimestamp(?string $scanDate): Carbon
+    {
+        try {
+            return $scanDate
+                ? Carbon::parse($scanDate, 'Asia/Jakarta')->setTimezone('Asia/Jakarta')
+                : Carbon::now('Asia/Jakarta');
+        } catch (\Throwable $e) {
+            return Carbon::now('Asia/Jakarta');
+        }
+    }
+
+    /**
+     * Jalankan closure di dalam atomic lock dengan fallback aman untuk segala driver cache
+     */
+    private function runWithLock(string $key, \Closure $callback): array
+    {
+        try {
+            return Cache::lock($key, 5)->block(3, $callback);
+        } catch (\Throwable $e) {
+            return $callback();
+        }
+    }
+
+    private function getConfiguredApiKey(): ?string
+    {
+        $config = $this->getCloudConfig();
+        return config('services.fingerspot.api_key')
+            ?: env('FINGERSPOT_API_KEY')
+            ?: ($config['api_key'] ?? '94PM7O0GL1A4M1MR');
+    }
+
+    private function extractIncomingApiKey(Request $request): ?string
+    {
+        $key = $request->header('X-API-KEY')
+            ?? $request->bearerToken()
+            ?? $request->header('Authorization')
+            ?? $request->header('api-key')
+            ?? $request->header('apikey')
+            ?? $request->header('key')
+            ?? $request->query('api_key')
+            ?? $request->query('token')
+            ?? $request->query('key')
+            ?? $request->input('api_key')
+            ?? $request->input('token')
+            ?? $request->input('key');
+
+        return $key ? trim(str_ireplace('Bearer ', '', $key)) : null;
+    }
+
+    public function getCloudConfig(): array
+    {
+        $stored = $this->readJsonFile(self::CONFIG_FILE, []);
+        return array_merge([
+            'api_key'  => config('services.fingerspot.api_key', env('FINGERSPOT_API_KEY')) ?: '94PM7O0GL1A4M1MR',
+            'cloud_id' => env('FINGERSPOT_CLOUD_ID') ?: config('services.fingerspot.cloud_id'),
+        ], $stored);
+    }
+
+    public function saveCloudConfig(array $data): void
+    {
+        $current = $this->readJsonFile(self::CONFIG_FILE, []);
+        $merged = array_merge($current, $data);
+        $this->writeJsonFile(self::CONFIG_FILE, $merged);
+    }
+
+    private function autoRememberCloudId(string $cloudId): void
+    {
+        try {
+            $config = $this->readJsonFile(self::CONFIG_FILE, []);
+            if (($config['cloud_id'] ?? null) !== $cloudId) {
+                $this->saveCloudConfig(['cloud_id' => $cloudId]);
+            }
+        } catch (\Throwable $e) {}
+    }
+
+    private function recordRawWebhookHit(Request $request): void
+    {
+        try {
+            $logs = $this->readJsonFile(self::WEBHOOK_LOG_FILE, []);
+            array_unshift($logs, [
+                'time'   => now()->setTimezone('Asia/Jakarta')->format('Y-m-d H:i:s'),
+                'ip'     => $request->ip(),
+                'method' => $request->method(),
+                'path'   => '/' . ltrim($request->path(), '/'),
+                'keys'   => array_keys($request->all()),
+                'raw'    => substr((string) $request->getContent(), 0, 500),
+            ]);
+            $this->writeJsonFile(self::WEBHOOK_LOG_FILE, array_slice($logs, 0, 25));
+        } catch (\Throwable $e) {}
+    }
+
+    private function recordUnmatchedPin(string $pin, array $variants): void
+    {
+        try {
+            $unmatched = Cache::get('fingerspot_last_unmatched_pins', []);
+            array_unshift($unmatched, [
+                'pin'              => $pin,
+                'variants_checked' => $variants,
+                'time'             => now()->setTimezone('Asia/Jakarta')->format('Y-m-d H:i:s'),
+            ]);
+            Cache::put('fingerspot_last_unmatched_pins', array_slice($unmatched, 0, 20), now()->addDays(7));
+        } catch (\Throwable $e) {}
+
+        Log::warning("Fingerspot: PIN/ID Finger '{$pin}' tidak ditemukan di database siswa maupun guru.", [
+            'variants_checked' => $variants,
+        ]);
+    }
+
+    private function recordRecentScan(string $name, string $tipe, string $metode, string $time, string $status, bool $isLate): void
     {
         try {
             $scans = Cache::get('fingerspot_recent_scans', []);
             array_unshift($scans, [
-                'nama'   => $name,
-                'tipe'   => $tipe,
-                'metode' => $metode,
-                'jam'    => $time,
-                'status' => $status,
-                'date'   => now()->setTimezone('Asia/Jakarta')->format('Y-m-d'),
+                'nama'    => $name,
+                'tipe'    => $tipe,
+                'metode'  => $metode,
+                'jam'     => $time,
+                'status'  => $status,
+                'is_late' => $isLate,
+                'date'    => now()->setTimezone('Asia/Jakarta')->format('Y-m-d'),
             ]);
             Cache::put('fingerspot_recent_scans', array_slice($scans, 0, 30), now()->addDays(7));
         } catch (\Throwable $e) {}
     }
 
-    /**
-     * Proses pencatatan presensi kehadiran Guru / Pegawai dari mesin Fingerprint
-     */
-    protected function processTeacherAttendance(User $teacher, Carbon $now, string $metode, $statusScan = 0): array
+    private function readJsonFile(string $filename, array $default = []): array
     {
-        $today = $now->toDateString();
-        $institutionId = $teacher->institution_id ?? 2;
-        if ($institutionId == 1) {
-            $institutionId = 2; // SMP
+        try {
+            $path = storage_path('app/' . $filename);
+            if (!file_exists($path)) {
+                return $default;
+            }
+            $decoded = json_decode((string) file_get_contents($path), true);
+            return is_array($decoded) ? $decoded : $default;
+        } catch (\Throwable $e) {
+            return $default;
         }
-
-        // Cek atau buat presensi kehadiran guru hari ini
-        $attendance = TeacherAttendance::withoutGlobalScopes()->firstOrCreate(
-            [
-                'teacher_id' => $teacher->id,
-                'tanggal'    => $today,
-            ],
-            [
-                'institution_id' => $institutionId,
-                'status'         => 'hadir',
-                'created_at'     => $now,
-            ]
-        );
-
-        $this->recordRecentScan($teacher->name, 'guru_hadir', $metode, $now->format('H:i:s'), 'hadir');
-
-        Log::info("Fingerspot: Presensi Guru Berhasil ({$teacher->name} - {$today} {$now->format('H:i')}) via {$metode}");
-
-        return [
-            'status'  => 'success',
-            'action'  => 'teacher_attendance',
-            'teacher' => $teacher->name,
-            'time'    => $now->toDateTimeString(),
-            'metode'  => $metode,
-        ];
     }
 
-    /**
-     * Pemetaan Kode Verifikasi Fingerspot Revo W230N ke nama metode sistem
-     * 1 = Sidik Jari (Fingerprint)
-     * 2 = Password / PIN
-     * 3 = Kartu RFID / NFC
-     * 4 = Wajah (Face)
-     * 6 = Vein
-     * 7 = QR Code
-     */
+    private function writeJsonFile(string $filename, array $data): void
+    {
+        try {
+            $dir = storage_path('app');
+            if (!is_dir($dir)) {
+                @mkdir($dir, 0755, true);
+            }
+            @file_put_contents(storage_path('app/' . $filename), json_encode($data, JSON_PRETTY_PRINT));
+        } catch (\Throwable $e) {}
+    }
+
     private function mapVerifyMode($mode): string
     {
         $modeStr = strtolower((string) $mode);
 
         return match ($modeStr) {
-            '1', 'fingerprint', 'fp', 'finger'  => 'fingerprint',
-            '2', 'password', 'pin', 'pwd'       => 'password',
-            '3', 'card', 'rfid', 'nfc'          => 'nfc_card',
-            '4', 'face', 'faceid'               => 'face_recognition',
-            '6', 'vein'                         => 'vein',
-            '7', 'qr', 'qrcode'                 => 'scan_barcode',
-            default                             => 'fingerprint',
+            '1', 'fingerprint', 'fp', 'finger' => 'fingerprint',
+            '2', 'password', 'pin', 'pwd'      => 'password',
+            '3', 'card', 'rfid', 'nfc'         => 'nfc_card',
+            '4', 'face', 'faceid'              => 'face_recognition',
+            '6', 'vein'                        => 'vein',
+            '7', 'qr', 'qrcode'                => 'scan_barcode',
+            default                            => 'fingerprint',
         };
-    }
-
-    /**
-     * Deteksi Tipe Absen berdasarkan Jam Sekolah SMPI Baitul Makmur:
-     * - 05:00 - 11:14 : Absen Masuk Pagi
-     * - 11:15 - 13:45 : Absensi Sholat Dhuhur Berjamaah
-     * - 13:46 - 15:45 : Absensi Sholat Ashar Berjamaah
-     * - >= 15:46      : Absen Kepulangan
-     */
-    private function deteksiTipe(Carbon $waktu, $statusScan = null): string
-    {
-        $jam = $waktu->hour * 60 + $waktu->minute;
-
-        // < 11:15 (675 menit) -> Masuk Pagi
-        if ($jam < (11 * 60 + 15)) {
-            return 'masuk';
-        }
-        // 11:15 - 13:45 (825 menit) -> Sholat Dhuhur
-        if ($jam <= (13 * 60 + 45)) {
-            return 'sholat_dhuhur';
-        }
-        // 13:46 - 15:45 (945 menit) -> Sholat Ashar
-        if ($jam <= (15 * 60 + 45)) {
-            return 'sholat_ashar';
-        }
-        // >= 15:46 -> Pulang
-        return 'pulang';
     }
 }

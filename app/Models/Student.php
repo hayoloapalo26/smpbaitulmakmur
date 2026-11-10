@@ -172,12 +172,13 @@ class Student extends Model
     }
 
     /**
-     * Accessor untuk Fingerspot PIN (otomatis fallback ke hikvision_employee_no jika belum diisi)
+     * Accessor untuk Fingerspot PIN (otomatis fallback ke id_finger / hikvision_employee_no jika belum diisi)
      */
     public function getFingerspotPinAttribute(): ?string
     {
-        return $this->attributes['fingerspot_pin'] 
-            ?? $this->attributes['hikvision_employee_no'] 
+        return $this->attributes['fingerspot_pin']
+            ?? $this->attributes['id_finger']
+            ?? $this->attributes['hikvision_employee_no']
             ?? null;
     }
 
@@ -192,15 +193,30 @@ class Student extends Model
                 $student->institution_id = 2;
             }
 
-            // Sinkronisasi otomatis antara id_finger, fingerspot_pin, dan hikvision_employee_no
-            $fingerVal = $student->attributes['id_finger'] 
-                ?? ($student->attributes['fingerspot_pin'] 
-                ?? ($student->attributes['hikvision_employee_no'] ?? null));
-
-            if (!empty($fingerVal)) {
-                $student->attributes['id_finger'] = $fingerVal;
+            // Sinkronisasi dua arah antara id_finger, fingerspot_pin, dan hikvision_employee_no
+            // Prioritaskan kolom yang baru saja diubah (isDirty) agar perubahan ID Finger tidak tertimpa nilai lama
+            if ($student->isDirty('id_finger')) {
+                $fingerVal = $student->attributes['id_finger'] ?? null;
                 $student->attributes['fingerspot_pin'] = $fingerVal;
                 $student->attributes['hikvision_employee_no'] = $fingerVal;
+            } elseif ($student->isDirty('fingerspot_pin')) {
+                $fingerVal = $student->attributes['fingerspot_pin'] ?? null;
+                $student->attributes['id_finger'] = $fingerVal;
+                $student->attributes['hikvision_employee_no'] = $fingerVal;
+            } elseif ($student->isDirty('hikvision_employee_no')) {
+                $fingerVal = $student->attributes['hikvision_employee_no'] ?? null;
+                $student->attributes['id_finger'] = $fingerVal;
+                $student->attributes['fingerspot_pin'] = $fingerVal;
+            } else {
+                $fingerVal = $student->attributes['id_finger']
+                    ?? ($student->attributes['fingerspot_pin']
+                    ?? ($student->attributes['hikvision_employee_no'] ?? null));
+
+                if ($fingerVal !== null && $fingerVal !== '') {
+                    $student->attributes['id_finger'] = $fingerVal;
+                    $student->attributes['fingerspot_pin'] = $fingerVal;
+                    $student->attributes['hikvision_employee_no'] = $fingerVal;
+                }
             }
 
             // Sinkronisasi otomatis penempatan Al-Qur'an jika classroom_id mengarah ke rombel Al-Qur'an

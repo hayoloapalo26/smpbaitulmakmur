@@ -149,7 +149,7 @@ class PresensiIzinSiswaResource extends Resource
                         'masuk'         => '🏫 Kehadiran Harian (Masuk)',
                         'sholat_dhuha'  => '🕌 Sholat Dhuha',
                         'sholat_dhuhur' => '🕌 Sholat Dhuhur',
-                        'sholat_ashar'  => '🕌 Sholat Ashar',
+                        'sholat_ashar'  => '🕌 Sholat Ashar & Pulang',
                         'pulang'        => '🏠 Absen Pulang',
                     ])
                     ->default('masuk')
@@ -170,14 +170,14 @@ class PresensiIzinSiswaResource extends Resource
                     ->live(),
 
                 Forms\Components\TimePicker::make('waktu_kedatangan')
-                    ->label('Jam Kedatangan (Jika Hadir Masuk)')
-                    ->default('07:00')
-                    ->visible(fn (Forms\Get $get) => $get('status') === 'hadir' && $get('tipe_absen') === 'masuk'),
+                    ->label('Jam Scan / Kehadiran')
+                    ->default('06:30')
+                    ->visible(fn (Forms\Get $get) => $get('status') === 'hadir'),
 
                 Forms\Components\Toggle::make('is_late')
                     ->label('Terlambat?')
                     ->default(false)
-                    ->visible(fn (Forms\Get $get) => $get('status') === 'hadir' && $get('tipe_absen') === 'masuk'),
+                    ->visible(fn (Forms\Get $get) => $get('status') === 'hadir'),
 
                 Forms\Components\Textarea::make('keterangan')
                     ->label('Alasan / Keterangan Izin / Sakit / Alpha')
@@ -220,14 +220,14 @@ class PresensiIzinSiswaResource extends Resource
                         'masuk'         => '🏫 Harian (Masuk)',
                         'sholat_dhuha'  => '🕌 Sholat Dhuha',
                         'sholat_dhuhur' => '🕌 Sholat Dhuhur',
-                        'sholat_ashar'  => '🕌 Sholat Ashar',
+                        'sholat_ashar'  => '🕌 Sholat Ashar & Pulang',
                         'pulang'        => '🏠 Pulang',
                         default         => ucfirst((string) $state),
                     })
                     ->color(fn (?string $state): string => str_starts_with((string) $state, 'sholat_') ? 'warning' : 'gray'),
 
                 Tables\Columns\TextColumn::make('waktu_kedatangan')
-                    ->label('Jam Masuk')
+                    ->label('Jam Scan')
                     ->time('H:i')
                     ->placeholder('-'),
 
@@ -251,9 +251,30 @@ class PresensiIzinSiswaResource extends Resource
                         default    => ucfirst($state),
                     }),
 
-                Tables\Columns\IconColumn::make('is_late')
-                    ->label('Terlambat')
-                    ->boolean()
+                Tables\Columns\TextColumn::make('is_late')
+                    ->label('Ketepatan Waktu')
+                    ->default(false)
+                    ->badge()
+                    ->formatStateUsing(fn ($state, DailyAttendance $record): string => $record->status !== 'hadir'
+                        ? '-'
+                        : ($state ? '⏰ Terlambat' : '✅ Tepat Waktu'))
+                    ->color(fn ($state, DailyAttendance $record): string => $record->status !== 'hadir'
+                        ? 'gray'
+                        : ($state ? 'danger' : 'success'))
+                    ->toggleable(),
+
+                Tables\Columns\TextColumn::make('metode_absen')
+                    ->label('Sumber')
+                    ->badge()
+                    ->formatStateUsing(fn (?string $state): string => match ($state) {
+                        'fingerprint'      => '🖐️ Fingerspot',
+                        'face_recognition' => '😊 Face ID',
+                        'nfc_card'         => '💳 Kartu',
+                        'password'         => '🔢 PIN Mesin',
+                        'scan_barcode'     => '📱 QR Scan',
+                        default            => '✍️ Manual',
+                    })
+                    ->color(fn (?string $state): string => $state === 'fingerprint' ? 'primary' : 'gray')
                     ->toggleable(),
 
                 Tables\Columns\TextColumn::make('keterangan')
@@ -274,7 +295,7 @@ class PresensiIzinSiswaResource extends Resource
                     ->label('Dicatat Oleh')
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
-            ->defaultSort('tanggal', 'desc')
+            ->defaultSort('created_at', 'desc')
             ->filters([
                 Tables\Filters\SelectFilter::make('classroom_id')
                     ->label('Filter Kelas')
@@ -291,7 +312,7 @@ class PresensiIzinSiswaResource extends Resource
                         'masuk'         => 'Kehadiran Harian (Masuk)',
                         'sholat_dhuha'  => 'Sholat Dhuha',
                         'sholat_dhuhur' => 'Sholat Dhuhur',
-                        'sholat_ashar'  => 'Sholat Ashar',
+                        'sholat_ashar'  => 'Sholat Ashar & Pulang',
                         'pulang'        => 'Absen Pulang',
                     ]),
                 Tables\Filters\SelectFilter::make('status')
@@ -303,6 +324,10 @@ class PresensiIzinSiswaResource extends Resource
                         'alpa'     => 'Alpha',
                         'halangan' => 'Halangan',
                     ]),
+                Tables\Filters\TernaryFilter::make('is_late')
+                    ->label('Ketepatan Waktu')
+                    ->trueLabel('⏰ Terlambat')
+                    ->falseLabel('✅ Tepat Waktu'),
                 Tables\Filters\Filter::make('hari_ini')
                     ->label('Hanya Hari Ini')
                     ->query(fn (Builder $query) => $query->whereDate('tanggal', Carbon::today())),
