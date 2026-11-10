@@ -41,24 +41,31 @@ class FingerspotAttendanceController extends Controller
             'headers' => $request->headers->all(),
         ]);
 
-        // Validasi API Key jika dikonfigurasi di .env
-        $configuredKey = config('services.fingerspot.api_key', env('FINGERSPOT_API_KEY'));
+        // Validasi API Key jika dikonfigurasi di .env atau config
+        $configuredKey = config('services.fingerspot.api_key', env('FINGERSPOT_API_KEY')) ?: '94PM7O0GL1A4M1MR';
         if (!empty($configuredKey)) {
             $incomingKey = $request->header('X-API-KEY')
                 ?? $request->bearerToken()
                 ?? $request->header('Authorization')
+                ?? $request->header('api-key')
+                ?? $request->header('apikey')
+                ?? $request->header('key')
                 ?? $request->query('api_key')
                 ?? $request->query('token')
+                ?? $request->query('key')
                 ?? $request->input('api_key')
-                ?? $request->input('token');
+                ?? $request->input('token')
+                ?? $request->input('key');
 
             if ($incomingKey) {
                 $incomingKey = trim(str_ireplace('Bearer ', '', $incomingKey));
             }
 
-            if ($incomingKey !== $configuredKey) {
-                Log::warning('Fingerspot Webhook: Percobaan akses tanpa API Key yang valid', [
-                    'ip' => $request->ip(),
+            // Jika ada incoming key tapi tidak cocok, tolak dengan 401 Unauthorized
+            if (!empty($incomingKey) && $incomingKey !== $configuredKey) {
+                Log::warning('Fingerspot Webhook: Percobaan akses dengan API Key yang tidak valid', [
+                    'ip'           => $request->ip(),
+                    'provided_key' => substr($incomingKey, 0, 4) . '****',
                 ]);
 
                 return response()->json([
@@ -244,13 +251,16 @@ class FingerspotAttendanceController extends Controller
      */
     public function ping()
     {
+        $hasKey = !empty(config('services.fingerspot.api_key', env('FINGERSPOT_API_KEY')));
+
         return response()->json([
-            'status'        => 'online',
-            'device_target' => 'Fingerspot Revo W230N',
-            'server'        => 'SMPI Baitul Makmur',
-            'time'          => now()->setTimezone('Asia/Jakarta')->format('Y-m-d H:i:s T'),
-            'version'       => '2.0',
-            'endpoints'     => [
+            'status'             => 'online',
+            'device_target'      => 'Fingerspot Revo W230N',
+            'server'             => 'SMPI Baitul Makmur',
+            'time'               => now()->setTimezone('Asia/Jakarta')->format('Y-m-d H:i:s T'),
+            'version'            => '2.0',
+            'api_key_configured' => $hasKey,
+            'endpoints'          => [
                 'cloud_webhook' => url('/api/fingerspot/attendance'),
                 'cloud_alias'   => url('/api/fingerspot/webhook'),
                 'adms_push'     => url('/iclock/cdata'),

@@ -36,7 +36,7 @@ return [
     ],
 
     'fingerspot' => [
-        'api_key' => env('FINGERSPOT_API_KEY'),
+        'api_key' => env('FINGERSPOT_API_KEY') ?: '94PM7O0GL1A4M1MR',
         'cloud_id' => env('FINGERSPOT_CLOUD_ID'),
     ],
 
