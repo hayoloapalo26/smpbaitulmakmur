@@ -84,9 +84,17 @@ class PresensiIzinSiswaResource extends Resource
         $query = parent::getEloquentQuery();
         $user = Auth::user();
 
-        // Pastikan selain superadmin / yayasan, data selalu terfilter sesuai institution_id masing-masing lembaga (SD ke SD, SMP ke SMP, dst.)
+        // Pastikan selain superadmin / yayasan, data terfilter sesuai institution_id masing-masing lembaga
         if (!$user->hasRole('superadmin') && $user->institution_id && $user->institution_id != 1) {
-            $query->where('institution_id', $user->institution_id);
+            $instId = $user->institution_id;
+            $query->where(function ($q) use ($instId) {
+                $q->where('institution_id', $instId)
+                  ->orWhereNull('institution_id');
+                // Jika staf SMP (2), izinkan juga membaca presensi siswa SMP yang tercatat di institution_id 1
+                if ($instId == 2) {
+                    $q->orWhere('institution_id', 1);
+                }
+            });
         }
 
         if ($user->hasAnyRole(['kepala_sekolah', 'waka_kesiswaan', 'guru_piket', 'superadmin']) || $user->isPiketToday()) {

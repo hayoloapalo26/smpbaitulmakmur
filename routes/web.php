@@ -261,15 +261,17 @@ Route::prefix('api/fingerspot')->group(function () {
     Route::get('/ping', [\App\Http\Controllers\Api\FingerspotAttendanceController::class, 'ping'])
         ->name('fingerspot.ping');
 
+    // Endpoint test scan cepat via browser
+    Route::match(['get', 'post'], '/test-scan', [\App\Http\Controllers\Api\FingerspotAttendanceController::class, 'testScan'])
+        ->name('fingerspot.test-scan')
+        ->withoutMiddleware([\Illuminate\Foundation\Http\Middleware\PreventRequestForgery::class]);
+
     // Endpoint utama: Webhook dari developer.fingerspot.io atau Direct HTTP Push
-    Route::post('/attendance', [\App\Http\Controllers\Api\FingerspotAttendanceController::class, 'receive'])
+    Route::match(['get', 'post'], '/attendance', [\App\Http\Controllers\Api\FingerspotAttendanceController::class, 'receive'])
         ->name('fingerspot.attendance')
         ->withoutMiddleware([\Illuminate\Foundation\Http\Middleware\PreventRequestForgery::class]);
 
-    Route::get('/attendance', [\App\Http\Controllers\Api\FingerspotAttendanceController::class, 'receive'])
-        ->name('fingerspot.attendance.get');
-
-    Route::post('/webhook', [\App\Http\Controllers\Api\FingerspotAttendanceController::class, 'receive'])
+    Route::match(['get', 'post'], '/webhook', [\App\Http\Controllers\Api\FingerspotAttendanceController::class, 'receive'])
         ->name('fingerspot.webhook')
         ->withoutMiddleware([\Illuminate\Foundation\Http\Middleware\PreventRequestForgery::class]);
 });

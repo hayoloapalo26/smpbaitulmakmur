@@ -46,9 +46,9 @@ trait BelongsToInstitution
                           ->orWhereNull($table . '.institution_id');
                     }
 
-                    // Khusus tabel penting akademik (students, schedules, classrooms, subjects, teacher_subject_classes):
+                    // Khusus tabel penting akademik & presensi (students, schedules, classrooms, subjects, teacher_subject_classes, daily_attendances, prayer_attendances, teacher_attendances):
                     // Izinkan staf SMP (institution_id = 2) dan Yayasan (institution_id = 1) saling mengakses data terintegrasi
-                    if (in_array($table, ['students', 'schedules', 'classrooms', 'subjects', 'teacher_subject_classes'])) {
+                    if (in_array($table, ['students', 'schedules', 'classrooms', 'subjects', 'teacher_subject_classes', 'daily_attendances', 'prayer_attendances', 'teacher_attendances'])) {
                         if (in_array(2, $userInstitutionIds)) {
                             $q->orWhere($table . '.institution_id', 1);
                         }
