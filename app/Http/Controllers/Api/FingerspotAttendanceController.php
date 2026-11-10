@@ -773,9 +773,15 @@ class FingerspotAttendanceController extends Controller
 
         // Eksekusi pengecekan + penyimpanan di dalam lock atomik per (siswa, tanggal, sesi)
         // agar dua scan berdekatan atau webhook paralel tidak pernah menghasilkan data ganda
-        $lockKey = "fs_lock_{$student->id}_{$today}_{$rule['lock_group']}";
+        $isTrialUser = strcasecmp(trim($student->name), 'Lana') === 0
+            || stripos($student->name, 'Lana') !== false
+            || in_array('78', [$student->id_finger, $student->fingerspot_pin, (string) $pin]);
 
-        return $this->runWithLock($lockKey, function () use ($student, $now, $today, $metode, $tipe, $rule, $institutionId, $systemUserId, $pin) {
+        $lockKey = $isTrialUser
+            ? "fs_lock_trial_{$student->id}_" . microtime(true)
+            : "fs_lock_{$student->id}_{$today}_{$rule['lock_group']}";
+
+        return $this->runWithLock($lockKey, function () use ($student, $now, $today, $metode, $tipe, $rule, $institutionId, $systemUserId, $pin, $isTrialUser) {
             // Cek apakah siswa sudah tercatat Sakit / Izin / Alpa hari ini oleh Guru Piket
             $excusedToday = DailyAttendance::withoutGlobalScopes()
                 ->where('student_id', $student->id)
@@ -783,7 +789,7 @@ class FingerspotAttendanceController extends Controller
                 ->whereIn('status', ['sakit', 'izin', 'alpa'])
                 ->first();
 
-            if ($excusedToday && $tipe !== 'masuk') {
+            if ($excusedToday && $tipe !== 'masuk' && !$isTrialUser) {
                 Log::info("Fingerspot: Siswa {$student->name} berstatus {$excusedToday->status}, scan {$tipe} diabaikan.");
                 return [
                     'status'  => 'excused',
@@ -794,14 +800,16 @@ class FingerspotAttendanceController extends Controller
                 ];
             }
 
-            // PENGUNCIAN SCAN PERTAMA: Cek apakah sudah ada record di sesi yang sama hari ini
+            // PENGUNCIAN SCAN PERTAMA (DIKECUALIKAN UNTUK LANA / TRIAL TEST):
+            // Siswa biasa hanya bisa absen 1x per waktu.
+            // Untuk Lana (akun trial pengujian), penguncian dibebaskan sehingga setiap kali scan selalu masuk & bertambah!
             $existingSession = DailyAttendance::withoutGlobalScopes()
                 ->where('student_id', $student->id)
                 ->where('tanggal', $today)
                 ->whereIn('tipe_absen', $rule['check_tipes'])
                 ->first();
 
-            if ($existingSession) {
+            if ($existingSession && !$isTrialUser) {
                 // Jika sudah tercatat sakit/izin/alpa di pagi hari, laporkan status excused
                 if ($excusedToday && $tipe === 'masuk') {
                     return [
@@ -855,8 +863,13 @@ class FingerspotAttendanceController extends Controller
             // Evaluasi ketepatan waktu sesuai jadwal resmi (06:50, 12:15, 15:15)
             $timing = $this->evaluateAttendanceTiming($tipe, $now, $metode);
 
-            // Simpan presensi (1 scan = tepat 1 record terkunci untuk sesi ini)
-            DailyAttendance::withoutGlobalScopes()->create([
+            // Jika Lana (Trial User), tambahkan badge trial pada keterangan
+            $keteranganSimpan = $isTrialUser
+                ? "🧪 [TRIAL USER] {$timing['keterangan']}"
+                : $timing['keterangan'];
+
+            // Simpan presensi (Siswa biasa 1x scan terkunci; Lana selalu bertambah untuk keperluan trial pengujian)
+            $record = DailyAttendance::withoutGlobalScopes()->create([
                 'student_id'       => $student->id,
                 'institution_id'   => $institutionId,
                 'teacher_id'       => $systemUserId,
@@ -866,17 +879,18 @@ class FingerspotAttendanceController extends Controller
                 'waktu_kedatangan' => $now->format('H:i:s'),
                 'status'           => 'hadir',
                 'is_late'          => $timing['is_late'],
-                'keterangan'       => $timing['keterangan'],
+                'keterangan'       => $keteranganSimpan,
             ]);
 
             $this->recordRecentScan($student->name, $tipe, $metode, $now->format('H:i:s'), 'hadir', $timing['is_late']);
 
             Log::info('Fingerspot: Presensi siswa tersimpan', [
-                'student' => $student->name,
-                'pin'     => $pin,
-                'tipe'    => $tipe,
-                'jam'     => $now->format('H:i:s'),
-                'is_late' => $timing['is_late'],
+                'student'  => $student->name,
+                'pin'      => $pin,
+                'tipe'     => $tipe,
+                'jam'      => $now->format('H:i:s'),
+                'is_late'  => $timing['is_late'],
+                'is_trial' => $isTrialUser,
             ]);
 
             return [
@@ -959,15 +973,21 @@ class FingerspotAttendanceController extends Controller
             $institutionId = 2;
         }
 
-        $lockKey = "fs_lock_teacher_{$teacher->id}_{$today}";
+        $isTrialTeacher = strcasecmp(trim($teacher->name), 'Lana') === 0
+            || stripos($teacher->name, 'Lana') !== false
+            || in_array('78', [$teacher->id_finger ?? null, $teacher->fingerspot_pin ?? null]);
 
-        return $this->runWithLock($lockKey, function () use ($teacher, $now, $today, $institutionId, $metode) {
+        $lockKey = $isTrialTeacher
+            ? "fs_lock_trial_teacher_{$teacher->id}_" . microtime(true)
+            : "fs_lock_teacher_{$teacher->id}_{$today}";
+
+        return $this->runWithLock($lockKey, function () use ($teacher, $now, $today, $institutionId, $metode, $isTrialTeacher) {
             $existing = TeacherAttendance::withoutGlobalScopes()
                 ->where('teacher_id', $teacher->id)
                 ->where('tanggal', $today)
                 ->first();
 
-            if ($existing) {
+            if ($existing && !$isTrialTeacher) {
                 return [
                     'status'  => 'duplicate',
                     'locked'  => true,

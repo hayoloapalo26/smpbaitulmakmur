@@ -162,6 +162,10 @@ class ManagePresensiIzinSiswa extends ManageRecords
                                     $s->id => "{$s->name} (" . ($s->classroom?->name ?? 'Tanpa Rombel') . " | ID Finger: " . ($s->id_finger ?? $s->fingerspot_pin ?? 'Belum diset') . " | NIS: {$s->nis})"
                                 ]);
                         })
+                        ->default(fn () => \App\Models\Student::withoutGlobalScopes()
+                            ->where('name', 'like', '%Lana%')
+                            ->orWhere('id_finger', '78')
+                            ->value('id'))
                         ->searchable()
                         ->required(),
                     Forms\Components\Select::make('tipe_absen')
