@@ -411,6 +411,22 @@ class FingerspotAttendanceController extends Controller
         $todayStudentAttendanceCount = DailyAttendance::withoutGlobalScopes()
             ->whereDate('tanggal', $todayWib)
             ->count();
+        $totalAllRecords = DailyAttendance::withoutGlobalScopes()->count();
+        $latestDbRecords = DailyAttendance::withoutGlobalScopes()
+            ->with('student:id,name,nis,classroom_id')
+            ->latest('id')
+            ->take(5)
+            ->get()
+            ->map(fn ($r) => [
+                'id'         => $r->id,
+                'student'    => $r->student?->name ?? "Student #{$r->student_id}",
+                'tanggal'    => (string) $r->tanggal,
+                'jam'        => $r->waktu_kedatangan,
+                'tipe_absen' => $r->tipe_absen,
+                'status'     => $r->status,
+                'is_late'    => (bool) $r->is_late,
+            ])
+            ->toArray();
 
         // Ambil cache device info jika belum ada
         $deviceInfo = $config['last_device_info'] ?? null;
@@ -454,6 +470,8 @@ class FingerspotAttendanceController extends Controller
             'last_cloud_sync_at'             => $config['last_sync_at'] ?? null,
             'last_sync_summary'              => $config['last_sync_summary'] ?? null,
             'today_attendance_total'         => $todayStudentAttendanceCount,
+            'total_all_records'              => $totalAllRecords,
+            'latest_db_records'              => $latestDbRecords,
             'schedule_rules'                 => [
                 'masuk'         => '06:00 - 06:50 (> 06:50 Terlambat, batas scan pagi 11:29)',
                 'sholat_dhuhur' => '12:00 - 12:15 (> 12:15 Terlambat, aktif 11:30 - 14:29)',
