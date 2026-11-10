@@ -174,6 +174,18 @@ class TeacherProfileResource extends Resource
                             ->columnSpanFull(),
                     ])->columns(2),
 
+                Forms\Components\Section::make('🔐 Integrasi Alat Absensi (Fingerprint / RFID)')
+                    ->description('Nomor PIN / ID Finger yang didaftarkan di mesin fingerprint (Fingerspot / Solution / ZKTeco / dll).')
+                    ->schema([
+                        Forms\Components\TextInput::make('id_finger')
+                            ->label('ID Finger / PIN Mesin')
+                            ->placeholder('Contoh: 101, 1001, atau nomor PIN di mesin')
+                            ->helperText('Nomor PIN / ID Finger pegawai di mesin absensi. Dapat juga diketik langsung di kolom tabel.')
+                            ->unique('users', 'id_finger', ignoreRecord: true)
+                            ->maxLength(50)
+                            ->nullable(),
+                    ])->columns(1),
+
                 Forms\Components\Section::make('🔐 Akun Login Guru (Kredensial)')
                     ->description(fn () => auth()->user()?->hasRole('superadmin')
                         ? 'Pengaturan kredensial akun login guru.'
@@ -223,6 +235,12 @@ class TeacherProfileResource extends Resource
                 Tables\Columns\TextColumn::make('no_induk_yayasan')
                     ->label('NIY')
                     ->searchable(),
+                Tables\Columns\TextInputColumn::make('id_finger')
+                    ->label('ID Finger')
+                    ->placeholder('ID Finger...')
+                    ->rules(['nullable', 'string', 'max:50'])
+                    ->searchable()
+                    ->sortable(),
                 Tables\Columns\TextColumn::make('name')->searchable()
                     ->label('Nama Pegawai')
                     ->searchable(),

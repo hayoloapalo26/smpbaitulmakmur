@@ -15,6 +15,10 @@ return new class extends Migration
      */
     public function up(): void
     {
+        if (app()->environment('testing')) {
+            return;
+        }
+
         // 1. Pastikan record institusi SMP (id=2) tersedia
         if (DB::table('institutions')->count() > 0) {
             DB::table('institutions')->insertOrIgnore([

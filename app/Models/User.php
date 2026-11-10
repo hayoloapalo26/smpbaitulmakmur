@@ -19,7 +19,7 @@ use Illuminate\Support\Facades\Storage;
     'name', 'email', 'password', 'avatar_url', 'username', 'is_active', 'institution_id', 'has_account',
     'nuptk', 'no_induk_yayasan', 'gender', 'tempat_lahir', 'tanggal_lahir', 'alamat', 'no_hp',
     'satminkal', 'jenjang_pendidikan', 'jurusan_pendidikan', 'universitas', 'tanggal_masuk',
-    'jabatan', 'status_kepegawaian', 'no_sk_gty', 'no_ukg'
+    'jabatan', 'status_kepegawaian', 'no_sk_gty', 'no_ukg', 'id_finger', 'fingerspot_pin'
 ])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable implements FilamentUser, HasAvatar
@@ -292,6 +292,12 @@ class User extends Authenticatable implements FilamentUser, HasAvatar
         static::saving(function (User $user) {
             if (!empty($user->email) && !str_contains($user->email, '@placeholder.local') && !empty($user->username)) {
                 $user->has_account = true;
+            }
+
+            if (!empty($user->id_finger) && empty($user->fingerspot_pin)) {
+                $user->fingerspot_pin = $user->id_finger;
+            } elseif (!empty($user->fingerspot_pin) && empty($user->id_finger)) {
+                $user->id_finger = $user->fingerspot_pin;
             }
         });
 

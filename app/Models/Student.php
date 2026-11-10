@@ -192,16 +192,15 @@ class Student extends Model
                 $student->institution_id = 2;
             }
 
-            // Sinkronisasi otomatis antara fingerspot_pin dan hikvision_employee_no
-            $hasFingerspot = !empty($student->attributes['fingerspot_pin'] ?? null);
-            $hasHikvision  = !empty($student->attributes['hikvision_employee_no'] ?? null);
+            // Sinkronisasi otomatis antara id_finger, fingerspot_pin, dan hikvision_employee_no
+            $fingerVal = $student->attributes['id_finger'] 
+                ?? ($student->attributes['fingerspot_pin'] 
+                ?? ($student->attributes['hikvision_employee_no'] ?? null));
 
-            if ($hasFingerspot && !$hasHikvision) {
-                $student->attributes['hikvision_employee_no'] = $student->attributes['fingerspot_pin'];
-            } elseif ($hasHikvision && !$hasFingerspot) {
-                if (\Illuminate\Support\Facades\Schema::hasColumn('students', 'fingerspot_pin')) {
-                    $student->attributes['fingerspot_pin'] = $student->attributes['hikvision_employee_no'];
-                }
+            if (!empty($fingerVal)) {
+                $student->attributes['id_finger'] = $fingerVal;
+                $student->attributes['fingerspot_pin'] = $fingerVal;
+                $student->attributes['hikvision_employee_no'] = $fingerVal;
             }
 
             // Sinkronisasi otomatis penempatan Al-Qur'an jika classroom_id mengarah ke rombel Al-Qur'an

@@ -301,8 +301,8 @@ class StudentResource extends Resource
                                 : 'hikvision_employee_no'
                         )
                             ->label('Fingerspot PIN / ID Mesin')
-                            ->helperText('Nomor PIN siswa di mesin Fingerspot Revo W230N (biasanya disamakan dengan NIS)')
-                            ->placeholder('Contoh: 100001')
+                            ->helperText('Nomor PIN siswa di mesin Fingerspot Revo W230N (bisa disamakan dengan NISN atau NIS siswa)')
+                            ->placeholder('Contoh: 0081234567 atau 100001')
                             ->unique(ignoreRecord: true)
                             ->nullable(),
                         Forms\Components\TextInput::make('nfc_card_no')
@@ -427,6 +427,12 @@ class StudentResource extends Resource
     {
         return $table
             ->columns([
+                Tables\Columns\TextInputColumn::make('fingerspot_pin')
+                    ->label('ID Finger')
+                    ->placeholder('Isi ID')
+                    ->sortable()
+                    ->searchable()
+                    ->rules(['nullable', 'string', 'max:255']),
                 Tables\Columns\TextColumn::make('nis')->label('NIS')->searchable(),
                 Tables\Columns\TextColumn::make('name')->label('Nama Siswa')->searchable()->weight('bold'),
                 Tables\Columns\TextColumn::make('institution.name')

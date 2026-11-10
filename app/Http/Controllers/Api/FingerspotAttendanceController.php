@@ -263,24 +263,67 @@ class FingerspotAttendanceController extends Controller
      */
     public function processAttendanceRecord(string $pin, ?string $scanDate = null, $verifyMode = 1, $statusScan = 0): array
     {
-        // 1. Cari Siswa berdasarkan PIN Fingerspot / Hikvision Employee No / NIS / No Kartu RFID
+        $cleanPin = trim($pin);
+
+        // Varian PIN untuk pencocokan fleksibel (mendukung NISN dengan/tanpa leading 0, NIS, PIN mesin)
+        $pinVariants = array_values(array_unique(array_filter([
+            $cleanPin,
+            ltrim($cleanPin, '0'),
+            (strlen($cleanPin) < 10 && ctype_digit($cleanPin)) ? str_pad($cleanPin, 10, '0', STR_PAD_LEFT) : null,
+        ])));
+
+        // 1. Cari Siswa berdasarkan ID Finger / PIN Fingerspot / NISN / NIS / Hikvision Employee No / No Kartu RFID
         $student = Student::with('classroom')
-            ->where(function ($query) use ($pin) {
-                if (Schema::hasColumn('students', 'fingerspot_pin')) {
-                    $query->where('fingerspot_pin', $pin);
+            ->where(function ($query) use ($pinVariants) {
+                if (Schema::hasColumn('students', 'id_finger')) {
+                    $query->whereIn('id_finger', $pinVariants);
                 }
-                $query->orWhere('hikvision_employee_no', $pin)
-                      ->orWhere('nis', $pin)
-                      ->orWhere('nfc_card_no', $pin);
+                if (Schema::hasColumn('students', 'fingerspot_pin')) {
+                    $query->orWhereIn('fingerspot_pin', $pinVariants);
+                }
+                if (Schema::hasColumn('students', 'nisn')) {
+                    $query->orWhereIn('nisn', $pinVariants);
+                }
+                $query->orWhereIn('nis', $pinVariants)
+                      ->orWhereIn('hikvision_employee_no', $pinVariants)
+                      ->orWhereIn('nfc_card_no', $pinVariants);
             })
             ->first();
 
         if (!$student) {
-            Log::warning("Fingerspot: PIN/NIS {$pin} tidak ditemukan di database siswa.");
+            // Cek apakah PIN terdaftar pada Guru / Pegawai (User)
+            $teacher = \App\Models\User::where(function ($query) use ($pinVariants) {
+                if (Schema::hasColumn('users', 'id_finger')) {
+                    $query->whereIn('id_finger', $pinVariants);
+                }
+                if (Schema::hasColumn('users', 'fingerspot_pin')) {
+                    $query->orWhereIn('fingerspot_pin', $pinVariants);
+                }
+                if (Schema::hasColumn('users', 'no_induk_yayasan')) {
+                    $query->orWhereIn('no_induk_yayasan', $pinVariants);
+                }
+                if (Schema::hasColumn('users', 'nuptk')) {
+                    $query->orWhereIn('nuptk', $pinVariants);
+                }
+            })->first();
+
+            if ($teacher) {
+                try {
+                    $now = $scanDate ? Carbon::parse($scanDate)->setTimezone('Asia/Jakarta') : Carbon::now('Asia/Jakarta');
+                } catch (\Exception $e) {
+                    $now = Carbon::now('Asia/Jakarta');
+                }
+                $metode = $this->mapVerifyMode($verifyMode);
+                return $this->processTeacherAttendance($teacher, $now, $metode, $statusScan);
+            }
+
+            Log::warning("Fingerspot: PIN/ID {$pin} tidak ditemukan di database siswa maupun guru.", [
+                'variants_checked' => $pinVariants,
+            ]);
             return [
                 'status'  => 'not_found',
                 'pin'     => $pin,
-                'message' => "Siswa dengan PIN/NIS {$pin} tidak terdaftar",
+                'message' => "Pengguna dengan PIN/ID Finger {$pin} tidak terdaftar di sistem",
             ];
         }
 
@@ -407,6 +450,38 @@ class FingerspotAttendanceController extends Controller
             'metode'   => $metode,
             'jam'      => $now->format('H:i'),
             'is_late'  => $isLate,
+        ];
+    }
+
+    /**
+     * Proses pencatatan presensi kehadiran Guru / Pegawai dari mesin Fingerprint
+     */
+    protected function processTeacherAttendance(\App\Models\User $teacher, Carbon $now, string $metode, $statusScan = 0): array
+    {
+        $today = $now->toDateString();
+        $institutionId = $teacher->institution_id ?? 2;
+
+        // Cek atau buat presensi kehadiran guru hari ini
+        $attendance = \App\Models\TeacherAttendance::firstOrCreate(
+            [
+                'teacher_id' => $teacher->id,
+                'tanggal'    => $today,
+            ],
+            [
+                'institution_id' => $institutionId,
+                'status'         => 'masuk',
+                'created_at'     => $now,
+            ]
+        );
+
+        Log::info("Fingerspot: Presensi Guru Berhasil ({$teacher->name} - {$today} {$now->format('H:i')}) via {$metode}");
+
+        return [
+            'status'  => 'success',
+            'action'  => 'teacher_attendance',
+            'teacher' => $teacher->name,
+            'time'    => $now->toDateTimeString(),
+            'metode'  => $metode,
         ];
     }
 

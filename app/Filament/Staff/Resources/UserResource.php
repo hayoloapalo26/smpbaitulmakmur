@@ -34,8 +34,10 @@ class UserResource extends Resource
         if (!$user->hasRole('superadmin')) {
             if ($user->institution_id) {
                 $query->where(function ($q) use ($user) {
-                    $q->where('institution_id', $user->institution_id)
-                      ->orWhereHas('institutions', fn ($iq) => $iq->where('institutions.id', $user->institution_id));
+                    $q->where('institution_id', $user->institution_id);
+                    if (\Illuminate\Support\Facades\Schema::hasTable('institution_user')) {
+                        $q->orWhereHas('institutions', fn ($iq) => $iq->where('institutions.id', $user->institution_id));
+                    }
                 });
             }
         }
@@ -94,6 +96,11 @@ class UserResource extends Resource
                             ->helperText(fn (string $context) => $context === 'edit' ? 'Kosongkan jika tidak ingin mengubah password. Isi jika user lupa password.' : 'Masukkan password login akun.')
                             ->dehydrated(fn ($state) => filled($state))
                             ->required(fn (string $context): bool => $context === 'create'),
+                        Forms\Components\TextInput::make('id_finger')
+                            ->label('ID Finger / PIN Mesin')
+                            ->placeholder('Contoh: 101, 1001')
+                            ->unique(ignoreRecord: true)
+                            ->nullable(),
                         Forms\Components\Toggle::make('is_active')
                             ->label('Akun Aktif')
                             ->default(true),
@@ -132,6 +139,12 @@ class UserResource extends Resource
     {
         return $table
             ->columns([
+                Tables\Columns\TextInputColumn::make('id_finger')
+                    ->label('ID Finger')
+                    ->placeholder('ID Finger...')
+                    ->rules(['nullable', 'string', 'max:50'])
+                    ->searchable()
+                    ->sortable(),
                 Tables\Columns\TextColumn::make('name')->searchable(),
                 Tables\Columns\TextColumn::make('username')->searchable(),
                 Tables\Columns\TextColumn::make('email')->searchable(),

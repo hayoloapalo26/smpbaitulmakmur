@@ -15,25 +15,24 @@ class FingerspotAttendanceTest extends TestCase
     use RefreshDatabase;
 
     protected Institution $institution;
+    protected User $user;
 
     protected function setUp(): void
     {
         parent::setUp();
 
         // Siapkan institusi ID 1 (Yayasan) dan ID 2 (SMP)
-        Institution::create([
-            'id'   => 1,
-            'name' => 'Yayasan LPI Baitul Makmur',
-            'slug' => 'yayasan',
-        ]);
+        $inst1 = new Institution(['name' => 'Yayasan LPI Baitul Makmur', 'slug' => 'yayasan']);
+        $inst1->id = 1;
+        $inst1->save();
 
-        $this->institution = Institution::create([
-            'id'   => 2,
-            'name' => 'SMP Islam Baitul Makmur',
-            'slug' => 'smpi',
-        ]);
+        $inst2 = new Institution(['name' => 'SMP Islam Baitul Makmur', 'slug' => 'smpi']);
+        $inst2->id = 2;
+        $inst2->save();
 
-        User::create([
+        $this->institution = $inst2;
+
+        $this->user = User::create([
             'name'           => 'System Admin',
             'email'          => 'admin@smpi.test',
             'password'       => bcrypt('password'),
@@ -92,6 +91,7 @@ class FingerspotAttendanceTest extends TestCase
             'name'           => 'VII-A',
             'tingkat'        => 7,
             'institution_id' => $this->institution->id,
+            'wali_kelas_id'  => $this->user->id,
         ]);
 
         $student = Student::create([
@@ -141,6 +141,7 @@ class FingerspotAttendanceTest extends TestCase
             'name'           => 'VII-A',
             'tingkat'        => 7,
             'institution_id' => $this->institution->id,
+            'wali_kelas_id'  => $this->user->id,
         ]);
 
         $student = Student::create([
@@ -184,6 +185,7 @@ class FingerspotAttendanceTest extends TestCase
             'name'           => 'VII-B',
             'tingkat'        => 7,
             'institution_id' => $this->institution->id,
+            'wali_kelas_id'  => $this->user->id,
         ]);
 
         $student = Student::create([
@@ -227,6 +229,7 @@ class FingerspotAttendanceTest extends TestCase
             'name'           => 'VII-C',
             'tingkat'        => 7,
             'institution_id' => $this->institution->id,
+            'wali_kelas_id'  => $this->user->id,
         ]);
 
         $student = Student::create([
@@ -296,5 +299,108 @@ class FingerspotAttendanceTest extends TestCase
             'X-API-KEY' => 'secret_test_token_123',
         ])->postJson('/api/fingerspot/attendance', $payload);
         $resValid->assertStatus(200);
+    }
+
+    public function test_fingerspot_webhook_records_attendance_using_nisn()
+    {
+        $classroom = Classroom::create([
+            'name'           => 'VIII-A',
+            'tingkat'        => 8,
+            'institution_id' => $this->institution->id,
+            'wali_kelas_id'  => $this->user->id,
+        ]);
+
+        $student = Student::create([
+            'institution_id' => $this->institution->id,
+            'classroom_id'   => $classroom->id,
+            'name'           => 'Fathir Rahman',
+            'nis'            => '10005',
+            'nisn'           => '0089876543', // 10 digit NISN
+            'jenis_kelamin'  => 'L',
+            'tanggal_lahir'  => '2010-01-01',
+        ]);
+
+        // Kirim payload absensi menggunakan nomor NISN siswa
+        $payload = [
+            'type'     => 'attlog',
+            'cloud_id' => 'REVO_W230N_001',
+            'data'     => [
+                [
+                    'pin'         => '0089876543',
+                    'scan_date'   => '2026-11-10 07:05:00',
+                    'verify'      => 1,
+                    'status_scan' => 0,
+                ],
+            ],
+        ];
+
+        $response = $this->postJson('/api/fingerspot/attendance', $payload);
+
+        $response->assertStatus(200);
+        $response->assertJson([
+            'success' => true,
+            'total'   => 1,
+            'results' => [
+                [
+                    'status'  => 'success',
+                    'student' => 'Fathir Rahman',
+                    'nis'     => '10005',
+                ],
+            ],
+        ]);
+
+        $this->assertDatabaseHas('daily_attendances', [
+            'student_id'   => $student->id,
+            'tanggal'      => '2026-11-10',
+            'tipe_absen'   => 'masuk',
+            'metode_absen' => 'fingerprint',
+            'status'       => 'hadir',
+            'is_late'      => false,
+        ]);
+    }
+
+    public function test_fingerspot_webhook_records_teacher_attendance()
+    {
+        $teacher = User::create([
+            'name'           => 'Lya Ratnawati, M.Pd',
+            'email'          => 'lya.test@smpi.test',
+            'password'       => bcrypt('password'),
+            'institution_id' => $this->institution->id,
+            'id_finger'      => '2001',
+            'is_active'      => true,
+        ]);
+
+        $payload = [
+            'type'     => 'attlog',
+            'cloud_id' => 'REVO_W230N_001',
+            'data'     => [
+                [
+                    'pin'         => '2001',
+                    'scan_date'   => '2026-11-10 06:45:00',
+                    'verify'      => 1,
+                    'status_scan' => 0,
+                ],
+            ],
+        ];
+
+        $response = $this->postJson('/api/fingerspot/attendance', $payload);
+
+        $response->assertStatus(200);
+        $response->assertJson([
+            'success' => true,
+            'results' => [
+                [
+                    'status'  => 'success',
+                    'action'  => 'teacher_attendance',
+                    'teacher' => 'Lya Ratnawati, M.Pd',
+                ],
+            ],
+        ]);
+
+        $this->assertDatabaseHas('teacher_attendances', [
+            'teacher_id' => $teacher->id,
+            'tanggal'    => '2026-11-10',
+            'status'     => 'masuk',
+        ]);
     }
 }

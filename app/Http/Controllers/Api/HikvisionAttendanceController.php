@@ -60,11 +60,17 @@ class HikvisionAttendanceController extends Controller
                 return response()->json(['status' => 'ignored', 'reason' => 'No employee number in event'], 200);
             }
 
-            // Cari siswa berdasarkan Fingerspot PIN, Hikvision Employee No, ATAU NIS
+            // Cari siswa berdasarkan ID Finger, Fingerspot PIN, NISN, Hikvision Employee No, ATAU NIS
             $student = Student::with('classroom')
                 ->where(function ($query) use ($employeeNo) {
+                    if (\Illuminate\Support\Facades\Schema::hasColumn('students', 'id_finger')) {
+                        $query->where('id_finger', $employeeNo);
+                    }
                     if (\Illuminate\Support\Facades\Schema::hasColumn('students', 'fingerspot_pin')) {
-                        $query->where('fingerspot_pin', $employeeNo);
+                        $query->orWhere('fingerspot_pin', $employeeNo);
+                    }
+                    if (\Illuminate\Support\Facades\Schema::hasColumn('students', 'nisn')) {
+                        $query->orWhere('nisn', $employeeNo);
                     }
                     $query->orWhere('hikvision_employee_no', $employeeNo)
                           ->orWhere('nis', $employeeNo);
@@ -72,7 +78,33 @@ class HikvisionAttendanceController extends Controller
                 ->first();
 
             if (!$student) {
-                Log::warning("Hikvision: Employee No {$employeeNo} tidak ditemukan di database siswa");
+                // Cek apakah terdaftar sebagai Pegawai / Guru (User)
+                $teacher = \App\Models\User::where(function ($query) use ($employeeNo) {
+                    if (\Illuminate\Support\Facades\Schema::hasColumn('users', 'id_finger')) {
+                        $query->where('id_finger', $employeeNo);
+                    }
+                    if (\Illuminate\Support\Facades\Schema::hasColumn('users', 'fingerspot_pin')) {
+                        $query->orWhere('fingerspot_pin', $employeeNo);
+                    }
+                    $query->orWhere('no_induk_yayasan', $employeeNo)
+                          ->orWhere('nuptk', $employeeNo);
+                })->first();
+
+                if ($teacher) {
+                    try {
+                        $now = Carbon::parse($happenTime)->setTimezone('Asia/Jakarta');
+                    } catch (\Exception $e) {
+                        $now = Carbon::now();
+                    }
+                    \App\Models\TeacherAttendance::firstOrCreate(
+                        ['teacher_id' => $teacher->id, 'tanggal' => $now->toDateString()],
+                        ['institution_id' => $teacher->institution_id ?? 2, 'status' => 'masuk', 'created_at' => $now]
+                    );
+                    Log::info("Hikvision: Presensi Guru Berhasil ({$teacher->name} - {$now->toDateTimeString()})");
+                    return response()->json(['status' => 'success', 'teacher' => $teacher->name], 200);
+                }
+
+                Log::warning("Hikvision: Employee No {$employeeNo} tidak ditemukan di database siswa maupun guru");
                 return response()->json(['status' => 'not_found', 'employee_no' => $employeeNo], 200);
             }
 
