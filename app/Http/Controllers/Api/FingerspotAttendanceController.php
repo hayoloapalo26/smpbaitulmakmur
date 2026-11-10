@@ -422,6 +422,8 @@ class FingerspotAttendanceController extends Controller
             'cloud_id_configured'            => $config['cloud_id'] ?? null,
             'cloud_webhook_url'              => $config['cloud_webhook_url'] ?? null,
             'device_name'                    => $config['device_name'] ?? null,
+            'last_device_info'               => $config['last_device_info'] ?? null,
+            'last_attlog_raw'                => $config['last_attlog_raw'] ?? null,
             'last_cloud_sync_at'             => $config['last_sync_at'] ?? null,
             'last_sync_summary'              => $config['last_sync_summary'] ?? null,
             'today_attendance_total'         => $todayStudentAttendanceCount,
@@ -641,6 +643,12 @@ class FingerspotAttendanceController extends Controller
                     'inserted'          => $inserted,
                     'duplicates_locked' => $lockedDuplicates,
                     'unmatched_count'   => count(array_unique($unmatchedPins)),
+                    'range'             => "{$start} s/d {$end}",
+                ],
+                'last_device_info'  => $deviceInfo,
+                'last_attlog_raw'   => [
+                    'count'  => count($rawLogs),
+                    'sample' => array_slice($rawLogs, 0, 3),
                 ],
             ];
             if (is_array($deviceInfo)) {

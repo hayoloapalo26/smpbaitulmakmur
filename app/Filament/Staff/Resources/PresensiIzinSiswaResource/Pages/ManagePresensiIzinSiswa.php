@@ -77,27 +77,31 @@ class ManagePresensiIzinSiswa extends ManageRecords
                 ->form(function () {
                     $controller = new FingerspotAttendanceController();
                     $config = $controller->getCloudConfig();
-                    $today = Carbon::now('Asia/Jakarta')->toDateString();
+                    $now = Carbon::now('Asia/Jakarta');
+                    $today = $now->toDateString();
+                    $yesterday = $now->copy()->subDay()->toDateString();
+                    $webhookUrl = url('/api/fingerspot/attendance');
 
                     return [
                         Forms\Components\Placeholder::make('info_endpoint')
-                            ->label('URL Webhook Aktif & Aturan Jam Presensi')
+                            ->label('Konfigurasi Webhook di developer.fingerspot.io')
                             ->content(new \Illuminate\Support\HtmlString(
-                                '<div class="text-xs space-y-1 text-gray-600 dark:text-gray-300">'
-                                . '<div><strong>Webhook URL:</strong> <code>' . url('/api/fingerspot/attendance') . '</code> (API Key: Aktif)</div>'
-                                . '<div><strong>Masuk Pagi:</strong> 06.00 – 06.50 | <strong>Dhuhur:</strong> 12.00 – 12.15 | <strong>Ashar & Pulang:</strong> 15.00 – 15.15</div>'
-                                . '<div><strong>Penguncian:</strong> Scan pertama dikunci per waktu; lewat batas waktu otomatis ditandai <strong>Terlambat</strong>.</div>'
+                                '<div class="text-xs space-y-1.5 text-gray-700 dark:text-gray-300 bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-700 p-2.5 rounded-lg">'
+                                . '<div><strong>1. Salin Webhook URL ini:</strong> <code class="font-mono font-bold text-xs bg-white dark:bg-gray-800 px-2 py-0.5 rounded border border-gray-300 select-all">' . $webhookUrl . '</code></div>'
+                                . '<div><strong>2. Tempel di web developer.fingerspot.io:</strong> Buka menu <em>Device</em> &rarr; kolom <em>Webhook URL</em> pada mesin Anda.</div>'
+                                . '<div><strong>3. Pada Mesin Fisik Revo W230N:</strong> Menu &rarr; Setelan &rarr; Jaringan &rarr; Server IP = <code>fdevice.com</code> (atau <code>3.1.174.198</code>), Port = <code>8013</code>, lalu Restart mesin.</div>'
                                 . '</div>'
                             )),
                         Forms\Components\TextInput::make('cloud_id')
                             ->label('Cloud ID Mesin Revo W230N')
-                            ->placeholder('Contoh: C2630450C31xxxxx')
-                            ->helperText('Lihat kode Cloud ID di web developer.fingerspot.io pada daftar device/mesin Anda. Otomatis tersimpan setelah disubmit.')
-                            ->default($config['cloud_id'] ?? '')
+                            ->placeholder('Contoh: C2688851F1C1830')
+                            ->helperText('Cloud ID mesin Anda dari developer.fingerspot.io. Tersimpan permanen.')
+                            ->default($config['cloud_id'] ?? 'C2688851F1C1830')
                             ->required(),
                         Forms\Components\DatePicker::make('start_date')
                             ->label('Tanggal Mulai')
-                            ->default($today)
+                            ->default($yesterday)
+                            ->helperText('Default menarik dari kemarin s/d hari ini agar scan tidak terlewat.')
                             ->required(),
                         Forms\Components\DatePicker::make('end_date')
                             ->label('Tanggal Selesai')
