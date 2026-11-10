@@ -211,7 +211,7 @@ class PresensiIzinSiswaResource extends Resource
                     ->searchable()
                     ->sortable()
                     ->weight('bold')
-                    ->description(fn (DailyAttendance $record) => ($record->student->classroom->name ?? '-') . ' • ' . ($record->institution->name ?? '')),
+                    ->description(fn (DailyAttendance $record) => ($record->student?->classroom?->name ?? '-') . ' • ' . ($record->institution?->name ?? '')),
 
                 Tables\Columns\TextColumn::make('tipe_absen')
                     ->label('Jenis Absensi')

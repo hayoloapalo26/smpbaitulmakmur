@@ -19,12 +19,17 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->trustProxies(at: '*');
         $middleware->validateCsrfTokens(except: [
             '/',
+            'staff',
+            'webhook',
+            'fingerspot',
             'api/*',
             'iclock/*',
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(
-            fn (Request $request) => $request->is('api/*') || ($request->is('/') && $request->isMethod('post')) || $request->expectsJson(),
+            fn (Request $request) => $request->is('api/*')
+                || ($request->isMethod('post') && $request->is(['/', 'staff', 'webhook', 'fingerspot']))
+                || $request->expectsJson(),
         );
     })->create();

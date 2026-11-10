@@ -353,6 +353,15 @@ class FingerspotAttendanceController extends Controller
      */
     public function ping()
     {
+        return response()->json($this->getDiagnosticSnapshot());
+    }
+
+    /**
+     * Ringkasan status koneksi, webhook masuk, PIN belum terdaftar, dan statistik Fingerspot
+     * Digunakan oleh /api/fingerspot/ping maupun Widget Live di halaman Presensi Siswa
+     */
+    public function getDiagnosticSnapshot(): array
+    {
         $config = $this->getCloudConfig();
         $hasKey = !empty($this->getConfiguredApiKey());
 
@@ -391,43 +400,53 @@ class FingerspotAttendanceController extends Controller
                 'nama'      => $s->name,
                 'id_finger' => $s->id_finger ?? $s->fingerspot_pin,
                 'nis'       => $s->nis,
-            ]);
+            ])
+            ->toArray();
 
         $rawWebhooks = $this->readJsonFile(self::WEBHOOK_LOG_FILE, []);
-        $recentScans = Cache::get('fingerspot_recent_scans', []);
-        $unmatchedPins = Cache::get('fingerspot_last_unmatched_pins', []);
+        $recentScans = $this->readJsonFile('fingerspot_recent_scans.json', Cache::get('fingerspot_recent_scans', []));
+        $unmatchedPins = $this->readJsonFile('fingerspot_unmatched_pins.json', Cache::get('fingerspot_last_unmatched_pins', []));
 
-        return response()->json([
-            'status'                     => 'online',
-            'device_target'              => 'Fingerspot Revo W230N',
-            'server'                     => 'SMPI Baitul Makmur',
-            'time'                       => now()->setTimezone('Asia/Jakarta')->format('Y-m-d H:i:s T'),
-            'version'                    => '2.2',
-            'api_key_configured'         => $hasKey,
-            'cloud_id_configured'        => $config['cloud_id'] ?? null,
-            'last_cloud_sync_at'         => $config['last_sync_at'] ?? null,
-            'schedule_rules'             => [
+        $todayWib = now()->setTimezone('Asia/Jakarta')->toDateString();
+        $todayStudentAttendanceCount = DailyAttendance::withoutGlobalScopes()
+            ->whereDate('tanggal', $todayWib)
+            ->count();
+
+        return [
+            'status'                         => 'online',
+            'device_target'                  => 'Fingerspot Revo W230N',
+            'server'                         => 'SMPI Baitul Makmur',
+            'time'                           => now()->setTimezone('Asia/Jakarta')->format('Y-m-d H:i:s T'),
+            'version'                        => '2.3',
+            'api_key_configured'             => $hasKey,
+            'cloud_id_configured'            => $config['cloud_id'] ?? null,
+            'cloud_webhook_url'              => $config['cloud_webhook_url'] ?? null,
+            'device_name'                    => $config['device_name'] ?? null,
+            'last_cloud_sync_at'             => $config['last_sync_at'] ?? null,
+            'last_sync_summary'              => $config['last_sync_summary'] ?? null,
+            'today_attendance_total'         => $todayStudentAttendanceCount,
+            'schedule_rules'                 => [
                 'masuk'         => '06:00 - 06:50 (> 06:50 Terlambat, batas scan pagi 11:29)',
                 'sholat_dhuhur' => '12:00 - 12:15 (> 12:15 Terlambat, aktif 11:30 - 14:29)',
                 'sholat_ashar'  => '15:00 - 15:15 (> 15:15 Terlambat, aktif 14:30 - 23:59, Ashar & Pulang)',
                 'anti_dobel'    => 'Siswa hanya bisa absen 1 kali per waktu (scan pertama dikunci)',
             ],
-            'students_with_finger_count' => $studentsWithFinger,
-            'teachers_with_finger_count' => $teachersWithFinger,
-            'sample_registered_students' => $sampleStudents,
-            'webhook_hits_count'         => count($rawWebhooks),
-            'last_raw_webhooks'          => array_slice($rawWebhooks, 0, 5),
-            'recent_scans'               => array_slice($recentScans, 0, 10),
-            'last_unmatched_pins'        => array_slice($unmatchedPins, 0, 10),
-            'test_scan_url'              => url('/api/fingerspot/test-scan?pin=1'),
-            'sync_cloud_url'             => url('/api/fingerspot/sync'),
-            'endpoints'                  => [
+            'students_with_finger_count'     => $studentsWithFinger,
+            'teachers_with_finger_count'     => $teachersWithFinger,
+            'sample_registered_students'     => $sampleStudents,
+            'webhook_hits_count'             => count($rawWebhooks),
+            'last_raw_webhooks'              => array_slice($rawWebhooks, 0, 5),
+            'recent_scans'                   => array_slice($recentScans, 0, 10),
+            'last_unmatched_pins'            => array_slice($unmatchedPins, 0, 10),
+            'test_scan_url'                  => url('/api/fingerspot/test-scan?pin=1'),
+            'sync_cloud_url'                 => url('/api/fingerspot/sync'),
+            'endpoints'                      => [
                 'cloud_webhook' => url('/api/fingerspot/attendance'),
                 'cloud_alias'   => url('/api/fingerspot/webhook'),
                 'api_root'      => url('/api/fingerspot'),
                 'adms_push'     => url('/iclock/cdata'),
             ],
-        ]);
+        ];
     }
 
     /**
@@ -563,6 +582,15 @@ class FingerspotAttendanceController extends Controller
             }
 
             $json = $response->json();
+
+            if (isset($json['success']) && $json['success'] === false) {
+                return [
+                    'success'     => false,
+                    'message'     => 'Respon API Fingerspot: ' . ($json['message'] ?? json_encode($json)),
+                    'device_info' => $deviceInfo,
+                ];
+            }
+
             $rawLogs = $json['data'] ?? [];
             if (!is_array($rawLogs)) {
                 $rawLogs = [];
@@ -605,7 +633,7 @@ class FingerspotAttendanceController extends Controller
             }
 
             $syncAt = now()->setTimezone('Asia/Jakarta')->format('Y-m-d H:i:s');
-            $this->saveCloudConfig([
+            $configToSave = [
                 'cloud_id'          => $resolvedCloudId,
                 'last_sync_at'      => $syncAt,
                 'last_sync_summary' => [
@@ -614,7 +642,16 @@ class FingerspotAttendanceController extends Controller
                     'duplicates_locked' => $lockedDuplicates,
                     'unmatched_count'   => count(array_unique($unmatchedPins)),
                 ],
-            ]);
+            ];
+            if (is_array($deviceInfo)) {
+                if (isset($deviceInfo['webhook_url'])) {
+                    $configToSave['cloud_webhook_url'] = $deviceInfo['webhook_url'];
+                }
+                if (isset($deviceInfo['device_name'])) {
+                    $configToSave['device_name'] = $deviceInfo['device_name'];
+                }
+            }
+            $this->saveCloudConfig($configToSave);
 
             return [
                 'success'           => true,
@@ -1104,13 +1141,15 @@ class FingerspotAttendanceController extends Controller
     private function recordUnmatchedPin(string $pin, array $variants): void
     {
         try {
-            $unmatched = Cache::get('fingerspot_last_unmatched_pins', []);
+            $unmatched = $this->readJsonFile('fingerspot_unmatched_pins.json', Cache::get('fingerspot_last_unmatched_pins', []));
             array_unshift($unmatched, [
                 'pin'              => $pin,
                 'variants_checked' => $variants,
                 'time'             => now()->setTimezone('Asia/Jakarta')->format('Y-m-d H:i:s'),
             ]);
-            Cache::put('fingerspot_last_unmatched_pins', array_slice($unmatched, 0, 20), now()->addDays(7));
+            $sliced = array_slice($unmatched, 0, 20);
+            Cache::put('fingerspot_last_unmatched_pins', $sliced, now()->addDays(7));
+            $this->writeJsonFile('fingerspot_unmatched_pins.json', $sliced);
         } catch (\Throwable $e) {}
 
         Log::warning("Fingerspot: PIN/ID Finger '{$pin}' tidak ditemukan di database siswa maupun guru.", [
@@ -1121,7 +1160,7 @@ class FingerspotAttendanceController extends Controller
     private function recordRecentScan(string $name, string $tipe, string $metode, string $time, string $status, bool $isLate): void
     {
         try {
-            $scans = Cache::get('fingerspot_recent_scans', []);
+            $scans = $this->readJsonFile('fingerspot_recent_scans.json', Cache::get('fingerspot_recent_scans', []));
             array_unshift($scans, [
                 'nama'    => $name,
                 'tipe'    => $tipe,
@@ -1131,7 +1170,9 @@ class FingerspotAttendanceController extends Controller
                 'is_late' => $isLate,
                 'date'    => now()->setTimezone('Asia/Jakarta')->format('Y-m-d'),
             ]);
-            Cache::put('fingerspot_recent_scans', array_slice($scans, 0, 30), now()->addDays(7));
+            $sliced = array_slice($scans, 0, 30);
+            Cache::put('fingerspot_recent_scans', $sliced, now()->addDays(7));
+            $this->writeJsonFile('fingerspot_recent_scans.json', $sliced);
         } catch (\Throwable $e) {}
     }
 

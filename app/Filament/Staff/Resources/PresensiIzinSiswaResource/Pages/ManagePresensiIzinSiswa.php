@@ -3,6 +3,7 @@
 namespace App\Filament\Staff\Resources\PresensiIzinSiswaResource\Pages;
 
 use App\Filament\Staff\Resources\PresensiIzinSiswaResource;
+use App\Filament\Staff\Resources\PresensiIzinSiswaResource\Widgets\FingerspotLiveStatusWidget;
 use App\Http\Controllers\Api\FingerspotAttendanceController;
 use Carbon\Carbon;
 use Filament\Actions;
@@ -16,6 +17,13 @@ use Illuminate\Support\Facades\Cache;
 class ManagePresensiIzinSiswa extends ManageRecords
 {
     protected static string $resource = PresensiIzinSiswaResource::class;
+
+    protected function getHeaderWidgets(): array
+    {
+        return [
+            FingerspotLiveStatusWidget::class,
+        ];
+    }
 
     public function mount(): void
     {
@@ -110,12 +118,15 @@ class ManagePresensiIzinSiswa extends ManageRecords
                             $pins = implode(', ', $result['unmatched_pins']);
                             $unmatchedText = "<br><strong>⚠️ PIN belum terdaftar di Data Siswa/Guru:</strong> {$pins}";
                         }
+                        if (!empty($result['device_info']['webhook_url'])) {
+                            $unmatchedText .= "<br><strong>Webhook URL terpasang di Cloud:</strong> <code>{$result['device_info']['webhook_url']}</code>";
+                        }
 
                         Notification::make()
                             ->title('✅ Sinkronisasi Fingerspot Cloud Berhasil!')
                             ->body(($result['message'] ?? 'Selesai') . $unmatchedText)
                             ->success()
-                            ->duration(8000)
+                            ->duration(10000)
                             ->send();
                     } else {
                         Notification::make()
@@ -125,6 +136,8 @@ class ManagePresensiIzinSiswa extends ManageRecords
                             ->duration(8000)
                             ->send();
                     }
+
+                    $this->dispatch('fingerspot-synced');
                 }),
 
             Actions\Action::make('tes_fingerspot')
@@ -211,6 +224,8 @@ class ManagePresensiIzinSiswa extends ManageRecords
                             ->info()
                             ->send();
                     }
+
+                    $this->dispatch('fingerspot-synced');
                 }),
 
             Actions\Action::make('rekap_lengkap_siswa')

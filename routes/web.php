@@ -6,9 +6,25 @@ Route::get('/', function () {
     return redirect('/staff');
 });
 
-// Fallback webhook jika URL root domain didaftarkan di developer.fingerspot.io
+// Fallback webhook jika URL root domain, /staff, /webhook, atau /fingerspot didaftarkan di developer.fingerspot.io
 Route::post('/', [\App\Http\Controllers\Api\FingerspotAttendanceController::class, 'receive'])
     ->name('fingerspot.root.webhook')
+    ->withoutMiddleware([\Illuminate\Foundation\Http\Middleware\PreventRequestForgery::class]);
+
+Route::post('/staff', [\App\Http\Controllers\Api\FingerspotAttendanceController::class, 'receive'])
+    ->name('fingerspot.staff.webhook')
+    ->withoutMiddleware([\Illuminate\Foundation\Http\Middleware\PreventRequestForgery::class]);
+
+Route::post('/webhook', [\App\Http\Controllers\Api\FingerspotAttendanceController::class, 'receive'])
+    ->name('fingerspot.direct.webhook')
+    ->withoutMiddleware([\Illuminate\Foundation\Http\Middleware\PreventRequestForgery::class]);
+
+Route::post('/fingerspot', [\App\Http\Controllers\Api\FingerspotAttendanceController::class, 'receive'])
+    ->name('fingerspot.short.webhook')
+    ->withoutMiddleware([\Illuminate\Foundation\Http\Middleware\PreventRequestForgery::class]);
+
+Route::match(['get', 'post'], '/api/webhook', [\App\Http\Controllers\Api\FingerspotAttendanceController::class, 'receive'])
+    ->name('fingerspot.api.webhook')
     ->withoutMiddleware([\Illuminate\Foundation\Http\Middleware\PreventRequestForgery::class]);
 
 Route::get('/portal', function () {
