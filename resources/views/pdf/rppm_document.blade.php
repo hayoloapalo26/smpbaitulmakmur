@@ -169,7 +169,7 @@
     </table>
 
     <!-- II. KOMPONEN INTI & TUJUAN PEMBELAJARAN -->
-    <div class="section-header">II. KOMPONEN INTI & RUMUSAN TUJUAN PEMBELAJARAN</div>
+    <div class="section-header">II. KOMPONEN INTI & TUJUAN PEMBELAJARAN</div>
 
     <table class="table-grid">
         <tr>
@@ -207,7 +207,7 @@
             <tr>
                 <th style="width: 8%;">Kode</th>
                 <th style="width: 25%;">Materi / Pokok Bahasan</th>
-                <th style="width: 67%;">Rumusan Tujuan Pembelajaran (TP)</th>
+                <th style="width: 67%;">Tujuan Pembelajaran (TP)</th>
             </tr>
         </thead>
         <tbody>

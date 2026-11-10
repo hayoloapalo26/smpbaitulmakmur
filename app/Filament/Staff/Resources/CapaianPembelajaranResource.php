@@ -18,7 +18,7 @@ class CapaianPembelajaranResource extends Resource
 {
     public static function shouldRegisterNavigation(): bool
     {
-        return false;
+        return static::canAccess();
     }
 
     public static function canAccess(): bool
@@ -52,8 +52,8 @@ class CapaianPembelajaranResource extends Resource
     protected static ?string $navigationGroup = 'Akademik & Kurikulum';
     protected static ?string $modelLabel = 'Capaian Pembelajaran (CP)';
     protected static ?string $pluralModelLabel = 'Capaian Pembelajaran (CP)';
-    protected static ?string $navigationLabel = '1. Capaian Pembelajaran (CP)';
-    protected static ?int $navigationSort = 1;
+    protected static ?string $navigationLabel = 'Capaian Pembelajaran (CP)';
+    protected static ?int $navigationSort = 2;
 
     public static function getNavigationGroup(): ?string
     {
@@ -197,7 +197,7 @@ class CapaianPembelajaranResource extends Resource
                             ->columnSpanFull(),
 
                         Forms\Components\Textarea::make('deskripsi_cp')
-                            ->label('Rumusan Capaian Pembelajaran (CP)')
+                            ->label('Capaian Pembelajaran (CP)')
                             ->placeholder("Contoh:\nPada akhir fase D, murid dapat memahami relasi dan fungsi serta menyelesaikannya dalam pemecahan masalah nyata. Murid mampu melakukan operasi hitung aljabar dan mengaplikasikannya pada kehidupan sehari-hari secara kritis dan mandiri.")
                             ->rows(6)
                             ->required()
@@ -239,7 +239,7 @@ class CapaianPembelajaranResource extends Resource
                     ->wrap(),
 
                 Tables\Columns\TextColumn::make('deskripsi_cp')
-                    ->label('Rumusan CP')
+                    ->label('Capaian Pembelajaran (CP)')
                     ->limit(90)
                     ->wrap(),
 

@@ -19,7 +19,7 @@ class TujuanPembelajaranResource extends Resource
 {
     public static function shouldRegisterNavigation(): bool
     {
-        return false;
+        return static::canAccess();
     }
 
     public static function canAccess(): bool
@@ -53,8 +53,8 @@ class TujuanPembelajaranResource extends Resource
     protected static ?string $navigationGroup = 'Akademik & Kurikulum';
     protected static ?string $modelLabel = 'Tujuan Pembelajaran (TP)';
     protected static ?string $pluralModelLabel = 'Tujuan Pembelajaran (TP)';
-    protected static ?string $navigationLabel = '2. Tujuan Pembelajaran (TP)';
-    protected static ?int $navigationSort = 2;
+    protected static ?string $navigationLabel = 'Tujuan Pembelajaran (TP)';
+    protected static ?int $navigationSort = 3;
 
     public static function getNavigationGroup(): ?string
     {
@@ -184,7 +184,7 @@ class TujuanPembelajaranResource extends Resource
                             ->required(),
                     ])->columns(2),
 
-                Forms\Components\Section::make('📝 Rumusan Tujuan Pembelajaran (TP)')
+                Forms\Components\Section::make('🎯 Tujuan Pembelajaran (TP)')
                     ->schema([
                         Forms\Components\TextInput::make('kode_tp')
                             ->label('Kode TP')
@@ -198,7 +198,7 @@ class TujuanPembelajaranResource extends Resource
                             ->required(),
 
                         Forms\Components\Textarea::make('deskripsi_tp')
-                            ->label('Rumusan Tujuan Pembelajaran (TP)')
+                            ->label('Tujuan Pembelajaran (TP)')
                             ->placeholder("Contoh:\nMurid dapat mengidentifikasi konsep bilangan bulat positif dan negatif serta melakukan operasi penjumlahan dan pengurangan secara benar dalam konteks pemecahan masalah.")
                             ->rows(4)
                             ->required()
@@ -239,7 +239,7 @@ class TujuanPembelajaranResource extends Resource
                     ->searchable(),
 
                 Tables\Columns\TextColumn::make('deskripsi_tp')
-                    ->label('Rumusan TP')
+                    ->label('Tujuan Pembelajaran (TP)')
                     ->limit(80)
                     ->wrap(),
 

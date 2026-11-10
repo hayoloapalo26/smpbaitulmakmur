@@ -19,7 +19,7 @@ class AlurTujuanPembelajaranResource extends Resource
 {
     public static function shouldRegisterNavigation(): bool
     {
-        return false;
+        return static::canAccess();
     }
 
     public static function canAccess(): bool
@@ -53,8 +53,8 @@ class AlurTujuanPembelajaranResource extends Resource
     protected static ?string $navigationGroup = 'Akademik & Kurikulum';
     protected static ?string $modelLabel = 'Alur Tujuan Pembelajaran (ATP)';
     protected static ?string $pluralModelLabel = 'Alur Tujuan Pembelajaran (ATP)';
-    protected static ?string $navigationLabel = '3. Alur Tujuan Pembelajaran (ATP)';
-    protected static ?int $navigationSort = 3;
+    protected static ?string $navigationLabel = 'Alur Tujuan Pembelajaran (ATP)';
+    protected static ?int $navigationSort = 4;
 
     public static function getNavigationGroup(): ?string
     {
