@@ -94,9 +94,9 @@ class ManagePresensiIzinSiswa extends ManageRecords
                             )),
                         Forms\Components\TextInput::make('cloud_id')
                             ->label('Cloud ID Mesin Revo W230N')
-                            ->placeholder('Contoh: C2688851F1C1830')
+                            ->placeholder('Contoh: C260B8851F1C1030')
                             ->helperText('Cloud ID mesin Anda dari developer.fingerspot.io. Tersimpan permanen.')
-                            ->default($config['cloud_id'] ?? 'C2688851F1C1830')
+                            ->default($config['cloud_id'] ?? 'C260B8851F1C1030')
                             ->required(),
                         Forms\Components\DatePicker::make('start_date')
                             ->label('Tanggal Mulai')

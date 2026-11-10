@@ -58,40 +58,50 @@
             <div class="rounded-lg border-2 border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-950/40 p-3.5 text-xs text-amber-950 dark:text-amber-100 space-y-2">
                 <div class="flex items-center justify-between">
                     <span class="font-bold text-sm text-amber-900 dark:text-amber-200">
-                        ⚡ Kenapa Webhook Masih 0 &amp; Data Belum Masuk? Lakukan 2 Langkah Ini:
+                        ⚡ Kenapa Webhook Masih 0 &amp; Data Belum Masuk? Lakukan Langkah Ini:
                     </span>
                     <span class="text-[11px] font-mono bg-amber-200 dark:bg-amber-800 px-2 py-0.5 rounded">
-                        Target Cloud ID: {{ $cloudId ?: 'C2688851F1C1830' }}
+                        Target Cloud ID: {{ $cloudId ?: 'C260B8851F1C1030' }}
                     </span>
                 </div>
 
                 <div class="space-y-1.5 pl-1">
                     <div class="flex items-start gap-2">
-                        <span class="font-bold text-primary-600">Langkah 1 (Di web developer.fingerspot.io):</span>
+                        <span class="font-bold text-primary-600">1. Di Web developer.fingerspot.io:</span>
                         <span>
-                            Buka tab <strong>developer.fingerspot.io</strong> &rarr; menu <strong>Device</strong> (atau Pengaturan Perangkat) pada baris mesin <code>{{ $cloudId ?: 'C2688851F1C1830' }}</code>.
-                            Pastikan kolom <strong>Webhook URL</strong> diisi persis:
-                            <code class="block mt-1 font-mono font-bold text-xs bg-white dark:bg-gray-800 p-1.5 rounded border border-amber-400 dark:border-amber-600 select-all">{{ $expectedWebhookUrl }}</code>
+                            Webhook URL pada mesin <code>{{ $cloudId ?: 'C260B8851F1C1030' }}</code> sudah terhubung ke:
+                            <code class="font-mono font-bold text-xs bg-white dark:bg-gray-800 px-1.5 py-0.5 rounded border border-amber-400 dark:border-amber-600 select-all">{{ $expectedWebhookUrl }}</code>
                             @if($cloudWebhookUrl)
-                                <span class="text-red-600 dark:text-red-400 font-semibold block mt-0.5">
-                                    (Saat ini terdeteksi di Cloud: <code>{{ $cloudWebhookUrl ?: 'KOSONG / BELUM TERPASANG' }}</code>)
+                                <span class="text-green-700 dark:text-green-400 font-semibold block mt-0.5">
+                                    (✅ Webhook URL terverifikasi aktif di akun Cloud Anda)
                                 </span>
                             @endif
                         </span>
                     </div>
 
                     <div class="flex items-start gap-2 pt-1 border-t border-amber-200 dark:border-amber-800">
-                        <span class="font-bold text-primary-600">Langkah 2 (Di Mesin Fisik Revo W230N):</span>
+                        <span class="font-bold text-primary-600">2. PENTING - Pada Mesin Fisik Revo W230N:</span>
                         <span>
-                            Tekan <strong>Menu &rarr; Setelan &rarr; Jaringan &rarr; Server</strong> pada mesin absensi.
-                            Pastikan: <strong>IP/Domain Server = <code>fdevice.com</code></strong> (atau IP <code>3.1.174.198</code>) dan <strong>Port Server = <code>8013</code></strong>, pastikan WiFi/LAN tersambung, lalu <strong>Restart (Matikan &amp; Hidupkan)</strong> mesin agar data scan langsung dikirimkan ke server.
+                            @if($machineNeverConnected)
+                                <strong class="text-red-700 dark:text-red-400 font-bold block mb-1">
+                                    ⚠️ Mesin belum terhubung ke Cloud Server Fingerspot (status Cloud: Last Activity N/A).
+                                </strong>
+                            @endif
+                            Di layar mesin Revo W230N, tekan <strong>Menu &rarr; Pengaturan / Opsi &rarr; Jaringan (Network) &rarr; Server (Cloud Server)</strong>:
+                            <ul class="list-disc pl-5 mt-1 space-y-0.5">
+                                <li><strong>Nama Domain / IP Server:</strong> ketik <code>fdevice.com</code> (atau IP <code>3.1.174.198</code>)</li>
+                                <li><strong>Port Server:</strong> ketik <code>8013</code></li>
+                                <li>Pastikan WiFi mesin tersambung ke Internet (indikator WiFi tidak silang)</li>
+                                <li><strong>Restart mesin</strong> (matikan lalu nyalakan kembali).</li>
+                            </ul>
+                            <em>Setelah restart, icon awan/cloud di layar mesin akan aktif dan data scan akan otomatis terkirim seketika!</em>
                         </span>
                     </div>
 
                     <div class="flex items-start gap-2 pt-1 border-t border-amber-200 dark:border-amber-800">
-                        <span class="font-bold text-primary-600">Solusi Cepat (Tanpa Tunggu Webhook):</span>
+                        <span class="font-bold text-primary-600">3. Tarik Riwayat Scan Langsung:</span>
                         <span>
-                            Klik tombol oranye <strong>🔄 Sinkron Mesin Fingerspot</strong> di kanan atas, pastikan Cloud ID <code>{{ $cloudId ?: 'C2688851F1C1830' }}</code>, pilih tanggal (misal 2 hari terakhir), lalu klik <strong>Tarik Log Sekarang</strong> untuk menarik paksa log absensi dari Cloud Fingerspot seketika!
+                            Klik tombol oranye <strong>🔄 Sinkron Mesin Fingerspot</strong> di kanan atas, pastikan Cloud ID <code>{{ $cloudId ?: 'C260B8851F1C1030' }}</code>, lalu klik <strong>Tarik Log Sekarang</strong> untuk menarik log absensi dari Cloud Fingerspot seketika!
                         </span>
                     </div>
                 </div>

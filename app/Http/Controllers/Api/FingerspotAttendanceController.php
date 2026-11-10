@@ -412,17 +412,44 @@ class FingerspotAttendanceController extends Controller
             ->whereDate('tanggal', $todayWib)
             ->count();
 
+        // Ambil cache device info jika belum ada
+        $deviceInfo = $config['last_device_info'] ?? null;
+        if (empty($deviceInfo) && !empty($config['cloud_id']) && !empty($hasKey)) {
+            try {
+                $devResp = Http::withToken($this->getConfiguredApiKey())
+                    ->timeout(4)
+                    ->acceptJson()
+                    ->post('https://developer.fingerspot.io/api/get_device', [
+                        'trans_id' => (string) time(),
+                        'cloud_id' => $config['cloud_id'],
+                    ]);
+                if ($devResp->successful()) {
+                    $devData = $devResp->json('data') ?? $devResp->json();
+                    if (is_array($devData)) {
+                        $deviceInfo = $devData;
+                        $this->saveCloudConfig([
+                            'last_device_info'  => $deviceInfo,
+                            'cloud_webhook_url' => $deviceInfo['webhook_url'] ?? null,
+                            'device_name'       => $deviceInfo['device_name'] ?? null,
+                        ]);
+                    }
+                }
+            } catch (\Throwable $e) {}
+        }
+
         return [
             'status'                         => 'online',
             'device_target'                  => 'Fingerspot Revo W230N',
             'server'                         => 'SMPI Baitul Makmur',
             'time'                           => now()->setTimezone('Asia/Jakarta')->format('Y-m-d H:i:s T'),
-            'version'                        => '2.3',
+            'version'                        => '2.4',
             'api_key_configured'             => $hasKey,
-            'cloud_id_configured'            => $config['cloud_id'] ?? null,
-            'cloud_webhook_url'              => $config['cloud_webhook_url'] ?? null,
-            'device_name'                    => $config['device_name'] ?? null,
-            'last_device_info'               => $config['last_device_info'] ?? null,
+            'cloud_id_configured'            => $config['cloud_id'] ?? 'C260B8851F1C1030',
+            'cloud_webhook_url'              => $deviceInfo['webhook_url'] ?? ($config['cloud_webhook_url'] ?? null),
+            'device_name'                    => $deviceInfo['device_name'] ?? ($config['device_name'] ?? null),
+            'last_device_info'               => $deviceInfo,
+            'machine_last_activity'          => $deviceInfo['last_activity'] ?? null,
+            'machine_connected_to_cloud'     => !empty($deviceInfo['last_activity']) && strtolower((string) $deviceInfo['last_activity']) !== 'n/a',
             'last_attlog_raw'                => $config['last_attlog_raw'] ?? null,
             'last_cloud_sync_at'             => $config['last_sync_at'] ?? null,
             'last_sync_summary'              => $config['last_sync_summary'] ?? null,
@@ -519,11 +546,14 @@ class FingerspotAttendanceController extends Controller
     {
         $config = $this->getCloudConfig();
         $apiKey = $this->getConfiguredApiKey();
-        $resolvedCloudId = trim((string) ($cloudId ?: ($config['cloud_id'] ?? '')));
+        $resolvedCloudId = trim((string) ($cloudId ?: ($config['cloud_id'] ?? 'C260B8851F1C1030')));
 
-        if (!empty($cloudId)) {
-            $this->saveCloudConfig(['cloud_id' => $resolvedCloudId]);
+        // Otomatis koreksi jika ada typo C2688851F1C1830
+        if ($resolvedCloudId === 'C2688851F1C1830' || empty($resolvedCloudId)) {
+            $resolvedCloudId = 'C260B8851F1C1030';
         }
+
+        $this->saveCloudConfig(['cloud_id' => $resolvedCloudId]);
 
         if (empty($apiKey)) {
             return [
@@ -1107,15 +1137,39 @@ class FingerspotAttendanceController extends Controller
     public function getCloudConfig(): array
     {
         $stored = $this->readJsonFile(self::CONFIG_FILE, []);
-        return array_merge([
+        $storedCloudId = trim((string) ($stored['cloud_id'] ?? ''));
+
+        // Koreksi typo lama C2688851F1C1830 secara otomatis
+        if ($storedCloudId === 'C2688851F1C1830' || empty($storedCloudId)) {
+            $storedCloudId = 'C260B8851F1C1030';
+            $stored['cloud_id'] = $storedCloudId;
+            $this->writeJsonFile(self::CONFIG_FILE, $stored);
+        }
+
+        $cloudId = env('FINGERSPOT_CLOUD_ID')
+            ?: config('services.fingerspot.cloud_id')
+            ?: $storedCloudId;
+
+        if ($cloudId === 'C2688851F1C1830' || empty($cloudId)) {
+            $cloudId = 'C260B8851F1C1030';
+        }
+
+        $merged = array_merge([
             'api_key'  => config('services.fingerspot.api_key', env('FINGERSPOT_API_KEY')) ?: '94PM7O0GL1A4M1MR',
-            'cloud_id' => env('FINGERSPOT_CLOUD_ID') ?: config('services.fingerspot.cloud_id'),
+            'cloud_id' => $cloudId,
         ], $stored);
+
+        $merged['cloud_id'] = $cloudId;
+
+        return $merged;
     }
 
     public function saveCloudConfig(array $data): void
     {
         $current = $this->readJsonFile(self::CONFIG_FILE, []);
+        if (isset($data['cloud_id']) && (trim((string) $data['cloud_id']) === 'C2688851F1C1830' || empty(trim((string) $data['cloud_id'])))) {
+            $data['cloud_id'] = 'C260B8851F1C1030';
+        }
         $merged = array_merge($current, $data);
         $this->writeJsonFile(self::CONFIG_FILE, $merged);
     }
@@ -1123,9 +1177,13 @@ class FingerspotAttendanceController extends Controller
     private function autoRememberCloudId(string $cloudId): void
     {
         try {
+            $cleanId = trim($cloudId);
+            if ($cleanId === 'C2688851F1C1830' || empty($cleanId)) {
+                $cleanId = 'C260B8851F1C1030';
+            }
             $config = $this->readJsonFile(self::CONFIG_FILE, []);
-            if (($config['cloud_id'] ?? null) !== $cloudId) {
-                $this->saveCloudConfig(['cloud_id' => $cloudId]);
+            if (($config['cloud_id'] ?? null) !== $cleanId) {
+                $this->saveCloudConfig(['cloud_id' => $cleanId]);
             }
         } catch (\Throwable $e) {}
     }
