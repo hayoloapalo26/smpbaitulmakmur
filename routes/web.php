@@ -305,7 +305,20 @@ Route::prefix('api/fingerspot')->group(function () {
     Route::match(['get', 'post'], '/webhook', [\App\Http\Controllers\Api\FingerspotAttendanceController::class, 'receive'])
         ->name('fingerspot.webhook')
         ->withoutMiddleware([\Illuminate\Foundation\Http\Middleware\PreventRequestForgery::class]);
+
+    // Kompatibilitas endpoint store.php dari demo_webhook resmi Fingerspot
+    Route::match(['get', 'post'], '/store.php', [\App\Http\Controllers\Api\FingerspotAttendanceController::class, 'receive'])
+        ->name('fingerspot.store')
+        ->withoutMiddleware([\Illuminate\Foundation\Http\Middleware\PreventRequestForgery::class]);
 });
+
+// Fallback rute root & subfolder untuk file demo webhook Fingerspot (store.php)
+Route::match(['get', 'post'], '/store.php', [\App\Http\Controllers\Api\FingerspotAttendanceController::class, 'receive'])
+    ->withoutMiddleware([\Illuminate\Foundation\Http\Middleware\PreventRequestForgery::class]);
+Route::match(['get', 'post'], '/demo_webhook/store.php', [\App\Http\Controllers\Api\FingerspotAttendanceController::class, 'receive'])
+    ->withoutMiddleware([\Illuminate\Foundation\Http\Middleware\PreventRequestForgery::class]);
+Route::match(['get', 'post'], '/api/store.php', [\App\Http\Controllers\Api\FingerspotAttendanceController::class, 'receive'])
+    ->withoutMiddleware([\Illuminate\Foundation\Http\Middleware\PreventRequestForgery::class]);
 
 // =========================================================
 // FINGERSPOT DIRECT ADMS / ICLOCK PUSH PROTOCOL
