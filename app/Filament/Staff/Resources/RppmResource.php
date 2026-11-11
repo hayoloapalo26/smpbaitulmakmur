@@ -1496,14 +1496,15 @@ class RppmResource extends Resource
                     ->label(fn (Rppm $record) => in_array($record->status ?? 'draft', ['draft', 'need_revision']) ? 'Edit / Perbaiki' : 'Edit')
                     ->visible(fn (Rppm $record): bool => !auth()->user()?->hasRole('kepala_sekolah') && (auth()->id() === $record->guru_id || auth()->user()?->hasAnyRole(['superadmin', 'waka_kurikulum']))),
 
-                // Tombol Hapus RPPM untuk guru penyusun atau admin kurikulum
+                // Tombol Hapus khusus Guru Pemilik RPPM, Waka Kurikulum, & Superadmin (Kepala Sekolah tidak menghapus)
                 Tables\Actions\DeleteAction::make()
                     ->label('Hapus')
                     ->icon('heroicon-o-trash')
                     ->color('danger')
                     ->modalHeading('Hapus Dokumen RPPM & Perangkat Ajar')
-                    ->modalDescription('Apakah Anda yakin ingin menghapus inputan RPPM ini? Data yang dihapus tidak dapat dikembalikan.')
+                    ->modalDescription('Apakah Anda yakin ingin menghapus dokumen RPPM ini? Data yang telah dihapus tidak dapat dikembalikan.')
                     ->modalSubmitActionLabel('Ya, Hapus')
+                    ->successNotificationTitle('Dokumen RPPM Berhasil Dihapus')
                     ->visible(fn (Rppm $record): bool => !auth()->user()?->hasRole('kepala_sekolah') && (auth()->id() === $record->guru_id || auth()->user()?->hasAnyRole(['superadmin', 'waka_kurikulum']))),
 
                 // Tombol ACC khusus Kepala Sekolah & Superadmin

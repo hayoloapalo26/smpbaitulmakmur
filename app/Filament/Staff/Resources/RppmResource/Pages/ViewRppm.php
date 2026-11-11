@@ -23,6 +23,23 @@ class ViewRppm extends ViewRecord
                 ->url(fn (): string => route('academic.rppm.pdf', $this->record))
                 ->openUrlInNewTab(),
 
+            Actions\EditAction::make()
+                ->label('✏️ Edit / Perbaiki')
+                ->color('warning')
+                ->icon('heroicon-o-pencil-square')
+                ->visible(fn (): bool => !auth()->user()?->hasRole('kepala_sekolah') && (auth()->id() === $this->record->guru_id || auth()->user()?->hasAnyRole(['superadmin', 'waka_kurikulum']))),
+
+            Actions\DeleteAction::make()
+                ->label('🗑️ Hapus RPPM')
+                ->color('danger')
+                ->icon('heroicon-o-trash')
+                ->modalHeading('Hapus Dokumen RPPM & Perangkat Ajar')
+                ->modalDescription('Apakah Anda yakin ingin menghapus dokumen RPPM ini? Data yang telah dihapus tidak dapat dikembalikan.')
+                ->modalSubmitActionLabel('Ya, Hapus')
+                ->successNotificationTitle('Dokumen RPPM Berhasil Dihapus')
+                ->visible(fn (): bool => !auth()->user()?->hasRole('kepala_sekolah') && (auth()->id() === $this->record->guru_id || auth()->user()?->hasAnyRole(['superadmin', 'waka_kurikulum'])))
+                ->successRedirectUrl(RppmResource::getUrl('index')),
+
             // Tombol ACC / Setujui untuk Kepala Sekolah & Superadmin
             Actions\Action::make('approve_rppm')
                 ->label('✅ ACC / Setujui RPPM')
@@ -86,15 +103,6 @@ class ViewRppm extends ViewRecord
                         ->warning()
                         ->send();
                 }),
-
-            Actions\DeleteAction::make()
-                ->label('Hapus RPPM')
-                ->icon('heroicon-o-trash')
-                ->color('danger')
-                ->modalHeading('Hapus Dokumen RPPM & Perangkat Ajar')
-                ->modalDescription('Apakah Anda yakin ingin menghapus inputan RPPM ini? Data yang dihapus tidak dapat dikembalikan.')
-                ->modalSubmitActionLabel('Ya, Hapus')
-                ->visible(fn (): bool => !auth()->user()?->hasRole('kepala_sekolah') && (auth()->id() === $this->record->guru_id || auth()->user()?->hasAnyRole(['superadmin', 'waka_kurikulum']))),
         ];
     }
 }

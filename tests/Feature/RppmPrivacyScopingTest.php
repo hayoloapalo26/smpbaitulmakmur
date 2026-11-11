@@ -158,7 +158,7 @@ class RppmPrivacyScopingTest extends TestCase
         $responseOwn->assertStatus(200);
     }
 
-    public function test_guru_can_delete_their_own_rppm_from_table()
+    public function test_guru_can_delete_their_own_rppm(): void
     {
         $this->actingAs($this->guruA);
 
@@ -170,19 +170,19 @@ class RppmPrivacyScopingTest extends TestCase
         ]);
     }
 
-    public function test_guru_cannot_delete_other_teachers_rppm()
-    {
-        $this->actingAs($this->guruA);
-
-        $policy = new \App\Policies\RppmPolicy();
-        $this->assertFalse($policy->delete($this->guruA, $this->rppmGuruB));
-    }
-
-    public function test_kepala_sekolah_cannot_delete_teacher_rppm()
+    public function test_kepala_sekolah_cannot_delete_rppm(): void
     {
         $this->actingAs($this->kepalaSekolah);
 
-        $policy = new \App\Policies\RppmPolicy();
-        $this->assertFalse($policy->delete($this->kepalaSekolah, $this->rppmGuruA));
+        Livewire::test(RppmResource\Pages\ListRppms::class)
+            ->assertTableActionHidden('delete', $this->rppmGuruA);
+    }
+
+    public function test_waka_kurikulum_can_delete_rppm(): void
+    {
+        $this->actingAs($this->wakaKurikulum);
+
+        Livewire::test(RppmResource\Pages\ListRppms::class)
+            ->assertTableActionVisible('delete', $this->rppmGuruA);
     }
 }

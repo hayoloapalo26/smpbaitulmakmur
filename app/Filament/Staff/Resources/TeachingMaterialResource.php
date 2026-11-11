@@ -83,6 +83,12 @@ class TeachingMaterialResource extends Resource
             ])
             ->actions([
                 Tables\Actions\EditAction::make(),
+                Tables\Actions\DeleteAction::make()
+                    ->label('Hapus')
+                    ->modalHeading('Hapus Dokumen Perangkat Ajar')
+                    ->modalDescription('Apakah Anda yakin ingin menghapus file perangkat ajar ini? Data yang dihapus tidak dapat dikembalikan.')
+                    ->modalSubmitActionLabel('Ya, Hapus')
+                    ->successNotificationTitle('Perangkat Ajar Berhasil Dihapus'),
                 Tables\Actions\Action::make('teruskan')
                     ->label('Setujui Waka Kurikulum')
                     ->icon('heroicon-o-arrow-right')
