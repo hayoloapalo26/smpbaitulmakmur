@@ -709,6 +709,16 @@ class FingerspotAttendanceController extends Controller
             }
             $this->saveCloudConfig($configToSave);
 
+            $msg = "Sinkronisasi selesai ({$start} s/d {$end}): {$inserted} presensi baru masuk, {$lockedDuplicates} sudah terkunci/tercatat, " . count(array_unique($unmatchedPins)) . ' PIN belum terdaftar.';
+            if ($inserted === 0 && count($records) === 0) {
+                $lastAct = $deviceInfo['last_activity'] ?? 'N/A';
+                if ($lastAct === 'N/A') {
+                    $msg = "Server Cloud Fingerspot terhubung, namun MESIN FISIK Revo W230N belum pernah mengirim data ke Cloud (Status: Last Activity N/A). Pastikan mesin sudah di-RESTART (matikan 10 detik lalu nyalakan) dan pastikan icon awan di layar utama mesin tidak bertanda silang.";
+                } else {
+                    $msg = "Server Cloud terhubung (Last Activity: {$lastAct}), namun belum ada rekaman scan baru pada rentang {$start} s/d {$end}.";
+                }
+            }
+
             return [
                 'success'           => true,
                 'cloud_id'          => $resolvedCloudId,
@@ -718,7 +728,7 @@ class FingerspotAttendanceController extends Controller
                 'duplicates_locked' => $lockedDuplicates,
                 'unmatched_pins'    => array_values(array_unique($unmatchedPins)),
                 'device_info'       => $deviceInfo,
-                'message'           => "Sinkronisasi selesai ({$start} s/d {$end}): {$inserted} presensi baru masuk, {$lockedDuplicates} sudah terkunci/tercatat, " . count(array_unique($unmatchedPins)) . ' PIN belum terdaftar.',
+                'message'           => $msg,
                 'details'           => $details,
             ];
         } catch (\Throwable $e) {
