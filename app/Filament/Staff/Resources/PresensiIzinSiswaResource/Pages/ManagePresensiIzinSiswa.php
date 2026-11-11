@@ -13,10 +13,18 @@ use Filament\Resources\Components\Tab;
 use Filament\Resources\Pages\ManageRecords;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Cache;
+use Livewire\Attributes\On;
 
 class ManagePresensiIzinSiswa extends ManageRecords
 {
     protected static string $resource = PresensiIzinSiswaResource::class;
+
+    #[On('refresh-presensi-table')]
+    #[On('fingerspot-synced')]
+    public function refreshTableData(): void
+    {
+        $this->resetTable();
+    }
 
     protected function getHeaderWidgets(): array
     {

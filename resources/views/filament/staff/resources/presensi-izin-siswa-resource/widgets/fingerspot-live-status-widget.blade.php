@@ -21,7 +21,7 @@
         $machineNeverConnected = empty($lastActivity) || strtolower((string) $lastActivity) === 'n/a';
     @endphp
 
-    <div class="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4 shadow-sm space-y-3.5">
+    <div wire:poll.30s="refreshStatus" class="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4 shadow-sm space-y-3.5">
         {{-- Header Status Bar --}}
         <div class="flex flex-wrap items-center justify-between gap-2 text-xs">
             <div class="flex flex-wrap items-center gap-2">
@@ -52,8 +52,22 @@
                 </span>
             </div>
 
-            <button type="button" wire:click="refreshStatus" class="text-xs font-semibold text-primary-600 hover:underline dark:text-primary-400">
-                🔄 Segarkan Panel
+            <button 
+                type="button" 
+                wire:click="refreshStatus(true)" 
+                wire:loading.attr="disabled"
+                title="Segarkan panel dan tarik data presensi terbaru dari mesin/cloud"
+                class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-white dark:bg-gray-800 text-primary-600 dark:text-primary-400 hover:bg-primary-50 dark:hover:bg-gray-700 border border-primary-200 dark:border-primary-800 shadow-sm transition active:scale-95 disabled:opacity-60 cursor-pointer"
+            >
+                <svg wire:loading.remove wire:target="refreshStatus" class="w-3.5 h-3.5 text-primary-600 dark:text-primary-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                <svg wire:loading wire:target="refreshStatus" class="w-3.5 h-3.5 animate-spin text-primary-600 dark:text-primary-400" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+                </svg>
+                <span wire:loading.remove wire:target="refreshStatus">🔄 Segarkan Panel &amp; Data</span>
+                <span wire:loading wire:target="refreshStatus">Menyegarkan data...</span>
             </button>
         </div>
 
