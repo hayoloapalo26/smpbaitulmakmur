@@ -86,6 +86,15 @@ class ViewRppm extends ViewRecord
                         ->warning()
                         ->send();
                 }),
+
+            Actions\DeleteAction::make()
+                ->label('Hapus RPPM')
+                ->icon('heroicon-o-trash')
+                ->color('danger')
+                ->modalHeading('Hapus Dokumen RPPM & Perangkat Ajar')
+                ->modalDescription('Apakah Anda yakin ingin menghapus inputan RPPM ini? Data yang dihapus tidak dapat dikembalikan.')
+                ->modalSubmitActionLabel('Ya, Hapus')
+                ->visible(fn (): bool => !auth()->user()?->hasRole('kepala_sekolah') && (auth()->id() === $this->record->guru_id || auth()->user()?->hasAnyRole(['superadmin', 'waka_kurikulum']))),
         ];
     }
 }

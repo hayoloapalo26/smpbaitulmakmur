@@ -49,7 +49,13 @@ class EditRppm extends EditRecord
                 ->color('warning')
                 ->icon('heroicon-o-bookmark')
                 ->action('saveDraft'),
-            Actions\DeleteAction::make(),
+            Actions\DeleteAction::make()
+                ->label('Hapus RPPM')
+                ->icon('heroicon-o-trash')
+                ->modalHeading('Hapus Dokumen RPPM & Perangkat Ajar')
+                ->modalDescription('Apakah Anda yakin ingin menghapus inputan RPPM ini? Data yang dihapus tidak dapat dikembalikan.')
+                ->modalSubmitActionLabel('Ya, Hapus')
+                ->visible(fn (): bool => !auth()->user()?->hasRole('kepala_sekolah') && (auth()->id() === $this->record->guru_id || auth()->user()?->hasAnyRole(['superadmin', 'waka_kurikulum']))),
         ];
     }
 

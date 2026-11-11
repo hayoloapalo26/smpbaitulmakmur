@@ -97,7 +97,11 @@ class RppmPolicy
      */
     public function delete(User $user, Rppm $rppm): bool
     {
-        if ($user->hasAnyRole(['superadmin', 'kepala_sekolah', 'waka_kurikulum'])) {
+        if ($user->hasRole('kepala_sekolah')) {
+            return false;
+        }
+
+        if ($user->hasAnyRole(['superadmin', 'waka_kurikulum'])) {
             return true;
         }
 

@@ -157,4 +157,32 @@ class RppmPrivacyScopingTest extends TestCase
         $responseOwn = $this->get(route('academic.rppm.pdf', ['rppm' => $this->rppmGuruA]));
         $responseOwn->assertStatus(200);
     }
+
+    public function test_guru_can_delete_their_own_rppm_from_table()
+    {
+        $this->actingAs($this->guruA);
+
+        Livewire::test(RppmResource\Pages\ListRppms::class)
+            ->callTableAction('delete', $this->rppmGuruA);
+
+        $this->assertDatabaseMissing('rppms', [
+            'id' => $this->rppmGuruA->id,
+        ]);
+    }
+
+    public function test_guru_cannot_delete_other_teachers_rppm()
+    {
+        $this->actingAs($this->guruA);
+
+        $policy = new \App\Policies\RppmPolicy();
+        $this->assertFalse($policy->delete($this->guruA, $this->rppmGuruB));
+    }
+
+    public function test_kepala_sekolah_cannot_delete_teacher_rppm()
+    {
+        $this->actingAs($this->kepalaSekolah);
+
+        $policy = new \App\Policies\RppmPolicy();
+        $this->assertFalse($policy->delete($this->kepalaSekolah, $this->rppmGuruA));
+    }
 }
