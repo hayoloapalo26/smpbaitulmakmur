@@ -89,7 +89,7 @@ class ManagePresensiIzinSiswa extends ManageRecords
                                 '<div class="text-xs space-y-1.5 text-gray-700 dark:text-gray-300 bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-700 p-2.5 rounded-lg">'
                                 . '<div><strong>1. Salin Webhook URL ini:</strong> <code class="font-mono font-bold text-xs bg-white dark:bg-gray-800 px-2 py-0.5 rounded border border-gray-300 select-all">' . $webhookUrl . '</code></div>'
                                 . '<div><strong>2. Tempel di web developer.fingerspot.io:</strong> Buka menu <em>Device</em> &rarr; kolom <em>Webhook URL</em> pada mesin Anda.</div>'
-                                . '<div><strong>3. Pada Mesin Fisik Revo W230N:</strong> Menu &rarr; Setelan &rarr; Jaringan &rarr; Server IP = <code>fdevice.com</code> (atau <code>3.1.174.198</code>), Port = <code>8013</code>, lalu Restart mesin.</div>'
+                                . '<div><strong>3. Pada Mesin Fisik Revo W230N:</strong> Menu &rarr; Setelan &rarr; Jaringan &rarr; Server IP = <code>fdevice.com</code> (atau <code>3.1.174.198</code>), Port = <code>8014</code> (Port resmi seri Revo W), lalu Restart mesin.</div>'
                                 . '</div>'
                             )),
                         Forms\Components\TextInput::make('cloud_id')

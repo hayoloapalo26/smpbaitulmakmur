@@ -94,7 +94,7 @@
                             Di layar mesin Revo W230N, tekan <strong>Menu &rarr; Pengaturan / Opsi &rarr; Jaringan (Network) &rarr; Server (Cloud Server)</strong>:
                             <ul class="list-disc pl-5 mt-1 space-y-0.5">
                                 <li><strong>Nama Domain / IP Server:</strong> ketik <code>fdevice.com</code> (atau IP <code>3.1.174.198</code>)</li>
-                                <li><strong>Port Server:</strong> ketik <code>8013</code></li>
+                                <li><strong>Port Server:</strong> ketik <code>8014</code> (Port resmi untuk seri Revo W-230N di fingerspot.io)</li>
                                 <li>Pastikan WiFi mesin tersambung ke Internet (indikator WiFi tidak silang)</li>
                                 <li><strong>Restart mesin</strong> (matikan lalu nyalakan kembali).</li>
                             </ul>
