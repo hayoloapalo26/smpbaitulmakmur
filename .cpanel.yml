@@ -1,0 +1,6 @@
+---
+deployment:
+  tasks:
+    - export DEPLOYPATH=$(pwd)
+    - /bin/chmod -R ug+rwX "$DEPLOYPATH/storage" "$DEPLOYPATH/bootstrap/cache" || true
+    - /usr/local/bin/php "$DEPLOYPATH/artisan" optimize:clear || php "$DEPLOYPATH/artisan" optimize:clear || true
