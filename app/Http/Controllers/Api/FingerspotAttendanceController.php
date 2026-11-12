@@ -8,6 +8,7 @@ use App\Models\Student;
 use App\Models\StudentHalangan;
 use App\Models\TeacherAttendance;
 use App\Models\User;
+use App\Services\FingerspotCloudService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -37,6 +38,22 @@ class FingerspotAttendanceController extends Controller
 {
     private const CONFIG_FILE = 'fingerspot_config.json';
     private const WEBHOOK_LOG_FILE = 'fingerspot_webhook_logs.json';
+    private const ASYNC_CALLBACKS_FILE = 'fingerspot_async_callbacks.json';
+
+    /**
+     * Tipe event callback asinkron dari developer.fingerspot.io yang bukan log scan kehadiran.
+     */
+    private const ASYNC_CALLBACK_TYPES = [
+        'get_userinfo',
+        'get_userid_list',
+        'set_time',
+        'set_userinfo',
+        'delete_userinfo',
+        'register_online',
+        'restart_device',
+        'get_qrcode',
+        'set_qrcode',
+    ];
 
     /**
      * Definisi aturan waktu per tipe absen:
@@ -120,7 +137,27 @@ class FingerspotAttendanceController extends Controller
         }
 
         try {
-            $records = $this->extractRecordsFromRequest($request);
+            $payload = $this->decodeRequestPayload($request);
+
+            if (!empty($payload['cloud_id']) && is_string($payload['cloud_id'])) {
+                $this->autoRememberCloudId($payload['cloud_id']);
+            }
+
+            $eventType = strtolower(trim((string) ($payload['type'] ?? '')));
+
+            // Callback perintah asinkron dari developer.fingerspot.io (bukan event scan kehadiran)
+            if ($eventType !== '' && in_array($eventType, self::ASYNC_CALLBACK_TYPES, true)) {
+                return $this->handleAsyncCallback($eventType, $payload, $request);
+            }
+
+            if ($eventType === 'attlog' || !empty($payload['cloud_id'])) {
+                $this->saveCloudConfig([
+                    'cloud_webhook_verified' => true,
+                    'last_cloud_webhook_at'  => now()->setTimezone('Asia/Jakarta')->format('Y-m-d H:i:s'),
+                ]);
+            }
+
+            $records = $this->extractRecordsFromRequest($request, $payload);
 
             if (empty($records)) {
                 return response()->json([
@@ -166,9 +203,9 @@ class FingerspotAttendanceController extends Controller
     }
 
     /**
-     * Ekstrak array log scan dari berbagai format payload webhook Fingerspot
+     * Dekode payload JSON atau form dari request masuk secara aman.
      */
-    protected function extractRecordsFromRequest(Request $request): array
+    protected function decodeRequestPayload(Request $request): array
     {
         $payload = $request->all();
         $rawContent = $request->getContent();
@@ -186,6 +223,81 @@ class FingerspotAttendanceController extends Controller
                 $payload['data'] = $decodedData;
             }
         }
+
+        return is_array($payload) ? $payload : [];
+    }
+
+    /**
+     * Tangani callback perintah asinkron dari developer.fingerspot.io tanpa memasukkannya sebagai presensi.
+     */
+    protected function handleAsyncCallback(string $eventType, array $payload, Request $request)
+    {
+        $nowWib = now()->setTimezone('Asia/Jakarta')->format('Y-m-d H:i:s');
+        $transId = (string) ($payload['trans_id'] ?? '');
+        $cloudId = (string) ($payload['cloud_id'] ?? '');
+        $data = is_array($payload['data'] ?? null) ? $payload['data'] : [];
+
+        $callbacks = $this->readJsonFile(self::ASYNC_CALLBACKS_FILE, []);
+        array_unshift($callbacks, [
+            'time'     => $nowWib,
+            'type'     => $eventType,
+            'cloud_id' => $cloudId,
+            'trans_id' => $transId,
+            'data'     => $data,
+        ]);
+        $this->writeJsonFile(self::ASYNC_CALLBACKS_FILE, array_slice($callbacks, 0, 25));
+
+        $configUpdates = [
+            'cloud_webhook_verified' => true,
+            'last_cloud_webhook_at'  => $nowWib,
+            'last_async_callback'    => [
+                'time'     => $nowWib,
+                'type'     => $eventType,
+                'trans_id' => $transId,
+                'status'   => $data['status'] ?? null,
+            ],
+        ];
+
+        if ($eventType === 'get_userid_list') {
+            $pins = array_values(array_map('strval', is_array($data['pin_arr'] ?? null) ? $data['pin_arr'] : []));
+            $configUpdates['device_pins'] = $pins;
+            $configUpdates['device_pins_total'] = (int) ($data['total'] ?? count($pins));
+            $configUpdates['device_pins_synced_at'] = $nowWib;
+        } elseif ($eventType === 'get_userinfo' && !empty($data['pin'])) {
+            $config = $this->getCloudConfig();
+            $cachedUsers = is_array($config['device_userinfo_cache'] ?? null) ? $config['device_userinfo_cache'] : [];
+            $cachedUsers[(string) $data['pin']] = [
+                'pin'        => (string) $data['pin'],
+                'name'       => $data['name'] ?? null,
+                'privilege'  => $data['privilege'] ?? null,
+                'updated_at' => $nowWib,
+            ];
+            $configUpdates['device_userinfo_cache'] = $cachedUsers;
+        }
+
+        $this->saveCloudConfig($configUpdates);
+
+        Log::info("Fingerspot Async Callback [{$eventType}] diterima", [
+            'cloud_id' => $cloudId,
+            'trans_id' => $transId,
+            'ip'       => $request->ip(),
+        ]);
+
+        return response()->json([
+            'success'  => true,
+            'status'   => 'callback_recorded',
+            'type'     => $eventType,
+            'trans_id' => $transId,
+            'cloud_id' => $cloudId,
+        ], 200);
+    }
+
+    /**
+     * Ekstrak array log scan dari berbagai format payload webhook Fingerspot
+     */
+    protected function extractRecordsFromRequest(Request $request, ?array $predecodedPayload = null): array
+    {
+        $payload = $predecodedPayload ?? $this->decodeRequestPayload($request);
 
         // Jika webhook mengirim cloud_id, simpan otomatis agar Cloud Pull ikut aktif
         if (!empty($payload['cloud_id']) && is_string($payload['cloud_id'])) {
@@ -404,8 +516,12 @@ class FingerspotAttendanceController extends Controller
             ->toArray();
 
         $rawWebhooks = $this->readJsonFile(self::WEBHOOK_LOG_FILE, []);
+        $asyncCallbacks = $this->readJsonFile(self::ASYNC_CALLBACKS_FILE, []);
         $recentScans = $this->readJsonFile('fingerspot_recent_scans.json', Cache::get('fingerspot_recent_scans', []));
         $unmatchedPins = $this->readJsonFile('fingerspot_unmatched_pins.json', Cache::get('fingerspot_last_unmatched_pins', []));
+        $cloudWebhookHitsCount = count(array_filter($rawWebhooks, function ($hit) {
+            return is_array($hit) && !empty($hit['is_cloud_event']);
+        }));
 
         $todayWib = now()->setTimezone('Asia/Jakarta')->toDateString();
         $todayStudentAttendanceCount = DailyAttendance::withoutGlobalScopes()
@@ -428,29 +544,18 @@ class FingerspotAttendanceController extends Controller
             ])
             ->toArray();
 
-        // Ambil cache device info jika belum ada
+        // Ambil cache device info jika belum ada (hindari HTTP eksternal saat unit test tanpa fake)
         $deviceInfo = $config['last_device_info'] ?? null;
-        if (empty($deviceInfo) && !empty($config['cloud_id']) && !empty($hasKey)) {
-            try {
-                $devResp = Http::withToken($this->getConfiguredApiKey())
-                    ->timeout(4)
-                    ->acceptJson()
-                    ->post('https://developer.fingerspot.io/api/get_device', [
-                        'trans_id' => (string) time(),
-                        'cloud_id' => $config['cloud_id'],
-                    ]);
-                if ($devResp->successful()) {
-                    $devData = $devResp->json('data') ?? $devResp->json();
-                    if (is_array($devData)) {
-                        $deviceInfo = $devData;
-                        $this->saveCloudConfig([
-                            'last_device_info'  => $deviceInfo,
-                            'cloud_webhook_url' => $deviceInfo['webhook_url'] ?? null,
-                            'device_name'       => $deviceInfo['device_name'] ?? null,
-                        ]);
-                    }
-                }
-            } catch (\Throwable $e) {}
+        if (empty($deviceInfo) && !empty($config['cloud_id']) && !empty($hasKey) && !app()->runningUnitTests()) {
+            $devResp = $this->cloud()->getDevice($this->getConfiguredApiKey(), (string) $config['cloud_id']);
+            if ($devResp['ok'] && is_array($devResp['data'])) {
+                $deviceInfo = $devResp['data'];
+                $this->saveCloudConfig([
+                    'last_device_info'  => $deviceInfo,
+                    'cloud_webhook_url' => $deviceInfo['webhook_url'] ?? null,
+                    'device_name'       => $deviceInfo['device_name'] ?? null,
+                ]);
+            }
         }
 
         return [
@@ -458,20 +563,28 @@ class FingerspotAttendanceController extends Controller
             'device_target'                  => 'Fingerspot Revo W230N',
             'server'                         => 'SMPI Baitul Makmur',
             'time'                           => now()->setTimezone('Asia/Jakarta')->format('Y-m-d H:i:s T'),
-            'version'                        => '2.4',
+            'version'                        => '3.0',
             'api_key_configured'             => $hasKey,
             'cloud_id_configured'            => $config['cloud_id'] ?? 'C260B8851F1C1030',
             'cloud_webhook_url'              => $deviceInfo['webhook_url'] ?? ($config['cloud_webhook_url'] ?? null),
+            'cloud_webhook_verified'         => (bool) ($config['cloud_webhook_verified'] ?? ($cloudWebhookHitsCount > 0)),
+            'last_cloud_webhook_at'          => $config['last_cloud_webhook_at'] ?? null,
             'device_name'                    => $deviceInfo['device_name'] ?? ($config['device_name'] ?? null),
             'last_device_info'               => $deviceInfo,
             'machine_last_activity'          => $deviceInfo['last_activity'] ?? null,
             'machine_connected_to_cloud'     => !empty($deviceInfo['last_activity']) && strtolower((string) $deviceInfo['last_activity']) !== 'n/a',
+            'device_pins'                    => $config['device_pins'] ?? [],
+            'device_pins_total'              => $config['device_pins_total'] ?? count($config['device_pins'] ?? []),
+            'device_pins_synced_at'          => $config['device_pins_synced_at'] ?? null,
+            'last_async_callback'            => $config['last_async_callback'] ?? null,
+            'last_async_callbacks'           => array_slice($asyncCallbacks, 0, 5),
             'last_attlog_raw'                => $config['last_attlog_raw'] ?? null,
             'last_cloud_sync_at'             => $config['last_sync_at'] ?? null,
             'last_sync_summary'              => $config['last_sync_summary'] ?? null,
             'today_attendance_total'         => $todayStudentAttendanceCount,
             'total_all_records'              => $totalAllRecords,
             'latest_db_records'              => $latestDbRecords,
+            'webhook_hits_from_cloud_count'  => $cloudWebhookHitsCount,
             'schedule_rules'                 => [
                 'masuk'         => '06:00 - 06:50 (> 06:50 Terlambat, batas scan pagi 11:29)',
                 'sholat_dhuhur' => '12:00 - 12:15 (> 12:15 Terlambat, aktif 11:30 - 14:29)',
@@ -558,15 +671,24 @@ class FingerspotAttendanceController extends Controller
     }
 
     /**
-     * Tarik log absensi secara langsung dari API Cloud developer.fingerspot.io (/api/get_attlog)
+     * Instance service resmi developer.fingerspot.io.
      */
-    public function pullFromCloudApi(?string $cloudId = null, ?string $startDate = null, ?string $endDate = null): array
+    private function cloud(): FingerspotCloudService
+    {
+        return app(FingerspotCloudService::class);
+    }
+
+    /**
+     * Resolusi & normalisasi kredensial Cloud ID + API Key.
+     *
+     * @return array{ok: bool, api_key: string, cloud_id: string, message: ?string}
+     */
+    private function resolveCloudCredentials(?string $cloudId = null): array
     {
         $config = $this->getCloudConfig();
         $apiKey = $this->getConfiguredApiKey();
         $resolvedCloudId = trim((string) ($cloudId ?: ($config['cloud_id'] ?? 'C260B8851F1C1030')));
 
-        // Otomatis koreksi jika ada typo C2688851F1C1830
         if ($resolvedCloudId === 'C2688851F1C1830' || empty($resolvedCloudId)) {
             $resolvedCloudId = 'C260B8851F1C1030';
         }
@@ -575,76 +697,129 @@ class FingerspotAttendanceController extends Controller
 
         if (empty($apiKey)) {
             return [
-                'success' => false,
-                'message' => 'API Key Fingerspot belum dikonfigurasi.',
+                'ok'       => false,
+                'api_key'  => '',
+                'cloud_id' => $resolvedCloudId,
+                'message'  => 'API Key Fingerspot belum dikonfigurasi.',
             ];
         }
 
         if (empty($resolvedCloudId)) {
             return [
-                'success' => false,
-                'message' => 'Cloud ID mesin Fingerspot belum diisi. Silakan salin Cloud ID mesin dari web developer.fingerspot.io.',
+                'ok'       => false,
+                'api_key'  => $apiKey,
+                'cloud_id' => '',
+                'message'  => 'Cloud ID mesin Fingerspot belum diisi. Silakan salin Cloud ID mesin dari web developer.fingerspot.io.',
             ];
         }
+
+        return [
+            'ok'       => true,
+            'api_key'  => $apiKey,
+            'cloud_id' => $resolvedCloudId,
+            'message'  => null,
+        ];
+    }
+
+    /**
+     * Kirim perintah remote Cloud API (get_device, get_all_pin, set_time, restart_device, get_userinfo, set_userinfo, delete_userinfo, reg_online).
+     */
+    public function sendRemoteCommand(string $command, array $params = [], ?string $cloudId = null): array
+    {
+        $creds = $this->resolveCloudCredentials($cloudId);
+        if (! $creds['ok']) {
+            return ['success' => false, 'message' => $creds['message']];
+        }
+
+        $apiKey = $creds['api_key'];
+        $resolvedCloudId = $creds['cloud_id'];
+        $cloud = $this->cloud();
+
+        $res = match ($command) {
+            'get_device'      => $cloud->getDevice($apiKey, $resolvedCloudId),
+            'get_all_pin'     => $cloud->getAllPin($apiKey, $resolvedCloudId),
+            'set_time'        => $cloud->setTime($apiKey, $resolvedCloudId, (string) ($params['timezone'] ?? 'Asia/Jakarta')),
+            'restart_device'  => $cloud->restartDevice($apiKey, $resolvedCloudId),
+            'get_userinfo'    => $cloud->getUserInfo($apiKey, $resolvedCloudId, (string) ($params['pin'] ?? '')),
+            'set_userinfo'    => $cloud->setUserInfo($apiKey, $resolvedCloudId, (array) ($params['data'] ?? $params)),
+            'delete_userinfo' => $cloud->deleteUserInfo($apiKey, $resolvedCloudId, (string) ($params['pin'] ?? '')),
+            'reg_online'      => $cloud->registerOnline($apiKey, $resolvedCloudId, (string) ($params['pin'] ?? ''), (string) ($params['verification'] ?? '0')),
+            default           => ['ok' => false, 'status' => 400, 'trans_id' => '', 'data' => null, 'message' => "Perintah Cloud tidak dikenal: {$command}"],
+        };
+
+        $nowWib = now()->setTimezone('Asia/Jakarta')->format('Y-m-d H:i:s');
+        if ($command === 'get_device' && $res['ok'] && is_array($res['data'])) {
+            $this->saveCloudConfig([
+                'last_device_info'  => $res['data'],
+                'cloud_webhook_url' => $res['data']['webhook_url'] ?? null,
+                'device_name'       => $res['data']['device_name'] ?? null,
+            ]);
+        }
+
+        $this->saveCloudConfig([
+            'last_remote_command' => [
+                'time'     => $nowWib,
+                'command'  => $command,
+                'trans_id' => $res['trans_id'] ?? null,
+                'ok'       => (bool) ($res['ok'] ?? false),
+                'message'  => $res['message'] ?? null,
+            ],
+        ]);
+
+        return [
+            'success'  => (bool) ($res['ok'] ?? false),
+            'command'  => $command,
+            'cloud_id' => $resolvedCloudId,
+            'trans_id' => $res['trans_id'] ?? null,
+            'data'     => $res['data'] ?? null,
+            'message'  => $res['ok']
+                ? "Perintah '{$command}' berhasil dikirim ke Cloud (trans_id: {$res['trans_id']})."
+                : ($res['message'] ?? "Gagal mengirim perintah '{$command}'."),
+        ];
+    }
+
+    /**
+     * Tarik log absensi secara langsung dari API Cloud developer.fingerspot.io (/api/get_attlog)
+     */
+    public function pullFromCloudApi(?string $cloudId = null, ?string $startDate = null, ?string $endDate = null): array
+    {
+        $creds = $this->resolveCloudCredentials($cloudId);
+        if (! $creds['ok']) {
+            return [
+                'success' => false,
+                'message' => $creds['message'],
+            ];
+        }
+
+        $apiKey = $creds['api_key'];
+        $resolvedCloudId = $creds['cloud_id'];
 
         $todayWib = now()->setTimezone('Asia/Jakarta')->toDateString();
         $start = $startDate ?: $todayWib;
         $end = $endDate ?: $todayWib;
-        $transId = (string) time();
 
-        // 1. Cek info perangkat (opsional, untuk memverifikasi Cloud ID & webhook_url)
+        // 1. Cek info perangkat (verifikasi Cloud ID, webhook_url, & last_activity)
         $deviceInfo = null;
-        try {
-            $devResp = Http::withToken($apiKey)
-                ->timeout(8)
-                ->acceptJson()
-                ->post('https://developer.fingerspot.io/api/get_device', [
-                    'trans_id' => $transId,
-                    'cloud_id' => $resolvedCloudId,
-                ]);
-            if ($devResp->successful()) {
-                $deviceInfo = $devResp->json('data') ?? $devResp->json();
-            }
-        } catch (\Throwable $e) {
-            Log::warning('Fingerspot get_device failed: ' . $e->getMessage());
+        $devResp = $this->cloud()->getDevice($apiKey, $resolvedCloudId);
+        if ($devResp['ok'] && is_array($devResp['data'])) {
+            $deviceInfo = $devResp['data'];
+        } elseif (! empty($devResp['message'])) {
+            Log::warning('Fingerspot get_device failed: ' . $devResp['message']);
         }
 
-        // 2. Tarik log absensi (get_attlog)
+        // 2. Tarik log absensi (get_attlog) dengan pemecahan rentang <= 2 hari sesuai OpenAPI resmi
         try {
-            $response = Http::withToken($apiKey)
-                ->timeout(12)
-                ->acceptJson()
-                ->post('https://developer.fingerspot.io/api/get_attlog', [
-                    'trans_id'   => $transId,
-                    'cloud_id'   => $resolvedCloudId,
-                    'start_date' => $start,
-                    'end_date'   => $end,
-                ]);
+            $attlogResult = $this->cloud()->getAttlogRange($apiKey, $resolvedCloudId, $start, $end);
 
-            if (!$response->successful()) {
+            if (! $attlogResult['ok']) {
                 return [
                     'success'     => false,
-                    'status_code' => $response->status(),
-                    'message'     => 'Gagal menghubungi API developer.fingerspot.io: HTTP ' . $response->status(),
-                    'device_info' => $deviceInfo,
-                    'raw'         => substr($response->body(), 0, 400),
-                ];
-            }
-
-            $json = $response->json();
-
-            if (isset($json['success']) && $json['success'] === false) {
-                return [
-                    'success'     => false,
-                    'message'     => 'Respon API Fingerspot: ' . ($json['message'] ?? json_encode($json)),
+                    'message'     => 'Respon API Fingerspot: ' . ($attlogResult['message'] ?? 'Gagal mengambil attlog'),
                     'device_info' => $deviceInfo,
                 ];
             }
 
-            $rawLogs = $json['data'] ?? [];
-            if (!is_array($rawLogs)) {
-                $rawLogs = [];
-            }
+            $rawLogs = $attlogResult['logs'] ?? [];
 
             $records = [];
             foreach ($rawLogs as $item) {
@@ -723,6 +898,7 @@ class FingerspotAttendanceController extends Controller
                 'success'           => true,
                 'cloud_id'          => $resolvedCloudId,
                 'range'             => "{$start} s/d {$end}",
+                'chunks_queried'    => $attlogResult['chunks'] ?? 1,
                 'total_logs'        => count($records),
                 'inserted'          => $inserted,
                 'duplicates_locked' => $lockedDuplicates,
@@ -801,15 +977,14 @@ class FingerspotAttendanceController extends Controller
 
         // Eksekusi pengecekan + penyimpanan di dalam lock atomik per (siswa, tanggal, sesi)
         // agar dua scan berdekatan atau webhook paralel tidak pernah menghasilkan data ganda
-        $isTrialUser = strcasecmp(trim($student->name), 'Lana') === 0
-            || stripos($student->name, 'Lana') !== false
-            || in_array('78', [$student->id_finger, $student->fingerspot_pin, (string) $pin]);
+        $isTrialUser = $this->isTrialProfile($student->name, [$student->id_finger, $student->fingerspot_pin, $pin]);
+        $minutePrefix = $now->format('H:i');
 
         $lockKey = $isTrialUser
-            ? "fs_lock_trial_{$student->id}_" . microtime(true)
+            ? "fs_lock_trial_{$student->id}_{$today}_{$minutePrefix}"
             : "fs_lock_{$student->id}_{$today}_{$rule['lock_group']}";
 
-        return $this->runWithLock($lockKey, function () use ($student, $now, $today, $metode, $tipe, $rule, $institutionId, $systemUserId, $pin, $isTrialUser) {
+        return $this->runWithLock($lockKey, function () use ($student, $now, $today, $minutePrefix, $metode, $tipe, $rule, $institutionId, $systemUserId, $pin, $isTrialUser) {
             // Cek apakah siswa sudah tercatat Sakit / Izin / Alpa hari ini oleh Guru Piket
             $excusedToday = DailyAttendance::withoutGlobalScopes()
                 ->where('student_id', $student->id)
@@ -828,36 +1003,56 @@ class FingerspotAttendanceController extends Controller
                 ];
             }
 
-            // PENGUNCIAN SCAN PERTAMA (DIKECUALIKAN UNTUK LANA / TRIAL TEST):
-            // Siswa biasa hanya bisa absen 1x per waktu.
-            // Untuk Lana (akun trial pengujian), penguncian dibebaskan sehingga setiap kali scan selalu masuk & bertambah!
-            $existingSession = DailyAttendance::withoutGlobalScopes()
-                ->where('student_id', $student->id)
-                ->where('tanggal', $today)
-                ->whereIn('tipe_absen', $rule['check_tipes'])
-                ->first();
+            // PENGUNCIAN SCAN PERTAMA:
+            // Siswa biasa hanya bisa absen 1x per waktu/sesi.
+            // Akun trial (Lana / PIN 78) boleh multi-scan pada menit berbeda, namun tetap deduplikasi pada menit (H:i) yang sama
+            // agar sinkronisasi Cloud (get_attlog) + Webhook (attlog) tidak pernah menggandakan ketukan jari yang sama.
+            if ($isTrialUser) {
+                $sameMinuteScan = DailyAttendance::withoutGlobalScopes()
+                    ->where('student_id', $student->id)
+                    ->where('tanggal', $today)
+                    ->whereIn('tipe_absen', $rule['check_tipes'])
+                    ->where('waktu_kedatangan', 'like', "{$minutePrefix}:%")
+                    ->first();
 
-            if ($existingSession && !$isTrialUser) {
-                // Jika sudah tercatat sakit/izin/alpa di pagi hari, laporkan status excused
-                if ($excusedToday && $tipe === 'masuk') {
+                if ($sameMinuteScan) {
                     return [
-                        'status'  => 'excused',
-                        'action'  => 'ignored',
-                        'locked'  => true,
-                        'student' => $student->name,
-                        'tipe'    => $tipe,
-                        'message' => "Siswa {$student->name} sudah tercatat {$excusedToday->status} hari ini oleh Guru Piket",
+                        'status'          => 'duplicate',
+                        'locked'          => true,
+                        'student'         => $student->name,
+                        'tipe'            => $tipe,
+                        'first_scan_time' => $sameMinuteScan->waktu_kedatangan,
+                        'message'         => "Sudah tercatat: scan {$student->name} pada menit {$minutePrefix} sudah ada ({$sameMinuteScan->waktu_kedatangan})",
                     ];
                 }
+            } else {
+                $existingSession = DailyAttendance::withoutGlobalScopes()
+                    ->where('student_id', $student->id)
+                    ->where('tanggal', $today)
+                    ->whereIn('tipe_absen', $rule['check_tipes'])
+                    ->first();
 
-                return [
-                    'status'          => 'duplicate',
-                    'locked'          => true,
-                    'student'         => $student->name,
-                    'tipe'            => $tipe,
-                    'first_scan_time' => $existingSession->waktu_kedatangan,
-                    'message'         => "Terkunci: {$student->name} sudah absen {$rule['label']} pada jam " . ($existingSession->waktu_kedatangan ?? '-') . ' (1x per waktu)',
-                ];
+                if ($existingSession) {
+                    if ($excusedToday && $tipe === 'masuk') {
+                        return [
+                            'status'  => 'excused',
+                            'action'  => 'ignored',
+                            'locked'  => true,
+                            'student' => $student->name,
+                            'tipe'    => $tipe,
+                            'message' => "Siswa {$student->name} sudah tercatat {$excusedToday->status} hari ini oleh Guru Piket",
+                        ];
+                    }
+
+                    return [
+                        'status'          => 'duplicate',
+                        'locked'          => true,
+                        'student'         => $student->name,
+                        'tipe'            => $tipe,
+                        'first_scan_time' => $existingSession->waktu_kedatangan,
+                        'message'         => "Terkunci: {$student->name} sudah absen {$rule['label']} pada jam " . ($existingSession->waktu_kedatangan ?? '-') . ' (1x per waktu)',
+                    ];
+                }
             }
 
             // Cek halangan siswi (untuk sholat dhuhur & sholat ashar)
@@ -988,6 +1183,30 @@ class FingerspotAttendanceController extends Controller
     }
 
     /**
+     * Tentukan apakah akun berada dalam mode trial multi-scan (berdasarkan konfigurasi atau akun uji Lana / PIN 78).
+     */
+    private function isTrialProfile(string $name, array $pins = []): bool
+    {
+        $config = $this->getCloudConfig();
+        if (($config['trial_mode_enabled'] ?? true) === false) {
+            return false;
+        }
+
+        if (strcasecmp(trim($name), 'Lana') === 0 || stripos($name, 'Lana') !== false) {
+            return true;
+        }
+
+        $trialPins = array_map('strval', (array) ($config['trial_pins'] ?? ['78']));
+        foreach ($pins as $p) {
+            if ($p !== null && $p !== '' && in_array((string) $p, $trialPins, true)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
      * Proses scan guru / pegawai (mengunci scan pertama hari ini)
      */
     protected function processTeacherScan(User $teacher, ?string $scanDate, $verifyMode, $statusScan): array
@@ -1001,28 +1220,45 @@ class FingerspotAttendanceController extends Controller
             $institutionId = 2;
         }
 
-        $isTrialTeacher = strcasecmp(trim($teacher->name), 'Lana') === 0
-            || stripos($teacher->name, 'Lana') !== false
-            || in_array('78', [$teacher->id_finger ?? null, $teacher->fingerspot_pin ?? null]);
+        $isTrialTeacher = $this->isTrialProfile($teacher->name, [$teacher->id_finger ?? null, $teacher->fingerspot_pin ?? null]);
+        $minutePrefix = $now->format('H:i');
 
         $lockKey = $isTrialTeacher
-            ? "fs_lock_trial_teacher_{$teacher->id}_" . microtime(true)
+            ? "fs_lock_trial_teacher_{$teacher->id}_{$today}_{$minutePrefix}"
             : "fs_lock_teacher_{$teacher->id}_{$today}";
 
-        return $this->runWithLock($lockKey, function () use ($teacher, $now, $today, $institutionId, $metode, $isTrialTeacher) {
-            $existing = TeacherAttendance::withoutGlobalScopes()
-                ->where('teacher_id', $teacher->id)
-                ->where('tanggal', $today)
-                ->first();
+        return $this->runWithLock($lockKey, function () use ($teacher, $now, $today, $minutePrefix, $institutionId, $metode, $isTrialTeacher) {
+            if ($isTrialTeacher) {
+                $sameMinute = TeacherAttendance::withoutGlobalScopes()
+                    ->where('teacher_id', $teacher->id)
+                    ->where('tanggal', $today)
+                    ->whereBetween('created_at', [$now->copy()->startOfMinute(), $now->copy()->endOfMinute()])
+                    ->first();
 
-            if ($existing && !$isTrialTeacher) {
-                return [
-                    'status'  => 'duplicate',
-                    'locked'  => true,
-                    'action'  => 'teacher_attendance',
-                    'teacher' => $teacher->name,
-                    'message' => "Terkunci: {$teacher->name} sudah absen masuk hari ini",
-                ];
+                if ($sameMinute) {
+                    return [
+                        'status'  => 'duplicate',
+                        'locked'  => true,
+                        'action'  => 'teacher_attendance',
+                        'teacher' => $teacher->name,
+                        'message' => "Sudah tercatat: scan {$teacher->name} pada menit {$minutePrefix} sudah ada",
+                    ];
+                }
+            } else {
+                $existing = TeacherAttendance::withoutGlobalScopes()
+                    ->where('teacher_id', $teacher->id)
+                    ->where('tanggal', $today)
+                    ->first();
+
+                if ($existing) {
+                    return [
+                        'status'  => 'duplicate',
+                        'locked'  => true,
+                        'action'  => 'teacher_attendance',
+                        'teacher' => $teacher->name,
+                        'message' => "Terkunci: {$teacher->name} sudah absen masuk hari ini",
+                    ];
+                }
             }
 
             TeacherAttendance::withoutGlobalScopes()->create([
@@ -1149,9 +1385,18 @@ class FingerspotAttendanceController extends Controller
      */
     private function runWithLock(string $key, \Closure $callback): array
     {
+        $executed = false;
+        $wrapped = function () use ($callback, &$executed) {
+            $executed = true;
+            return $callback();
+        };
+
         try {
-            return Cache::lock($key, 5)->block(3, $callback);
+            return Cache::lock($key, 5)->block(3, $wrapped);
         } catch (\Throwable $e) {
+            if ($executed) {
+                throw $e;
+            }
             return $callback();
         }
     }
@@ -1239,14 +1484,23 @@ class FingerspotAttendanceController extends Controller
     private function recordRawWebhookHit(Request $request): void
     {
         try {
+            $payload = $this->decodeRequestPayload($request);
+            $eventType = isset($payload['type']) ? (string) $payload['type'] : null;
+            $cloudId = isset($payload['cloud_id']) ? (string) $payload['cloud_id'] : null;
+            $isCloudEvent = !empty($cloudId) || !empty($eventType);
+
             $logs = $this->readJsonFile(self::WEBHOOK_LOG_FILE, []);
             array_unshift($logs, [
-                'time'   => now()->setTimezone('Asia/Jakarta')->format('Y-m-d H:i:s'),
-                'ip'     => $request->ip(),
-                'method' => $request->method(),
-                'path'   => '/' . ltrim($request->path(), '/'),
-                'keys'   => array_keys($request->all()),
-                'raw'    => substr((string) $request->getContent(), 0, 500),
+                'time'           => now()->setTimezone('Asia/Jakarta')->format('Y-m-d H:i:s'),
+                'ip'             => $request->ip(),
+                'method'         => $request->method(),
+                'path'           => '/' . ltrim($request->path(), '/'),
+                'type'           => $eventType,
+                'cloud_id'       => $cloudId,
+                'trans_id'       => isset($payload['trans_id']) ? (string) $payload['trans_id'] : null,
+                'is_cloud_event' => $isCloudEvent,
+                'keys'           => array_keys($payload),
+                'raw'            => substr((string) $request->getContent(), 0, 2000),
             ]);
             $this->writeJsonFile(self::WEBHOOK_LOG_FILE, array_slice($logs, 0, 25));
         } catch (\Throwable $e) {}

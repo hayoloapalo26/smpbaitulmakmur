@@ -1,13 +1,17 @@
 <x-filament-widgets::widget>
     @php
         $webhookHits = (int) ($diag['webhook_hits_count'] ?? 0);
+        $cloudWebhookHits = (int) ($diag['webhook_hits_from_cloud_count'] ?? 0);
+        $cloudWebhookVerified = (bool) ($diag['cloud_webhook_verified'] ?? false);
         $cloudId = $diag['cloud_id_configured'] ?? null;
         $lastSyncAt = $diag['last_cloud_sync_at'] ?? null;
         $deviceInfo = $diag['last_device_info'] ?? [];
         $cloudWebhookUrl = $deviceInfo['webhook_url'] ?? ($diag['cloud_webhook_url'] ?? null);
-        $lastActivity = $deviceInfo['last_activity'] ?? null;
+        $lastActivity = $deviceInfo['last_activity'] ?? ($diag['machine_last_activity'] ?? null);
         $deviceName = $deviceInfo['device_name'] ?? ($diag['device_name'] ?? null);
-        $lastAttlogRaw = $diag['last_attlog_raw'] ?? null;
+        $devicePins = $diag['device_pins'] ?? [];
+        $devicePinsSyncedAt = $diag['device_pins_synced_at'] ?? null;
+        $lastAsyncCallback = $diag['last_async_callback'] ?? null;
 
         $studentsCount = (int) ($diag['students_with_finger_count'] ?? 0);
         $sampleStudents = $diag['sample_registered_students'] ?? [];
@@ -17,7 +21,6 @@
         $todayTotal = (int) ($diag['today_attendance_total'] ?? 0);
 
         $expectedWebhookUrl = url('/api/fingerspot/attendance');
-        $webhookMismatch = !empty($cloudWebhookUrl) && trim($cloudWebhookUrl) !== $expectedWebhookUrl && trim($cloudWebhookUrl) !== url('/api/fingerspot/webhook');
         $machineNeverConnected = empty($lastActivity) || strtolower((string) $lastActivity) === 'n/a';
     @endphp
 
@@ -25,18 +28,32 @@
         {{-- Header Status Bar --}}
         <div class="flex flex-wrap items-center justify-between gap-2 text-xs">
             <div class="flex flex-wrap items-center gap-2">
-                @if($webhookHits > 0)
+                @if(!$machineNeverConnected)
                     <span class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 font-semibold bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300">
-                        <span>● Webhook Aktif ({{ $webhookHits }} diterima)</span>
+                        <span>● Mesin Terhubung Cloud ({{ $lastActivity }})</span>
                     </span>
                 @else
-                    <span class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 font-semibold bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300 animate-pulse">
-                        <span>⚠️ Webhook Belum Terhubung (0 Diterima)</span>
+                    <span class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 font-semibold bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300 animate-pulse">
+                        <span>⚠️ Mesin Fisik Belum Konek Cloud (Last Activity: N/A)</span>
+                    </span>
+                @endif
+
+                @if($cloudWebhookVerified || $cloudWebhookHits > 0)
+                    <span class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 font-semibold bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300">
+                        <span>● Webhook Cloud Aktif ({{ max($cloudWebhookHits, 1) }} cloud / {{ $webhookHits }} hit)</span>
+                    </span>
+                @elseif($webhookHits > 0)
+                    <span class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 font-semibold bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-300">
+                        <span>● Endpoint Webhook Siap ({{ $webhookHits }} uji lokal, menunggu Cloud)</span>
+                    </span>
+                @else
+                    <span class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 font-semibold bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300">
+                        <span>⚠️ Webhook Menunggu Data (0 Diterima)</span>
                     </span>
                 @endif
 
                 <span class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-medium text-[11px] bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300">
-                    🧪 Mode Trial: Lana (ID 78) Bebas Multi-Scan
+                    🧪 Mode Trial: Lana (ID 78) Bebas Multi-Scan (Dedup per Menit)
                 </span>
 
                 <span class="text-gray-600 dark:text-gray-300">
@@ -71,57 +88,77 @@
             </button>
         </div>
 
-        {{-- KONDISI 1: JIKA WEBHOOK MASIH 0 (PANDUAN LANGKAH ATASI SEGERA) --}}
-        @if($webhookHits === 0)
+        {{-- KONDISI 1: JIKA MESIN FISIK BELUM KONEK CLOUD ATAU WEBHOOK BELUM ADA HIT --}}
+        @if($machineNeverConnected || $webhookHits === 0)
             <div class="rounded-lg border-2 border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-950/40 p-3.5 text-xs text-amber-950 dark:text-amber-100 space-y-2">
-                <div class="flex items-center justify-between">
+                <div class="flex flex-wrap items-center justify-between gap-2">
                     <span class="font-bold text-sm text-amber-900 dark:text-amber-200">
-                        ⚡ Kenapa Webhook Masih 0 &amp; Data Belum Masuk? Lakukan Langkah Ini:
+                        ⚡ Status Koneksi Mesin Fisik Revo W-230N &harr; Fingerspot Cloud
                     </span>
                     <span class="text-[11px] font-mono bg-amber-200 dark:bg-amber-800 px-2 py-0.5 rounded">
-                        Target Cloud ID: {{ $cloudId ?: 'C260B8851F1C1030' }}
+                        Cloud ID: {{ $cloudId ?: 'C260B8851F1C1030' }} &bull; Last Activity: {{ $lastActivity ?: 'N/A' }}
                     </span>
                 </div>
 
                 <div class="space-y-1.5 pl-1">
                     <div class="flex items-start gap-2">
-                        <span class="font-bold text-primary-600">1. Di Web developer.fingerspot.io:</span>
+                        <span class="font-bold text-primary-600 shrink-0">1. Web developer.fingerspot.io:</span>
                         <span>
-                            Webhook URL pada mesin <code>{{ $cloudId ?: 'C260B8851F1C1030' }}</code> sudah terhubung ke:
+                            Webhook URL target pada Cloud ID <code>{{ $cloudId ?: 'C260B8851F1C1030' }}</code>:
                             <code class="font-mono font-bold text-xs bg-white dark:bg-gray-800 px-1.5 py-0.5 rounded border border-amber-400 dark:border-amber-600 select-all">{{ $expectedWebhookUrl }}</code>
                             @if($cloudWebhookUrl)
                                 <span class="text-green-700 dark:text-green-400 font-semibold block mt-0.5">
-                                    (✅ Webhook URL terverifikasi aktif di akun Cloud Anda)
+                                    (✅ Terdaftar di akun Cloud: <code>{{ $cloudWebhookUrl }}</code>)
                                 </span>
                             @endif
                         </span>
                     </div>
 
                     <div class="flex items-start gap-2 pt-1 border-t border-amber-200 dark:border-amber-800">
-                        <span class="font-bold text-primary-600">2. PENTING - Pada Mesin Fisik Revo W230N:</span>
+                        <span class="font-bold text-primary-600 shrink-0">2. PENTING &mdash; Pengaturan di Mesin Revo W-230N:</span>
                         <span>
                             @if($machineNeverConnected)
                                 <strong class="text-red-700 dark:text-red-400 font-bold block mb-1">
-                                    ⚠️ Mesin belum terhubung ke Cloud Server Fingerspot (status Cloud: Last Activity N/A).
+                                    ⚠️ Cloud Fingerspot belum pernah menerima paket koneksi dari mesin fisik (Last Activity: N/A). Selama status masih N/A, Cloud belum memiliki data untuk dikirim ke sistem.
                                 </strong>
                             @endif
-                            Di layar mesin Revo W230N, tekan <strong>Menu &rarr; Pengaturan / Opsi &rarr; Jaringan (Network) &rarr; Server (Cloud Server)</strong>:
+                            Buka di layar mesin: <strong>Menu &rarr; Komunikasi / Jaringan &rarr; Server Cloud / ADMS</strong>:
                             <ul class="list-disc pl-5 mt-1 space-y-0.5">
-                                <li><strong>Nama Domain / IP Server:</strong> ketik <code>fdevice.com</code> (atau IP <code>3.1.174.198</code>)</li>
-                                <li><strong>Port Server:</strong> ketik <code>8014</code> (Port resmi untuk seri Revo W-230N di fingerspot.io)</li>
-                                <li>Pastikan WiFi mesin tersambung ke Internet (indikator WiFi tidak silang)</li>
-                                <li><strong>Restart mesin</strong> (matikan lalu nyalakan kembali).</li>
+                                <li><strong>Mode Koneksi:</strong> pilih <code>Internet</code> / aktifkan <strong>Server Req = Ya</strong></li>
+                                <li><strong>IP Server (utama, bebas kendala DNS router):</strong> ketik <code>3.1.174.198</code> (atau domain <code>fdevice.com</code>)</li>
+                                <li><strong>Port Server:</strong> coba <code>8014</code>; jika icon awan masih silang setelah restart, ubah ke <code>8013</code> (kedua port resmi <code>fdevice.com</code> aktif)</li>
+                                <li><strong>Power-off Restart:</strong> matikan mesin 10 detik, lalu nyalakan kembali dan pastikan WiFi terhubung &amp; icon awan tidak bertanda silang.</li>
                             </ul>
-                            <em>Setelah restart, icon awan/cloud di layar mesin akan aktif dan data scan akan otomatis terkirim seketika!</em>
                         </span>
                     </div>
 
                     <div class="flex items-start gap-2 pt-1 border-t border-amber-200 dark:border-amber-800">
-                        <span class="font-bold text-primary-600">3. Tarik Riwayat Scan Langsung:</span>
+                        <span class="font-bold text-primary-600 shrink-0">3. Uji Koneksi Cloud:</span>
                         <span>
-                            Klik tombol oranye <strong>🔄 Sinkron Mesin Fingerspot</strong> di kanan atas, pastikan Cloud ID <code>{{ $cloudId ?: 'C260B8851F1C1030' }}</code>, lalu klik <strong>Tarik Log Sekarang</strong> untuk menarik log absensi dari Cloud Fingerspot seketika!
+                            Setelah icon awan terhubung, klik <strong>Kontrol Mesin Cloud &rarr; Tarik Daftar PIN Mesin</strong> atau scan jari langsung &mdash; data otomatis masuk real time via Webhook + sinkronisasi cadangan setiap 2 menit.
                         </span>
                     </div>
+                </div>
+            </div>
+        @endif
+
+        @if(!empty($devicePins) || $lastAsyncCallback)
+            <div class="rounded-lg border border-sky-200 bg-sky-50 dark:border-sky-800 dark:bg-sky-950/30 p-2.5 text-xs text-sky-950 dark:text-sky-100 flex flex-wrap items-center justify-between gap-2">
+                <div>
+                    @if(!empty($devicePins))
+                        <strong>👥 Daftar PIN dari Mesin (get_all_pin):</strong>
+                        {{ count($devicePins) }} PIN terdeteksi (<code>{{ implode(', ', array_slice($devicePins, 0, 20)) }}{{ count($devicePins) > 20 ? ', ...' : '' }}</code>)
+                        @if($devicePinsSyncedAt)
+                            <span class="opacity-75">&bull; {{ $devicePinsSyncedAt }}</span>
+                        @endif
+                    @endif
+                    @if($lastAsyncCallback)
+                        <span class="block text-[11px] opacity-85 mt-0.5">
+                            📡 Callback Cloud Terakhir: <code>{{ $lastAsyncCallback['type'] ?? '-' }}</code>
+                            @if(!empty($lastAsyncCallback['trans_id'])) (trans_id: <code>{{ $lastAsyncCallback['trans_id'] }}</code>) @endif
+                            &bull; {{ $lastAsyncCallback['time'] ?? '-' }}
+                        </span>
+                    @endif
                 </div>
             </div>
         @endif

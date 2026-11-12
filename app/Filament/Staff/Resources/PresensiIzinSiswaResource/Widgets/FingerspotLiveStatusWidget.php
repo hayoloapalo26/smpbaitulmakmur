@@ -33,13 +33,21 @@ class FingerspotLiveStatusWidget extends Widget
                 $cloudId = $config['cloud_id'] ?? 'C260B8851F1C1030';
                 $pullResult = $controller->pullFromCloudApi($cloudId);
                 $newLogsCount = (int) ($pullResult['inserted'] ?? 0);
+                $lastActivity = (string) ($pullResult['device_info']['last_activity'] ?? '');
+                $machineOffline = empty($lastActivity) || strtolower($lastActivity) === 'n/a';
 
-                Notification::make()
-                    ->title('🔄 Panel & Data Presensi Diperbarui')
+                $notification = Notification::make()
+                    ->title($machineOffline ? '⚠️ Panel Disegarkan (Mesin Belum Online di Cloud)' : '🔄 Panel & Data Presensi Diperbarui')
                     ->body(($pullResult['message'] ?? 'Panel dan data presensi berhasil disegarkan.') . ($newLogsCount > 0 ? " ({$newLogsCount} data scan baru)" : ''))
-                    ->success()
-                    ->duration(4000)
-                    ->send();
+                    ->duration(6000);
+
+                if ($machineOffline && $newLogsCount === 0) {
+                    $notification->warning();
+                } else {
+                    $notification->success();
+                }
+
+                $notification->send();
             }
 
             $this->diag = $controller->getDiagnosticSnapshot();

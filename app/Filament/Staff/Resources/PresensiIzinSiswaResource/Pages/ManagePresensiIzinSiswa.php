@@ -97,7 +97,7 @@ class ManagePresensiIzinSiswa extends ManageRecords
                                 '<div class="text-xs space-y-1.5 text-gray-700 dark:text-gray-300 bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-700 p-2.5 rounded-lg">'
                                 . '<div><strong>1. Salin Webhook URL ini:</strong> <code class="font-mono font-bold text-xs bg-white dark:bg-gray-800 px-2 py-0.5 rounded border border-gray-300 select-all">' . $webhookUrl . '</code></div>'
                                 . '<div><strong>2. Tempel di web developer.fingerspot.io:</strong> Buka menu <em>Device</em> &rarr; kolom <em>Webhook URL</em> pada mesin Anda.</div>'
-                                . '<div><strong>3. Pada Mesin Fisik Revo W230N:</strong> Menu &rarr; Setelan &rarr; Jaringan &rarr; Server IP = <code>fdevice.com</code> (atau <code>3.1.174.198</code>), Port = <code>8014</code> (Port resmi seri Revo W), lalu Restart mesin.</div>'
+                                . '<div><strong>3. Pada Mesin Fisik Revo W-230N:</strong> Menu &rarr; Komunikasi / Jaringan &rarr; Server Cloud: IP = <code>3.1.174.198</code> (atau <code>fdevice.com</code>), Port = <code>8014</code> (alternatif <code>8013</code>), <code>Mode = Internet</code>, lalu Restart mesin.</div>'
                                 . '</div>'
                             )),
                         Forms\Components\TextInput::make('cloud_id')
@@ -109,7 +109,7 @@ class ManagePresensiIzinSiswa extends ManageRecords
                         Forms\Components\DatePicker::make('start_date')
                             ->label('Tanggal Mulai')
                             ->default($yesterday)
-                            ->helperText('Default menarik dari kemarin s/d hari ini agar scan tidak terlewat.')
+                            ->helperText('Sistem otomatis memecah rentang > 2 hari (maks 60 hari ke belakang) sesuai aturan resmi developer.fingerspot.io.')
                             ->required(),
                         Forms\Components\DatePicker::make('end_date')
                             ->label('Tanggal Selesai')
@@ -151,6 +151,44 @@ class ManagePresensiIzinSiswa extends ManageRecords
 
                     $this->dispatch('fingerspot-synced');
                 }),
+
+            Actions\ActionGroup::make([
+                Actions\Action::make('fetch_device_pins')
+                    ->label('👥 Tarik Daftar PIN Mesin (get_all_pin)')
+                    ->icon('heroicon-o-identification')
+                    ->action(fn () => $this->dispatchRemoteCloudCommand(
+                        'get_all_pin',
+                        [],
+                        '📡 Permintaan Daftar PIN Dikirim ke Cloud',
+                        'Hasil daftar PIN terdaftar di mesin akan dikirim balik ke webhook sistem begitu mesin terhubung ke Cloud.'
+                    )),
+                Actions\Action::make('sync_device_time')
+                    ->label('🕒 Sinkron Jam WIB (set_time)')
+                    ->icon('heroicon-o-clock')
+                    ->action(fn () => $this->dispatchRemoteCloudCommand(
+                        'set_time',
+                        ['timezone' => 'Asia/Jakarta'],
+                        '🕒 Perintah Sinkron Jam Asia/Jakarta Dikirim',
+                        'Jam pada mesin Revo W-230N akan disinkronkan ke WIB (Asia/Jakarta).'
+                    )),
+                Actions\Action::make('restart_device')
+                    ->label('🔁 Restart Mesin Jarak Jauh (restart_device)')
+                    ->icon('heroicon-o-power')
+                    ->color('warning')
+                    ->requiresConfirmation()
+                    ->modalHeading('Restart Mesin Absensi Revo W-230N?')
+                    ->modalDescription('Perintah restart akan dikirim via Fingerspot Cloud dan dijalankan saat mesin terhubung online.')
+                    ->action(fn () => $this->dispatchRemoteCloudCommand(
+                        'restart_device',
+                        [],
+                        '🔁 Perintah Restart Mesin Dikirim ke Cloud',
+                        'Mesin akan restart otomatis begitu menerima perintah dari server Fingerspot.'
+                    )),
+            ])
+                ->label('📡 Kontrol Mesin Cloud')
+                ->icon('heroicon-o-cpu-chip')
+                ->color('info')
+                ->button(),
 
             Actions\Action::make('tes_fingerspot')
                 ->label('⚡ Tes Scan Fingerspot')
@@ -303,5 +341,36 @@ class ManagePresensiIzinSiswa extends ManageRecords
                 ->label('Catat Hadir / Izin / Sakit / Alpha')
                 ->icon('heroicon-o-plus-circle'),
         ];
+    }
+
+    /**
+     * Eksekusi perintah remote Cloud developer.fingerspot.io dan tampilkan notifikasi hasil.
+     */
+    protected function dispatchRemoteCloudCommand(
+        string $command,
+        array $params,
+        string $successTitle,
+        string $successHint
+    ): void {
+        $controller = new FingerspotAttendanceController();
+        $result = $controller->sendRemoteCommand($command, $params);
+
+        if ($result['success'] ?? false) {
+            Notification::make()
+                ->title($successTitle)
+                ->body(($result['message'] ?? '') . '<br><span class="text-xs">' . $successHint . '</span>')
+                ->success()
+                ->duration(7000)
+                ->send();
+        } else {
+            Notification::make()
+                ->title('❌ Gagal Mengirim Perintah ke Cloud')
+                ->body($result['message'] ?? 'Periksa konfigurasi API Key & Cloud ID.')
+                ->danger()
+                ->duration(7000)
+                ->send();
+        }
+
+        $this->dispatch('fingerspot-synced');
     }
 }

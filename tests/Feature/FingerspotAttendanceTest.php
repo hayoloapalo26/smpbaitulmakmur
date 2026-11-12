@@ -19,9 +19,26 @@ class FingerspotAttendanceTest extends TestCase
     protected Institution $institution;
     protected User $user;
 
+    /** @var array<string, string|false> */
+    private array $jsonFileBackups = [];
+
+    private const STATE_JSON_FILES = [
+        'fingerspot_config.json',
+        'fingerspot_webhook_logs.json',
+        'fingerspot_async_callbacks.json',
+        'fingerspot_recent_scans.json',
+        'fingerspot_unmatched_pins.json',
+    ];
+
     protected function setUp(): void
     {
         parent::setUp();
+
+        foreach (self::STATE_JSON_FILES as $filename) {
+            $path = storage_path('app/' . $filename);
+            $this->jsonFileBackups[$path] = file_exists($path) ? file_get_contents($path) : false;
+            @unlink($path);
+        }
 
         // Siapkan institusi ID 1 (Yayasan) dan ID 2 (SMP)
         $inst1 = new Institution(['name' => 'Yayasan LPI Baitul Makmur', 'slug' => 'yayasan']);
@@ -40,6 +57,19 @@ class FingerspotAttendanceTest extends TestCase
             'password'       => bcrypt('password'),
             'institution_id' => $this->institution->id,
         ]);
+    }
+
+    protected function tearDown(): void
+    {
+        foreach ($this->jsonFileBackups as $path => $original) {
+            if ($original === false) {
+                @unlink($path);
+            } else {
+                file_put_contents($path, $original);
+            }
+        }
+
+        parent::tearDown();
     }
 
     public function test_fingerspot_ping_endpoint()
@@ -603,9 +633,9 @@ class FingerspotAttendanceTest extends TestCase
     {
         $student = Student::create([
             'institution_id' => $this->institution->id,
-            'name'           => 'Lana',
+            'name'           => 'Muhammad Syarief',
             'nis'            => '39909',
-            'id_finger'      => '78',
+            'id_finger'      => '28',
             'jenis_kelamin'  => 'L',
             'tanggal_lahir'  => '2011-01-01',
         ]);
@@ -619,8 +649,8 @@ class FingerspotAttendanceTest extends TestCase
                 'success' => true,
                 'data'    => [
                     // Terbalik: scan kedua lebih dulu dalam array
-                    ['pin' => '78', 'scan_date' => '2026-11-10 07:05:00', 'verify' => 1, 'status' => 0],
-                    ['pin' => '78', 'scan_date' => '2026-11-10 06:45:00', 'verify' => 1, 'status' => 0],
+                    ['pin' => '28', 'scan_date' => '2026-11-10 07:05:00', 'verify' => 1, 'status_scan' => 0],
+                    ['pin' => '28', 'scan_date' => '2026-11-10 06:45:00', 'verify' => 1, 'status_scan' => 0],
                 ],
             ], 200),
         ]);
@@ -640,5 +670,205 @@ class FingerspotAttendanceTest extends TestCase
             'waktu_kedatangan' => '06:45:00',
             'is_late'          => false,
         ]);
+    }
+
+    public function test_official_realtime_attlog_webhook_format_with_minute_timestamp_records_attendance()
+    {
+        $student = Student::create([
+            'institution_id' => $this->institution->id,
+            'name'           => 'Naflah Nikmah',
+            'nis'            => '39922',
+            'id_finger'      => '22',
+            'jenis_kelamin'  => 'P',
+            'tanggal_lahir'  => '2011-05-05',
+        ]);
+
+        // Format persis spesifikasi OpenAPI RealtimeAttlogWebhook (tanpa trans_id, scan YYYY-MM-DD HH:mm)
+        $payload = [
+            'type'     => 'attlog',
+            'cloud_id' => 'C260B8851F1C1030',
+            'data'     => [
+                'pin'         => '22',
+                'scan'        => '2026-11-12 06:42',
+                'verify'      => 1,
+                'status_scan' => 0,
+            ],
+        ];
+
+        $response = $this->postJson('/api/fingerspot/attendance', $payload);
+
+        $response->assertStatus(200);
+        $response->assertJson([
+            'success' => true,
+            'total'   => 1,
+        ]);
+
+        $this->assertDatabaseHas('daily_attendances', [
+            'student_id'       => $student->id,
+            'tanggal'          => '2026-11-12',
+            'tipe_absen'       => 'masuk',
+            'waktu_kedatangan' => '06:42:00',
+            'status'           => 'hadir',
+            'is_late'          => false,
+        ]);
+    }
+
+    public function test_async_webhook_callbacks_do_not_insert_fake_attendance_and_persist_pin_list()
+    {
+        Student::create([
+            'institution_id' => $this->institution->id,
+            'name'           => 'Rania Balqis',
+            'nis'            => '39977',
+            'id_finger'      => '77',
+            'jenis_kelamin'  => 'P',
+            'tanggal_lahir'  => '2011-03-03',
+        ]);
+
+        // 1. Callback get_userinfo berisi pin=77 tanpa timestamp scan
+        $userInfoResp = $this->postJson('/api/fingerspot/attendance', [
+            'type'     => 'get_userinfo',
+            'cloud_id' => 'C260B8851F1C1030',
+            'trans_id' => 'req_u_77',
+            'data'     => [
+                'pin'       => '77',
+                'name'      => 'Rania',
+                'privilege' => '1',
+                'password'  => '',
+                'rfid'      => '',
+                'template'  => 'abc123',
+            ],
+        ]);
+        $userInfoResp->assertStatus(200)->assertJson([
+            'status'   => 'callback_recorded',
+            'type'     => 'get_userinfo',
+            'trans_id' => 'req_u_77',
+        ]);
+
+        // 2. Callback get_userid_list (hasil get_all_pin)
+        $pinListResp = $this->postJson('/api/fingerspot/attendance', [
+            'type'     => 'get_userid_list',
+            'cloud_id' => 'C260B8851F1C1030',
+            'trans_id' => 'req_pins_1',
+            'data'     => [
+                'total'   => 2,
+                'pin_arr' => ['77', '78'],
+            ],
+        ]);
+        $pinListResp->assertStatus(200)->assertJson([
+            'status' => 'callback_recorded',
+            'type'   => 'get_userid_list',
+        ]);
+
+        // 3. Callback set_time & restart_device
+        $this->postJson('/api/fingerspot/attendance', [
+            'type'     => 'set_time',
+            'cloud_id' => 'C260B8851F1C1030',
+            'trans_id' => 'req_time_1',
+            'data'     => ['status' => '1'],
+        ])->assertStatus(200)->assertJson(['status' => 'callback_recorded']);
+
+        $this->assertEquals(0, DailyAttendance::withoutGlobalScopes()->count());
+
+        $snapshot = (new FingerspotAttendanceController())->getDiagnosticSnapshot();
+        $this->assertTrue($snapshot['cloud_webhook_verified']);
+        $this->assertSame(['77', '78'], $snapshot['device_pins']);
+    }
+
+    public function test_multiday_cloud_attlog_pull_splits_requests_into_two_day_chunks()
+    {
+        Student::create([
+            'institution_id' => $this->institution->id,
+            'name'           => 'Pandu Satria',
+            'nis'            => '39924',
+            'id_finger'      => '24',
+            'jenis_kelamin'  => 'L',
+            'tanggal_lahir'  => '2011-04-04',
+        ]);
+
+        Http::fake([
+            'https://developer.fingerspot.io/api/get_device' => Http::response([
+                'success' => true,
+                'data'    => ['cloud_id' => 'C260B8851F1C1030', 'last_activity' => '2026-11-12 07:00:00'],
+            ], 200),
+            'https://developer.fingerspot.io/api/get_attlog' => Http::sequence()
+                ->push(['success' => true, 'data' => [
+                    ['pin' => '24', 'scan_date' => '2026-11-08 06:40:00', 'verify' => 1, 'status_scan' => 0],
+                ]], 200)
+                ->push(['success' => true, 'data' => [
+                    ['pin' => '24', 'scan_date' => '2026-11-10 06:45:00', 'verify' => 1, 'status_scan' => 0],
+                ]], 200)
+                ->push(['success' => true, 'data' => []], 200),
+        ]);
+
+        $controller = new FingerspotAttendanceController();
+        $result = $controller->pullFromCloudApi('C260B8851F1C1030', '2026-11-08', '2026-11-12');
+
+        $this->assertTrue($result['success']);
+        $this->assertEquals(3, $result['chunks_queried']);
+        $this->assertEquals(2, $result['inserted']);
+
+        Http::assertSent(function ($request) {
+            if ($request->url() !== 'https://developer.fingerspot.io/api/get_attlog') {
+                return true;
+            }
+            $s = \Carbon\Carbon::parse($request['start_date']);
+            $e = \Carbon\Carbon::parse($request['end_date']);
+            return $s->diffInDays($e) <= 2;
+        });
+    }
+
+    public function test_trial_user_lana_allows_multi_scan_across_minutes_but_deduplicates_same_minute_pull()
+    {
+        $lana = Student::create([
+            'institution_id' => $this->institution->id,
+            'name'           => 'Lana',
+            'nis'            => '39978',
+            'id_finger'      => '78',
+            'jenis_kelamin'  => 'L',
+            'tanggal_lahir'  => '2011-02-02',
+        ]);
+
+        $controller = new FingerspotAttendanceController();
+
+        $first = $controller->processAttendanceRecord('78', '2026-11-12 06:45:00', 1, 0);
+        $sameMinuteSecond = $controller->processAttendanceRecord('78', '2026-11-12 06:45:19', 1, 0);
+        $differentMinute = $controller->processAttendanceRecord('78', '2026-11-12 07:05:00', 1, 0);
+
+        $this->assertEquals('success', $first['status']);
+        $this->assertEquals('duplicate', $sameMinuteSecond['status']);
+        $this->assertEquals('success', $differentMinute['status']);
+
+        $this->assertEquals(
+            2,
+            DailyAttendance::withoutGlobalScopes()->where('student_id', $lana->id)->where('tanggal', '2026-11-12')->count()
+        );
+    }
+
+    public function test_remote_cloud_commands_send_official_payloads_to_fingerspot_api()
+    {
+        Http::fake([
+            'https://developer.fingerspot.io/api/*' => Http::response([
+                'success'  => true,
+                'trans_id' => 'cmd_test_01',
+            ], 200),
+        ]);
+
+        $controller = new FingerspotAttendanceController();
+
+        $resTime = $controller->sendRemoteCommand('set_time', ['timezone' => 'Asia/Jakarta'], 'C260B8851F1C1030');
+        $resPins = $controller->sendRemoteCommand('get_all_pin', [], 'C260B8851F1C1030');
+        $resRestart = $controller->sendRemoteCommand('restart_device', [], 'C260B8851F1C1030');
+
+        $this->assertTrue($resTime['success']);
+        $this->assertTrue($resPins['success']);
+        $this->assertTrue($resRestart['success']);
+
+        Http::assertSent(fn ($req) => $req->url() === 'https://developer.fingerspot.io/api/set_time'
+            && $req['cloud_id'] === 'C260B8851F1C1030'
+            && $req['timezone'] === 'Asia/Jakarta');
+        Http::assertSent(fn ($req) => $req->url() === 'https://developer.fingerspot.io/api/get_all_pin'
+            && $req['cloud_id'] === 'C260B8851F1C1030');
+        Http::assertSent(fn ($req) => $req->url() === 'https://developer.fingerspot.io/api/restart_device'
+            && $req['cloud_id'] === 'C260B8851F1C1030');
     }
 }
