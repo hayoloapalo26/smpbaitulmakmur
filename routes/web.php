@@ -270,7 +270,12 @@ Route::middleware('auth')->prefix('print')->name('academic.')->group(function ()
 
     // 12. Rekapitulasi Presensi & Beban Jam Mengajar Guru Bulanan
     Route::get('/teacher-attendance-rekap', [\App\Http\Controllers\AcademicPrintController::class, 'teacherAttendanceReportPdf'])->name('teacher-attendance.rekap.pdf');
+
+    // 13. Rekapitulasi Skor Poin Pelanggaran Siswa (Harian, Mingguan, Bulanan, Triwulan, Semester)
+    Route::get('/violation-rekap', [\App\Http\Controllers\AcademicPrintController::class, 'violationRecapPdf'])->name('violation.rekap.pdf');
 });
+
+Route::get('/violation-rekap', [\App\Http\Controllers\AcademicPrintController::class, 'violationRecapPdf'])->name('violation.rekap.pdf')->middleware('auth');
 
 
 

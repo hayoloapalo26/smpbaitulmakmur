@@ -89,6 +89,16 @@ class Student extends Model
         return $this->hasMany(AttributeViolation::class);
     }
 
+    public function violationLogs()
+    {
+        return $this->hasMany(StudentViolationLog::class);
+    }
+
+    public function violationRecords()
+    {
+        return $this->hasMany(StudentViolationRecord::class);
+    }
+
     public function subjectAttendances()
     {
         return $this->hasMany(SubjectAttendance::class);

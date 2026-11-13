@@ -89,6 +89,11 @@ class Classroom extends Model
         return $this->hasMany(Student::class, 'classroom_id');
     }
 
+    public function violationLogs()
+    {
+        return $this->hasMany(StudentViolationLog::class, 'classroom_id');
+    }
+
     public function getRealStudentsCount(): int
     {
         $instId = $this->institution_id ?? 2;

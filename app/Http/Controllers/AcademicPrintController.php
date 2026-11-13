@@ -4,15 +4,19 @@ namespace App\Http\Controllers;
 
 use App\Models\AlurTujuanPembelajaran;
 use App\Models\CapaianPembelajaran;
+use App\Models\Classroom;
 use App\Models\MeetingMinute;
 use App\Models\Rppm;
 use App\Models\Student;
 use App\Models\StudentAchievement;
 use App\Models\StudentCase;
+use App\Models\StudentViolationApproval;
 use App\Models\TeacherCertificate;
 use App\Models\TeacherLeaveRequest;
 use App\Models\TeachingJournal;
 use App\Models\TujuanPembelajaran;
+use App\Models\User;
+use App\Services\StudentViolationReportService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -310,5 +314,133 @@ class AcademicPrintController extends Controller
         $filename = "rekap-presensi-beban-jam-guru-{$namaBulanSlug}.pdf";
 
         return $this->generatePdf('pdf.teacher_attendance_report', $data, 'a4', 'landscape', $filename);
+    }
+
+    /**
+     * 15. Cetak Rekapitulasi Skor Poin Pelanggaran Siswa (Harian, Mingguan, Bulanan, Triwulan, Semester)
+     */
+    public function violationRecapPdf(Request $request)
+    {
+        $tab = $request->query('tab', 'harian');
+        $classroomId = $request->filled('classroom_id') ? (int) $request->query('classroom_id') : null;
+        $classroom = $classroomId ? Classroom::with('waliKelas')->find($classroomId) : null;
+
+        $user = auth()->user();
+        $institutionName = 'SMP ISLAM BAITUL MAKMUR MALANG';
+
+        $defaultBk = User::role('bk')->first();
+        $defaultKesiswaan = User::role('waka_kesiswaan')->first();
+        $defaultKepsek = User::role('kepala_sekolah')->first();
+
+        $bulanHeaders = [];
+        $data = collect();
+        $approval = null;
+        $docTitle = 'Rekapitulasi Skor Poin Pelanggaran';
+        $subTitle = 'Lembaga Pendidikan Islam Terpadu Baitul Makmur Malang';
+        $periodeLabel = '-';
+        $orientation = 'landscape';
+        $paper = 'a4';
+        $filename = 'rekap-pelanggaran.pdf';
+
+        if ($tab === 'harian') {
+            $tanggal = $request->query('tanggal', date('Y-m-d'));
+            $data = StudentViolationReportService::getHarianData($tanggal, $classroomId);
+            $approval = StudentViolationApproval::where('classroom_id', $classroomId)
+                ->where('periode_type', 'harian')
+                ->where('periode_key', $tanggal)
+                ->first();
+
+            $docTitle = 'Jurnal Catatan Pelanggaran Harian Siswa (Guru Piket)';
+            $periodeLabel = Carbon::parse($tanggal)->translatedFormat('l, d F Y');
+            $orientation = 'portrait';
+            $filename = "jurnal-pelanggaran-harian-{$tanggal}.pdf";
+        } elseif ($tab === 'mingguan') {
+            $tahun = (int) $request->query('tahun', date('Y'));
+            $bulan = (int) $request->query('bulan', date('m'));
+            $minggu = (int) $request->query('minggu', 1);
+            $periodeKey = "{$tahun}-M{$bulan}-W{$minggu}";
+
+            $data = StudentViolationReportService::getMingguanData($tahun, $bulan, $minggu, $classroomId);
+            $approval = StudentViolationApproval::where('classroom_id', $classroomId)
+                ->where('periode_type', 'mingguan')
+                ->where('periode_key', $periodeKey)
+                ->first();
+
+            [$startDate, $endDate] = StudentViolationReportService::getWeekDateRange($tahun, $bulan, $minggu);
+            $docTitle = 'Rekapitulasi Poin Pelanggaran Murid Mingguan';
+            $periodeLabel = "Minggu ke-{$minggu} ({$startDate->translatedFormat('d M')} - {$endDate->translatedFormat('d M Y')})";
+            $orientation = 'landscape';
+            $filename = "rekap-pelanggaran-mingguan-{$periodeKey}.pdf";
+        } elseif ($tab === 'bulanan') {
+            $tahun = (int) $request->query('tahun', date('Y'));
+            $bulan = (int) $request->query('bulan', date('m'));
+            $periodeKey = sprintf('%04d-%02d', $tahun, $bulan);
+
+            $data = StudentViolationReportService::getBulananData($tahun, $bulan, $classroomId);
+            $approval = StudentViolationApproval::where('classroom_id', $classroomId)
+                ->where('periode_type', 'bulanan')
+                ->where('periode_key', $periodeKey)
+                ->first();
+
+            $docTitle = 'Rekapitulasi Poin Pelanggaran Murid Bulanan';
+            $periodeLabel = Carbon::create($tahun, $bulan, 1)->translatedFormat('F Y');
+            $orientation = 'landscape';
+            $filename = "rekap-pelanggaran-bulanan-{$periodeKey}.pdf";
+        } elseif ($tab === 'triwulan') {
+            $tahun = (int) $request->query('tahun', date('Y'));
+            $triwulan = (int) $request->query('triwulan', 1);
+
+            $result = StudentViolationReportService::getTriwulanData($tahun, $triwulan, $classroomId);
+            $data = $result['rows'];
+            $bulanHeaders = $result['monthNames'];
+            $periodeKey = $result['periodeKey'];
+
+            $approval = StudentViolationApproval::where('classroom_id', $classroomId)
+                ->where('periode_type', 'triwulan')
+                ->where('periode_key', $periodeKey)
+                ->first();
+
+            $docTitle = 'Rekapitulasi Poin Pelanggaran Murid Triwulan (3 Bulan)';
+            $periodeLabel = "Triwulan {$triwulan} ({$bulanHeaders[0]} - {$bulanHeaders[2]} {$tahun})";
+            $orientation = 'landscape';
+            $filename = "rekap-pelanggaran-triwulan-{$periodeKey}.pdf";
+        } elseif ($tab === 'semester') {
+            $semester = $request->query('semester', 'ganjil');
+            $tahunAjaran = $request->query('tahun_ajaran', date('Y') . '/' . (date('Y') + 1));
+
+            $result = StudentViolationReportService::getSemesterData($tahunAjaran, $semester, $classroomId);
+            $data = $result['rows'];
+            $bulanHeaders = $result['monthNames'];
+            $periodeKey = $result['periodeKey'];
+
+            $approval = StudentViolationApproval::where('classroom_id', $classroomId)
+                ->where('periode_type', 'semester')
+                ->where('periode_key', $periodeKey)
+                ->first();
+
+            $docTitle = 'Rekapitulasi Poin Pelanggaran Murid 1 Semester & Predikat Sikap';
+            $periodeLabel = "Semester " . ucfirst($semester) . " TP {$tahunAjaran}";
+            $orientation = 'landscape';
+            $filename = "rekap-pelanggaran-semester-{$semester}-" . Str::slug($tahunAjaran) . ".pdf";
+        }
+
+        $viewData = [
+            'tab'              => $tab,
+            'data'             => $data,
+            'classroom'        => $classroom,
+            'approval'         => $approval,
+            'docTitle'         => $docTitle,
+            'subTitle'         => $subTitle,
+            'periodeLabel'     => $periodeLabel,
+            'institutionName'  => $institutionName,
+            'defaultBk'        => $defaultBk,
+            'defaultKesiswaan' => $defaultKesiswaan,
+            'defaultKepsek'    => $defaultKepsek,
+            'bulanHeaders'     => $bulanHeaders,
+            'currentUser'      => $user,
+            'selectedTanggal'  => $request->query('tanggal', date('Y-m-d')),
+        ];
+
+        return $this->generatePdf('pdf.violation_rekap_document', $viewData, $paper, $orientation, $filename);
     }
 }

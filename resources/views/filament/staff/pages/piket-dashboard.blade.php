@@ -163,13 +163,13 @@
                 <span class="text-[10px] text-gray-400 mt-0.5">Dispensasi</span>
             </a>
 
-            {{-- 6. Pelanggaran Atribut --}}
-            <a href="{{ route('filament.staff.resources.attribute-violations.index') }}" class="flex flex-col items-center justify-center p-3 text-center rounded-xl border border-gray-200 dark:border-gray-800 hover:border-rose-500 hover:bg-rose-50/50 dark:hover:bg-rose-950/20 active:scale-95 transition-all select-none group">
+            {{-- 6. Pelanggaran Atribut & Rekap Pelanggaran --}}
+            <a href="{{ route('filament.staff.pages.rekapitulasi-skor-pelanggaran-page') }}" class="flex flex-col items-center justify-center p-3 text-center rounded-xl border border-gray-200 dark:border-gray-800 hover:border-rose-500 hover:bg-rose-50/50 dark:hover:bg-rose-950/20 active:scale-95 transition-all select-none group">
                 <span class="p-2 sm:p-2.5 rounded-xl bg-rose-100 dark:bg-rose-900/50 text-rose-600 dark:text-rose-400 group-hover:scale-105 transition-transform">
-                    <x-filament::icon icon="heroicon-o-exclamation-triangle" class="w-5 h-5 sm:w-6 sm:h-6" />
+                    <x-filament::icon icon="heroicon-o-shield-exclamation" class="w-5 h-5 sm:w-6 sm:h-6" />
                 </span>
-                <span class="mt-2 text-xs font-bold text-gray-800 dark:text-gray-200 group-hover:text-rose-600 dark:group-hover:text-rose-400">Atribut & Disiplin</span>
-                <span class="text-[10px] text-gray-400 mt-0.5">Kerapian</span>
+                <span class="mt-2 text-xs font-bold text-gray-800 dark:text-gray-200 group-hover:text-rose-600 dark:group-hover:text-rose-400">Rekap Pelanggaran</span>
+                <span class="text-[10px] text-gray-400 mt-0.5">Jurnal Piket & Skor</span>
             </a>
 
             {{-- 7. Penilaian Karakter --}}
