@@ -4,65 +4,65 @@
         {{-- 1. RINGKASAN METRIK KEDISIPLINAN --}}
         <div class="grid grid-cols-2 gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <!-- Total Kasus Pelanggaran -->
-            <div class="p-4 bg-white border border-gray-200 rounded-2xl shadow-2xs dark:bg-gray-800 dark:border-gray-700 transition-all">
+            <div class="p-3.5 sm:p-4 bg-white border border-gray-200 rounded-2xl shadow-2xs dark:bg-gray-800 dark:border-gray-700 transition-all">
                 <div class="flex items-center justify-between">
-                    <div>
-                        <p class="text-[11px] font-bold tracking-wider text-gray-500 uppercase dark:text-gray-400">Total Pelanggaran</p>
-                        <p class="mt-1 text-2xl font-black {{ $stats['totalKasus'] > 0 ? 'text-rose-600 dark:text-rose-400' : 'text-gray-900 dark:text-white' }}">
+                    <div class="min-w-0">
+                        <p class="text-[11px] sm:text-xs font-bold tracking-wide text-gray-500 uppercase dark:text-gray-400 truncate">Total Kasus</p>
+                        <p class="mt-1 text-xl sm:text-2xl font-black {{ $stats['totalKasus'] > 0 ? 'text-rose-600 dark:text-rose-400' : 'text-gray-900 dark:text-white' }} truncate">
                             {{ $stats['totalKasus'] }} <span class="text-xs font-normal text-gray-500">Kasus</span>
                         </p>
                     </div>
-                    <div class="p-2.5 rounded-xl {{ $stats['totalKasus'] > 0 ? 'bg-rose-50 text-rose-600 dark:bg-rose-950/40 dark:text-rose-400' : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400' }}">
+                    <div class="p-2 sm:p-2.5 rounded-xl shrink-0 {{ $stats['totalKasus'] > 0 ? 'bg-rose-50 text-rose-600 dark:bg-rose-950/40 dark:text-rose-400' : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400' }}">
                         <x-filament::icon icon="heroicon-o-exclamation-triangle" class="w-5 h-5" />
                     </div>
                 </div>
-                <div class="mt-2 text-[11px] text-gray-500 dark:text-gray-400">
+                <div class="mt-2 text-[11px] text-gray-500 dark:text-gray-400 truncate">
                     Periode: <strong>{{ ucfirst($activeTab) }}</strong>
                 </div>
             </div>
 
             <!-- Akumulasi Poin -->
-            <div class="p-4 bg-white border border-gray-200 rounded-2xl shadow-2xs dark:bg-gray-800 dark:border-gray-700 transition-all">
+            <div class="p-3.5 sm:p-4 bg-white border border-gray-200 rounded-2xl shadow-2xs dark:bg-gray-800 dark:border-gray-700 transition-all">
                 <div class="flex items-center justify-between">
-                    <div>
-                        <p class="text-[11px] font-bold tracking-wider text-amber-600 uppercase dark:text-amber-400">Akumulasi Poin</p>
-                        <p class="mt-1 text-2xl font-black text-amber-600 dark:text-amber-400">
+                    <div class="min-w-0">
+                        <p class="text-[11px] sm:text-xs font-bold tracking-wide text-amber-600 uppercase dark:text-amber-400 truncate">Akumulasi Poin</p>
+                        <p class="mt-1 text-xl sm:text-2xl font-black text-amber-600 dark:text-amber-400 truncate">
                             +{{ $stats['totalPoin'] }} <span class="text-xs font-normal text-gray-500">Poin</span>
                         </p>
                     </div>
-                    <div class="p-2.5 rounded-xl bg-amber-50 text-amber-600 dark:bg-amber-950/40 dark:text-amber-400">
+                    <div class="p-2 sm:p-2.5 rounded-xl bg-amber-50 text-amber-600 dark:bg-amber-950/40 dark:text-amber-400 shrink-0">
                         <x-filament::icon icon="heroicon-o-chart-bar" class="w-5 h-5" />
                     </div>
                 </div>
-                <div class="mt-2 text-[11px] text-gray-500 dark:text-gray-400">
+                <div class="mt-2 text-[11px] text-gray-500 dark:text-gray-400 truncate">
                     Total poin pelanggaran
                 </div>
             </div>
 
             <!-- Siswa Melanggar -->
-            <div class="p-4 bg-white border border-gray-200 rounded-2xl shadow-2xs dark:bg-gray-800 dark:border-gray-700 transition-all">
+            <div class="p-3.5 sm:p-4 bg-white border border-gray-200 rounded-2xl shadow-2xs dark:bg-gray-800 dark:border-gray-700 transition-all">
                 <div class="flex items-center justify-between">
-                    <div>
-                        <p class="text-[11px] font-bold tracking-wider text-purple-600 uppercase dark:text-purple-400">Siswa Melanggar</p>
-                        <p class="mt-1 text-2xl font-black text-purple-600 dark:text-purple-400">
-                            {{ $stats['siswaMelanggar'] }} <span class="text-xs font-normal text-gray-500">dari {{ $stats['totalSiswaKelas'] }} siswa</span>
+                    <div class="min-w-0">
+                        <p class="text-[11px] sm:text-xs font-bold tracking-wide text-purple-600 uppercase dark:text-purple-400 truncate">Siswa Terlibat</p>
+                        <p class="mt-1 text-xl sm:text-2xl font-black text-purple-600 dark:text-purple-400 truncate">
+                            {{ $stats['siswaMelanggar'] }} <span class="text-xs font-normal text-gray-500">/ {{ $stats['totalSiswaKelas'] }} Siswa</span>
                         </p>
                     </div>
-                    <div class="p-2.5 rounded-xl bg-purple-50 text-purple-600 dark:bg-purple-950/40 dark:text-purple-400">
+                    <div class="p-2 sm:p-2.5 rounded-xl bg-purple-50 text-purple-600 dark:bg-purple-950/40 dark:text-purple-400 shrink-0">
                         <x-filament::icon icon="heroicon-o-user-group" class="w-5 h-5" />
                     </div>
                 </div>
-                <div class="mt-2 text-[11px] text-gray-500 dark:text-gray-400">
-                    Siswa perlu pembinaan adab
+                <div class="mt-2 text-[11px] text-gray-500 dark:text-gray-400 truncate">
+                    Siswa pembinaan adab
                 </div>
             </div>
 
             <!-- Status Validasi Dokumen -->
-            <div class="p-4 bg-white border border-gray-200 rounded-2xl shadow-2xs dark:bg-gray-800 dark:border-gray-700 transition-all">
+            <div class="p-3.5 sm:p-4 bg-white border border-gray-200 rounded-2xl shadow-2xs dark:bg-gray-800 dark:border-gray-700 transition-all">
                 <div class="flex items-center justify-between">
-                    <div>
-                        <p class="text-[11px] font-bold tracking-wider text-emerald-600 uppercase dark:text-emerald-400">Validasi & ACC</p>
-                        <p class="mt-1 text-base font-extrabold text-gray-900 dark:text-white flex items-center gap-1.5">
+                    <div class="min-w-0">
+                        <p class="text-[11px] sm:text-xs font-bold tracking-wide text-emerald-600 uppercase dark:text-emerald-400 truncate">Validasi & ACC</p>
+                        <p class="mt-1 text-sm sm:text-base font-extrabold text-gray-900 dark:text-white flex items-center gap-1.5 truncate">
                             @if($activeTab === 'harian' && $approval?->acc_piket)
                                 <span class="text-emerald-600 dark:text-emerald-400">✓ Tervalidasi</span>
                             @elseif($activeTab === 'mingguan' && $approval?->acc_wali_kelas)
@@ -78,11 +78,11 @@
                             @endif
                         </p>
                     </div>
-                    <div class="p-2.5 rounded-xl bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400">
+                    <div class="p-2 sm:p-2.5 rounded-xl bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400 shrink-0">
                         <x-filament::icon icon="heroicon-o-check-badge" class="w-5 h-5" />
                     </div>
                 </div>
-                <div class="mt-2 text-[11px] text-gray-500 dark:text-gray-400 font-mono">
+                <div class="mt-2 text-[11px] text-gray-500 dark:text-gray-400 font-mono truncate">
                     Kode: {{ $currentPeriodeKey }}
                 </div>
             </div>
@@ -718,10 +718,11 @@
     {{-- MODAL 1: INPUT/EDIT JURNAL PELANGGARAN HARIAN (GURU PIKET) --}}
     {{-- ========================================================= --}}
     @if($showViolationModal)
-        <div class="fixed inset-0 z-50 overflow-y-auto bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4">
-            <div class="bg-white dark:bg-gray-800 rounded-3xl shadow-2xl max-w-2xl w-full overflow-hidden border border-gray-100 dark:border-gray-700">
-                <!-- Modal Header -->
-                <div class="p-5 bg-gradient-to-r from-slate-50 via-white to-slate-50 dark:from-gray-800 dark:to-gray-800/90 border-b border-gray-200/80 dark:border-gray-700 flex items-center justify-between">
+        <div class="fixed inset-0 z-50 overflow-y-auto bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 md:p-6"
+             wire:keydown.escape="closeViolationModal">
+            <div class="relative bg-white dark:bg-gray-800 rounded-2xl sm:rounded-3xl shadow-2xl max-w-2xl w-full max-h-[90vh] flex flex-col overflow-hidden border border-gray-100 dark:border-gray-700 my-auto">
+                <!-- Modal Header (Fixed / Non-shrinking) -->
+                <div class="flex-shrink-0 px-5 py-4 bg-gradient-to-r from-slate-50 via-white to-slate-50 dark:from-gray-800 dark:to-gray-800/90 border-b border-gray-200/80 dark:border-gray-700 flex items-center justify-between">
                     <div class="flex items-center gap-3">
                         <span class="w-10 h-10 rounded-2xl bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300 flex items-center justify-center text-lg font-bold shadow-2xs">
                             📋
@@ -740,11 +741,11 @@
                     </button>
                 </div>
 
-                <!-- Modal Body -->
-                <div class="p-6 space-y-4 text-xs sm:text-sm">
+                <!-- Modal Body (Scrollable with Sleek Scrollbar) -->
+                <div class="flex-1 overflow-y-auto min-h-0 px-5 py-4 sm:px-6 sm:py-5 space-y-3.5 text-xs sm:text-sm scrollbar-thin">
                     <div>
-                        <label class="font-bold text-gray-700 dark:text-gray-300 block mb-1.5">Nama Murid *</label>
-                        <select wire:model="formStudentId" class="w-full rounded-xl border-gray-300 dark:border-gray-600 dark:bg-gray-700 text-xs sm:text-sm focus:border-emerald-500 focus:ring-emerald-500 py-2.5">
+                        <label class="font-bold text-gray-700 dark:text-gray-300 block mb-1">Nama Murid *</label>
+                        <select wire:model="formStudentId" class="w-full rounded-xl border-gray-300 dark:border-gray-600 dark:bg-gray-700 text-xs sm:text-sm focus:border-emerald-500 focus:ring-emerald-500 py-2">
                             <option value="">-- Pilih Nama Murid --</option>
                             @foreach($studentOptions as $id => $name)
                                 <option value="{{ $id }}">{{ $name }}</option>
@@ -753,58 +754,59 @@
                         @error('formStudentId') <span class="text-rose-600 text-xs mt-1 block">{{ $message }}</span> @enderror
                     </div>
 
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div>
-                            <label class="font-bold text-gray-700 dark:text-gray-300 block mb-1.5">Tanggal Kejadian *</label>
-                            <input type="date" wire:model="formTanggal" class="w-full rounded-xl border-gray-300 dark:border-gray-600 dark:bg-gray-700 text-xs sm:text-sm focus:border-emerald-500 focus:ring-emerald-500 py-2.5">
+                            <label class="font-bold text-gray-700 dark:text-gray-300 block mb-1">Tanggal Kejadian *</label>
+                            <input type="date" wire:model="formTanggal" class="w-full rounded-xl border-gray-300 dark:border-gray-600 dark:bg-gray-700 text-xs sm:text-sm focus:border-emerald-500 focus:ring-emerald-500 py-2">
                             @error('formTanggal') <span class="text-rose-600 text-xs mt-1 block">{{ $message }}</span> @enderror
                         </div>
                         <div>
-                            <label class="font-bold text-gray-700 dark:text-gray-300 block mb-1.5">Waktu / Jam Kejadian *</label>
-                            <input type="text" wire:model="formJam" placeholder="Contoh: 07:30" class="w-full rounded-xl border-gray-300 dark:border-gray-600 dark:bg-gray-700 text-xs sm:text-sm focus:border-emerald-500 focus:ring-emerald-500 font-mono py-2.5">
+                            <label class="font-bold text-gray-700 dark:text-gray-300 block mb-1">Waktu / Jam Kejadian *</label>
+                            <input type="text" wire:model="formJam" placeholder="Contoh: 07:30" class="w-full rounded-xl border-gray-300 dark:border-gray-600 dark:bg-gray-700 text-xs sm:text-sm focus:border-emerald-500 focus:ring-emerald-500 font-mono py-2">
                             @error('formJam') <span class="text-rose-600 text-xs mt-1 block">{{ $message }}</span> @enderror
                         </div>
                     </div>
 
                     <div>
-                        <label class="font-bold text-gray-700 dark:text-gray-300 block mb-1.5">Bentuk / Deskripsi Pelanggaran *</label>
-                        <textarea wire:model="formBentukPelanggaran" rows="3" placeholder="Jelaskan secara spesifik pelanggaran yang dilakukan (Contoh: Datang terlambat lebih dari 15 menit tanpa surat izin dari gerbang)" class="w-full rounded-xl border-gray-300 dark:border-gray-600 dark:bg-gray-700 text-xs sm:text-sm focus:border-emerald-500 focus:ring-emerald-500 leading-relaxed p-3"></textarea>
+                        <label class="font-bold text-gray-700 dark:text-gray-300 block mb-1">Bentuk / Deskripsi Pelanggaran *</label>
+                        <textarea wire:model="formBentukPelanggaran" rows="2" placeholder="Jelaskan secara spesifik pelanggaran yang dilakukan (Contoh: Datang terlambat lebih dari 15 menit tanpa surat izin dari gerbang)" class="w-full rounded-xl border-gray-300 dark:border-gray-600 dark:bg-gray-700 text-xs sm:text-sm focus:border-emerald-500 focus:ring-emerald-500 leading-relaxed p-2.5"></textarea>
                         @error('formBentukPelanggaran') <span class="text-rose-600 text-xs mt-1 block">{{ $message }}</span> @enderror
                     </div>
 
                     <div>
-                        <div class="flex items-center justify-between mb-1.5">
+                        <div class="flex items-center justify-between mb-1">
                             <label class="font-bold text-gray-700 dark:text-gray-300 block">Poin Pelanggaran *</label>
-                            <span class="text-xs text-gray-400">Pilih Preset Cepat:</span>
+                            <span class="text-[11px] text-gray-400">Pilih Preset Cepat:</span>
                         </div>
-                        <div class="flex flex-wrap items-center gap-2 mb-2.5">
-                            <button type="button" wire:click="setPresetPoin(5)" class="px-3 py-1.5 rounded-xl text-xs font-bold border transition-all {{ $formPoin == 5 ? 'bg-amber-100 text-amber-900 border-amber-300 shadow-2xs' : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100' }}">+5 Poin (Ringan)</button>
-                            <button type="button" wire:click="setPresetPoin(10)" class="px-3 py-1.5 rounded-xl text-xs font-bold border transition-all {{ $formPoin == 10 ? 'bg-amber-100 text-amber-900 border-amber-300 shadow-2xs' : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100' }}">+10 Poin (Sedang)</button>
-                            <button type="button" wire:click="setPresetPoin(15)" class="px-3 py-1.5 rounded-xl text-xs font-bold border transition-all {{ $formPoin == 15 ? 'bg-amber-100 text-amber-900 border-amber-300 shadow-2xs' : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100' }}">+15 Poin (Bermasalah)</button>
-                            <button type="button" wire:click="setPresetPoin(25)" class="px-3 py-1.5 rounded-xl text-xs font-bold border transition-all {{ $formPoin == 25 ? 'bg-rose-100 text-rose-900 border-rose-300 shadow-2xs' : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100' }}">+25 Poin (Berat)</button>
+                        <div class="flex flex-wrap items-center gap-1.5 mb-2">
+                            <button type="button" wire:click="setPresetPoin(5)" class="px-2.5 py-1 rounded-lg text-xs font-bold border transition-all {{ $formPoin == 5 ? 'bg-amber-100 text-amber-900 border-amber-300 shadow-2xs' : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100' }}">+5 Poin (Ringan)</button>
+                            <button type="button" wire:click="setPresetPoin(10)" class="px-2.5 py-1 rounded-lg text-xs font-bold border transition-all {{ $formPoin == 10 ? 'bg-amber-100 text-amber-900 border-amber-300 shadow-2xs' : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100' }}">+10 Poin (Sedang)</button>
+                            <button type="button" wire:click="setPresetPoin(15)" class="px-2.5 py-1 rounded-lg text-xs font-bold border transition-all {{ $formPoin == 15 ? 'bg-amber-100 text-amber-900 border-amber-300 shadow-2xs' : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100' }}">+15 Poin (Bermasalah)</button>
+                            <button type="button" wire:click="setPresetPoin(25)" class="px-2.5 py-1 rounded-lg text-xs font-bold border transition-all {{ $formPoin == 25 ? 'bg-rose-100 text-rose-900 border-rose-300 shadow-2xs' : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100' }}">+25 Poin (Berat)</button>
                         </div>
-                        <input type="number" wire:model="formPoin" min="1" class="w-full rounded-xl border-gray-300 dark:border-gray-600 dark:bg-gray-700 text-sm font-bold font-mono focus:border-emerald-500 focus:ring-emerald-500 py-2.5">
+                        <input type="number" wire:model="formPoin" min="1" class="w-full rounded-xl border-gray-300 dark:border-gray-600 dark:bg-gray-700 text-sm font-bold font-mono focus:border-emerald-500 focus:ring-emerald-500 py-2">
                         @error('formPoin') <span class="text-rose-600 text-xs mt-1 block">{{ $message }}</span> @enderror
                     </div>
 
                     <div>
-                        <label class="font-bold text-gray-700 dark:text-gray-300 block mb-1.5">Nama Guru Pencatat</label>
-                        <input type="text" value="{{ $currentUser?->name }}" disabled class="w-full rounded-xl bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-600 text-xs sm:text-sm py-2.5">
+                        <label class="font-bold text-gray-700 dark:text-gray-300 block mb-1">Nama Guru Pencatat</label>
+                        <input type="text" value="{{ $currentUser?->name }}" disabled class="w-full rounded-xl bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-600 text-xs sm:text-sm py-2">
                     </div>
 
                     <div>
-                        <label class="font-bold text-gray-700 dark:text-gray-300 block mb-1.5">Tindak Lanjut Langsung</label>
-                        <textarea wire:model="formTindakLanjut" rows="2" placeholder="Tindakan yang langsung diberikan (Contoh: Diberi teguran lisan, membaca istighfar 33x, dan dicatat di buku piket)" class="w-full rounded-xl border-gray-300 dark:border-gray-600 dark:bg-gray-700 text-xs sm:text-sm focus:border-emerald-500 focus:ring-emerald-500 leading-relaxed p-3"></textarea>
+                        <label class="font-bold text-gray-700 dark:text-gray-300 block mb-1">Tindak Lanjut Langsung</label>
+                        <textarea wire:model="formTindakLanjut" rows="2" placeholder="Tindakan yang langsung diberikan (Contoh: Diberi teguran lisan, membaca istighfar 33x, dan dicatat di buku piket)" class="w-full rounded-xl border-gray-300 dark:border-gray-600 dark:bg-gray-700 text-xs sm:text-sm focus:border-emerald-500 focus:ring-emerald-500 leading-relaxed p-2.5"></textarea>
                     </div>
                 </div>
 
-                <!-- Modal Footer -->
-                <div class="p-5 bg-gray-50 dark:bg-gray-800/60 border-t border-gray-200/80 dark:border-gray-700 flex items-center justify-end gap-3">
-                    <button wire:click="closeViolationModal" type="button" class="px-5 py-2.5 rounded-xl text-xs sm:text-sm font-semibold text-gray-600 hover:bg-gray-200/70 border border-gray-300 dark:text-gray-300 dark:border-gray-600 dark:hover:bg-gray-700 transition-all">
+                <!-- Modal Footer (Fixed / Non-shrinking / Always 100% Visible) -->
+                <div class="flex-shrink-0 px-5 py-3.5 sm:px-6 sm:py-4 bg-gray-50 dark:bg-gray-800/90 border-t border-gray-200/80 dark:border-gray-700 flex items-center justify-end gap-3">
+                    <button wire:click="closeViolationModal" type="button" class="px-4 py-2 sm:px-5 sm:py-2.5 rounded-xl text-xs sm:text-sm font-semibold text-gray-600 hover:bg-gray-200/70 border border-gray-300 dark:text-gray-300 dark:border-gray-600 dark:hover:bg-gray-700 transition-all">
                         Batal
                     </button>
-                    <button wire:click="saveViolation" type="button" class="px-6 py-2.5 rounded-xl text-xs sm:text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 shadow-sm transition-all">
-                        Simpan Catatan
+                    <button wire:click="saveViolation" type="button" class="inline-flex items-center gap-1.5 px-5 py-2 sm:px-6 sm:py-2.5 rounded-xl text-xs sm:text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 shadow-sm transition-all">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                        <span>Simpan Catatan</span>
                     </button>
                 </div>
             </div>
@@ -815,10 +817,11 @@
     {{-- MODAL 2: INPUT CATATAN EVALUASI & TINDAK LANJUT STAKEHOLDER PER SISWA --}}
     {{-- ===================================================================== --}}
     @if($showRecordModal)
-        <div class="fixed inset-0 z-50 overflow-y-auto bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4">
-            <div class="bg-white dark:bg-gray-800 rounded-3xl shadow-2xl max-w-2xl w-full overflow-hidden border border-gray-100 dark:border-gray-700">
-                <!-- Modal Header -->
-                <div class="p-5 bg-gradient-to-r from-slate-50 via-white to-slate-50 dark:from-gray-800 dark:to-gray-800/90 border-b border-gray-200/80 dark:border-gray-700 flex items-center justify-between">
+        <div class="fixed inset-0 z-50 overflow-y-auto bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 md:p-6"
+             wire:keydown.escape="closeRecordModal">
+            <div class="relative bg-white dark:bg-gray-800 rounded-2xl sm:rounded-3xl shadow-2xl max-w-2xl w-full max-h-[90vh] flex flex-col overflow-hidden border border-gray-100 dark:border-gray-700 my-auto">
+                <!-- Modal Header (Fixed / Non-shrinking) -->
+                <div class="flex-shrink-0 px-5 py-4 bg-gradient-to-r from-slate-50 via-white to-slate-50 dark:from-gray-800 dark:to-gray-800/90 border-b border-gray-200/80 dark:border-gray-700 flex items-center justify-between">
                     <div>
                         <h3 class="text-sm sm:text-base font-bold text-gray-900 dark:text-white flex items-center gap-2">
                             <span>📝</span>
@@ -833,46 +836,47 @@
                     </button>
                 </div>
 
-                <!-- Modal Body -->
-                <div class="p-6 space-y-4 text-xs sm:text-sm">
+                <!-- Modal Body (Scrollable with Sleek Scrollbar) -->
+                <div class="flex-1 overflow-y-auto min-h-0 px-5 py-4 sm:px-6 sm:py-5 space-y-3.5 text-xs sm:text-sm scrollbar-thin">
                     @if($recordType === 'mingguan')
                         <div>
-                            <label class="font-bold text-gray-700 dark:text-gray-300 block mb-1.5">Catatan Perkembangan (Diisi Wali Kelas)</label>
+                            <label class="font-bold text-gray-700 dark:text-gray-300 block mb-1">Catatan Perkembangan (Diisi Wali Kelas)</label>
                             <textarea wire:model="fieldCatatanWaliKelas" rows="4" placeholder="Tuliskan catatan perkembangan kedisiplinan dan sikap murid minggu ini..." class="w-full rounded-xl border-gray-300 dark:border-gray-600 dark:bg-gray-700 text-xs sm:text-sm focus:border-emerald-500 focus:ring-emerald-500 leading-relaxed p-3"></textarea>
                         </div>
                     @elseif($recordType === 'bulanan')
                         <div>
-                            <label class="font-bold text-gray-700 dark:text-gray-300 block mb-1.5">Kategori / Status Sanksi (Diisi BK)</label>
-                            <input type="text" wire:model="fieldStatusSanksiBk" placeholder="Contoh: Peringatan Lisan / Konseling Pribadi Tahap 1" class="w-full rounded-xl border-gray-300 dark:border-gray-600 dark:bg-gray-700 text-xs sm:text-sm focus:border-emerald-500 focus:ring-emerald-500 py-2.5">
+                            <label class="font-bold text-gray-700 dark:text-gray-300 block mb-1">Kategori / Status Sanksi (Diisi BK)</label>
+                            <input type="text" wire:model="fieldStatusSanksiBk" placeholder="Contoh: Peringatan Lisan / Konseling Pribadi Tahap 1" class="w-full rounded-xl border-gray-300 dark:border-gray-600 dark:bg-gray-700 text-xs sm:text-sm focus:border-emerald-500 focus:ring-emerald-500 py-2">
                         </div>
                         <div>
-                            <label class="font-bold text-gray-700 dark:text-gray-300 block mb-1.5">Tindak Lanjut / Agenda Pembinaan (Diisi BK)</label>
+                            <label class="font-bold text-gray-700 dark:text-gray-300 block mb-1">Tindak Lanjut / Agenda Pembinaan (Diisi BK)</label>
                             <textarea wire:model="fieldTindakLanjutBk" rows="4" placeholder="Contoh: Dijadwalkan bimbingan konseling pribadi pada hari Selasa..." class="w-full rounded-xl border-gray-300 dark:border-gray-600 dark:bg-gray-700 text-xs sm:text-sm focus:border-emerald-500 focus:ring-emerald-500 leading-relaxed p-3"></textarea>
                         </div>
                     @elseif($recordType === 'triwulan')
                         <div>
-                            <label class="font-bold text-gray-700 dark:text-gray-300 block mb-1.5">Status Peringatan / Sanksi (Diisi Waka Kesiswaan)</label>
-                            <input type="text" wire:model="fieldStatusSanksiKesiswaan" placeholder="Contoh: SP-1 / Pembinaan Karakter Kesiswaan" class="w-full rounded-xl border-gray-300 dark:border-gray-600 dark:bg-gray-700 text-xs sm:text-sm focus:border-emerald-500 focus:ring-emerald-500 py-2.5">
+                            <label class="font-bold text-gray-700 dark:text-gray-300 block mb-1">Status Peringatan / Sanksi (Diisi Waka Kesiswaan)</label>
+                            <input type="text" wire:model="fieldStatusSanksiKesiswaan" placeholder="Contoh: SP-1 / Pembinaan Karakter Kesiswaan" class="w-full rounded-xl border-gray-300 dark:border-gray-600 dark:bg-gray-700 text-xs sm:text-sm focus:border-emerald-500 focus:ring-emerald-500 py-2">
                         </div>
                         <div>
-                            <label class="font-bold text-gray-700 dark:text-gray-300 block mb-1.5">Tindak Lanjut & Proses Pembinaan (Diisi Waka Kesiswaan)</label>
+                            <label class="font-bold text-gray-700 dark:text-gray-300 block mb-1">Tindak Lanjut & Proses Pembinaan (Diisi Waka Kesiswaan)</label>
                             <textarea wire:model="fieldTindakLanjutKesiswaan" rows="4" placeholder="Contoh: Koordinasi bersama orang tua dan penugasan bakti sosial sekolah..." class="w-full rounded-xl border-gray-300 dark:border-gray-600 dark:bg-gray-700 text-xs sm:text-sm focus:border-emerald-500 focus:ring-emerald-500 leading-relaxed p-3"></textarea>
                         </div>
                     @elseif($recordType === 'semester')
                         <div>
-                            <label class="font-bold text-gray-700 dark:text-gray-300 block mb-1.5">Catatan Kepribadian Rapor (Diinput oleh Wali Kelas)</label>
-                            <textarea wire:model="fieldCatatanWaliKelas" rows="5" placeholder="Tuliskan narasi kepribadian dan sikap spiritual & sosial untuk dimasukkan ke dalam rapor semester siswa..." class="w-full rounded-xl border-gray-300 dark:border-gray-600 dark:bg-gray-700 text-xs sm:text-sm focus:border-emerald-500 focus:ring-emerald-500 leading-relaxed p-3"></textarea>
+                            <label class="font-bold text-gray-700 dark:text-gray-300 block mb-1">Catatan Kepribadian Rapor (Diinput oleh Wali Kelas)</label>
+                            <textarea wire:model="fieldCatatanWaliKelas" rows="4" placeholder="Tuliskan narasi kepribadian dan sikap spiritual & sosial untuk dimasukkan ke dalam rapor semester siswa..." class="w-full rounded-xl border-gray-300 dark:border-gray-600 dark:bg-gray-700 text-xs sm:text-sm focus:border-emerald-500 focus:ring-emerald-500 leading-relaxed p-3"></textarea>
                         </div>
                     @endif
                 </div>
 
-                <!-- Modal Footer -->
-                <div class="p-5 bg-gray-50 dark:bg-gray-800/60 border-t border-gray-200/80 dark:border-gray-700 flex items-center justify-end gap-3">
-                    <button wire:click="closeRecordModal" type="button" class="px-5 py-2.5 rounded-xl text-xs sm:text-sm font-semibold text-gray-600 hover:bg-gray-200/70 border border-gray-300 dark:text-gray-300 dark:border-gray-600 dark:hover:bg-gray-700 transition-all">
+                <!-- Modal Footer (Fixed / Non-shrinking / Always 100% Visible) -->
+                <div class="flex-shrink-0 px-5 py-3.5 sm:px-6 sm:py-4 bg-gray-50 dark:bg-gray-800/90 border-t border-gray-200/80 dark:border-gray-700 flex items-center justify-end gap-3">
+                    <button wire:click="closeRecordModal" type="button" class="px-4 py-2 sm:px-5 sm:py-2.5 rounded-xl text-xs sm:text-sm font-semibold text-gray-600 hover:bg-gray-200/70 border border-gray-300 dark:text-gray-300 dark:border-gray-600 dark:hover:bg-gray-700 transition-all">
                         Batal
                     </button>
-                    <button wire:click="saveRecord" type="button" class="px-6 py-2.5 rounded-xl text-xs sm:text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 shadow-sm transition-all">
-                        Simpan Evaluasi
+                    <button wire:click="saveRecord" type="button" class="inline-flex items-center gap-1.5 px-5 py-2 sm:px-6 sm:py-2.5 rounded-xl text-xs sm:text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 shadow-sm transition-all">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                        <span>Simpan Evaluasi</span>
                     </button>
                 </div>
             </div>
