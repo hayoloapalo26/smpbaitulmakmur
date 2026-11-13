@@ -195,22 +195,35 @@ class Student extends Model
 
             // Sinkronisasi dua arah antara id_finger, fingerspot_pin, dan hikvision_employee_no
             // Prioritaskan kolom yang baru saja diubah (isDirty) agar perubahan ID Finger tidak tertimpa nilai lama
+            // Selalu bersihkan (trim) dari spasi tak sengaja
+            $cleanPin = function ($val) {
+                if ($val === null || $val === '') {
+                    return null;
+                }
+                return trim((string) $val);
+            };
+
             if ($student->isDirty('id_finger')) {
-                $fingerVal = $student->attributes['id_finger'] ?? null;
+                $fingerVal = $cleanPin($student->attributes['id_finger'] ?? null);
+                $student->attributes['id_finger'] = $fingerVal;
                 $student->attributes['fingerspot_pin'] = $fingerVal;
                 $student->attributes['hikvision_employee_no'] = $fingerVal;
             } elseif ($student->isDirty('fingerspot_pin')) {
-                $fingerVal = $student->attributes['fingerspot_pin'] ?? null;
-                $student->attributes['id_finger'] = $fingerVal;
-                $student->attributes['hikvision_employee_no'] = $fingerVal;
-            } elseif ($student->isDirty('hikvision_employee_no')) {
-                $fingerVal = $student->attributes['hikvision_employee_no'] ?? null;
+                $fingerVal = $cleanPin($student->attributes['fingerspot_pin'] ?? null);
                 $student->attributes['id_finger'] = $fingerVal;
                 $student->attributes['fingerspot_pin'] = $fingerVal;
+                $student->attributes['hikvision_employee_no'] = $fingerVal;
+            } elseif ($student->isDirty('hikvision_employee_no')) {
+                $fingerVal = $cleanPin($student->attributes['hikvision_employee_no'] ?? null);
+                $student->attributes['id_finger'] = $fingerVal;
+                $student->attributes['fingerspot_pin'] = $fingerVal;
+                $student->attributes['hikvision_employee_no'] = $fingerVal;
             } else {
-                $fingerVal = $student->attributes['id_finger']
+                $fingerVal = $cleanPin(
+                    $student->attributes['id_finger']
                     ?? ($student->attributes['fingerspot_pin']
-                    ?? ($student->attributes['hikvision_employee_no'] ?? null));
+                    ?? ($student->attributes['hikvision_employee_no'] ?? null))
+                );
 
                 if ($fingerVal !== null && $fingerVal !== '') {
                     $student->attributes['id_finger'] = $fingerVal;

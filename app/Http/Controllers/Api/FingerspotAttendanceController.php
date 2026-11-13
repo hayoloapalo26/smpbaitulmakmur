@@ -477,6 +477,7 @@ class FingerspotAttendanceController extends Controller
         $config = $this->getCloudConfig();
         $hasKey = !empty($this->getConfiguredApiKey());
 
+        $studentsTotal = Student::withoutGlobalScopes()->count();
         $studentsWithFinger = Student::withoutGlobalScopes()
             ->where(function ($q) {
                 if (Schema::hasColumn('students', 'id_finger')) {
@@ -486,6 +487,7 @@ class FingerspotAttendanceController extends Controller
                     $q->orWhereNotNull('fingerspot_pin')->where('fingerspot_pin', '!=', '');
                 }
             })->count();
+        $studentsWithoutFinger = max(0, $studentsTotal - $studentsWithFinger);
 
         $teachersWithFinger = User::withoutGlobalScopes()
             ->where(function ($q) {
@@ -591,7 +593,9 @@ class FingerspotAttendanceController extends Controller
                 'sholat_ashar'  => '15:00 - 15:15 (> 15:15 Terlambat, aktif 14:30 - 23:59, Ashar & Pulang)',
                 'anti_dobel'    => 'Siswa hanya bisa absen 1 kali per waktu (scan pertama dikunci)',
             ],
+            'students_total_count'          => $studentsTotal,
             'students_with_finger_count'     => $studentsWithFinger,
+            'students_without_finger_count'  => $studentsWithoutFinger,
             'teachers_with_finger_count'     => $teachersWithFinger,
             'sample_registered_students'     => $sampleStudents,
             'webhook_hits_count'             => count($rawWebhooks),
@@ -1356,12 +1360,22 @@ class FingerspotAttendanceController extends Controller
     {
         $clean = trim($pin);
         $trimmedZero = ltrim($clean, '0');
+        if ($trimmedZero === '') {
+            $trimmedZero = '0';
+        }
+
         $variants = [
             $clean,
-            $trimmedZero === '' ? '0' : $trimmedZero,
-            (is_numeric($clean) && strlen($clean) < 10) ? str_pad($clean, 10, '0', STR_PAD_LEFT) : null,
-            (is_numeric($clean) && strlen($clean) < 4)  ? str_pad($clean, 4, '0', STR_PAD_LEFT) : null,
+            $trimmedZero,
         ];
+
+        if (is_numeric($trimmedZero)) {
+            // Hasilkan seluruh variasi padding angka 0 (misal: 20, 020, 0020, 00020, ... hingga 10 digit)
+            // agar jika di mesin/database berformat 2 digit, 3 digit, atau 10 digit, pasti cocok 100%
+            for ($len = strlen($trimmedZero); $len <= 10; $len++) {
+                $variants[] = str_pad($trimmedZero, $len, '0', STR_PAD_LEFT);
+            }
+        }
 
         return array_values(array_unique(array_filter(
             $variants,

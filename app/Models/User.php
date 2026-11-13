@@ -368,14 +368,26 @@ class User extends Authenticatable implements FilamentUser, HasAvatar
                 $user->has_account = true;
             }
 
+            $cleanUserPin = function ($val) {
+                return ($val !== null && $val !== '') ? trim((string) $val) : null;
+            };
+
             if ($user->isDirty('id_finger')) {
-                $user->fingerspot_pin = $user->id_finger;
+                $val = $cleanUserPin($user->id_finger);
+                $user->id_finger = $val;
+                $user->fingerspot_pin = $val;
             } elseif ($user->isDirty('fingerspot_pin')) {
-                $user->id_finger = $user->fingerspot_pin;
+                $val = $cleanUserPin($user->fingerspot_pin);
+                $user->id_finger = $val;
+                $user->fingerspot_pin = $val;
             } elseif (!empty($user->id_finger) && empty($user->fingerspot_pin)) {
-                $user->fingerspot_pin = $user->id_finger;
+                $val = $cleanUserPin($user->id_finger);
+                $user->id_finger = $val;
+                $user->fingerspot_pin = $val;
             } elseif (!empty($user->fingerspot_pin) && empty($user->id_finger)) {
-                $user->id_finger = $user->fingerspot_pin;
+                $val = $cleanUserPin($user->fingerspot_pin);
+                $user->id_finger = $val;
+                $user->fingerspot_pin = $val;
             }
         });
 

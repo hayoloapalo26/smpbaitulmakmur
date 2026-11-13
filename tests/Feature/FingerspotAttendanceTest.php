@@ -500,6 +500,48 @@ class FingerspotAttendanceTest extends TestCase
         $this->assertEquals('78', $student->fingerspot_pin);
     }
 
+    public function test_fingerspot_matches_all_padding_variations_and_whitespace()
+    {
+        $classroom = Classroom::create([
+            'name'           => 'VIII-B',
+            'tingkat'        => 8,
+            'institution_id' => $this->institution->id,
+            'wali_kelas_id'  => $this->user->id,
+        ]);
+
+        $student = Student::create([
+            'institution_id' => $this->institution->id,
+            'classroom_id'   => $classroom->id,
+            'name'           => 'Rizky Ramadhan',
+            'nis'            => '0315',
+            'id_finger'      => '25',
+            'jenis_kelamin'  => 'L',
+            'tanggal_lahir'  => '2011-01-01',
+        ]);
+
+        $controller = new FingerspotAttendanceController();
+
+        // 1. Scan dengan 25 langsung
+        $res1 = $controller->processAttendanceRecord('25', '2026-11-10 06:30:00');
+        $this->assertEquals('success', $res1['status']);
+        $this->assertEquals('Rizky Ramadhan', $res1['student']);
+
+        // 2. Scan dengan 025 (3 digit) -> harus terdeteksi sebagai duplicate/terkunci milik Rizky Ramadhan
+        $res2 = $controller->processAttendanceRecord('025', '2026-11-10 06:40:00');
+        $this->assertEquals('duplicate', $res2['status']);
+        $this->assertEquals('Rizky Ramadhan', $res2['student']);
+
+        // 3. Scan dengan 0000000025 (10 digit) -> harus tetap mengenali Rizky Ramadhan
+        $res3 = $controller->processAttendanceRecord('0000000025', '2026-11-10 06:45:00');
+        $this->assertEquals('duplicate', $res3['status']);
+        $this->assertEquals('Rizky Ramadhan', $res3['student']);
+
+        // 4. Scan dengan spasi " 25 "
+        $res4 = $controller->processAttendanceRecord(' 25 ', '2026-11-10 06:46:00');
+        $this->assertEquals('duplicate', $res4['status']);
+        $this->assertEquals('Rizky Ramadhan', $res4['student']);
+    }
+
     public function test_fingerspot_api_key_authentication()
     {
         config(['services.fingerspot.api_key' => 'secret_test_token_123']);
