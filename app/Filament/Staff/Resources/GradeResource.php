@@ -452,9 +452,8 @@ class GradeResource extends Resource
                                 return $tps->mapWithKeys(function ($tp) use ($rppmTpIds) {
                                     $isRppm = in_array($tp->id, $rppmTpIds);
                                     $tag = $isRppm ? '📌 [Dari RPPM] ' : '';
-                                    $prefix = $tp->materi ? "[{$tp->materi}] " : '';
-                                    $kode = $tp->kode_tp ? "({$tp->kode_tp}) " : '';
-                                    return [$tp->id => "{$tag}{$kode}{$prefix}" . Str::limit($tp->deskripsi_tp, 70)];
+                                    $deskripsi = trim((string) ($tp->deskripsi_tp ?: ($tp->materi ?: "Tujuan Pembelajaran #{$tp->id}")));
+                                    return [$tp->id => "{$tag}{$deskripsi}"];
                                 });
                             })
                             ->searchable()
@@ -565,7 +564,8 @@ class GradeResource extends Resource
                             ->options(function (Forms\Get $get) {
                                 $tpIds = $get('tp_ids') ?? [];
                                 return TujuanPembelajaran::whereIn('id', $tpIds)->get()->mapWithKeys(function ($tp) {
-                                    return [$tp->id => "({$tp->kode_tp}) " . Str::limit($tp->deskripsi_tp, 50)];
+                                    $deskripsi = trim((string) ($tp->deskripsi_tp ?: ($tp->materi ?: "Tujuan Pembelajaran #{$tp->id}")));
+                                    return [$tp->id => $deskripsi];
                                 });
                             }),
 
@@ -590,7 +590,8 @@ class GradeResource extends Resource
                             ->options(function (Forms\Get $get) {
                                 $tpIds = $get('tp_ids') ?? [];
                                 return TujuanPembelajaran::whereIn('id', $tpIds)->get()->mapWithKeys(function ($tp) {
-                                    return [$tp->id => "({$tp->kode_tp}) " . Str::limit($tp->deskripsi_tp, 60)];
+                                    $deskripsi = trim((string) ($tp->deskripsi_tp ?: ($tp->materi ?: "Tujuan Pembelajaran #{$tp->id}")));
+                                    return [$tp->id => $deskripsi];
                                 });
                             }),
 

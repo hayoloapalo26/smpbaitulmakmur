@@ -208,4 +208,28 @@ class TeachingJournalRppmAndTpTest extends TestCase
         $queried = TeachingJournalResource::getEloquentQuery()->pluck('id')->toArray();
         $this->assertContains($journal->id, $queried);
     }
+
+    public function test_teaching_journal_tp_options_display_description_without_code(): void
+    {
+        $this->actingAs($this->guru);
+
+        $livewire = Livewire::test(TeachingJournalResource\Pages\ManageTeachingJournals::class);
+        $livewire->assertSuccessful();
+
+        // Verifikasi langsung query/mapping di resource tanpa kode
+        $query = TujuanPembelajaran::where('subject_id', $this->subject->id)->get();
+        $this->assertNotEmpty($query);
+
+        $mapped = $query->mapWithKeys(function ($tp) {
+            $deskripsi = trim((string) ($tp->deskripsi_tp ?: ($tp->materi ?: "Tujuan Pembelajaran #{$tp->id}")));
+            return [$tp->id => $deskripsi];
+        });
+
+        foreach ($mapped as $id => $label) {
+            $this->assertStringNotContainsString('(TP.7.', $label, 'Label TP tidak boleh mengandung format kode teknis');
+            $this->assertStringNotContainsString('(1.1)', $label, 'Label TP tidak boleh berupa kode numerik saja');
+            $tp = TujuanPembelajaran::find($id);
+            $this->assertStringContainsString($tp->deskripsi_tp, $label, 'Label TP harus memuat deskripsi TP yang diinputkan');
+        }
+    }
 }

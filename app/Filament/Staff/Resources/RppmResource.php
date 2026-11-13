@@ -1302,8 +1302,9 @@ class RppmResource extends Resource
                                         });
 
                                         return $tps->mapWithKeys(function ($tp) {
-                                            $prefix = $tp->materi ? "({$tp->materi}) " : '';
-                                            return [$tp->id => "[TP {$tp->kode_tp}] {$prefix}" . \Illuminate\Support\Str::limit($tp->deskripsi_tp, 75)];
+                                            $prefix = $tp->materi ? "[{$tp->materi}] " : '';
+                                            $deskripsi = trim((string) ($tp->deskripsi_tp ?: ($tp->materi ?: "Tujuan Pembelajaran #{$tp->id}")));
+                                            return [$tp->id => "{$prefix}{$deskripsi}"];
                                         });
                                     })
                                     ->searchable()

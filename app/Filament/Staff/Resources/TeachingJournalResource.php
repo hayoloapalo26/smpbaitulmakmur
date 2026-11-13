@@ -539,7 +539,8 @@ class TeachingJournalResource extends Resource
                             ->helperText(fn (Forms\Get $get) => static::isQuranContext($get) ? 'Lingkup materi atau capaian Al-Qur\'an yang disampaikan pada jam mengajar ini.' : 'Lingkup materi pokok yang disampaikan pada jam mengajar ini.'),
 
                         Forms\Components\Select::make('tp_ids')
-                            ->label('Tujuan Pembelajaran (TP) Terkait [Multiple Choice]')
+                            ->label('Tujuan Pembelajaran (TP) yang Diajarkan')
+                            ->placeholder('Pilih Tujuan Pembelajaran (TP)...')
                             ->hidden(fn (Forms\Get $get) => static::isQuranContext($get))
                             ->dehydrated(fn (Forms\Get $get) => !static::isQuranContext($get))
                             ->multiple()
@@ -570,9 +571,8 @@ class TeachingJournalResource extends Resource
                                 })->mapWithKeys(function ($tp) use ($rppmTpIds) {
                                     $isRppm = in_array($tp->id, $rppmTpIds);
                                     $tag = $isRppm ? '📌 [Dari RPPM] ' : '';
-                                    $prefix = $tp->materi ? "[{$tp->materi}] " : '';
-                                    $kode = $tp->kode_tp ? "({$tp->kode_tp}) " : '';
-                                    return [$tp->id => "{$tag}{$kode}{$prefix}" . Str::limit($tp->deskripsi_tp, 70)];
+                                    $deskripsi = trim((string) ($tp->deskripsi_tp ?: ($tp->materi ?: "Tujuan Pembelajaran #{$tp->id}")));
+                                    return [$tp->id => "{$tag}{$deskripsi}"];
                                 });
                             })
                             ->searchable()
@@ -586,7 +586,7 @@ class TeachingJournalResource extends Resource
                                     }
                                 }
                             })
-                            ->helperText('💡 Tujuan Pembelajaran yang ditarik dari dokumen RPPM & Perangkat Pembelajaran guru. Anda juga dapat memilih lebih dari satu TP.')
+                            ->helperText('💡 Pilih Tujuan Pembelajaran (TP) berdasarkan rumusan deskripsinya. Anda dapat memilih lebih dari satu TP.')
                             ->columnSpanFull(),
                     ])->columns(2),
 
