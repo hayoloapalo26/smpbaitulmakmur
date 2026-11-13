@@ -6,6 +6,8 @@ use App\Filament\Staff\Resources\RppmResource\Pages;
 use App\Models\Rppm;
 use Filament\Forms;
 use Filament\Forms\Form;
+use Filament\Infolists;
+use Filament\Infolists\Infolist;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
@@ -152,6 +154,16 @@ class RppmResource extends Resource
             return false;
         }
         return parent::canDelete($record);
+    }
+
+    public static function infolist(Infolist $infolist): Infolist
+    {
+        return $infolist
+            ->schema([
+                Infolists\Components\ViewEntry::make('rppm_detail')
+                    ->view('filament.staff.components.rppm-detail-view')
+                    ->columnSpanFull(),
+            ]);
     }
 
     public static function form(Form $form): Form

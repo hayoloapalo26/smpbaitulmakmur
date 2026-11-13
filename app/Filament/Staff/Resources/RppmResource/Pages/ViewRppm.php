@@ -6,12 +6,29 @@ use App\Filament\Staff\Resources\RppmResource;
 use App\Models\Rppm;
 use Filament\Actions;
 use Filament\Forms;
+use Filament\Infolists\Infolist;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ViewRecord;
 
 class ViewRppm extends ViewRecord
 {
     protected static string $resource = RppmResource::class;
+
+    public function getTitle(): string
+    {
+        $topik = $this->record->topik ? ": {$this->record->topik}" : '';
+        return "Detail RPPM & Perangkat Ajar {$this->record->mata_pelajaran}{$topik}";
+    }
+
+    public function infolist(Infolist $infolist): Infolist
+    {
+        return RppmResource::infolist($infolist);
+    }
+
+    public function mount(int | string $record): void
+    {
+        parent::mount($record);
+    }
 
     protected function getHeaderActions(): array
     {
