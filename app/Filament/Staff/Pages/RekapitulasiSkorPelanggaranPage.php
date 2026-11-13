@@ -10,6 +10,7 @@ use App\Models\StudentViolationRecord;
 use App\Models\User;
 use App\Services\StudentViolationReportService;
 use Carbon\Carbon;
+use Filament\Actions\Action;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
 use Illuminate\Support\Facades\Auth;
@@ -41,6 +42,16 @@ class RekapitulasiSkorPelanggaranPage extends Page
     protected static ?string $navigationLabel = 'Rekapitulasi Skor Poin Pelanggaran';
     protected static ?int $navigationSort = 5;
 
+    public static function getNavigationBadge(): ?string
+    {
+        return '5 Periode';
+    }
+
+    public static function getNavigationBadgeColor(): ?string
+    {
+        return 'warning';
+    }
+
     public static function getNavigationGroup(): ?string
     {
         $user = Auth::user();
@@ -52,6 +63,28 @@ class RekapitulasiSkorPelanggaranPage extends Page
         }
 
         return 'Kesiswaan & Karakter';
+    }
+
+    protected function getHeaderActions(): array
+    {
+        return [
+            Action::make('download_pdf')
+                ->label(fn () => 'Unduh PDF ' . ucfirst($this->activeTab))
+                ->icon('heroicon-o-document-arrow-down')
+                ->color('primary')
+                ->url(fn () => route('academic.violation.rekap.pdf', [
+                    'tab'          => $this->activeTab,
+                    'classroom_id' => $this->selectedClassroomId,
+                    'tanggal'      => $this->selectedTanggal,
+                    'tahun'        => $this->selectedTahun,
+                    'bulan'        => $this->selectedBulan,
+                    'minggu'       => $this->selectedMinggu,
+                    'triwulan'     => $this->selectedTriwulan,
+                    'semester'     => $this->selectedSemester,
+                    'tahun_ajaran' => $this->selectedTahunAjaran,
+                ]))
+                ->openUrlInNewTab(),
+        ];
     }
 
     // Tab aktif: harian | mingguan | bulanan | triwulan | semester
@@ -130,6 +163,11 @@ class RekapitulasiSkorPelanggaranPage extends Page
     public function setTab(string $tab): void
     {
         $this->activeTab = $tab;
+    }
+
+    public function setPresetPoin(int $poin): void
+    {
+        $this->formPoin = $poin;
     }
 
     /**
@@ -414,24 +452,47 @@ class RekapitulasiSkorPelanggaranPage extends Page
             ->with(['piketUser', 'waliKelasUser', 'bkUser', 'kesiswaanUser', 'kepsekUser'])
             ->first();
 
-        // Siapkan URL PDF
-        $pdfUrl = route('academic.violation.rekap.pdf', [
-            'tab'          => $this->activeTab,
-            'classroom_id' => $this->selectedClassroomId,
-            'tanggal'      => $this->selectedTanggal,
-            'tahun'        => $this->selectedTahun,
-            'bulan'        => $this->selectedBulan,
-            'minggu'       => $this->selectedMinggu,
-            'triwulan'     => $this->selectedTriwulan,
-            'semester'     => $this->selectedSemester,
-            'tahun_ajaran' => $this->selectedTahunAjaran,
-        ]);
+        // Hitung statistik ringkas untuk kartu atas
+        $totalKasus = 0;
+        $totalPoin = 0;
+        $siswaMelanggar = 0;
 
-        // Daftar siswa untuk modal select
+        if ($this->activeTab === 'harian') {
+            $totalKasus = $tableData->count();
+            $totalPoin = (int) $tableData->sum('poin');
+            $siswaMelanggar = $tableData->pluck('student_id')->unique()->count();
+        } elseif ($this->activeTab === 'mingguan') {
+            $filtered = $tableData->where('total_poin', '>', 0);
+            $totalKasus = $filtered->count();
+            $totalPoin = (int) $tableData->sum('total_poin');
+            $siswaMelanggar = $filtered->count();
+        } elseif ($this->activeTab === 'bulanan') {
+            $filtered = $tableData->where('total_akumulasi', '>', 0);
+            $totalKasus = $filtered->count();
+            $totalPoin = (int) $tableData->sum('total_akumulasi');
+            $siswaMelanggar = $filtered->count();
+        } elseif ($this->activeTab === 'triwulan') {
+            $filtered = $tableData->where('total_3_bulan', '>', 0);
+            $totalKasus = $filtered->count();
+            $totalPoin = (int) $tableData->sum('total_3_bulan');
+            $siswaMelanggar = $filtered->count();
+        } elseif ($this->activeTab === 'semester') {
+            $filtered = $tableData->where('total_semester', '>', 0);
+            $totalKasus = $filtered->count();
+            $totalPoin = (int) $tableData->sum('total_semester');
+            $siswaMelanggar = $filtered->count();
+        }
+
+        // Daftar siswa untuk modal select dengan nama kelas
         $studentOptions = Student::query()
+            ->with('classroom')
             ->when($this->selectedClassroomId, fn ($q) => $q->where('classroom_id', $this->selectedClassroomId))
             ->orderBy('name')
-            ->pluck('name', 'id');
+            ->get()
+            ->mapWithKeys(function ($s) {
+                $cls = $s->classroom->name ?? 'Tanpa Kelas';
+                return [$s->id => "{$s->name} ({$cls})"];
+            });
 
         return [
             'isRestrictedWaliKelas' => $isRestrictedWaliKelas,
@@ -441,9 +502,14 @@ class RekapitulasiSkorPelanggaranPage extends Page
             'bulanHeaders'          => $bulanHeaders,
             'approval'              => $approval,
             'currentPeriodeKey'     => $currentPeriodeKey,
-            'pdfUrl'                => $pdfUrl,
             'studentOptions'        => $studentOptions,
             'currentUser'           => $user,
+            'stats'                 => [
+                'totalKasus'      => $totalKasus,
+                'totalPoin'       => $totalPoin,
+                'siswaMelanggar'  => $siswaMelanggar,
+                'totalSiswaKelas' => $studentOptions->count(),
+            ],
         ];
     }
 }
