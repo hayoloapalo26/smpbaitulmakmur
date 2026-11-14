@@ -443,4 +443,114 @@ class AcademicPrintController extends Controller
 
         return $this->generatePdf('pdf.violation_rekap_document', $viewData, $paper, $orientation, $filename);
     }
+
+    /**
+     * Cetak Laporan Resmi Presensi & Sholat Harian Siswa (5 Variabel Lengkap).
+     */
+    public function dailyAttendancePdf(Request $request)
+    {
+        $user = auth()->user();
+        $tanggal = $request->query('tanggal', Carbon::today()->toDateString());
+        $classroomId = $request->filled('classroom_id') ? (int) $request->query('classroom_id') : null;
+
+        $studentQuery = Student::withoutGlobalScopes()
+            ->where('status_siswa', 'aktif')
+            ->with([
+                'classroom',
+                'dailyAttendances' => fn ($q) => $q->withoutGlobalScopes()->whereDate('tanggal', $tanggal),
+            ])
+            ->orderBy('classroom_id')
+            ->orderBy('name');
+
+        if ($user && !$user->hasRole('superadmin') && $user->institution_id && $user->institution_id != 1) {
+            $studentQuery->where('institution_id', $user->institution_id);
+        }
+
+        if ($classroomId) {
+            $studentQuery->where('classroom_id', $classroomId);
+        }
+
+        $students = $studentQuery->get();
+        $classroom = $classroomId ? Classroom::find($classroomId) : null;
+        $tanggalCarbon = Carbon::parse($tanggal);
+        $tanggalFormatted = $tanggalCarbon->translatedFormat('l, d F Y');
+
+        $guruPiket = User::role('guru_piket')->first() ?? $user;
+        $wakaKesiswaan = User::role('waka_kesiswaan')->first();
+        $kepalaSekolah = User::role('kepala_sekolah')->first();
+
+        // Hitung statistik rekapitulasi harian
+        $totalSiswa = $students->count();
+        $masukHadir = 0;
+        $masukTepat = 0;
+        $masukTerlambat = 0;
+        $dhuhurHadir = 0;
+        $dhuhurHalangan = 0;
+        $asharHadir = 0;
+        $asharHalangan = 0;
+        $sakitCount = 0;
+        $izinCount = 0;
+        $alpaCount = 0;
+
+        foreach ($students as $st) {
+            $attMasuk = $st->getAttendanceOnDate($tanggal, 'masuk');
+            $attDhuhur = $st->getAttendanceOnDate($tanggal, 'sholat_dhuhur');
+            $attAshar = $st->getAttendanceOnDate($tanggal, ['sholat_ashar', 'pulang']);
+            $excused = $st->getGeneralExcusedOnDate($tanggal);
+
+            if ($excused) {
+                if ($excused->status === 'sakit') $sakitCount++;
+                elseif ($excused->status === 'izin') $izinCount++;
+                elseif ($excused->status === 'alpa') $alpaCount++;
+            }
+
+            if ($attMasuk && $attMasuk->status === 'hadir') {
+                $masukHadir++;
+                if ($attMasuk->is_late || ($attMasuk->waktu_kedatangan && Carbon::parse($attMasuk->waktu_kedatangan)->format('H:i') > '06:50')) {
+                    $masukTerlambat++;
+                } else {
+                    $masukTepat++;
+                }
+            }
+
+            if ($attDhuhur && $attDhuhur->status === 'hadir') {
+                $dhuhurHadir++;
+            } elseif (($attDhuhur && $attDhuhur->status === 'halangan') || ($st->jenis_kelamin === 'P' && \App\Models\StudentHalangan::isHalangan($st->id, $tanggal))) {
+                $dhuhurHalangan++;
+            }
+
+            if ($attAshar && $attAshar->status === 'hadir') {
+                $asharHadir++;
+            } elseif (($attAshar && $attAshar->status === 'halangan') || ($st->jenis_kelamin === 'P' && \App\Models\StudentHalangan::isHalangan($st->id, $tanggal))) {
+                $asharHalangan++;
+            }
+        }
+
+        $stats = [
+            'total_siswa'     => $totalSiswa,
+            'masuk_hadir'     => $masukHadir,
+            'masuk_tepat'     => $masukTepat,
+            'masuk_terlambat' => $masukTerlambat,
+            'dhuhur_hadir'    => $dhuhurHadir,
+            'dhuhur_halangan' => $dhuhurHalangan,
+            'ashar_hadir'     => $asharHadir,
+            'ashar_halangan'  => $asharHalangan,
+            'sakit_count'     => $sakitCount,
+            'izin_count'      => $izinCount,
+            'alpa_count'      => $alpaCount,
+        ];
+
+        $filename = 'laporan-presensi-harian-' . $tanggal . ($classroom ? '-' . Str::slug($classroom->name) : '') . '.pdf';
+
+        return $this->generatePdf('pdf.daily_attendance_report', compact(
+            'students',
+            'tanggal',
+            'tanggalFormatted',
+            'classroom',
+            'stats',
+            'guruPiket',
+            'wakaKesiswaan',
+            'kepalaSekolah'
+        ), 'a4', 'landscape', $filename);
+    }
 }

@@ -273,9 +273,13 @@ Route::middleware('auth')->prefix('print')->name('academic.')->group(function ()
 
     // 13. Rekapitulasi Skor Poin Pelanggaran Siswa (Harian, Mingguan, Bulanan, Triwulan, Semester)
     Route::get('/violation-rekap', [\App\Http\Controllers\AcademicPrintController::class, 'violationRecapPdf'])->name('violation.rekap.pdf');
+
+    // 14. Rekapitulasi Presensi & Sholat Harian Siswa (5 Variabel: Nama, Kelas, Kedatangan, Dhuhur, Ashar)
+    Route::get('/daily-attendance-rekap', [\App\Http\Controllers\AcademicPrintController::class, 'dailyAttendancePdf'])->name('daily-attendance.rekap.pdf');
 });
 
 Route::get('/violation-rekap', [\App\Http\Controllers\AcademicPrintController::class, 'violationRecapPdf'])->name('violation.rekap.pdf')->middleware('auth');
+Route::get('/daily-attendance-rekap', [\App\Http\Controllers\AcademicPrintController::class, 'dailyAttendancePdf'])->name('daily-attendance.rekap.pdf')->middleware('auth');
 
 
 

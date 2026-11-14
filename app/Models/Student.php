@@ -109,6 +109,52 @@ class Student extends Model
         return $this->hasMany(DailyAttendance::class);
     }
 
+    /**
+     * Dapatkan presensi harian siswa berdasarkan tanggal dan tipe sesi tertentu.
+     */
+    public function getAttendanceOnDate(string $date, string|array $tipe): ?DailyAttendance
+    {
+        $tipes = is_array($tipe) ? $tipe : [$tipe];
+
+        if ($this->relationLoaded('dailyAttendances')) {
+            return $this->dailyAttendances
+                ->filter(function ($att) use ($date, $tipes) {
+                    $attDate = \Carbon\Carbon::parse($att->tanggal)->toDateString();
+                    return $attDate === $date && in_array($att->tipe_absen, $tipes);
+                })
+                ->sortByDesc('id')
+                ->first();
+        }
+
+        return $this->dailyAttendances()
+            ->withoutGlobalScopes()
+            ->whereDate('tanggal', $date)
+            ->whereIn('tipe_absen', $tipes)
+            ->latest('id')
+            ->first();
+    }
+
+    /**
+     * Cek apakah siswa berstatus Izin, Sakit, atau Alpa pada tanggal tertentu.
+     */
+    public function getGeneralExcusedOnDate(string $date): ?DailyAttendance
+    {
+        if ($this->relationLoaded('dailyAttendances')) {
+            return $this->dailyAttendances
+                ->filter(function ($att) use ($date) {
+                    $attDate = \Carbon\Carbon::parse($att->tanggal)->toDateString();
+                    return $attDate === $date && in_array($att->status, ['sakit', 'izin', 'alpa']);
+                })
+                ->first();
+        }
+
+        return $this->dailyAttendances()
+            ->withoutGlobalScopes()
+            ->whereDate('tanggal', $date)
+            ->whereIn('status', ['sakit', 'izin', 'alpa'])
+            ->first();
+    }
+
     public function studentTodoLists()
     {
         return $this->hasMany(StudentTodoList::class);

@@ -33,15 +33,14 @@ class InputNilaiMapel extends Page
         $user = Auth::user();
         if (!$user) return false;
 
-        // Guru Al-Qur'an murni memiliki sistem penilaian khusus (Tahfidz & Mutu Bacaan) tanpa CP, TP, dan ATP
-        if ($user->isQuranTeacher() && !$user->hasAnyRole(['koordinator_madin', 'waka_kurikulum', 'kepala_sekolah', 'superadmin'])) {
+        // Guru Al-Qur'an & Koordinator Madin memiliki sistem penilaian khusus (Tahfidz, Mutu Bacaan, Penerimaan Nilai Madin)
+        if ($user->isQuranTeacher() || $user->hasRole('koordinator_madin')) {
             return false;
         }
 
         return $user->hasAnyRole([
             'guru_mapel',
             'guru_kelas',
-            'koordinator_madin',
             'waka_kurikulum',
             'kepala_sekolah',
             'superadmin',

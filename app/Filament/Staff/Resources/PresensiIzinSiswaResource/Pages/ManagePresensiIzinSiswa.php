@@ -2,9 +2,12 @@
 
 namespace App\Filament\Staff\Resources\PresensiIzinSiswaResource\Pages;
 
+use App\Filament\Staff\Resources\FingerspotDeviceResource;
 use App\Filament\Staff\Resources\PresensiIzinSiswaResource;
-use App\Filament\Staff\Resources\PresensiIzinSiswaResource\Widgets\FingerspotLiveStatusWidget;
-use App\Http\Controllers\Api\FingerspotAttendanceController;
+use App\Filament\Staff\Resources\PresensiIzinSiswaResource\Widgets\DailyAttendanceStatsOverviewWidget;
+use App\Models\Classroom;
+use App\Models\DailyAttendance;
+use App\Models\Student;
 use Carbon\Carbon;
 use Filament\Actions;
 use Filament\Forms;
@@ -12,12 +15,27 @@ use Filament\Notifications\Notification;
 use Filament\Resources\Components\Tab;
 use Filament\Resources\Pages\ManageRecords;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\On;
 
 class ManagePresensiIzinSiswa extends ManageRecords
 {
     protected static string $resource = PresensiIzinSiswaResource::class;
+
+    public string $filterTanggal = '';
+
+    public function mount(): void
+    {
+        parent::mount();
+        $this->filterTanggal = Carbon::today()->toDateString();
+    }
+
+    #[On('date-changed')]
+    public function onDateChanged(string $newDate): void
+    {
+        $this->filterTanggal = $newDate;
+        $this->resetTable();
+    }
 
     #[On('refresh-presensi-table')]
     #[On('fingerspot-synced')]
@@ -29,348 +47,228 @@ class ManagePresensiIzinSiswa extends ManageRecords
     protected function getHeaderWidgets(): array
     {
         return [
-            FingerspotLiveStatusWidget::class,
+            DailyAttendanceStatsOverviewWidget::class,
         ];
-    }
-
-    public function mount(): void
-    {
-        parent::mount();
-
-        // Jika Cloud ID mesin sudah dikonfigurasi, otomatis tarik data Cloud secara berkala (jeda 45 detik)
-        // sebagai backup bila webhook cloud sedang tertunda
-        try {
-            $controller = new FingerspotAttendanceController();
-            $config = $controller->getCloudConfig();
-
-            if (!empty($config['cloud_id']) && Cache::add('fingerspot_ui_autosync_cooldown', true, 45)) {
-                $controller->pullFromCloudApi($config['cloud_id']);
-            }
-        } catch (\Throwable $e) {
-            // Jangan ganggu tampilan halaman jika koneksi cloud timeout
-        }
     }
 
     public function getTabs(): array
     {
+        $date = $this->filterTanggal ?: Carbon::today()->toDateString();
+
         return [
-            'all' => Tab::make('Semua Presensi'),
-            'masuk' => Tab::make('Kehadiran Harian')
-                ->modifyQueryUsing(fn (Builder $query) => $query->where('tipe_absen', 'masuk')),
-            'sholat' => Tab::make('Absensi Sholat')
-                ->modifyQueryUsing(fn (Builder $query) => $query->whereIn('tipe_absen', ['sholat_dhuha', 'sholat_dhuhur', 'sholat_ashar'])),
-            'pulang' => Tab::make('🏠 Ashar & Pulang')
-                ->modifyQueryUsing(fn (Builder $query) => $query->whereIn('tipe_absen', ['sholat_ashar', 'pulang'])),
-            'terlambat' => Tab::make('⏰ Terlambat')
-                ->modifyQueryUsing(fn (Builder $query) => $query->where('is_late', true)),
-            'sakit' => Tab::make('🤒 Sakit')
-                ->modifyQueryUsing(fn (Builder $query) => $query->where('status', 'sakit')),
-            'izin' => Tab::make('📝 Izin')
-                ->modifyQueryUsing(fn (Builder $query) => $query->where('status', 'izin')),
-            'alpa' => Tab::make('❌ Alpha')
-                ->modifyQueryUsing(fn (Builder $query) => $query->where('status', 'alpa')),
+            'all' => Tab::make('Semua Siswa Aktif'),
+
+            'lengkap' => Tab::make('Hadir Lengkap (3/3)')
+                ->modifyQueryUsing(function (Builder $query) use ($date) {
+                    $query->whereHas('dailyAttendances', function ($q) use ($date) {
+                        $q->withoutGlobalScopes()
+                          ->whereDate('tanggal', $date)
+                          ->where('tipe_absen', 'masuk')
+                          ->where('status', 'hadir');
+                    })->where(function ($q) use ($date) {
+                        $q->whereHas('dailyAttendances', function ($sub) use ($date) {
+                            $sub->withoutGlobalScopes()
+                                ->whereDate('tanggal', $date)
+                                ->where('tipe_absen', 'sholat_dhuhur')
+                                ->where('status', 'hadir');
+                        })->orWhere(function ($sub) use ($date) {
+                            $sub->where('jenis_kelamin', 'P')
+                                ->whereHas('dailyAttendances', function ($h) use ($date) {
+                                    $h->withoutGlobalScopes()->whereDate('tanggal', $date)->where('status', 'halangan');
+                                });
+                        });
+                    });
+                }),
+
+            'terlambat' => Tab::make('Terlambat Masuk')
+                ->badgeColor('danger')
+                ->modifyQueryUsing(function (Builder $query) use ($date) {
+                    $query->whereHas('dailyAttendances', function ($q) use ($date) {
+                        $q->withoutGlobalScopes()
+                          ->whereDate('tanggal', $date)
+                          ->where('tipe_absen', 'masuk')
+                          ->where('status', 'hadir')
+                          ->where(function ($sub) {
+                              $sub->where('is_late', true)
+                                  ->orWhere('waktu_kedatangan', '>', '06:50:00');
+                          });
+                    });
+                }),
+
+            'belum_masuk' => Tab::make('Belum Scan Masuk')
+                ->badgeColor('warning')
+                ->modifyQueryUsing(function (Builder $query) use ($date) {
+                    $query->whereDoesntHave('dailyAttendances', function ($q) use ($date) {
+                        $q->withoutGlobalScopes()
+                          ->whereDate('tanggal', $date)
+                          ->where(function ($sub) {
+                              $sub->where('tipe_absen', 'masuk')
+                                  ->orWhereIn('status', ['sakit', 'izin', 'alpa']);
+                          });
+                    });
+                }),
+
+            'belum_dhuhur' => Tab::make('Belum Sholat Dhuhur')
+                ->modifyQueryUsing(function (Builder $query) use ($date) {
+                    $query->whereDoesntHave('dailyAttendances', function ($q) use ($date) {
+                        $q->withoutGlobalScopes()
+                          ->whereDate('tanggal', $date)
+                          ->where(function ($sub) {
+                              $sub->where('tipe_absen', 'sholat_dhuhur')
+                                  ->orWhereIn('status', ['sakit', 'izin', 'alpa', 'halangan']);
+                          });
+                    });
+                }),
+
+            'belum_ashar' => Tab::make('Belum Sholat Ashar')
+                ->modifyQueryUsing(function (Builder $query) use ($date) {
+                    $query->whereDoesntHave('dailyAttendances', function ($q) use ($date) {
+                        $q->withoutGlobalScopes()
+                          ->whereDate('tanggal', $date)
+                          ->where(function ($sub) {
+                              $sub->whereIn('tipe_absen', ['sholat_ashar', 'pulang'])
+                                  ->orWhereIn('status', ['sakit', 'izin', 'alpa', 'halangan']);
+                          });
+                    });
+                }),
+
+            'izin_sakit' => Tab::make('Izin / Sakit / Alpa')
+                ->badgeColor('info')
+                ->modifyQueryUsing(function (Builder $query) use ($date) {
+                    $query->whereHas('dailyAttendances', function ($q) use ($date) {
+                        $q->withoutGlobalScopes()
+                          ->whereDate('tanggal', $date)
+                          ->whereIn('status', ['sakit', 'izin', 'alpa']);
+                    });
+                }),
+
+            'halangan' => Tab::make('Halangan Siswi')
+                ->modifyQueryUsing(function (Builder $query) use ($date) {
+                    $query->where('jenis_kelamin', 'P')
+                          ->where(function ($q) use ($date) {
+                              $q->whereHas('dailyAttendances', function ($sub) use ($date) {
+                                  $sub->withoutGlobalScopes()
+                                      ->whereDate('tanggal', $date)
+                                      ->where('status', 'halangan');
+                              })->orWhereHas('halangans', function ($sub) use ($date) {
+                                  $sub->where('tanggal_mulai', '<=', $date)
+                                      ->where('tanggal_selesai', '>=', $date);
+                              });
+                          });
+                }),
         ];
     }
 
     protected function getHeaderActions(): array
     {
         return [
-            Actions\Action::make('sync_cloud_fingerspot')
-                ->label('🔄 Sinkron Mesin Fingerspot')
-                ->icon('heroicon-o-arrow-path')
+            // 1. Cetak & Unduh PDF Rekap Presensi Harian Resmi
+            Actions\Action::make('cetak_pdf')
+                ->label('Cetak PDF Presensi Harian')
+                ->icon('heroicon-o-printer')
+                ->color('danger')
+                ->url(fn () => route('daily-attendance.rekap.pdf', [
+                    'tanggal' => $this->filterTanggal ?: Carbon::today()->toDateString(),
+                ]))
+                ->openUrlInNewTab(),
+
+            // 2. Input Presensi Kolektif Per Kelas
+            Actions\Action::make('presensi_kolektif')
+                ->label('Presensi Kolektif Rombel')
+                ->icon('heroicon-o-user-group')
                 ->color('primary')
-                ->modalHeading('🔄 Sinkronisasi Langsung Cloud developer.fingerspot.io')
-                ->modalDescription('Tarik paksa log scan sidik jari langsung dari server Cloud Fingerspot Revo W230N (API Key terhubung). Masukkan Cloud ID mesin Anda untuk menyimpan konfigurasi permanen.')
-                ->modalSubmitActionLabel('Tarik Log Sekarang')
-                ->form(function () {
-                    $controller = new FingerspotAttendanceController();
-                    $config = $controller->getCloudConfig();
-                    $now = Carbon::now('Asia/Jakarta');
-                    $today = $now->toDateString();
-                    $yesterday = $now->copy()->subDay()->toDateString();
-                    $webhookUrl = url('/api/fingerspot/attendance');
-
-                    return [
-                        Forms\Components\Placeholder::make('info_endpoint')
-                            ->label('Konfigurasi Webhook di developer.fingerspot.io')
-                            ->content(new \Illuminate\Support\HtmlString(
-                                '<div class="text-xs space-y-1.5 text-gray-700 dark:text-gray-300 bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-700 p-2.5 rounded-lg">'
-                                . '<div><strong>1. Salin Webhook URL ini:</strong> <code class="font-mono font-bold text-xs bg-white dark:bg-gray-800 px-2 py-0.5 rounded border border-gray-300 select-all">' . $webhookUrl . '</code></div>'
-                                . '<div><strong>2. Tempel di web developer.fingerspot.io:</strong> Buka menu <em>Device</em> &rarr; kolom <em>Webhook URL</em> pada mesin Anda.</div>'
-                                . '<div><strong>3. Pada Mesin Fisik Revo W-230N:</strong> Menu &rarr; Komunikasi / Jaringan &rarr; Server Cloud: IP = <code>3.1.174.198</code> (atau <code>fdevice.com</code>), Port = <code>8014</code> (alternatif <code>8013</code>), <code>Mode = Internet</code>, lalu Restart mesin.</div>'
-                                . '</div>'
-                            )),
-                        Forms\Components\TextInput::make('cloud_id')
-                            ->label('Cloud ID Mesin Revo W230N')
-                            ->placeholder('Contoh: C260B8851F1C1030')
-                            ->helperText('Cloud ID mesin Anda dari developer.fingerspot.io. Tersimpan permanen.')
-                            ->default($config['cloud_id'] ?? 'C260B8851F1C1030')
-                            ->required(),
-                        Forms\Components\DatePicker::make('start_date')
-                            ->label('Tanggal Mulai')
-                            ->default($yesterday)
-                            ->helperText('Sistem otomatis memecah rentang > 2 hari (maks 60 hari ke belakang) sesuai aturan resmi developer.fingerspot.io.')
-                            ->required(),
-                        Forms\Components\DatePicker::make('end_date')
-                            ->label('Tanggal Selesai')
-                            ->default($today)
-                            ->required(),
-                    ];
-                })
-                ->action(function (array $data) {
-                    $controller = new FingerspotAttendanceController();
-                    $start = Carbon::parse($data['start_date'])->toDateString();
-                    $end = Carbon::parse($data['end_date'])->toDateString();
-
-                    $result = $controller->pullFromCloudApi(trim($data['cloud_id']), $start, $end);
-
-                    if ($result['success'] ?? false) {
-                        $unmatchedText = '';
-                        if (!empty($result['unmatched_pins'])) {
-                            $pins = implode(', ', $result['unmatched_pins']);
-                            $unmatchedText = "<br><strong>⚠️ PIN belum terdaftar di Data Siswa/Guru:</strong> {$pins}";
-                        }
-                        if (!empty($result['device_info']['webhook_url'])) {
-                            $unmatchedText .= "<br><strong>Webhook URL terpasang di Cloud:</strong> <code>{$result['device_info']['webhook_url']}</code>";
-                        }
-
-                        Notification::make()
-                            ->title('✅ Sinkronisasi Fingerspot Cloud Berhasil!')
-                            ->body(($result['message'] ?? 'Selesai') . $unmatchedText)
-                            ->success()
-                            ->duration(10000)
-                            ->send();
-                    } else {
-                        Notification::make()
-                            ->title('❌ Gagal Menarik Data Cloud')
-                            ->body($result['message'] ?? 'Periksa kembali Cloud ID Anda di developer.fingerspot.io.')
-                            ->danger()
-                            ->duration(8000)
-                            ->send();
-                    }
-
-                    $this->dispatch('fingerspot-synced');
-                }),
-
-            Actions\ActionGroup::make([
-                Actions\Action::make('fetch_device_pins')
-                    ->label('👥 Tarik Daftar PIN Mesin (get_all_pin)')
-                    ->icon('heroicon-o-identification')
-                    ->action(fn () => $this->dispatchRemoteCloudCommand(
-                        'get_all_pin',
-                        [],
-                        '📡 Permintaan Daftar PIN Dikirim ke Cloud',
-                        'Hasil daftar PIN terdaftar di mesin akan dikirim balik ke webhook sistem begitu mesin terhubung ke Cloud.'
-                    )),
-                Actions\Action::make('sync_device_time')
-                    ->label('🕒 Sinkron Jam WIB (set_time)')
-                    ->icon('heroicon-o-clock')
-                    ->action(fn () => $this->dispatchRemoteCloudCommand(
-                        'set_time',
-                        ['timezone' => 'Asia/Jakarta'],
-                        '🕒 Perintah Sinkron Jam Asia/Jakarta Dikirim',
-                        'Jam pada mesin Revo W-230N akan disinkronkan ke WIB (Asia/Jakarta).'
-                    )),
-                Actions\Action::make('restart_device')
-                    ->label('🔁 Restart Mesin Jarak Jauh (restart_device)')
-                    ->icon('heroicon-o-power')
-                    ->color('warning')
-                    ->requiresConfirmation()
-                    ->modalHeading('Restart Mesin Absensi Revo W-230N?')
-                    ->modalDescription('Perintah restart akan dikirim via Fingerspot Cloud dan dijalankan saat mesin terhubung online.')
-                    ->action(fn () => $this->dispatchRemoteCloudCommand(
-                        'restart_device',
-                        [],
-                        '🔁 Perintah Restart Mesin Dikirim ke Cloud',
-                        'Mesin akan restart otomatis begitu menerima perintah dari server Fingerspot.'
-                    )),
-            ])
-                ->label('📡 Kontrol Mesin Cloud')
-                ->icon('heroicon-o-cpu-chip')
-                ->color('info')
-                ->button(),
-
-            Actions\Action::make('tes_fingerspot')
-                ->label('⚡ Tes Scan Fingerspot')
-                ->icon('heroicon-o-finger-print')
-                ->color('success')
-                ->modalHeading('⚡ Simulasi & Tes Integrasi Mesin Fingerspot Revo W230N')
-                ->modalDescription('Uji ketepatan waktu (Masuk 06.00-06.50, Dhuhur 12.00-12.15, Ashar & Pulang 15.00-15.15) dan penguncian 1x scan langsung ke tabel Presensi & Izin Harian Siswa.')
-                ->modalSubmitActionLabel('Kirim Log Presensi')
+                ->modalHeading('Input Presensi Kolektif Satu Rombel / Kelas')
+                ->modalDescription('Fitur cepat untuk menandai satu rombel kelas hadir atau izin bersamaan (misal kegiatan outbond/studi lapangan).')
                 ->form([
-                    Forms\Components\Select::make('student_id')
-                        ->label('Pilih Siswa yang Dites')
-                        ->options(function () {
-                            return \App\Models\Student::withoutGlobalScopes()
-                                ->orderBy('name')
-                                ->get()
-                                ->mapWithKeys(fn ($s) => [
-                                    $s->id => "{$s->name} (" . ($s->classroom?->name ?? 'Tanpa Rombel') . " | ID Finger: " . ($s->id_finger ?? $s->fingerspot_pin ?? 'Belum diset') . " | NIS: {$s->nis})"
-                                ]);
-                        })
-                        ->default(fn () => \App\Models\Student::withoutGlobalScopes()
-                            ->where('name', 'like', '%Lana%')
-                            ->orWhere('id_finger', '78')
-                            ->value('id'))
-                        ->searchable()
+                    Forms\Components\Select::make('classroom_id')
+                        ->label('Pilih Kelas / Rombel')
+                        ->options(fn () => Classroom::orderBy('name')->pluck('name', 'id'))
                         ->required(),
+
+                    Forms\Components\DatePicker::make('tanggal')
+                        ->label('Tanggal')
+                        ->default(fn () => $this->filterTanggal ?: Carbon::today()->toDateString())
+                        ->required(),
+
                     Forms\Components\Select::make('tipe_absen')
-                        ->label('Sesi / Kategori Simulasi')
+                        ->label('Sesi Presensi')
                         ->options([
-                            'auto'          => '⏱️ Otomatis Sesuai Jam Scan',
-                            'masuk'         => '🌅 Masuk Pagi (Batas 06:50)',
-                            'sholat_dhuhur' => '🕌 Sholat Dhuhur (Batas 12:15)',
-                            'sholat_ashar'  => '🏠 Sholat Ashar & Pulang (Batas 15:15)',
+                            'masuk'         => '🏫 Kedatangan Sekolah (Masuk)',
+                            'sholat_dhuhur' => '🕌 Sholat Dhuhur',
+                            'sholat_ashar'  => '🕌 Sholat Ashar',
+                            'semua'         => '✨ Seluruh Sesi (Masuk, Dhuhur, Ashar)',
                         ])
-                        ->default('auto')
+                        ->default('masuk')
                         ->required(),
-                    Forms\Components\TimePicker::make('waktu_scan')
-                        ->label('Jam Scan Simulasi (Kosongkan untuk jam sekarang)')
-                        ->seconds(false),
-                ])
-                ->action(function (array $data) {
-                    $student = \App\Models\Student::withoutGlobalScopes()->find($data['student_id']);
-                    if (!$student) {
-                        Notification::make()
-                            ->title('Siswa tidak ditemukan')
-                            ->danger()
-                            ->send();
-                        return;
-                    }
 
-                    $now = now()->setTimezone('Asia/Jakarta');
-                    if (!empty($data['waktu_scan'])) {
-                        try {
-                            $parts = explode(':', $data['waktu_scan']);
-                            $now->setHour((int) $parts[0])->setMinute((int) $parts[1])->setSecond(0);
-                        } catch (\Throwable $e) {}
-                    }
+                    Forms\Components\Select::make('status')
+                        ->label('Status Kehadiran')
+                        ->options([
+                            'hadir' => '✅ Hadir Bersama',
+                            'izin'  => '📋 Izin Kegiatan Sekolah / Dinas',
+                        ])
+                        ->default('hadir')
+                        ->required(),
 
-                    $tipe = $data['tipe_absen'] === 'auto' ? null : $data['tipe_absen'];
-                    $pin = $student->id_finger ?: ($student->fingerspot_pin ?: $student->nis);
+                    Forms\Components\TimePicker::make('waktu_kedatangan')
+                        ->label('Jam Kehadiran (Jika Hadir)')
+                        ->default('06:40'),
 
-                    $controller = new FingerspotAttendanceController();
-                    $result = $controller->processAttendanceRecord(
-                        (string) $pin,
-                        $now->toDateTimeString(),
-                        1,
-                        0,
-                        $tipe
-                    );
-
-                    if (($result['status'] ?? '') === 'success' || ($result['action'] ?? '') === 'halangan') {
-                        $statusBadge = ($result['is_late'] ?? false) ? '⏰ TERLAMBAT' : '✅ TEPAT WAKTU';
-                        Notification::make()
-                            ->title("✅ Scan Berhasil ({$statusBadge})")
-                            ->body($result['keterangan'] ?? "Presensi <b>{$student->name}</b> tercatat.")
-                            ->success()
-                            ->send();
-                    } elseif (($result['status'] ?? '') === 'duplicate') {
-                        Notification::make()
-                            ->title('🔒 Absen Terkunci (Scan Ke-2 Ditolak)')
-                            ->body($result['message'] ?? 'Siswa sudah tercatat pada sesi ini hari ini.')
-                            ->warning()
-                            ->send();
-                    } else {
-                        Notification::make()
-                            ->title('Status: ' . ($result['status'] ?? 'Info'))
-                            ->body($result['message'] ?? 'Pengecekan selesai')
-                            ->info()
-                            ->send();
-                    }
-
-                    $this->dispatch('fingerspot-synced');
-                }),
-
-            Actions\Action::make('import_usb_log')
-                ->label('📥 Upload Log Flashdisk')
-                ->icon('heroicon-o-arrow-up-tray')
-                ->color('gray')
-                ->modalHeading('📥 Upload Log Absensi dari Flashdisk USB Mesin')
-                ->modalDescription('Solusi instan jika jaringan WiFi mesin sedang offline: Colokkan flashdisk ke mesin Revo W230N -> Menu -> Download Log Presensi (file attlog.dat / *.txt) -> upload di sini.')
-                ->modalSubmitActionLabel('Proses File Log')
-                ->form([
-                    Forms\Components\FileUpload::make('log_file')
-                        ->label('Pilih File Log dari Flashdisk (attlog.dat / *.txt / *.dat / *.csv)')
-                        ->acceptedFileTypes(['text/plain', 'text/csv', 'application/octet-stream'])
-                        ->storeFiles(false)
+                    Forms\Components\TextInput::make('keterangan')
+                        ->label('Keterangan / Catatan')
+                        ->placeholder('Contoh: Mengikuti kegiatan manasik haji / outbond yayasan')
                         ->required(),
                 ])
-                ->action(function (array $data) {
-                    $file = $data['log_file'] ?? null;
-                    if (!$file) return;
+                ->action(function (array $data): void {
+                    $students = Student::withoutGlobalScopes()
+                        ->where('classroom_id', $data['classroom_id'])
+                        ->where('status_siswa', 'aktif')
+                        ->get();
 
-                    $content = file_get_contents($file->getRealPath());
-                    $controller = new FingerspotAttendanceController();
+                    $sesiList = $data['tipe_absen'] === 'semua'
+                        ? ['masuk', 'sholat_dhuhur', 'sholat_ashar']
+                        : [$data['tipe_absen']];
 
-                    $lines = explode("\n", str_replace("\r", "", $content));
-                    $inserted = 0;
-                    foreach ($lines as $line) {
-                        $line = trim($line);
-                        if (empty($line)) continue;
-                        $cols = preg_split('/\t+|\s{2,}/', $line);
-                        if (count($cols) >= 2 && !empty(trim($cols[0]))) {
-                            $res = $controller->processAttendanceRecord(trim($cols[0]), trim($cols[1]), isset($cols[3]) ? (int) $cols[3] : 1, isset($cols[2]) ? (int) $cols[2] : 0);
-                            if (($res['status'] ?? '') === 'success') {
-                                $inserted++;
-                            }
+                    $count = 0;
+                    foreach ($students as $student) {
+                        foreach ($sesiList as $sesi) {
+                            DailyAttendance::withoutGlobalScopes()->updateOrCreate(
+                                [
+                                    'student_id' => $student->id,
+                                    'tanggal'    => $data['tanggal'],
+                                    'tipe_absen' => $sesi,
+                                ],
+                                [
+                                    'institution_id'   => $student->institution_id ?: 2,
+                                    'teacher_id'       => Auth::id(),
+                                    'status'           => $data['status'],
+                                    'metode_absen'     => 'manual',
+                                    'waktu_kedatangan' => $data['status'] === 'hadir' ? $data['waktu_kedatangan'] : null,
+                                    'is_late'          => false,
+                                    'keterangan'       => $data['keterangan'],
+                                ]
+                            );
                         }
+                        $count++;
                     }
 
                     Notification::make()
-                        ->title("✅ {$inserted} Presensi Berhasil Dimasukkan dari File USB!")
+                        ->title('Presensi Kolektif Berhasil')
+                        ->body("Berhasil mencatat presensi kolektif untuk {$count} siswa.")
                         ->success()
                         ->send();
 
-                    $this->dispatch('fingerspot-synced');
+                    $this->resetTable();
+                    $this->dispatch('refresh-presensi-table');
                 }),
 
-            Actions\Action::make('rekap_lengkap_siswa')
-                ->label('Rekap Total Absensi & Sholat Siswa')
-                ->icon('heroicon-o-chart-bar-square')
+            // 3. Tombol Khusus Superadmin: Shortcut ke Pengaturan Mesin Fingerspot
+            Actions\Action::make('pengaturan_mesin')
+                ->label('Integrasi Mesin Fingerspot')
+                ->icon('heroicon-o-cpu-chip')
                 ->color('warning')
-                ->url(fn () => \App\Filament\Staff\Pages\PrayerAttendanceReport::getUrl())
-                ->visible(fn () => auth()->user()->hasAnyRole(['waka_kesiswaan', 'kepala_sekolah', 'wali_kelas', 'guru_kelas', 'superadmin'])),
-            Actions\Action::make('absensi_kolektif')
-                ->label('Input Presensi Kolektif Per Kelas')
-                ->icon('heroicon-o-clipboard-document-check')
-                ->color('info')
-                ->url(fn () => \App\Filament\Staff\Pages\AbsensiManual::getUrl())
-                ->visible(fn () => auth()->user()->hasAnyRole(['guru_piket', 'waka_kesiswaan', 'kepala_sekolah', 'superadmin'])),
-            Actions\CreateAction::make()
-                ->label('Catat Hadir / Izin / Sakit / Alpha')
-                ->icon('heroicon-o-plus-circle'),
+                ->visible(fn () => Auth::user()?->hasRole('superadmin'))
+                ->url(fn () => FingerspotDeviceResource::getUrl('index')),
         ];
-    }
-
-    /**
-     * Eksekusi perintah remote Cloud developer.fingerspot.io dan tampilkan notifikasi hasil.
-     */
-    protected function dispatchRemoteCloudCommand(
-        string $command,
-        array $params,
-        string $successTitle,
-        string $successHint
-    ): void {
-        $controller = new FingerspotAttendanceController();
-        $result = $controller->sendRemoteCommand($command, $params);
-
-        if ($result['success'] ?? false) {
-            Notification::make()
-                ->title($successTitle)
-                ->body(($result['message'] ?? '') . '<br><span class="text-xs">' . $successHint . '</span>')
-                ->success()
-                ->duration(7000)
-                ->send();
-        } else {
-            Notification::make()
-                ->title('❌ Gagal Mengirim Perintah ke Cloud')
-                ->body($result['message'] ?? 'Periksa konfigurasi API Key & Cloud ID.')
-                ->danger()
-                ->duration(7000)
-                ->send();
-        }
-
-        $this->dispatch('fingerspot-synced');
     }
 }

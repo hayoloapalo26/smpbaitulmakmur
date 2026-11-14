@@ -6,8 +6,6 @@ use Illuminate\Database\Eloquent\Model;
 
 class StudentHalangan extends Model
 {
-    use \App\Models\Traits\BelongsToInstitution;
-
     protected $guarded = ['id'];
 
     protected $casts = [
@@ -99,11 +97,13 @@ class StudentHalangan extends Model
      */
     public static function isHalangan(int $studentId, $tanggal): bool
     {
-        return static::where('student_id', $studentId)
-            ->where('tanggal_mulai', '<=', $tanggal)
-            ->where(function ($q) use ($tanggal) {
+        $dateStr = \Carbon\Carbon::parse($tanggal)->toDateString();
+        return static::withoutGlobalScopes()
+            ->where('student_id', $studentId)
+            ->whereDate('tanggal_mulai', '<=', $dateStr)
+            ->where(function ($q) use ($dateStr) {
                 $q->whereNull('tanggal_selesai')
-                  ->orWhere('tanggal_selesai', '>=', $tanggal);
+                  ->orWhereDate('tanggal_selesai', '>=', $dateStr);
             })
             ->exists();
     }

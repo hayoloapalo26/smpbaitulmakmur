@@ -33,8 +33,8 @@ class RppmResource extends Resource
         $user = auth()->user();
         if (!$user) return false;
 
-        // Role khusus Guru Al-Qur'an murni (yang tidak mengampu mapel): TIDAK PERNAH mengakses RPPM
-        if ($user->isPureQuranTeacher()) {
+        // Guru Al-Qur'an & Koordinator Madin: TIDAK mengakses RPPM mata pelajaran umum
+        if ($user->isQuranTeacher() || $user->hasRole('koordinator_madin')) {
             return false;
         }
 
