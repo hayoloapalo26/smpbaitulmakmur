@@ -60,6 +60,17 @@ class TeachingJournal extends Model
                 }
             }
 
+            if (empty($journal->tp_ids) && !empty($journal->rppm_id)) {
+                $rppm = Rppm::find($journal->rppm_id);
+                if ($rppm && !empty($rppm->selected_tp_ids)) {
+                    $journal->tp_ids = array_values(array_map('intval', (array) $rppm->selected_tp_ids));
+                }
+            }
+
+            if (!empty($journal->tp_ids) && is_array($journal->tp_ids)) {
+                $journal->tp_ids = array_values(array_unique(array_map('intval', $journal->tp_ids)));
+            }
+
             if (empty($journal->materi)) {
                 if (!empty($journal->rppm_id)) {
                     $journal->materi = Rppm::where('id', $journal->rppm_id)->value('topik');
@@ -220,11 +231,18 @@ class TeachingJournal extends Model
 
     public function getSelectedTpsAttribute()
     {
-        if (empty($this->tp_ids)) {
-            return collect();
+        if (!empty($this->tp_ids) && is_array($this->tp_ids)) {
+            $tps = TujuanPembelajaran::whereIn('id', $this->tp_ids)->get();
+            if ($tps->isNotEmpty()) {
+                return $tps;
+            }
         }
 
-        return TujuanPembelajaran::whereIn('id', $this->tp_ids)->get();
+        if ($this->rppm) {
+            return $this->rppm->selected_tps;
+        }
+
+        return collect();
     }
 
     public function schedule()

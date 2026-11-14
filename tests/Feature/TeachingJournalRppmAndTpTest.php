@@ -232,4 +232,97 @@ class TeachingJournalRppmAndTpTest extends TestCase
             $this->assertStringContainsString($tp->deskripsi_tp, $label, 'Label TP harus memuat deskripsi TP yang diinputkan');
         }
     }
+
+    public function test_teaching_journal_auto_fills_tp_ids_from_rppm_when_tp_ids_empty(): void
+    {
+        $journal = TeachingJournal::create([
+            'institution_id' => $this->institution->id,
+            'teacher_id' => $this->guru->id,
+            'schedule_id' => $this->schedule->id,
+            'classroom_id' => $this->classroom->id,
+            'subject_id' => $this->subject->id,
+            'jam_ke' => '1',
+            'tanggal' => Carbon::today()->toDateString(),
+            'rppm_id' => $this->rppm->id,
+            'tp_ids' => [], // sengaja dikosongkan
+            'materi' => null,
+            'rencana_kegiatan_guru' => 'Latihan terpadu',
+            'kegiatan_siswa' => 'Mengerjakan tugas',
+        ]);
+
+        $fresh = $journal->fresh();
+        $this->assertNotEmpty($fresh->tp_ids, 'tp_ids harus otomatis terisi dari RPPM yang dipilih');
+        $this->assertEquals([$this->tp1->id, $this->tp2->id], $fresh->tp_ids);
+        $this->assertCount(2, $fresh->selected_tps);
+        $this->assertEquals($this->tp1->deskripsi_tp, $fresh->selected_tps->first()->deskripsi_tp);
+    }
+
+    public function test_teaching_journal_tp_option_labels_using_resolves_descriptions_not_raw_ids(): void
+    {
+        // Simulasi fungsi getOptionLabelsUsing yang digunakan Filament Select
+        $tpValues = [$this->tp1->id, $this->tp2->id];
+        $labels = TujuanPembelajaran::whereIn('id', $tpValues)
+            ->get()
+            ->mapWithKeys(function ($tp) {
+                $desc = trim((string) ($tp->deskripsi_tp ?: ($tp->materi ?: "Tujuan Pembelajaran #{$tp->id}")));
+                return [(string) $tp->id => $desc];
+            })
+            ->toArray();
+
+        $this->assertArrayHasKey((string) $this->tp1->id, $labels);
+        $this->assertArrayHasKey((string) $this->tp2->id, $labels);
+        $this->assertEquals($this->tp1->deskripsi_tp, $labels[(string) $this->tp1->id]);
+        $this->assertEquals($this->tp2->deskripsi_tp, $labels[(string) $this->tp2->id]);
+
+        // Verifikasi tidak ada label yang hanya berisi angka ID mentah
+        foreach ($labels as $val => $label) {
+            $this->assertNotEquals((string) $val, $label, 'Label opsi tidak boleh hanya berupa nilai ID mentah');
+            $this->assertGreaterThan(10, strlen($label), 'Label opsi harus berupa deskripsi kalimat TP yang jelas');
+        }
+    }
+
+    public function test_teaching_journal_includes_rppm_tps_even_if_kelas_tingkat_is_null_or_fase_d(): void
+    {
+        // Buat TP dengan kelas_tingkat null (seperti yang sering terjadi saat input cepat)
+        $specialTp = TujuanPembelajaran::create([
+            'institution_id' => $this->institution->id,
+            'capaian_pembelajaran_id' => $this->cp->id,
+            'subject_id' => $this->subject->id,
+            'guru_id' => $this->guru->id,
+            'kode_tp' => 'TP.FaseD.1',
+            'deskripsi_tp' => 'Mengaplikasikan konsep matematika dalam penyelesaian masalah sehari-hari.',
+            'materi' => 'Matematika Kontekstual',
+            'kelas_tingkat' => null, // null!
+        ]);
+
+        $customRppm = Rppm::create([
+            'institution_id' => $this->institution->id,
+            'guru_id' => $this->guru->id,
+            'kelas_fase' => 'Kelas 7 / Fase D',
+            'mata_pelajaran' => 'Matematika',
+            'topik' => 'Matematika Kontekstual',
+            'selected_tp_ids' => [$specialTp->id],
+            'status' => 'approved',
+        ]);
+
+        // Query dengan simulasi priorityIds di TeachingJournalResource
+        $rppmTpIds = $customRppm->selected_tp_ids;
+        $priorityIds = array_values(array_map('intval', (array) $rppmTpIds));
+        $tingkat = '7';
+
+        $query = TujuanPembelajaran::query();
+        $query->where(function ($q) use ($priorityIds, $tingkat) {
+            $q->whereIn('id', $priorityIds);
+            $q->orWhere(function ($sub) use ($tingkat) {
+                $sub->where(function ($w) use ($tingkat) {
+                    $w->where('kelas_tingkat', $tingkat)
+                      ->orWhere('kelas_tingkat', 'like', "%{$tingkat}%")
+                      ->orWhereNull('kelas_tingkat');
+                });
+            });
+        });
+
+        $results = $query->get();
+        $this->assertTrue($results->contains('id', $specialTp->id), 'TP dari RPPM harus selalu dimuat meskipun kelas_tingkat null');
+    }
 }

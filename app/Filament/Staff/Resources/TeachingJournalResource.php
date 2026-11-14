@@ -441,8 +441,24 @@ class TeachingJournalResource extends Resource
                                         if (!empty($matchingRppm->topik) && empty($get('materi'))) {
                                             $set('materi', $matchingRppm->topik);
                                         }
-                                        if (!empty($matchingRppm->selected_tp_ids) && empty($get('tp_ids'))) {
-                                            $set('tp_ids', $matchingRppm->selected_tp_ids);
+                                        $matchingTpIds = !empty($matchingRppm->selected_tp_ids)
+                                            ? array_values(array_map('intval', (array) $matchingRppm->selected_tp_ids))
+                                            : [];
+                                        if (empty($matchingTpIds) && !empty($matchingRppm->content['tujuan_pembelajaran']) && is_array($matchingRppm->content['tujuan_pembelajaran'])) {
+                                            foreach ($matchingRppm->content['tujuan_pembelajaran'] as $tpItem) {
+                                                $rumusan = is_array($tpItem) ? ($tpItem['rumusan'] ?? '') : (string) $tpItem;
+                                                if ($rumusan) {
+                                                    $cleanRumusan = trim(preg_replace('/^\[.*?\]\s*/', '', $rumusan));
+                                                    $matched = TujuanPembelajaran::where('deskripsi_tp', 'like', "%{$cleanRumusan}%")->first();
+                                                    if ($matched) {
+                                                        $matchingTpIds[] = (int) $matched->id;
+                                                    }
+                                                }
+                                            }
+                                            $matchingTpIds = array_values(array_unique($matchingTpIds));
+                                        }
+                                        if (!empty($matchingTpIds) && empty($get('tp_ids'))) {
+                                            $set('tp_ids', $matchingTpIds);
                                         }
                                     }
                                 }
@@ -525,8 +541,24 @@ class TeachingJournalResource extends Resource
                                     if (!empty($rppm->topik)) {
                                         $set('materi', $rppm->topik);
                                     }
-                                    if (!empty($rppm->selected_tp_ids)) {
-                                        $set('tp_ids', $rppm->selected_tp_ids);
+                                    $tpIds = !empty($rppm->selected_tp_ids)
+                                        ? array_values(array_map('intval', (array) $rppm->selected_tp_ids))
+                                        : [];
+                                    if (empty($tpIds) && !empty($rppm->content['tujuan_pembelajaran']) && is_array($rppm->content['tujuan_pembelajaran'])) {
+                                        foreach ($rppm->content['tujuan_pembelajaran'] as $tpItem) {
+                                            $rumusan = is_array($tpItem) ? ($tpItem['rumusan'] ?? '') : (string) $tpItem;
+                                            if ($rumusan) {
+                                                $cleanRumusan = trim(preg_replace('/^\[.*?\]\s*/', '', $rumusan));
+                                                $matched = TujuanPembelajaran::where('deskripsi_tp', 'like', "%{$cleanRumusan}%")->first();
+                                                if ($matched) {
+                                                    $tpIds[] = (int) $matched->id;
+                                                }
+                                            }
+                                        }
+                                        $tpIds = array_values(array_unique($tpIds));
+                                    }
+                                    if (!empty($tpIds)) {
+                                        $set('tp_ids', $tpIds);
                                     }
                                 }
                             })
@@ -544,10 +576,27 @@ class TeachingJournalResource extends Resource
                             ->hidden(fn (Forms\Get $get) => static::isQuranContext($get))
                             ->dehydrated(fn (Forms\Get $get) => !static::isQuranContext($get))
                             ->multiple()
+                            ->getOptionLabelUsing(function ($value): ?string {
+                                if (!$value) return null;
+                                $tp = TujuanPembelajaran::find($value);
+                                if (!$tp) return null;
+                                return trim((string) ($tp->deskripsi_tp ?: ($tp->materi ?: "Tujuan Pembelajaran #{$tp->id}")));
+                            })
+                            ->getOptionLabelsUsing(function (array $values): array {
+                                if (empty($values)) return [];
+                                return TujuanPembelajaran::whereIn('id', $values)
+                                    ->get()
+                                    ->mapWithKeys(function ($tp) {
+                                        $desc = trim((string) ($tp->deskripsi_tp ?: ($tp->materi ?: "Tujuan Pembelajaran #{$tp->id}")));
+                                        return [(string) $tp->id => $desc];
+                                    })
+                                    ->toArray();
+                            })
                             ->options(function (Forms\Get $get) {
                                 $subjectId = $get('subject_id');
                                 $classroomId = $get('classroom_id');
                                 $rppmId = $get('rppm_id');
+                                $currentTpIds = (array) ($get('tp_ids') ?? []);
 
                                 $rppmTpIds = [];
                                 if ($rppmId) {
@@ -555,25 +604,76 @@ class TeachingJournalResource extends Resource
                                     $rppmTpIds = $rppm?->selected_tp_ids ?? [];
                                 }
 
-                                $query = TujuanPembelajaran::query();
-                                if ($subjectId) {
-                                    $query->where('subject_id', $subjectId);
-                                }
+                                $priorityIds = array_values(array_filter(array_unique(array_merge(
+                                    array_map('intval', (array) $rppmTpIds),
+                                    array_map('intval', $currentTpIds)
+                                ))));
+
+                                $tingkat = null;
                                 if ($classroomId) {
-                                    $tingkat = \App\Models\Classroom::where('id', $classroomId)->value('tingkat');
+                                    $rawTingkat = \App\Models\Classroom::where('id', $classroomId)->value('tingkat');
+                                    if ($rawTingkat && preg_match('/(7|8|9)/', (string) $rawTingkat, $m)) {
+                                        $tingkat = $m[1];
+                                    }
+                                }
+
+                                $query = TujuanPembelajaran::query();
+
+                                if (!empty($priorityIds)) {
+                                    $query->where(function ($q) use ($priorityIds, $subjectId, $tingkat) {
+                                        $q->whereIn('id', $priorityIds);
+                                        $q->orWhere(function ($sub) use ($subjectId, $tingkat) {
+                                            if ($subjectId) {
+                                                $sub->where('subject_id', $subjectId);
+                                            }
+                                            if ($tingkat) {
+                                                $sub->where(function ($w) use ($tingkat) {
+                                                    $w->where('kelas_tingkat', $tingkat)
+                                                      ->orWhere('kelas_tingkat', 'like', "%{$tingkat}%")
+                                                      ->orWhereNull('kelas_tingkat');
+                                                });
+                                            }
+                                        });
+                                    });
+                                } else {
+                                    if ($subjectId) {
+                                        $query->where('subject_id', $subjectId);
+                                    }
                                     if ($tingkat) {
-                                        $query->where('kelas_tingkat', $tingkat);
+                                        $query->where(function ($w) use ($tingkat) {
+                                            $w->where('kelas_tingkat', $tingkat)
+                                              ->orWhere('kelas_tingkat', 'like', "%{$tingkat}%")
+                                              ->orWhereNull('kelas_tingkat');
+                                        });
                                     }
                                 }
 
                                 return $query->get()->sort(function ($a, $b) {
                                     return strnatcmp($a->kode_tp ?? '', $b->kode_tp ?? '');
                                 })->mapWithKeys(function ($tp) use ($rppmTpIds) {
-                                    $isRppm = in_array($tp->id, $rppmTpIds);
+                                    $isRppm = in_array((int) $tp->id, array_map('intval', (array) $rppmTpIds));
                                     $tag = $isRppm ? '📌 [Dari RPPM] ' : '';
                                     $deskripsi = trim((string) ($tp->deskripsi_tp ?: ($tp->materi ?: "Tujuan Pembelajaran #{$tp->id}")));
-                                    return [$tp->id => "{$tag}{$deskripsi}"];
-                                });
+                                    return [(string) $tp->id => "{$tag}{$deskripsi}"];
+                                })->toArray();
+                            })
+                            ->getSearchResultsUsing(function (string $search, Forms\Get $get): array {
+                                $subjectId = $get('subject_id');
+                                $query = TujuanPembelajaran::query();
+                                if ($subjectId) {
+                                    $query->where('subject_id', $subjectId);
+                                }
+                                return $query->where(function ($q) use ($search) {
+                                    $q->where('deskripsi_tp', 'like', "%{$search}%")
+                                      ->orWhere('materi', 'like', "%{$search}%");
+                                })
+                                ->limit(50)
+                                ->get()
+                                ->mapWithKeys(function ($tp) {
+                                    $deskripsi = trim((string) ($tp->deskripsi_tp ?: ($tp->materi ?: "Tujuan Pembelajaran #{$tp->id}")));
+                                    return [(string) $tp->id => $deskripsi];
+                                })
+                                ->toArray();
                             })
                             ->searchable()
                             ->preload()

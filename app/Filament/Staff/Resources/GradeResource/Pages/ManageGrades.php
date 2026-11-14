@@ -244,11 +244,28 @@ class ManageGrades extends ManageRecords
                             Forms\Components\Select::make('tp_ids')
                                 ->label('Tujuan Pembelajaran (TP) Terkait [Multiple Choice - Satu untuk Seluruh Siswa]')
                                 ->multiple()
+                                ->getOptionLabelUsing(function ($value): ?string {
+                                    if (!$value) return null;
+                                    $tp = TujuanPembelajaran::find($value);
+                                    if (!$tp) return null;
+                                    return trim((string) ($tp->deskripsi_tp ?: ($tp->materi ?: "Tujuan Pembelajaran #{$tp->id}")));
+                                })
+                                ->getOptionLabelsUsing(function (array $values): array {
+                                    if (empty($values)) return [];
+                                    return TujuanPembelajaran::whereIn('id', $values)
+                                        ->get()
+                                        ->mapWithKeys(function ($tp) {
+                                            $desc = trim((string) ($tp->deskripsi_tp ?: ($tp->materi ?: "Tujuan Pembelajaran #{$tp->id}")));
+                                            return [(string) $tp->id => $desc];
+                                        })
+                                        ->toArray();
+                                })
                                 ->options(function (Forms\Get $get) {
                                     $subjectId = $get('subject_id');
                                     $classroomId = $get('classroom_id');
                                     $rppmId = $get('rppm_id');
                                     $cpId = $get('capaian_pembelajaran_id');
+                                    $currentTpIds = (array) ($get('tp_ids') ?? []);
 
                                     $rppmTpIds = [];
                                     if ($rppmId) {
@@ -256,16 +273,47 @@ class ManageGrades extends ManageRecords
                                         $rppmTpIds = $rppm?->selected_tp_ids ?? [];
                                     }
 
-                                    $query = TujuanPembelajaran::query();
-                                    if ($subjectId) {
-                                        $query->where('subject_id', $subjectId);
+                                    $priorityIds = array_values(array_filter(array_unique(array_merge(
+                                        array_map('intval', (array) $rppmTpIds),
+                                        array_map('intval', $currentTpIds)
+                                    ))));
+
+                                    $tingkat = null;
+                                    if ($classroomId) {
+                                        $rawTingkat = Classroom::where('id', $classroomId)->value('tingkat');
+                                        if ($rawTingkat && preg_match('/(7|8|9)/', (string) $rawTingkat, $m)) {
+                                            $tingkat = $m[1];
+                                        }
                                     }
-                                    if ($cpId) {
-                                        $query->where('capaian_pembelajaran_id', $cpId);
-                                    } elseif ($classroomId) {
-                                        $tingkat = Classroom::where('id', $classroomId)->value('tingkat');
-                                        if ($tingkat) {
-                                            $query->where('kelas_tingkat', $tingkat);
+
+                                    $query = TujuanPembelajaran::query();
+
+                                    if (!empty($priorityIds)) {
+                                        $query->where(function ($q) use ($priorityIds, $subjectId, $cpId, $tingkat) {
+                                            $q->whereIn('id', $priorityIds);
+                                            $q->orWhere(function ($sub) use ($subjectId, $cpId, $tingkat) {
+                                                if ($subjectId) $sub->where('subject_id', $subjectId);
+                                                if ($cpId) {
+                                                    $sub->where('capaian_pembelajaran_id', $cpId);
+                                                } elseif ($tingkat) {
+                                                    $sub->where(function ($w) use ($tingkat) {
+                                                        $w->where('kelas_tingkat', $tingkat)
+                                                          ->orWhere('kelas_tingkat', 'like', "%{$tingkat}%")
+                                                          ->orWhereNull('kelas_tingkat');
+                                                    });
+                                                }
+                                            });
+                                        });
+                                    } else {
+                                        if ($subjectId) $query->where('subject_id', $subjectId);
+                                        if ($cpId) {
+                                            $query->where('capaian_pembelajaran_id', $cpId);
+                                        } elseif ($tingkat) {
+                                            $query->where(function ($w) use ($tingkat) {
+                                                $w->where('kelas_tingkat', $tingkat)
+                                                  ->orWhere('kelas_tingkat', 'like', "%{$tingkat}%")
+                                                  ->orWhereNull('kelas_tingkat');
+                                            });
                                         }
                                     }
 
@@ -275,12 +323,11 @@ class ManageGrades extends ManageRecords
                                     }
 
                                     return $tps->mapWithKeys(function ($tp) use ($rppmTpIds) {
-                                        $isRppm = in_array($tp->id, $rppmTpIds);
+                                        $isRppm = in_array((int) $tp->id, array_map('intval', (array) $rppmTpIds));
                                         $tag = $isRppm ? '📌 [Dari RPPM] ' : '';
-                                        $prefix = $tp->materi ? "[{$tp->materi}] " : '';
-                                        $kode = $tp->kode_tp ? "({$tp->kode_tp}) " : '';
-                                        return [$tp->id => "{$tag}{$kode}{$prefix}" . Str::limit($tp->deskripsi_tp, 70)];
-                                    });
+                                        $deskripsi = trim((string) ($tp->deskripsi_tp ?: ($tp->materi ?: "Tujuan Pembelajaran #{$tp->id}")));
+                                        return [(string) $tp->id => "{$tag}{$deskripsi}"];
+                                    })->toArray();
                                 })
                                 ->searchable()
                                 ->preload()
