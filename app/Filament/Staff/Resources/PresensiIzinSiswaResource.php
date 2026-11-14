@@ -16,7 +16,6 @@ use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\HtmlString;
 
 class PresensiIzinSiswaResource extends Resource
 {
@@ -59,9 +58,28 @@ class PresensiIzinSiswaResource extends Resource
     {
         $user = Auth::user();
         if (!$user || $user->isPureQuranTeacher()) return false;
-        return $user->hasAnyRole([
-            'wali_kelas', 'guru_kelas', 'guru_piket', 'waka_kesiswaan', 'kepala_sekolah', 'superadmin',
-        ]);
+
+        // Pimpinan & Penanggung Jawab Kesiswaan: Selalu berhak mengakses penuh
+        if ($user->hasAnyRole(['superadmin', 'kepala_sekolah', 'waka_kesiswaan'])) {
+            return true;
+        }
+
+        // Wali Kelas / Guru Kelas: Berhak memantau siswa kelas binaannya
+        if ($user->hasAnyRole(['wali_kelas', 'guru_kelas'])) {
+            return true;
+        }
+
+        // Guru Piket: HANYA berhak mengakses dan melihat menu ketika HARI H dia sedang bertugas piket
+        if ($user->hasRole('guru_piket') || $user->isPiketToday()) {
+            return $user->isPiketToday();
+        }
+
+        return false;
+    }
+
+    public static function getActiveMode($livewire = null): string
+    {
+        return ($livewire && isset($livewire->mode)) ? $livewire->mode : 'harian';
     }
 
     public static function getActiveDate($livewire = null): string
@@ -70,6 +88,13 @@ class PresensiIzinSiswaResource extends Resource
             return $livewire->filterTanggal;
         }
         return Carbon::today()->toDateString();
+    }
+
+    public static function getActiveDateRange($livewire = null): array
+    {
+        $start = ($livewire && !empty($livewire->filterTanggalMulai)) ? $livewire->filterTanggalMulai : Carbon::today()->startOfMonth()->toDateString();
+        $end = ($livewire && !empty($livewire->filterTanggalSelesai)) ? $livewire->filterTanggalSelesai : Carbon::today()->toDateString();
+        return [$start, $end];
     }
 
     public static function getEloquentQuery(): Builder
@@ -92,7 +117,6 @@ class PresensiIzinSiswaResource extends Resource
             $query->where(function ($q) use ($instId) {
                 $q->where('institution_id', $instId)
                   ->orWhereNull('institution_id');
-                // Jika staf SMP (2), izinkan juga membaca siswa SMP yang tercatat di institution_id 1
                 if ($instId == 2) {
                     $q->orWhere('institution_id', 1);
                 }
@@ -112,7 +136,7 @@ class PresensiIzinSiswaResource extends Resource
     }
 
     /**
-     * Skema Form utama (mempertahankan bukti_izin sebagai TextInput URL Google Drive untuk testing dan modal).
+     * Skema Form utama (mempertahankan bukti_izin sebagai TextInput URL Google Drive).
      */
     public static function form(Form $form): Form
     {
@@ -209,6 +233,28 @@ class PresensiIzinSiswaResource extends Resource
                     ->label('1. Kedatangan (Finger)')
                     ->html()
                     ->state(function (Student $record, $livewire): string {
+                        $mode = static::getActiveMode($livewire);
+
+                        if ($mode === 'rentang') {
+                            [$start, $end] = static::getActiveDateRange($livewire);
+                            $atts = $record->dailyAttendances->filter(function ($a) use ($start, $end) {
+                                $d = Carbon::parse($a->tanggal)->toDateString();
+                                return $d >= $start && $d <= $end && $a->tipe_absen === 'masuk';
+                            });
+
+                            $tepat = $atts->where('status', 'hadir')->where('is_late', false)->count();
+                            $telat = $atts->where('status', 'hadir')->where('is_late', true)->count();
+
+                            $out = '<div class="flex flex-col gap-1">';
+                            $out .= '<span class="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700 bg-emerald-50 dark:text-emerald-300 dark:bg-emerald-950/40 px-2 py-0.5 rounded border border-emerald-200 dark:border-emerald-800">✅ ' . $tepat . 'x Tepat</span>';
+                            if ($telat > 0) {
+                                $out .= '<span class="inline-flex items-center gap-1 text-xs font-bold text-rose-700 bg-rose-50 dark:text-rose-300 dark:bg-rose-950/40 px-2 py-0.5 rounded border border-rose-200 dark:border-rose-800">⏰ ' . $telat . 'x Telat</span>';
+                            }
+                            $out .= '</div>';
+                            return $out;
+                        }
+
+                        // Mode Harian
                         $tanggal = static::getActiveDate($livewire);
                         $att = $record->getAttendanceOnDate($tanggal, 'masuk');
                         $excused = $record->getGeneralExcusedOnDate($tanggal);
@@ -252,6 +298,32 @@ class PresensiIzinSiswaResource extends Resource
                     ->label('2. Sholat Dhuhur (Finger)')
                     ->html()
                     ->state(function (Student $record, $livewire): string {
+                        $mode = static::getActiveMode($livewire);
+
+                        if ($mode === 'rentang') {
+                            [$start, $end] = static::getActiveDateRange($livewire);
+                            $atts = $record->dailyAttendances->filter(function ($a) use ($start, $end) {
+                                $d = Carbon::parse($a->tanggal)->toDateString();
+                                return $d >= $start && $d <= $end && $a->tipe_absen === 'sholat_dhuhur';
+                            });
+
+                            $tepat = $atts->where('status', 'hadir')->where('is_late', false)->count();
+                            $telat = $atts->where('status', 'hadir')->where('is_late', true)->count();
+                            $halangan = $atts->where('status', 'halangan')->count();
+
+                            $out = '<div class="flex flex-col gap-1">';
+                            $out .= '<span class="inline-flex items-center gap-1 text-xs font-semibold text-blue-700 bg-blue-50 dark:text-blue-300 dark:bg-blue-950/40 px-2 py-0.5 rounded border border-blue-200 dark:border-blue-800">✅ ' . $tepat . 'x Tepat</span>';
+                            if ($telat > 0) {
+                                $out .= '<span class="inline-flex items-center gap-1 text-xs font-bold text-amber-700 bg-amber-50 dark:text-amber-300 dark:bg-amber-950/40 px-2 py-0.5 rounded border border-amber-200 dark:border-amber-800">⏰ ' . $telat . 'x Telat</span>';
+                            }
+                            if ($halangan > 0) {
+                                $out .= '<span class="inline-flex items-center gap-1 text-xs font-semibold text-purple-700 bg-purple-50 dark:text-purple-300 dark:bg-purple-950/40 px-2 py-0.5 rounded border border-purple-200 dark:border-purple-800">🌸 ' . $halangan . 'x Udzur</span>';
+                            }
+                            $out .= '</div>';
+                            return $out;
+                        }
+
+                        // Mode Harian
                         $tanggal = static::getActiveDate($livewire);
                         $att = $record->getAttendanceOnDate($tanggal, 'sholat_dhuhur');
                         $isHalangan = $record->jenis_kelamin === 'P' && (StudentHalangan::isHalangan($record->id, $tanggal) || ($att && $att->status === 'halangan'));
@@ -297,6 +369,32 @@ class PresensiIzinSiswaResource extends Resource
                     ->label('3. Sholat Ashar (Finger)')
                     ->html()
                     ->state(function (Student $record, $livewire): string {
+                        $mode = static::getActiveMode($livewire);
+
+                        if ($mode === 'rentang') {
+                            [$start, $end] = static::getActiveDateRange($livewire);
+                            $atts = $record->dailyAttendances->filter(function ($a) use ($start, $end) {
+                                $d = Carbon::parse($a->tanggal)->toDateString();
+                                return $d >= $start && $d <= $end && in_array($a->tipe_absen, ['sholat_ashar', 'pulang']);
+                            });
+
+                            $tepat = $atts->where('status', 'hadir')->where('is_late', false)->count();
+                            $telat = $atts->where('status', 'hadir')->where('is_late', true)->count();
+                            $halangan = $atts->where('status', 'halangan')->count();
+
+                            $out = '<div class="flex flex-col gap-1">';
+                            $out .= '<span class="inline-flex items-center gap-1 text-xs font-semibold text-amber-700 bg-amber-50 dark:text-amber-300 dark:bg-amber-950/40 px-2 py-0.5 rounded border border-amber-200 dark:border-amber-800">✅ ' . $tepat . 'x Tepat</span>';
+                            if ($telat > 0) {
+                                $out .= '<span class="inline-flex items-center gap-1 text-xs font-bold text-rose-700 bg-rose-50 dark:text-rose-300 dark:bg-rose-950/40 px-2 py-0.5 rounded border border-rose-200 dark:border-rose-800">⏰ ' . $telat . 'x Telat</span>';
+                            }
+                            if ($halangan > 0) {
+                                $out .= '<span class="inline-flex items-center gap-1 text-xs font-semibold text-purple-700 bg-purple-50 dark:text-purple-300 dark:bg-purple-950/40 px-2 py-0.5 rounded border border-purple-200 dark:border-purple-800">🌸 ' . $halangan . 'x Udzur</span>';
+                            }
+                            $out .= '</div>';
+                            return $out;
+                        }
+
+                        // Mode Harian
                         $tanggal = static::getActiveDate($livewire);
                         $att = $record->getAttendanceOnDate($tanggal, ['sholat_ashar', 'pulang']);
                         $isHalangan = $record->jenis_kelamin === 'P' && (StudentHalangan::isHalangan($record->id, $tanggal) || ($att && $att->status === 'halangan'));
@@ -337,11 +435,32 @@ class PresensiIzinSiswaResource extends Resource
                         </span>';
                     }),
 
-                // Ringkasan Status Hari Ini
+                // Ringkasan Status / Rekap Periode
                 Tables\Columns\TextColumn::make('status_harian')
-                    ->label('Status Hari Ini')
+                    ->label(fn ($livewire) => static::getActiveMode($livewire) === 'rentang' ? 'Rekap Kehadiran' : 'Status Hari Ini')
                     ->badge()
                     ->state(function (Student $record, $livewire): string {
+                        $mode = static::getActiveMode($livewire);
+
+                        if ($mode === 'rentang') {
+                            [$start, $end] = static::getActiveDateRange($livewire);
+                            $atts = $record->dailyAttendances->filter(function ($a) use ($start, $end) {
+                                $d = Carbon::parse($a->tanggal)->toDateString();
+                                return $d >= $start && $d <= $end && $a->tipe_absen === 'masuk';
+                            });
+
+                            $s = $atts->where('status', 'sakit')->count();
+                            $i = $atts->where('status', 'izin')->count();
+                            $a = $atts->where('status', 'alpa')->count();
+                            $h = $atts->where('status', 'hadir')->count();
+
+                            $totalHari = max(1, $h + $s + $i + $a);
+                            $persen = round(($h / $totalHari) * 100);
+
+                            return "{$h} Hadir ({$persen}%) • {$s}S {$i}I {$a}A";
+                        }
+
+                        // Mode Harian
                         $tanggal = static::getActiveDate($livewire);
                         $excused = $record->getGeneralExcusedOnDate($tanggal);
                         if ($excused) {
@@ -373,13 +492,12 @@ class PresensiIzinSiswaResource extends Resource
                         return 'Belum Ada Data';
                     })
                     ->color(fn (string $state): string => match (true) {
-                        str_contains($state, 'Lengkap') => 'success',
-                        str_contains($state, '2/3')     => 'info',
-                        str_contains($state, '1/3')     => 'warning',
-                        str_contains($state, 'Sakit')   => 'warning',
-                        str_contains($state, 'Izin')    => 'info',
-                        str_contains($state, 'Alpa')    => 'danger',
-                        default                         => 'gray',
+                        str_contains($state, 'Lengkap') || str_contains($state, '100%') || str_contains($state, '9') => 'success',
+                        str_contains($state, '2/3') || str_contains($state, 'Hadir') => 'info',
+                        str_contains($state, '1/3') || str_contains($state, 'Sakit') => 'warning',
+                        str_contains($state, 'Izin') => 'info',
+                        str_contains($state, 'Alpa') => 'danger',
+                        default => 'gray',
                     }),
             ])
             ->filters([
@@ -398,11 +516,11 @@ class PresensiIzinSiswaResource extends Resource
             ->actions([
                 // 1. Catat Izin / Sakit / Alpa
                 Tables\Actions\Action::make('catat_izin')
-                    ->label('Catat Izin / Sakit')
+                    ->label('Catat Izin')
                     ->icon('heroicon-o-document-text')
                     ->color('warning')
                     ->modalHeading(fn (Student $record) => "Catat Izin / Sakit: {$record->name}")
-                    ->modalDescription('Catatan izin, sakit, atau alpa akan otomatis disinkronkan ke seluruh sesi kehadiran dan sholat hari tersebut.')
+                    ->modalDescription('Catatan izin, sakit, atau alpa akan otomatis disinkronkan ke seluruh sesi kehadiran dan sholat.')
                     ->form([
                         Forms\Components\DatePicker::make('tanggal')
                             ->label('Tanggal')
@@ -466,11 +584,12 @@ class PresensiIzinSiswaResource extends Resource
                         $livewire->dispatch('refresh-presensi-table');
                     }),
 
-                // 2. Input Manual / Koreksi Jam
+                // 2. Input Manual / Koreksi Jam (Khusus Mode Harian)
                 Tables\Actions\Action::make('input_manual_jam')
                     ->label('Koreksi Jam')
                     ->icon('heroicon-o-clock')
                     ->color('info')
+                    ->visible(fn ($livewire) => static::getActiveMode($livewire) === 'harian')
                     ->modalHeading(fn (Student $record) => "Input / Koreksi Jam Scan: {$record->name}")
                     ->modalDescription('Gunakan fitur ini jika siswa lupa scan jari pada mesin fingerspot atau saat mesin offline.')
                     ->form([
@@ -509,7 +628,6 @@ class PresensiIzinSiswaResource extends Resource
                         $sesi = $data['tipe_absen'];
                         $jam = $data['waktu_kedatangan'];
 
-                        // Auto-check keterlambatan jika belum dicentang
                         $isLate = (bool) $data['is_late'];
                         if (!$isLate && $jam) {
                             if ($sesi === 'masuk' && $jam > '06:50') $isLate = true;
@@ -576,7 +694,6 @@ class PresensiIzinSiswaResource extends Resource
                             'recorded_by'     => Auth::id() ?: 1,
                         ]);
 
-                        // Catat juga di daily_attendances untuk tanggal aktif
                         $currDate = $data['tanggal_mulai'];
                         foreach (['sholat_dhuhur', 'sholat_ashar'] as $sesi) {
                             DailyAttendance::withoutGlobalScopes()->updateOrCreate(

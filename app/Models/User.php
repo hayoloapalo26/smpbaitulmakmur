@@ -581,13 +581,6 @@ class User extends Authenticatable implements FilamentUser, HasAvatar
      */
     public function isPiketOnDate($date = null): bool
     {
-        // Hanya akun murni piket tanpa jabatan struktural/mapel yang selalu bernilai true
-        if (method_exists($this, 'hasRole') && $this->hasRole('guru_piket') && !$this->hasAnyRole(array_merge([
-            'waka_kurikulum', 'waka_kesiswaan', 'kepala_sekolah', 'guru_mapel', 'wali_kelas', 'guru_kelas', 'pembina_osis', 'superadmin'
-        ], self::QURAN_TEACHER_ROLES))) {
-            return true;
-        }
-
         $targetDate = $date ? \Carbon\Carbon::parse($date)->toDateString() : \Carbon\Carbon::today()->toDateString();
         $targetDay = Schedule::getIndonesianDayName($targetDate);
 
@@ -628,13 +621,26 @@ class User extends Authenticatable implements FilamentUser, HasAvatar
             return false;
         }
 
-        // 2. Cek jadwal reguler berdasarkan hari atau tanggal
-        return \App\Models\DutySchedule::where('teacher_id', $this->id)
-            ->where(function ($q) use ($targetDate, $targetDay) {
-                $q->where('hari', $targetDay)
-                  ->orWhereDate('tanggal', $targetDate);
-            })
-            ->exists();
+        // 2. Cek apakah user memiliki entri jadwal di DutySchedule
+        $hasAnyDuty = \App\Models\DutySchedule::where('teacher_id', $this->id)->exists();
+        if ($hasAnyDuty) {
+            // Jika user memiliki jadwal piket di sistem, HANYA aktif jika hari/tanggal cocok dengan hari H
+            return \App\Models\DutySchedule::where('teacher_id', $this->id)
+                ->where(function ($q) use ($targetDate, $targetDay) {
+                    $q->where('hari', $targetDay)
+                      ->orWhereDate('tanggal', $targetDate);
+                })
+                ->exists();
+        }
+
+        // 3. Fallback: Akun murni piket tanpa jabatan struktural/mapel yang belum dijadwalkan
+        if (method_exists($this, 'hasRole') && $this->hasRole('guru_piket') && !$this->hasAnyRole(array_merge([
+            'waka_kurikulum', 'waka_kesiswaan', 'kepala_sekolah', 'guru_mapel', 'wali_kelas', 'guru_kelas', 'pembina_osis', 'superadmin'
+        ], self::QURAN_TEACHER_ROLES))) {
+            return true;
+        }
+
+        return false;
     }
 
     /**

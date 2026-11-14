@@ -6,7 +6,9 @@ use App\Filament\Staff\Resources\FingerspotDeviceResource;
 use App\Filament\Staff\Resources\PresensiIzinSiswaResource;
 use App\Models\Classroom;
 use App\Models\DailyAttendance;
+use App\Models\DutySchedule;
 use App\Models\Institution;
+use App\Models\Schedule;
 use App\Models\Student;
 use App\Models\StudentHalangan;
 use App\Models\User;
@@ -26,7 +28,8 @@ class DailyStudentAttendanceMonitoringTest extends TestCase
     protected Student $studentFemale;
     protected User $superadmin;
     protected User $wakaKesiswaan;
-    protected User $guruPiket;
+    protected User $guruPiketToday;
+    protected User $guruPiketOtherDay;
     protected User $guruMapel;
 
     protected function setUp(): void
@@ -95,14 +98,41 @@ class DailyStudentAttendanceMonitoringTest extends TestCase
         ]);
         $this->wakaKesiswaan->assignRole('waka_kesiswaan');
 
-        $this->guruPiket = User::create([
-            'name' => 'Ustadzah Piket',
-            'email' => 'piket@smpi.test',
+        // Guru Piket yang bertugas HARI INI
+        $this->guruPiketToday = User::create([
+            'name' => 'Ustadzah Piket Hari Ini',
+            'email' => 'piket.today@smpi.test',
             'password' => bcrypt('password123'),
             'institution_id' => $this->institution->id,
             'is_active' => true,
         ]);
-        $this->guruPiket->assignRole('guru_piket');
+        $this->guruPiketToday->assignRole('guru_piket');
+
+        $todayIndo = Schedule::getIndonesianDayName(Carbon::today());
+        DutySchedule::create([
+            'teacher_id'     => $this->guruPiketToday->id,
+            'institution_id' => $this->institution->id,
+            'hari'           => $todayIndo,
+            'status'         => 'aktif',
+        ]);
+
+        // Guru Piket yang bertugas di HARI LAIN (Bukan hari ini)
+        $this->guruPiketOtherDay = User::create([
+            'name' => 'Ustadz Piket Hari Lain',
+            'email' => 'piket.other@smpi.test',
+            'password' => bcrypt('password123'),
+            'institution_id' => $this->institution->id,
+            'is_active' => true,
+        ]);
+        $this->guruPiketOtherDay->assignRole('guru_piket');
+
+        $otherDayIndo = Schedule::getIndonesianDayName(Carbon::today()->addDays(2));
+        DutySchedule::create([
+            'teacher_id'     => $this->guruPiketOtherDay->id,
+            'institution_id' => $this->institution->id,
+            'hari'           => $otherDayIndo,
+            'status'         => 'aktif',
+        ]);
 
         $this->guruMapel = User::create([
             'name' => 'Guru Mapel IPA',
@@ -132,7 +162,7 @@ class DailyStudentAttendanceMonitoringTest extends TestCase
         $this->assertFalse(FingerspotDeviceResource::shouldRegisterNavigation());
 
         // Guru Piket TIDAK BISA mengakses kontrol mesin
-        $this->actingAs($this->guruPiket);
+        $this->actingAs($this->guruPiketToday);
         $this->assertFalse(FingerspotDeviceResource::canAccess());
         $this->assertFalse(FingerspotDeviceResource::shouldRegisterNavigation());
 
@@ -143,15 +173,24 @@ class DailyStudentAttendanceMonitoringTest extends TestCase
     }
 
     /**
-     * 2. Test akses fitur Presensi & Izin Harian Siswa untuk role Kesiswaan, Piket, dan Superadmin.
+     * 2. Test guru piket HANYA melihat dan mengakses fitur presensi KETIKA BERTUGAS PADA HARI H.
      */
-    public function test_kesiswaan_and_piket_can_access_daily_student_attendance(): void
+    public function test_guru_piket_can_only_access_daily_attendance_when_on_duty_today(): void
     {
-        $this->actingAs($this->wakaKesiswaan);
+        // 1. Guru piket yang bertugas HARI INI: BISA mengakses & menu muncul
+        $this->actingAs($this->guruPiketToday);
+        $this->assertTrue($this->guruPiketToday->isPiketToday());
         $this->assertTrue(PresensiIzinSiswaResource::canAccess());
         $this->assertTrue(PresensiIzinSiswaResource::shouldRegisterNavigation());
 
-        $this->actingAs($this->guruPiket);
+        // 2. Guru piket yang bertugas di HARI LAIN: TIDAK BISA mengakses & menu TIDAK MUNCUL
+        $this->actingAs($this->guruPiketOtherDay);
+        $this->assertFalse($this->guruPiketOtherDay->isPiketToday());
+        $this->assertFalse(PresensiIzinSiswaResource::canAccess());
+        $this->assertFalse(PresensiIzinSiswaResource::shouldRegisterNavigation());
+
+        // 3. Waka Kesiswaan & Superadmin: SELALU bisa mengakses kapan saja
+        $this->actingAs($this->wakaKesiswaan);
         $this->assertTrue(PresensiIzinSiswaResource::canAccess());
         $this->assertTrue(PresensiIzinSiswaResource::shouldRegisterNavigation());
 
@@ -209,7 +248,7 @@ class DailyStudentAttendanceMonitoringTest extends TestCase
             'tanggal_mulai' => $today,
             'tanggal_selesai' => Carbon::today()->addDays(5)->toDateString(),
             'catatan' => 'Haid',
-            'recorded_by' => $this->guruPiket->id,
+            'recorded_by' => $this->guruPiketToday->id,
         ]);
 
         // Verifikasi helper method pada Student
@@ -232,18 +271,31 @@ class DailyStudentAttendanceMonitoringTest extends TestCase
     }
 
     /**
-     * 4. Test Cetak & Unduh PDF Rekap Presensi Harian Siswa.
+     * 4. Test Cetak & Unduh PDF Rekap Presensi Harian & Rentang Tanggal.
      */
-    public function test_daily_attendance_pdf_endpoint_returns_success(): void
+    public function test_daily_attendance_pdf_endpoint_supports_daily_and_date_range(): void
     {
         $this->actingAs($this->wakaKesiswaan);
 
-        $response = $this->get(route('daily-attendance.rekap.pdf', [
+        // 4a. Mode Harian
+        $responseHarian = $this->get(route('daily-attendance.rekap.pdf', [
+            'mode' => 'harian',
             'tanggal' => Carbon::today()->toDateString(),
             'classroom_id' => $this->classroom->id,
         ]));
 
-        $response->assertStatus(200);
-        $response->assertHeader('content-type', 'application/pdf');
+        $responseHarian->assertStatus(200);
+        $responseHarian->assertHeader('content-type', 'application/pdf');
+
+        // 4b. Mode Rentang Tanggal (Date Range)
+        $responseRentang = $this->get(route('daily-attendance.rekap.pdf', [
+            'mode' => 'rentang',
+            'tanggal_mulai' => Carbon::today()->startOfMonth()->toDateString(),
+            'tanggal_selesai' => Carbon::today()->toDateString(),
+            'classroom_id' => $this->classroom->id,
+        ]));
+
+        $responseRentang->assertStatus(200);
+        $responseRentang->assertHeader('content-type', 'application/pdf');
     }
 }

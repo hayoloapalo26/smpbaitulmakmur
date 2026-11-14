@@ -2,7 +2,7 @@
 <html lang="id">
 <head>
     <meta charset="utf-8">
-    <title>Laporan Presensi & Sholat Harian Siswa - {{ $tanggalFormatted }}</title>
+    <title>{{ ($mode ?? 'harian') === 'rentang' ? 'Rekapitulasi Presensi Rentang Tanggal' : 'Laporan Presensi Harian Siswa' }} - {{ $tanggalFormatted }}</title>
     <style>
         @page {
             size: A4 landscape;
@@ -195,14 +195,20 @@
 
     <!-- JUDUL DOKUMEN -->
     <div class="doc-title-box">
-        <div class="doc-title-main">REKAPITULASI PRESENSI & KETAATAN IBADAH SHOLAT HARIAN SISWA</div>
+        <div class="doc-title-main">
+            @if(($mode ?? 'harian') === 'rentang')
+                REKAPITULASI PRESENSI & KETAATAN IBADAH SHOLAT SISWA (RENTANG TANGGAL)
+            @else
+                REKAPITULASI PRESENSI & KETAATAN IBADAH SHOLAT HARIAN SISWA
+            @endif
+        </div>
         <div class="doc-title-sub">Integrasi Presensi Sidik Jari (Fingerprint) & Monitoring Kesiswaan</div>
     </div>
 
     <!-- META DATA -->
     <table class="meta-info-table">
         <tr>
-            <td style="width: 12%;"><strong>Hari / Tanggal</strong></td>
+            <td style="width: 12%;"><strong>{{ ($mode ?? 'harian') === 'rentang' ? 'Periode' : 'Hari / Tanggal' }}</strong></td>
             <td style="width: 38%;">: {{ $tanggalFormatted }}</td>
             <td style="width: 15%;"><strong>Kelas / Rombel</strong></td>
             <td style="width: 35%;">: {{ $classroom ? $classroom->name : 'Semua Kelas (Seluruh Siswa)' }}</td>
@@ -215,7 +221,7 @@
         </tr>
     </table>
 
-    <!-- RINGKASAN STATISTIK HARI INI -->
+    <!-- RINGKASAN STATISTIK -->
     <table class="stats-box">
         <tr>
             <td>
@@ -253,141 +259,234 @@
         </tr>
     </table>
 
-    <!-- TABEL 5 VARIABEL UTAMA -->
-    <table class="table-grid">
-        <thead>
-            <tr>
-                <th style="width: 25px;" rowspan="2">No</th>
-                <th style="width: 55px;" rowspan="2">NIS / Finger</th>
-                <th rowspan="2">Nama Siswa</th>
-                <th style="width: 25px;" rowspan="2">L/P</th>
-                <th style="width: 50px;" rowspan="2">Kelas</th>
-                <th colspan="2" class="th-primary">1. Kedatangan di Sekolah (Finger)</th>
-                <th colspan="2" class="th-emerald">2. Sholat Dhuhur (Finger)</th>
-                <th colspan="2" class="th-amber">3. Sholat Ashar (Finger)</th>
-                <th style="width: 85px;" rowspan="2">Status & Keterangan</th>
-            </tr>
-            <tr>
-                <th style="width: 45px;" class="th-primary">Jam Scan</th>
-                <th style="width: 65px;" class="th-primary">Ketepatan</th>
-                <th style="width: 45px;" class="th-emerald">Jam Scan</th>
-                <th style="width: 65px;" class="th-emerald">Ketepatan</th>
-                <th style="width: 45px;" class="th-amber">Jam Scan</th>
-                <th style="width: 65px;" class="th-amber">Ketepatan</th>
-            </tr>
-        </thead>
-        <tbody>
-            @forelse($students as $idx => $student)
-                @php
-                    $attMasuk = $student->getAttendanceOnDate($tanggal, 'masuk');
-                    $attDhuhur = $student->getAttendanceOnDate($tanggal, 'sholat_dhuhur');
-                    $attAshar = $student->getAttendanceOnDate($tanggal, ['sholat_ashar', 'pulang']);
-                    $excused = $student->getGeneralExcusedOnDate($tanggal);
-                    $isHalangan = $student->jenis_kelamin === 'P' && \App\Models\StudentHalangan::isHalangan($student->id, $tanggal);
+    @if(($mode ?? 'harian') === 'rentang')
+        {{-- TABEL REKAPITULASI RENTANG TANGGAL --}}
+        <table class="table-grid">
+            <thead>
+                <tr>
+                    <th style="width: 25px;" rowspan="2">No</th>
+                    <th style="width: 55px;" rowspan="2">NIS / Finger</th>
+                    <th rowspan="2">Nama Siswa</th>
+                    <th style="width: 25px;" rowspan="2">L/P</th>
+                    <th style="width: 50px;" rowspan="2">Kelas</th>
+                    <th colspan="2" class="th-primary">1. Rekap Kedatangan (Masuk)</th>
+                    <th colspan="3" class="th-emerald">2. Rekap Sholat Dhuhur</th>
+                    <th colspan="3" class="th-amber">3. Rekap Sholat Ashar</th>
+                    <th colspan="3">4. Izin / Sakit / Alpa</th>
+                </tr>
+                <tr>
+                    <th style="width: 45px;" class="th-primary">Tepat</th>
+                    <th style="width: 45px;" class="th-primary">Telat</th>
+                    <th style="width: 40px;" class="th-emerald">Tepat</th>
+                    <th style="width: 40px;" class="th-emerald">Telat</th>
+                    <th style="width: 40px;" class="th-emerald">Udzur</th>
+                    <th style="width: 40px;" class="th-amber">Tepat</th>
+                    <th style="width: 40px;" class="th-amber">Telat</th>
+                    <th style="width: 40px;" class="th-amber">Udzur</th>
+                    <th style="width: 25px;">S</th>
+                    <th style="width: 25px;">I</th>
+                    <th style="width: 25px;">A</th>
+                </tr>
+            </thead>
+            <tbody>
+                @forelse($students as $idx => $student)
+                    @php
+                        $atts = $student->dailyAttendances;
+                        
+                        // 1. Masuk
+                        $masukAtts = $atts->where('tipe_absen', 'masuk');
+                        $masukTepat = $masukAtts->where('status', 'hadir')->where('is_late', false)->count();
+                        $masukTelat = $masukAtts->where('status', 'hadir')->where('is_late', true)->count();
 
-                    // 1. Kedatangan
-                    $jamMasuk = '-';
-                    $ketMasuk = 'Belum Scan';
-                    $badgeMasuk = 'badge-gray';
-                    if ($attMasuk && $attMasuk->status === 'hadir') {
-                        $jamMasuk = $attMasuk->waktu_kedatangan ? \Carbon\Carbon::parse($attMasuk->waktu_kedatangan)->format('H:i') : 'Hadir';
-                        $isLate = $attMasuk->is_late || ($attMasuk->waktu_kedatangan && \Carbon\Carbon::parse($attMasuk->waktu_kedatangan)->format('H:i') > '06:50');
-                        $ketMasuk = $isLate ? 'Terlambat' : 'Tepat Waktu';
-                        $badgeMasuk = $isLate ? 'badge-rose' : 'badge-green';
-                    } elseif ($excused) {
-                        $jamMasuk = strtoupper($excused->status);
-                        $ketMasuk = 'Izin/Sakit';
-                        $badgeMasuk = $excused->status === 'sakit' ? 'badge-amber' : ($excused->status === 'izin' ? 'badge-blue' : 'badge-rose');
-                    }
+                        // 2. Dhuhur
+                        $dhuhurAtts = $atts->where('tipe_absen', 'sholat_dhuhur');
+                        $dhuhurTepat = $dhuhurAtts->where('status', 'hadir')->where('is_late', false)->count();
+                        $dhuhurTelat = $dhuhurAtts->where('status', 'hadir')->where('is_late', true)->count();
+                        $dhuhurUdzur = $dhuhurAtts->where('status', 'halangan')->count();
 
-                    // 2. Dhuhur
-                    $jamDhuhur = '-';
-                    $ketDhuhur = 'Belum Scan';
-                    $badgeDhuhur = 'badge-gray';
-                    if ($isHalangan || ($attDhuhur && $attDhuhur->status === 'halangan')) {
-                        $jamDhuhur = 'Udzur';
-                        $ketDhuhur = 'Halangan';
-                        $badgeDhuhur = 'badge-purple';
-                    } elseif ($attDhuhur && $attDhuhur->status === 'hadir') {
-                        $jamDhuhur = $attDhuhur->waktu_kedatangan ? \Carbon\Carbon::parse($attDhuhur->waktu_kedatangan)->format('H:i') : 'Hadir';
-                        $isLate = $attDhuhur->is_late || ($attDhuhur->waktu_kedatangan && \Carbon\Carbon::parse($attDhuhur->waktu_kedatangan)->format('H:i') > '12:15');
-                        $ketDhuhur = $isLate ? 'Terlambat' : 'Tepat Waktu';
-                        $badgeDhuhur = $isLate ? 'badge-rose' : 'badge-green';
-                    } elseif ($excused) {
+                        // 3. Ashar
+                        $asharAtts = $atts->filter(fn ($a) => in_array($a->tipe_absen, ['sholat_ashar', 'pulang']));
+                        $asharTepat = $asharAtts->where('status', 'hadir')->where('is_late', false)->count();
+                        $asharTelat = $asharAtts->where('status', 'hadir')->where('is_late', true)->count();
+                        $asharUdzur = $asharAtts->where('status', 'halangan')->count();
+
+                        // 4. SIA
+                        $sakit = $masukAtts->where('status', 'sakit')->count();
+                        $izin = $masukAtts->where('status', 'izin')->count();
+                        $alpa = $masukAtts->where('status', 'alpa')->count();
+                    @endphp
+                    <tr>
+                        <td class="text-center">{{ $idx + 1 }}</td>
+                        <td class="text-center">{{ $student->nis ?? '-' }} / {{ $student->fingerspot_pin ?? '-' }}</td>
+                        <td class="font-semibold">{{ $student->name }}</td>
+                        <td class="text-center">{{ $student->jenis_kelamin ?? '-' }}</td>
+                        <td class="text-center">{{ $student->classroom?->name ?? '-' }}</td>
+
+                        <!-- Masuk -->
+                        <td class="text-center font-bold text-green">{{ $masukTepat }}</td>
+                        <td class="text-center font-bold {{ $masukTelat > 0 ? 'text-rose' : '' }}">{{ $masukTelat }}</td>
+
+                        <!-- Dhuhur -->
+                        <td class="text-center font-bold text-green">{{ $dhuhurTepat }}</td>
+                        <td class="text-center font-bold {{ $dhuhurTelat > 0 ? 'text-rose' : '' }}">{{ $dhuhurTelat }}</td>
+                        <td class="text-center font-bold {{ $dhuhurUdzur > 0 ? 'text-purple' : '' }}">{{ $dhuhurUdzur }}</td>
+
+                        <!-- Ashar -->
+                        <td class="text-center font-bold text-green">{{ $asharTepat }}</td>
+                        <td class="text-center font-bold {{ $asharTelat > 0 ? 'text-rose' : '' }}">{{ $asharTelat }}</td>
+                        <td class="text-center font-bold {{ $asharUdzur > 0 ? 'text-purple' : '' }}">{{ $asharUdzur }}</td>
+
+                        <!-- SIA -->
+                        <td class="text-center">{{ $sakit }}</td>
+                        <td class="text-center">{{ $izin }}</td>
+                        <td class="text-center {{ $alpa > 0 ? 'font-bold text-rose' : '' }}">{{ $alpa }}</td>
+                    </tr>
+                @empty
+                    <tr>
+                        <td colspan="14" class="text-center" style="padding: 15px; color: #64748b;">
+                            Tidak ada data siswa ditemukan untuk kriteria ini.
+                        </td>
+                    </tr>
+                @endforelse
+            </tbody>
+        </table>
+    @else
+        {{-- TABEL 5 VARIABEL HARIAN --}}
+        <table class="table-grid">
+            <thead>
+                <tr>
+                    <th style="width: 25px;" rowspan="2">No</th>
+                    <th style="width: 55px;" rowspan="2">NIS / Finger</th>
+                    <th rowspan="2">Nama Siswa</th>
+                    <th style="width: 25px;" rowspan="2">L/P</th>
+                    <th style="width: 50px;" rowspan="2">Kelas</th>
+                    <th colspan="2" class="th-primary">1. Kedatangan di Sekolah (Finger)</th>
+                    <th colspan="2" class="th-emerald">2. Sholat Dhuhur (Finger)</th>
+                    <th colspan="2" class="th-amber">3. Sholat Ashar (Finger)</th>
+                    <th style="width: 85px;" rowspan="2">Status & Keterangan</th>
+                </tr>
+                <tr>
+                    <th style="width: 45px;" class="th-primary">Jam Scan</th>
+                    <th style="width: 65px;" class="th-primary">Ketepatan</th>
+                    <th style="width: 45px;" class="th-emerald">Jam Scan</th>
+                    <th style="width: 65px;" class="th-emerald">Ketepatan</th>
+                    <th style="width: 45px;" class="th-amber">Jam Scan</th>
+                    <th style="width: 65px;" class="th-amber">Ketepatan</th>
+                </tr>
+            </thead>
+            <tbody>
+                @forelse($students as $idx => $student)
+                    @php
+                        $attMasuk = $student->getAttendanceOnDate($tanggal, 'masuk');
+                        $attDhuhur = $student->getAttendanceOnDate($tanggal, 'sholat_dhuhur');
+                        $attAshar = $student->getAttendanceOnDate($tanggal, ['sholat_ashar', 'pulang']);
+                        $excused = $student->getGeneralExcusedOnDate($tanggal);
+                        $isHalangan = $student->jenis_kelamin === 'P' && \App\Models\StudentHalangan::isHalangan($student->id, $tanggal);
+
+                        // 1. Kedatangan
+                        $jamMasuk = '-';
+                        $ketMasuk = 'Belum Scan';
+                        $badgeMasuk = 'badge-gray';
+                        if ($attMasuk && $attMasuk->status === 'hadir') {
+                            $jamMasuk = $attMasuk->waktu_kedatangan ? \Carbon\Carbon::parse($attMasuk->waktu_kedatangan)->format('H:i') : 'Hadir';
+                            $isLate = $attMasuk->is_late || ($attMasuk->waktu_kedatangan && \Carbon\Carbon::parse($attMasuk->waktu_kedatangan)->format('H:i') > '06:50');
+                            $ketMasuk = $isLate ? 'Terlambat' : 'Tepat Waktu';
+                            $badgeMasuk = $isLate ? 'badge-rose' : 'badge-green';
+                        } elseif ($excused) {
+                            $jamMasuk = strtoupper($excused->status);
+                            $ketMasuk = 'Izin/Sakit';
+                            $badgeMasuk = $excused->status === 'sakit' ? 'badge-amber' : ($excused->status === 'izin' ? 'badge-blue' : 'badge-rose');
+                        }
+
+                        // 2. Dhuhur
                         $jamDhuhur = '-';
-                        $ketDhuhur = 'Izin Harian';
-                        $badgeDhuhur = 'badge-blue';
-                    }
+                        $ketDhuhur = 'Belum Scan';
+                        $badgeDhuhur = 'badge-gray';
+                        if ($isHalangan || ($attDhuhur && $attDhuhur->status === 'halangan')) {
+                            $jamDhuhur = 'Udzur';
+                            $ketDhuhur = 'Halangan';
+                            $badgeDhuhur = 'badge-purple';
+                        } elseif ($attDhuhur && $attDhuhur->status === 'hadir') {
+                            $jamDhuhur = $attDhuhur->waktu_kedatangan ? \Carbon\Carbon::parse($attDhuhur->waktu_kedatangan)->format('H:i') : 'Hadir';
+                            $isLate = $attDhuhur->is_late || ($attDhuhur->waktu_kedatangan && \Carbon\Carbon::parse($attDhuhur->waktu_kedatangan)->format('H:i') > '12:15');
+                            $ketDhuhur = $isLate ? 'Terlambat' : 'Tepat Waktu';
+                            $badgeDhuhur = $isLate ? 'badge-rose' : 'badge-green';
+                        } elseif ($excused) {
+                            $jamDhuhur = '-';
+                            $ketDhuhur = 'Izin Harian';
+                            $badgeDhuhur = 'badge-blue';
+                        }
 
-                    // 3. Ashar
-                    $jamAshar = '-';
-                    $ketAshar = 'Belum Scan';
-                    $badgeAshar = 'badge-gray';
-                    if ($isHalangan || ($attAshar && $attAshar->status === 'halangan')) {
-                        $jamAshar = 'Udzur';
-                        $ketAshar = 'Halangan';
-                        $badgeAshar = 'badge-purple';
-                    } elseif ($attAshar && $attAshar->status === 'hadir') {
-                        $jamAshar = $attAshar->waktu_kedatangan ? \Carbon\Carbon::parse($attAshar->waktu_kedatangan)->format('H:i') : 'Hadir';
-                        $isLate = $attAshar->is_late || ($attAshar->waktu_kedatangan && \Carbon\Carbon::parse($attAshar->waktu_kedatangan)->format('H:i') > '15:15');
-                        $ketAshar = $isLate ? 'Terlambat' : 'Tepat Waktu';
-                        $badgeAshar = $isLate ? 'badge-rose' : 'badge-green';
-                    } elseif ($excused) {
+                        // 3. Ashar
                         $jamAshar = '-';
-                        $ketAshar = 'Izin Harian';
-                        $badgeAshar = 'badge-blue';
-                    }
+                        $ketAshar = 'Belum Scan';
+                        $badgeAshar = 'badge-gray';
+                        if ($isHalangan || ($attAshar && $attAshar->status === 'halangan')) {
+                            $jamAshar = 'Udzur';
+                            $ketAshar = 'Halangan';
+                            $badgeAshar = 'badge-purple';
+                        } elseif ($attAshar && $attAshar->status === 'hadir') {
+                            $jamAshar = $attAshar->waktu_kedatangan ? \Carbon\Carbon::parse($attAshar->waktu_kedatangan)->format('H:i') : 'Hadir';
+                            $isLate = $attAshar->is_late || ($attAshar->waktu_kedatangan && \Carbon\Carbon::parse($attAshar->waktu_kedatangan)->format('H:i') > '15:15');
+                            $ketAshar = $isLate ? 'Terlambat' : 'Tepat Waktu';
+                            $badgeAshar = $isLate ? 'badge-rose' : 'badge-green';
+                        } elseif ($excused) {
+                            $jamAshar = '-';
+                            $ketAshar = 'Izin Harian';
+                            $badgeAshar = 'badge-blue';
+                        }
 
-                    // Status Akhir
-                    $statusRingkas = 'Belum Lengkap';
-                    $badgeRingkas = 'badge-gray';
-                    if ($excused) {
-                        $statusRingkas = ucfirst($excused->status);
-                        $badgeRingkas = $excused->status === 'sakit' ? 'badge-amber' : ($excused->status === 'izin' ? 'badge-blue' : 'badge-rose');
-                    } elseif ($attMasuk && $attMasuk->status === 'hadir' && ($attDhuhur || $isHalangan) && ($attAshar || $isHalangan)) {
-                        $statusRingkas = 'Lengkap (3/3)';
-                        $badgeRingkas = 'badge-green';
-                    } elseif ($attMasuk && $attMasuk->status === 'hadir') {
-                        $statusRingkas = 'Masuk';
-                        $badgeRingkas = 'badge-blue';
-                    }
-                @endphp
-                <tr>
-                    <td class="text-center">{{ $idx + 1 }}</td>
-                    <td class="text-center">{{ $student->nis ?? '-' }} / {{ $student->fingerspot_pin ?? '-' }}</td>
-                    <td class="font-semibold">{{ $student->name }}</td>
-                    <td class="text-center">{{ $student->jenis_kelamin ?? '-' }}</td>
-                    <td class="text-center">{{ $student->classroom?->name ?? '-' }}</td>
-                    
-                    <!-- 1. Kedatangan -->
-                    <td class="text-center font-bold">{{ $jamMasuk }}</td>
-                    <td class="text-center"><span class="badge {{ $badgeMasuk }}">{{ $ketMasuk }}</span></td>
+                        // Status Akhir
+                        $statusRingkas = 'Belum Lengkap';
+                        $badgeRingkas = 'badge-gray';
+                        if ($excused) {
+                            $statusRingkas = ucfirst($excused->status);
+                            $badgeRingkas = $excused->status === 'sakit' ? 'badge-amber' : ($excused->status === 'izin' ? 'badge-blue' : 'badge-rose');
+                        } elseif ($attMasuk && $attMasuk->status === 'hadir' && ($attDhuhur || $isHalangan) && ($attAshar || $isHalangan)) {
+                            $statusRingkas = 'Lengkap (3/3)';
+                            $badgeRingkas = 'badge-green';
+                        } elseif ($attMasuk && $attMasuk->status === 'hadir') {
+                            $statusRingkas = 'Masuk';
+                            $badgeRingkas = 'badge-blue';
+                        }
+                    @endphp
+                    <tr>
+                        <td class="text-center">{{ $idx + 1 }}</td>
+                        <td class="text-center">{{ $student->nis ?? '-' }} / {{ $student->fingerspot_pin ?? '-' }}</td>
+                        <td class="font-semibold">{{ $student->name }}</td>
+                        <td class="text-center">{{ $student->jenis_kelamin ?? '-' }}</td>
+                        <td class="text-center">{{ $student->classroom?->name ?? '-' }}</td>
+                        
+                        <!-- 1. Kedatangan -->
+                        <td class="text-center font-bold">{{ $jamMasuk }}</td>
+                        <td class="text-center"><span class="badge {{ $badgeMasuk }}">{{ $ketMasuk }}</span></td>
 
-                    <!-- 2. Dhuhur -->
-                    <td class="text-center font-bold">{{ $jamDhuhur }}</td>
-                    <td class="text-center"><span class="badge {{ $badgeDhuhur }}">{{ $ketDhuhur }}</span></td>
+                        <!-- 2. Dhuhur -->
+                        <td class="text-center font-bold">{{ $jamDhuhur }}</td>
+                        <td class="text-center"><span class="badge {{ $badgeDhuhur }}">{{ $ketDhuhur }}</span></td>
 
-                    <!-- 3. Ashar -->
-                    <td class="text-center font-bold">{{ $jamAshar }}</td>
-                    <td class="text-center"><span class="badge {{ $badgeAshar }}">{{ $ketAshar }}</span></td>
+                        <!-- 3. Ashar -->
+                        <td class="text-center font-bold">{{ $jamAshar }}</td>
+                        <td class="text-center"><span class="badge {{ $badgeAshar }}">{{ $ketAshar }}</span></td>
 
-                    <!-- Ringkasan -->
-                    <td class="text-center">
-                        <span class="badge {{ $badgeRingkas }}">{{ $statusRingkas }}</span>
-                        @if($excused && $excused->keterangan)
-                            <div style="font-size: 7px; color: #64748b; margin-top: 2px;">{{ Str::limit($excused->keterangan, 30) }}</div>
-                        @endif
-                    </td>
-                </tr>
-            @empty
-                <tr>
-                    <td colspan="12" class="text-center" style="padding: 15px; color: #64748b;">
-                        Tidak ada data siswa ditemukan untuk kriteria ini.
-                    </td>
-                </tr>
-            @endforelse
-        </tbody>
-    </table>
+                        <!-- Ringkasan -->
+                        <td class="text-center">
+                            <span class="badge {{ $badgeRingkas }}">{{ $statusRingkas }}</span>
+                            @if($excused && $excused->keterangan)
+                                <div style="font-size: 7px; color: #64748b; margin-top: 2px;">{{ Str::limit($excused->keterangan, 30) }}</div>
+                            @endif
+                        </td>
+                    </tr>
+                @empty
+                    <tr>
+                        <td colspan="12" class="text-center" style="padding: 15px; color: #64748b;">
+                            Tidak ada data siswa ditemukan untuk kriteria ini.
+                        </td>
+                    </tr>
+                @endforelse
+            </tbody>
+        </table>
+    @endif
 
     <!-- TANDA TANGAN / PENGESAHAN -->
     <table class="sign-table">

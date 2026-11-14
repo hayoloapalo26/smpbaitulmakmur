@@ -16,14 +16,22 @@ class DailyAttendanceStatsOverviewWidget extends Widget
 
     protected int | string | array $columnSpan = 'full';
 
+    public string $mode = 'harian'; // 'harian' atau 'rentang'
     public string $tanggal = '';
+    public string $tanggalMulai = '';
+    public string $tanggalSelesai = '';
     public ?int $classroomId = null;
+    public bool $isWakaOrAdmin = false;
 
     public array $stats = [];
 
     public function mount(?string $tanggal = null, ?int $classroomId = null): void
     {
+        $user = Auth::user();
+        $this->isWakaOrAdmin = (bool) ($user && $user->hasAnyRole(['waka_kesiswaan', 'kepala_sekolah', 'superadmin']));
         $this->tanggal = $tanggal ?: Carbon::today()->toDateString();
+        $this->tanggalMulai = Carbon::today()->startOfMonth()->toDateString();
+        $this->tanggalSelesai = Carbon::today()->toDateString();
         $this->classroomId = $classroomId;
         $this->calculateStats();
     }
@@ -36,6 +44,20 @@ class DailyAttendanceStatsOverviewWidget extends Widget
         if ($newDate) {
             $this->tanggal = $newDate;
         }
+        $this->calculateStats();
+    }
+
+    public function setMode(string $mode): void
+    {
+        $this->mode = $mode;
+        $this->dispatch('mode-changed', mode: $this->mode);
+
+        if ($this->mode === 'rentang') {
+            $this->dispatch('date-range-changed', startDate: $this->tanggalMulai, endDate: $this->tanggalSelesai);
+        } else {
+            $this->dispatch('date-changed', newDate: $this->tanggal);
+        }
+
         $this->calculateStats();
     }
 
@@ -66,9 +88,44 @@ class DailyAttendanceStatsOverviewWidget extends Widget
         $this->calculateStats();
     }
 
+    public function updatedTanggalMulai(): void
+    {
+        $this->dispatch('date-range-changed', startDate: $this->tanggalMulai, endDate: $this->tanggalSelesai);
+        $this->calculateStats();
+    }
+
+    public function updatedTanggalSelesai(): void
+    {
+        $this->dispatch('date-range-changed', startDate: $this->tanggalMulai, endDate: $this->tanggalSelesai);
+        $this->calculateStats();
+    }
+
+    public function setThisWeek(): void
+    {
+        $this->tanggalMulai = Carbon::today()->startOfWeek()->toDateString();
+        $this->tanggalSelesai = Carbon::today()->toDateString();
+        $this->dispatch('date-range-changed', startDate: $this->tanggalMulai, endDate: $this->tanggalSelesai);
+        $this->calculateStats();
+    }
+
+    public function setThisMonth(): void
+    {
+        $this->tanggalMulai = Carbon::today()->startOfMonth()->toDateString();
+        $this->tanggalSelesai = Carbon::today()->toDateString();
+        $this->dispatch('date-range-changed', startDate: $this->tanggalMulai, endDate: $this->tanggalSelesai);
+        $this->calculateStats();
+    }
+
+    public function setLastMonth(): void
+    {
+        $this->tanggalMulai = Carbon::today()->subMonth()->startOfMonth()->toDateString();
+        $this->tanggalSelesai = Carbon::today()->subMonth()->endOfMonth()->toDateString();
+        $this->dispatch('date-range-changed', startDate: $this->tanggalMulai, endDate: $this->tanggalSelesai);
+        $this->calculateStats();
+    }
+
     public function calculateStats(): void
     {
-        $date = $this->tanggal ?: Carbon::today()->toDateString();
         $user = Auth::user();
 
         $studentQuery = Student::withoutGlobalScopes()->where('status_siswa', 'aktif');
@@ -82,18 +139,29 @@ class DailyAttendanceStatsOverviewWidget extends Widget
         $totalSiswa = (clone $studentQuery)->count();
         $studentIds = (clone $studentQuery)->pluck('id')->toArray();
 
-        // Absensi pada tanggal aktif
-        $attendances = DailyAttendance::withoutGlobalScopes()
-            ->whereIn('student_id', $studentIds)
-            ->whereDate('tanggal', $date)
-            ->get();
+        $attQuery = DailyAttendance::withoutGlobalScopes()->whereIn('student_id', $studentIds);
+
+        if ($this->mode === 'rentang') {
+            $startDate = $this->tanggalMulai ?: Carbon::today()->startOfMonth()->toDateString();
+            $endDate = $this->tanggalSelesai ?: Carbon::today()->toDateString();
+            $attQuery->whereBetween('tanggal', [$startDate, $endDate]);
+            $dateLabel = Carbon::parse($startDate)->translatedFormat('d M Y') . ' s.d ' . Carbon::parse($endDate)->translatedFormat('d M Y');
+        } else {
+            $date = $this->tanggal ?: Carbon::today()->toDateString();
+            $attQuery->whereDate('tanggal', $date);
+            $dateLabel = Carbon::parse($date)->translatedFormat('l, d F Y');
+        }
+
+        $attendances = $attQuery->get();
 
         // 1. Kedatangan Masuk
         $masukAtts = $attendances->where('tipe_absen', 'masuk');
         $masukHadir = $masukAtts->where('status', 'hadir')->count();
         $masukTepat = $masukAtts->where('status', 'hadir')->where('is_late', false)->count();
         $masukTerlambat = $masukAtts->where('status', 'hadir')->where('is_late', true)->count();
-        $masukBelum = max(0, $totalSiswa - $masukHadir - $attendances->whereIn('status', ['sakit', 'izin', 'alpa'])->unique('student_id')->count());
+        $masukBelum = $this->mode === 'rentang'
+            ? '-'
+            : max(0, $totalSiswa - $masukHadir - $attendances->whereIn('status', ['sakit', 'izin', 'alpa'])->unique('student_id')->count());
 
         // 2. Sholat Dhuhur
         $dhuhurAtts = $attendances->where('tipe_absen', 'sholat_dhuhur');
@@ -110,12 +178,21 @@ class DailyAttendanceStatsOverviewWidget extends Widget
         $asharHalangan = $asharAtts->where('status', 'halangan')->count();
 
         // 4. Izin / Sakit / Alpa
-        $sakitCount = $attendances->where('status', 'sakit')->unique('student_id')->count();
-        $izinCount = $attendances->where('status', 'izin')->unique('student_id')->count();
-        $alpaCount = $attendances->where('status', 'alpa')->unique('student_id')->count();
+        $sakitCount = $this->mode === 'rentang'
+            ? $attendances->where('status', 'sakit')->where('tipe_absen', 'masuk')->count()
+            : $attendances->where('status', 'sakit')->unique('student_id')->count();
+
+        $izinCount = $this->mode === 'rentang'
+            ? $attendances->where('status', 'izin')->where('tipe_absen', 'masuk')->count()
+            : $attendances->where('status', 'izin')->unique('student_id')->count();
+
+        $alpaCount = $this->mode === 'rentang'
+            ? $attendances->where('status', 'alpa')->where('tipe_absen', 'masuk')->count()
+            : $attendances->where('status', 'alpa')->unique('student_id')->count();
 
         $this->stats = [
-            'date_formatted'  => Carbon::parse($date)->translatedFormat('l, d F Y'),
+            'mode'            => $this->mode,
+            'date_formatted'  => $dateLabel,
             'total_siswa'     => $totalSiswa,
             'masuk_hadir'     => $masukHadir,
             'masuk_tepat'     => $masukTepat,
