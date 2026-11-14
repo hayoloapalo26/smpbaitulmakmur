@@ -280,6 +280,37 @@
         </table>
     @endif
 
+    <!-- IV. PENGESAHAN & CATATAN KEPALA SEKOLAH -->
+    <div class="section-header">IV. STATUS PENGISIAN & PENGESAHAN KEPALA SEKOLAH</div>
+    <div style="border: 1px solid #cbd5e1; border-radius: 6px; padding: 8px 12px; margin-bottom: 18px; font-size: 11px; background-color: #f8fafc;">
+        <table style="width: 100%; border: none;">
+            <tr>
+                <td style="width: 50%; border: none; padding: 2px 0;">
+                    <strong>Status Pengisian:</strong> 
+                    @if($journal->is_late)
+                        <span class="badge badge-yellow">TERLAMBAT (ACC WAKA: {{ strtoupper($journal->wakaApprover?->name ?? 'WAKA KURIKULUM') }})</span>
+                    @else
+                        <span class="badge badge-green">TEPAT WAKTU</span>
+                    @endif
+                </td>
+                <td style="width: 50%; border: none; padding: 2px 0;">
+                    <strong>Status ACC Kepala Sekolah:</strong> 
+                    @if($journal->status_acc_kepsek === 'approved')
+                        <span class="badge badge-green">DISAHKAN & DI-ACC</span>
+                    @else
+                        <span class="badge badge-yellow">MENUNGGU VERIFIKASI</span>
+                    @endif
+                </td>
+            </tr>
+            <tr>
+                <td colspan="2" style="border: none; padding-top: 5px; color: #334155;">
+                    <strong>Catatan Kepala Sekolah:</strong> 
+                    <em>{{ $journal->catatan_kepala_sekolah ?? 'Pembelajaran telah terlaksana sesuai target kurikulum.' }}</em>
+                </td>
+            </tr>
+        </table>
+    </div>
+
     <!-- TANDA TANGAN -->
     <table class="signature-table">
         <tr>

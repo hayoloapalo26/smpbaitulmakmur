@@ -61,27 +61,13 @@ class ManageTeachingJournals extends ManageRecords
                     $schedule = isset($data['schedule_id']) ? Schedule::find($data['schedule_id']) : null;
                     $jamKe = $schedule ? $schedule->jam_ke : ($data['jam_ke'] ?? null);
 
-                    $isAdminOrWaka = auth()->user()?->hasAnyRole(['waka_kurikulum', 'superadmin']);
-
-                    // 1. Validasi guru hanya bisa mengisi hari ini
-                    if (!$isAdminOrWaka && $tanggal !== now()->toDateString()) {
-                        \Filament\Notifications\Notification::make()
-                            ->title('Pengisian Jurnal Ditolak')
-                            ->body('Pengisian jurnal mengajar otomatis dikunci hanya untuk jadwal hari ini (' . now()->translatedFormat('d F Y') . ').')
-                            ->danger()
-                            ->persistent()
-                            ->send();
-
-                        $action->halt();
-                    }
-
-                    // 2. Validasi jadwal harus sesuai dengan hari ini
+                    // 1. Validasi jadwal harus sesuai dengan hari pada tanggal yang dipilih
                     if ($schedule) {
-                        $hariIni = Schedule::getIndonesianDayName($tanggal);
-                        if ($schedule->hari !== $hariIni) {
+                        $hariJadwal = Schedule::getIndonesianDayName($tanggal);
+                        if ($schedule->hari !== $hariJadwal) {
                             \Filament\Notifications\Notification::make()
-                                ->title('Jadwal Tidak Sesuai')
-                                ->body("Jadwal yang dipilih merupakan jadwal hari {$schedule->hari}, sedangkan pengisian jurnal hari ini adalah hari {$hariIni}.")
+                                ->title('Jadwal Tidak Sesuai Hari')
+                                ->body("Jadwal yang dipilih merupakan jadwal hari {$schedule->hari}, sedangkan tanggal yang dipilih adalah hari {$hariJadwal}.")
                                 ->danger()
                                 ->persistent()
                                 ->send();
@@ -90,19 +76,7 @@ class ManageTeachingJournals extends ManageRecords
                         }
                     }
 
-                    // 3. Cek batas waktu pengisian 24 jam
-                    if (!$isAdminOrWaka && TeachingJournal::isPastDeadline($tanggal, $jamKe)) {
-                        $deadline = TeachingJournal::getJournalDeadline($tanggal, $jamKe)->translatedFormat('d M Y, H:i');
-                        \Filament\Notifications\Notification::make()
-                            ->title('Pengisian Jurnal Ditolak (Kedaluwarsa)')
-                            ->body("Batas waktu pengisian jurnal mengajar telah berakhir (maksimal 24 jam setelah jadwal mengajar selesai: {$deadline} WIB). Anda tidak dapat lagi menginputkan jurnal ini.")
-                            ->danger()
-                            ->persistent()
-                            ->send();
-
-                        $action->halt();
-                    }
-
+                    // 2. Cek izin mengajar guru
                     if (\App\Models\TeacherLeaveRequest::isTeacherOnLeave($teacherId, $tanggal, $jamKe)) {
                         $leave = \App\Models\TeacherLeaveRequest::getActiveLeaveFor($teacherId, $tanggal, $jamKe);
                         \Filament\Notifications\Notification::make()
@@ -113,6 +87,22 @@ class ManageTeachingJournals extends ManageRecords
                             ->send();
 
                         $action->halt();
+                    }
+                })
+                ->after(function (TeachingJournal $record) {
+                    if ($record->is_late) {
+                        \Filament\Notifications\Notification::make()
+                            ->title('Jurnal Tercatat Terlambat')
+                            ->body('Jurnal berhasil disimpan dan tercatat terlambat (melewati 23:59 tanggal mengajar). Jurnal ini masuk ke antrean Persetujuan Waka Kurikulum terlebih dahulu sebelum masuk ke laporan Kepala Sekolah.')
+                            ->warning()
+                            ->duration(8000)
+                            ->send();
+                    } else {
+                        \Filament\Notifications\Notification::make()
+                            ->title('Jurnal Berhasil Disimpan')
+                            ->body('Jurnal pembelajaran tepat waktu berhasil dicatat dan langsung diteruskan ke Kepala Sekolah untuk pemantauan.')
+                            ->success()
+                            ->send();
                     }
                 }),
         ];
@@ -172,10 +162,11 @@ class ManageTeachingJournals extends ManageRecords
                 ->orderBy('jam_ke')
                 ->get();
 
-            // Journals on this date
+            // Journals on this date (Khusus yang siap untuk Kepala Sekolah: tepat waktu atau terlambat disetujui Waka)
             $journalsOnDate = TeachingJournal::where('teacher_id', $teacher->id)
                 ->whereDate('tanggal', $date)
-                ->with(['classroom', 'subject'])
+                ->readyForKepsek()
+                ->with(['classroom', 'subject', 'wakaApprover', 'kepsekApprover'])
                 ->orderBy('jam_ke')
                 ->get();
 
@@ -194,7 +185,9 @@ class ManageTeachingJournals extends ManageRecords
                 continue;
             }
 
-            $totalHistory = TeachingJournal::where('teacher_id', $teacher->id)->count();
+            $totalHistory = TeachingJournal::where('teacher_id', $teacher->id)
+                ->readyForKepsek()
+                ->count();
 
             // Teacher Attendance status on that date
             $attendance = TeacherAttendance::where('teacher_id', $teacher->id)
@@ -235,7 +228,8 @@ class ManageTeachingJournals extends ManageRecords
 
         $teacher = User::find($this->selectedTeacherId);
         $journals = TeachingJournal::where('teacher_id', $this->selectedTeacherId)
-            ->with(['classroom', 'subject', 'schedule'])
+            ->readyForKepsek()
+            ->with(['classroom', 'subject', 'schedule', 'wakaApprover', 'kepsekApprover'])
             ->orderBy('tanggal', 'desc')
             ->orderBy('jam_ke', 'asc')
             ->get();
@@ -265,6 +259,97 @@ class ManageTeachingJournals extends ManageRecords
             'teacher' => $teacher,
             'entries' => $journalDetails,
             'total' => $journals->count(),
+        ];
+    }
+
+    public function accJournalByKepsek(int $journalId, ?string $catatan = null): void
+    {
+        $user = auth()->user();
+        if (!$user || !$user->hasAnyRole(['kepala_sekolah', 'superadmin', 'waka_kurikulum'])) {
+            return;
+        }
+
+        $journal = TeachingJournal::find($journalId);
+        if ($journal && $journal->isReadyForKepsek()) {
+            $journal->update([
+                'status_acc_kepsek' => TeachingJournal::ACC_KEPSEK_APPROVED,
+                'kepsek_approved_by' => $user->id,
+                'kepsek_approved_at' => now(),
+                'catatan_kepala_sekolah' => $catatan ?: ($journal->catatan_kepala_sekolah ?: 'Disetujui dan disahkan oleh Kepala Sekolah.'),
+            ]);
+
+            \Filament\Notifications\Notification::make()
+                ->title('Jurnal Mengajar Berhasil Di-ACC')
+                ->body("Jurnal mengajar {$journal->teacher?->name} tanggal " . Carbon::parse($journal->tanggal)->translatedFormat('d F Y') . " telah berhasil disahkan.")
+                ->success()
+                ->send();
+        }
+    }
+
+    public function accAllJournalsForTeacher(int $teacherId): void
+    {
+        $user = auth()->user();
+        if (!$user || !$user->hasAnyRole(['kepala_sekolah', 'superadmin', 'waka_kurikulum'])) {
+            return;
+        }
+
+        $teacher = User::find($teacherId);
+        $journals = TeachingJournal::where('teacher_id', $teacherId)
+            ->readyForKepsek()
+            ->where('status_acc_kepsek', '!=', TeachingJournal::ACC_KEPSEK_APPROVED)
+            ->get();
+
+        $count = $journals->count();
+        if ($count === 0) {
+            \Filament\Notifications\Notification::make()
+                ->title('Informasi')
+                ->body('Semua jurnal guru ini sudah dalam status disahkan (ACC).')
+                ->info()
+                ->send();
+            return;
+        }
+
+        foreach ($journals as $journal) {
+            $journal->update([
+                'status_acc_kepsek' => TeachingJournal::ACC_KEPSEK_APPROVED,
+                'kepsek_approved_by' => $user->id,
+                'kepsek_approved_at' => now(),
+                'catatan_kepala_sekolah' => $journal->catatan_kepala_sekolah ?: 'Disetujui dan disahkan oleh Kepala Sekolah.',
+            ]);
+        }
+
+        \Filament\Notifications\Notification::make()
+            ->title('Seluruh Jurnal Berhasil Di-ACC')
+            ->body("Sebanyak {$count} jurnal mengajar milik {$teacher?->name} telah berhasil disahkan sekaligus.")
+            ->success()
+            ->send();
+    }
+
+    public function getTabs(): array
+    {
+        $user = auth()->user();
+        if ($user && $user->hasRole('kepala_sekolah')) {
+            return [];
+        }
+
+        $isWakaOrAdmin = $user && $user->hasAnyRole(['waka_kurikulum', 'superadmin']);
+
+        $pendingQuery = TeachingJournal::pendingWaka();
+        if (!$isWakaOrAdmin && $user) {
+            $pendingQuery->where('teacher_id', $user->id);
+        }
+        $pendingCount = $pendingQuery->count();
+
+        return [
+            'all' => \Filament\Resources\Components\Tab::make('Semua Jurnal'),
+            'on_time' => \Filament\Resources\Components\Tab::make('Tepat Waktu')
+                ->modifyQueryUsing(fn ($query) => $query->where('is_late', false)),
+            'pending_waka' => \Filament\Resources\Components\Tab::make('⚠️ Menunggu Persetujuan Waka (Terlambat)')
+                ->badge($pendingCount > 0 ? (string) $pendingCount : null)
+                ->badgeColor('warning')
+                ->modifyQueryUsing(fn ($query) => $query->pendingWaka()),
+            'approved_waka' => \Filament\Resources\Components\Tab::make('✅ Disetujui Waka (Terlambat)')
+                ->modifyQueryUsing(fn ($query) => $query->where('late_status', TeachingJournal::LATE_STATUS_APPROVED_WAKA)),
         ];
     }
 }

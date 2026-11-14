@@ -133,25 +133,67 @@ class TeachingJournalAttendanceAndDeadlineTest extends TestCase
         Carbon::setTestNow();
     }
 
-    public function test_teacher_cannot_create_journal_past_24_hours(): void
+    public function test_teacher_can_create_late_journal_and_it_enters_waka_approval_queue(): void
     {
         $this->actingAs($this->teacher);
 
-        // Simulasi waktu sekarang sudah lebih dari 24 jam dari jadwal mengajar
+        // Simulasi waktu sekarang sudah melewati 23:59 tanggal mengajar (terlambat)
         Carbon::setTestNow(Carbon::parse('2026-10-28 10:00:00'));
 
-        $this->expectException(ValidationException::class);
-
-        TeachingJournal::create([
+        $journal = TeachingJournal::create([
             'teacher_id' => $this->teacher->id,
             'schedule_id' => $this->schedule->id,
             'classroom_id' => $this->classroom->id,
             'subject_id' => $this->subject->id,
-            'jam_ke' => 1, // selesai 08:40 pada tanggal 26 Oktober -> batas 27 Oktober 08:40
-            'tanggal' => '2026-10-26',
-            'rencana_kegiatan_guru' => 'Membahas Aljabar',
+            'jam_ke' => 1,
+            'tanggal' => '2026-10-26', // tanggal mengajar telah lewat 23:59
+            'rencana_kegiatan_guru' => 'Membahas Aljabar Terlambat',
             'kegiatan_siswa' => 'Mengerjakan Latihan',
         ]);
+
+        $this->assertNotNull($journal);
+        $fresh = $journal->fresh();
+        $this->assertTrue($fresh->is_late, 'Jurnal yang diisi melewati 23:59 harus ditandai is_late = true');
+        $this->assertEquals(TeachingJournal::LATE_STATUS_PENDING_WAKA, $fresh->late_status, 'Jurnal terlambat harus berstatus pending_waka');
+        $this->assertEquals(TeachingJournal::ACC_KEPSEK_PENDING, $fresh->status_acc_kepsek, 'Status ACC Kepala Sekolah harus pending');
+
+        // Verifikasi: Jurnal terlambat yang pending TIDAK BOLEH muncul di laporan Kepala Sekolah
+        $this->assertFalse($fresh->isReadyForKepsek());
+        $this->assertEquals(0, TeachingJournal::where('id', $fresh->id)->readyForKepsek()->count());
+
+        // Simulasi Waka Kurikulum menyetujui pengisian terlambat
+        $this->actingAs($this->admin);
+        $fresh->update([
+            'late_status' => TeachingJournal::LATE_STATUS_APPROVED_WAKA,
+            'waka_approved_by' => $this->admin->id,
+            'waka_approved_at' => now(),
+            'waka_notes' => 'Dispensasi disetujui karena ada kegiatan dinas luar.',
+        ]);
+
+        // Setelah disetujui Waka, jurnal SEKARANG MUNCUL ke Kepala Sekolah
+        $this->assertTrue($fresh->fresh()->isReadyForKepsek());
+        $this->assertEquals(1, TeachingJournal::where('id', $fresh->id)->readyForKepsek()->count());
+
+        // Simulasi Kepala Sekolah meng-ACC jurnal
+        $kepsek = User::factory()->create([
+            'institution_id' => $this->institution->id,
+            'name' => 'Kepala Sekolah SMP Islam Baitul Makmur',
+        ]);
+        Role::firstOrCreate(['name' => 'kepala_sekolah']);
+        $kepsek->assignRole('kepala_sekolah');
+
+        $this->actingAs($kepsek);
+        $fresh->update([
+            'status_acc_kepsek' => TeachingJournal::ACC_KEPSEK_APPROVED,
+            'kepsek_approved_by' => $kepsek->id,
+            'kepsek_approved_at' => now(),
+            'catatan_kepala_sekolah' => 'Pembelajaran telah terlaksana dengan baik.',
+        ]);
+
+        $final = $fresh->fresh();
+        $this->assertEquals(TeachingJournal::ACC_KEPSEK_APPROVED, $final->status_acc_kepsek);
+        $this->assertEquals($kepsek->id, $final->kepsek_approved_by);
+        $this->assertEquals('Pembelajaran telah terlaksana dengan baik.', $final->catatan_kepala_sekolah);
 
         Carbon::setTestNow();
     }

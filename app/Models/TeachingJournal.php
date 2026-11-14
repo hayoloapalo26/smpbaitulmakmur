@@ -14,25 +14,44 @@ class TeachingJournal extends Model
         'kegiatan_rutin' => 'array',
         'catatan_karakter' => 'array',
         'tp_ids' => 'array',
+        'is_late' => 'boolean',
+        'waka_approved_at' => 'datetime',
+        'kepsek_approved_at' => 'datetime',
     ];
+
+    public const LATE_STATUS_ON_TIME = 'on_time';
+    public const LATE_STATUS_PENDING_WAKA = 'pending_waka';
+    public const LATE_STATUS_APPROVED_WAKA = 'approved_waka';
+    public const LATE_STATUS_REJECTED_WAKA = 'rejected_waka';
+
+    public const ACC_KEPSEK_PENDING = 'pending';
+    public const ACC_KEPSEK_APPROVED = 'approved';
+    public const ACC_KEPSEK_NEED_REVISION = 'need_revision';
 
     protected static function booted()
     {
-        static::creating(function (TeachingJournal $journal) {
-            $user = auth()->user();
-            $isAdmin = $user && $user->hasAnyRole(['waka_kurikulum', 'superadmin']);
+        static::saving(function (TeachingJournal $journal) {
+            // Cek keterlambatan pengisian (melewati pukul 23:59 pada tanggal mengajar)
+            if ($journal->tanggal) {
+                $endOfDay = \Carbon\Carbon::parse($journal->tanggal)->endOfDay();
+                $isLate = now()->isAfter($endOfDay);
 
-            if (!$isAdmin && $journal->tanggal) {
-                if (static::isPastDeadline($journal->tanggal, $journal->jam_ke)) {
-                    $deadline = static::getJournalDeadline($journal->tanggal, $journal->jam_ke)->translatedFormat('d M Y, H:i');
-                    throw \Illuminate\Validation\ValidationException::withMessages([
-                        'schedule_id' => "Batas waktu pengisian jurnal mengajar telah berakhir (maksimal 24 jam setelah jadwal mengajar selesai: {$deadline} WIB). Anda tidak dapat lagi menginputkan jurnal ini.",
-                    ]);
+                if ($isLate) {
+                    $journal->is_late = true;
+                    if (empty($journal->late_status) || $journal->late_status === self::LATE_STATUS_ON_TIME) {
+                        $journal->late_status = self::LATE_STATUS_PENDING_WAKA;
+                    }
+                } else {
+                    if (empty($journal->late_status)) {
+                        $journal->is_late = false;
+                        $journal->late_status = self::LATE_STATUS_ON_TIME;
+                    }
                 }
             }
-        });
 
-        static::saving(function (TeachingJournal $journal) {
+            if (empty($journal->status_acc_kepsek)) {
+                $journal->status_acc_kepsek = self::ACC_KEPSEK_PENDING;
+            }
             if ($journal->schedule_id) {
                 $schedule = Schedule::withoutGlobalScopes()->find($journal->schedule_id);
                 if ($schedule) {
@@ -258,6 +277,40 @@ class TeachingJournal extends Model
     public function subjectAttendances()
     {
         return $this->hasMany(SubjectAttendance::class, 'teaching_journal_id');
+    }
+
+    public function wakaApprover()
+    {
+        return $this->belongsTo(User::class, 'waka_approved_by');
+    }
+
+    public function kepsekApprover()
+    {
+        return $this->belongsTo(User::class, 'kepsek_approved_by');
+    }
+
+    public function scopeReadyForKepsek($query)
+    {
+        return $query->where(function ($q) {
+            $q->where('is_late', false)
+              ->orWhere('late_status', self::LATE_STATUS_APPROVED_WAKA);
+        });
+    }
+
+    public function scopePendingWaka($query)
+    {
+        return $query->where('is_late', true)
+                     ->where('late_status', self::LATE_STATUS_PENDING_WAKA);
+    }
+
+    public function isReadyForKepsek(): bool
+    {
+        return !$this->is_late || $this->late_status === self::LATE_STATUS_APPROVED_WAKA;
+    }
+
+    public function isApprovedByKepsek(): bool
+    {
+        return $this->status_acc_kepsek === self::ACC_KEPSEK_APPROVED;
     }
 
     public static function getJournalDeadline(string|\Carbon\Carbon $tanggal, int|string|null $jamKe = null): \Carbon\Carbon

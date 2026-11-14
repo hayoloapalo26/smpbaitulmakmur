@@ -265,11 +265,25 @@
                             Total Riwayat: <strong class="text-white">{{ count($entries) }} Jurnal Pembelajaran</strong> tercatat di sistem
                         </p>
                     </div>
-                    <button 
-                        wire:click="closeDetail" 
-                        class="p-2 rounded-xl bg-white/20 hover:bg-white/30 text-white transition-all">
-                        <x-heroicon-m-x-mark class="w-6 h-6" />
-                    </button>
+                    <div class="flex items-center gap-2">
+                        @php
+                            $hasPendingAcc = collect($entries)->contains(fn ($e) => ($e['journal']->status_acc_kepsek ?? 'pending') !== 'approved');
+                        @endphp
+                        @if($hasPendingAcc && count($entries) > 0)
+                            <button 
+                                type="button"
+                                wire:click="accAllJournalsForTeacher({{ $teacher?->id }})" 
+                                class="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-sm transition-all border border-emerald-400">
+                                <x-heroicon-m-check-badge class="w-4 h-4" />
+                                <span>ACC Semua Jurnal Guru Ini</span>
+                            </button>
+                        @endif
+                        <button 
+                            wire:click="closeDetail" 
+                            class="p-2 rounded-xl bg-white/20 hover:bg-white/30 text-white transition-all">
+                            <x-heroicon-m-x-mark class="w-6 h-6" />
+                        </button>
+                    </div>
                 </div>
 
                 <!-- Modal Body -->
@@ -298,10 +312,36 @@
                                                 {{ $j->subject?->name ?? 'Mapel' }}
                                             </span>
                                         </div>
-                                        <span class="inline-flex items-center gap-1 text-xs font-bold text-emerald-600 bg-emerald-50 dark:bg-emerald-950/50 px-2.5 py-1 rounded-full border border-emerald-200">
-                                            <x-heroicon-m-check-circle class="w-4 h-4" />
-                                            Guru Hadir Mengajar
-                                        </span>
+                                        <div class="flex items-center gap-2 flex-wrap">
+                                            @if($j->is_late)
+                                                <span class="inline-flex items-center gap-1 text-[11px] font-bold text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-950/60 px-2.5 py-0.5 rounded-full border border-amber-300 dark:border-amber-700">
+                                                    <x-heroicon-m-clock class="w-3.5 h-3.5 text-amber-600" />
+                                                    Terlambat (Disahkan Waka: {{ $j->wakaApprover?->name ?? 'Waka Kurikulum' }})
+                                                </span>
+                                            @else
+                                                <span class="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-950/60 px-2.5 py-0.5 rounded-full border border-emerald-300 dark:border-emerald-700">
+                                                    <x-heroicon-m-check-circle class="w-3.5 h-3.5 text-emerald-600" />
+                                                    Tepat Waktu
+                                                </span>
+                                            @endif
+
+                                            @if($j->status_acc_kepsek === 'approved')
+                                                <span class="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 px-2.5 py-0.5 rounded-full border border-emerald-300 dark:border-emerald-700">
+                                                    <x-heroicon-m-check-badge class="w-3.5 h-3.5 text-emerald-600" />
+                                                    Disahkan KS
+                                                </span>
+                                            @else
+                                                <span class="inline-flex items-center gap-1 text-[11px] font-bold text-orange-700 dark:text-orange-300 bg-orange-50 dark:bg-orange-950/40 px-2.5 py-0.5 rounded-full border border-orange-300 dark:border-orange-700">
+                                                    <x-heroicon-m-exclamation-circle class="w-3.5 h-3.5 text-orange-600" />
+                                                    Menunggu ACC KS
+                                                </span>
+                                            @endif
+
+                                            <span class="inline-flex items-center gap-1 text-xs font-bold text-emerald-600 bg-emerald-50 dark:bg-emerald-950/50 px-2.5 py-0.5 rounded-full border border-emerald-200">
+                                                <x-heroicon-m-check-circle class="w-4 h-4" />
+                                                Hadir Mengajar
+                                            </span>
+                                        </div>
                                     </div>
 
                                     <!-- Materi Pembelajaran & TP dari RPPM -->
@@ -414,6 +454,44 @@
                                             </div>
                                         </div>
                                     @endif
+
+                                    <!-- Bagian ACC & Pengesahan Kepala Sekolah -->
+                                    <div class="mt-4 pt-3 border-t border-gray-200 dark:border-gray-700">
+                                        @if($j->status_acc_kepsek === 'approved')
+                                            <div class="p-3 rounded-xl bg-emerald-50/90 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                                                <div>
+                                                    <div class="flex items-center gap-1.5 font-bold text-emerald-900 dark:text-emerald-100">
+                                                        <x-heroicon-m-check-badge class="w-4 h-4 text-emerald-600" />
+                                                        <span>Disahkan & Di-ACC oleh: {{ $j->kepsekApprover?->name ?? 'Kepala Sekolah' }}</span>
+                                                        <span class="text-[10px] text-gray-500 font-normal">({{ $j->kepsek_approved_at ? \Carbon\Carbon::parse($j->kepsek_approved_at)->translatedFormat('d M Y, H:i') : '-' }})</span>
+                                                    </div>
+                                                    @if($j->catatan_kepala_sekolah)
+                                                        <div class="text-[11px] text-gray-700 dark:text-gray-300 mt-1 italic pl-5">
+                                                            Catatan KS: "{{ $j->catatan_kepala_sekolah }}"
+                                                        </div>
+                                                    @endif
+                                                </div>
+                                                <span class="px-2.5 py-1 rounded-md bg-emerald-600 text-white font-bold text-[10px] uppercase tracking-wider self-start sm:self-auto shrink-0">
+                                                    Status: Sah (ACC)
+                                                </span>
+                                            </div>
+                                        @else
+                                            <div class="p-3 rounded-xl bg-amber-50/70 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                                                <div class="flex items-center gap-1.5 text-amber-900 dark:text-amber-200">
+                                                    <x-heroicon-m-clock class="w-4 h-4 text-amber-600 shrink-0" />
+                                                    <span>Jurnal ini siap diverifikasi dan disahkan (ACC) oleh Kepala Sekolah.</span>
+                                                </div>
+                                                <button 
+                                                    type="button"
+                                                    wire:click="accJournalByKepsek({{ $j->id }})" 
+                                                    wire:loading.attr="disabled"
+                                                    class="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-sm hover:shadow transition-all shrink-0">
+                                                    <x-heroicon-m-check-badge class="w-4 h-4" />
+                                                    <span>ACC Jurnal Ini</span>
+                                                </button>
+                                            </div>
+                                        @endif
+                                    </div>
                                 </div>
                             @endforeach
                         </div>

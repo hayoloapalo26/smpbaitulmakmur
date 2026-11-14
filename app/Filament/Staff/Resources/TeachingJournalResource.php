@@ -43,7 +43,11 @@ class TeachingJournalResource extends Resource
         if ($user->hasAnyRole(['waka_kurikulum', 'superadmin'])) {
             return true;
         }
-        return ! TeachingJournal::isPastDeadline($record->tanggal, $record->jam_ke);
+        // Guru tidak dapat mengubah jurnal jika sudah disetujui (ACC) oleh Kepala Sekolah
+        if ($record instanceof TeachingJournal && $record->status_acc_kepsek === TeachingJournal::ACC_KEPSEK_APPROVED) {
+            return false;
+        }
+        return true;
     }
 
     public static function canDelete(\Illuminate\Database\Eloquent\Model $record): bool
@@ -122,7 +126,12 @@ class TeachingJournalResource extends Resource
     public static function getEloquentQuery(): Builder
     {
         $query = parent::getEloquentQuery();
-        if (Auth::user()->hasAnyRole(['waka_kurikulum', 'kepala_sekolah', 'superadmin'])) {
+        $user = Auth::user();
+        if ($user && $user->hasRole('kepala_sekolah')) {
+            // Kepala Sekolah hanya melihat jurnal yang siap (tepat waktu atau terlambat yang sudah disetujui Waka)
+            return $query->readyForKepsek();
+        }
+        if ($user && $user->hasAnyRole(['waka_kurikulum', 'superadmin'])) {
             return $query;
         }
         return $query->where('teacher_id', Auth::id());
@@ -204,17 +213,16 @@ class TeachingJournalResource extends Resource
                         Forms\Components\DatePicker::make('tanggal')
                             ->label('Tanggal Mengajar')
                             ->default(Carbon::today()->format('Y-m-d'))
-                            ->minDate(fn (?TeachingJournal $record) => $isAdminOrWaka ? null : ($record ? $record->tanggal : Carbon::today()->format('Y-m-d')))
-                            ->maxDate(fn (?TeachingJournal $record) => $isAdminOrWaka ? null : ($record ? $record->tanggal : Carbon::today()->format('Y-m-d')))
-                            ->disabled(fn () => !$isAdminOrWaka)
+                            ->maxDate(Carbon::today()->format('Y-m-d'))
                             ->dehydrated()
-                            ->helperText(function (Forms\Get $get) use ($isAdminOrWaka) {
-                                $tanggal = $get('tanggal') ?: Carbon::today();
+                            ->helperText(function (Forms\Get $get) {
+                                $tanggal = $get('tanggal') ?: Carbon::today()->format('Y-m-d');
                                 $hari = Schedule::getIndonesianDayName($tanggal);
-                                if ($isAdminOrWaka) {
-                                    return "📅 Hari: {$hari} (Mode Admin/Waka Kurikulum: Dapat memilih tanggal).";
+                                $isToday = ($tanggal === Carbon::today()->format('Y-m-d'));
+                                if ($isToday) {
+                                    return "📅 Hari ini: {$hari}, " . Carbon::today()->translatedFormat('d F Y') . " • Pengisian tepat waktu langsung diteruskan ke Kepala Sekolah.";
                                 }
-                                return "📅 Hari ini: {$hari}, " . Carbon::today()->translatedFormat('d F Y') . " • Pengisian jurnal mengajar otomatis dikunci hanya untuk jadwal hari ini.";
+                                return "⚠️ Pengisian Terlambat: Tanggal mengajar ({$hari}, " . Carbon::parse($tanggal)->translatedFormat('d F Y') . ") telah melewati 23:59. Jurnal ini akan tercatat terlambat dan masuk ke Persetujuan Waka Kurikulum terlebih dahulu sebelum masuk ke laporan Kepala Sekolah.";
                             })
                             ->live()
                             ->afterStateUpdated(function (Forms\Set $set) {
@@ -231,7 +239,7 @@ class TeachingJournalResource extends Resource
                             ->required(),
 
                         Forms\Components\Select::make('schedule_id')
-                            ->label('Pilih Jadwal Mengajar Hari Ini (Jadwal Kurikulum)')
+                            ->label(fn (Forms\Get $get) => 'Pilih Jadwal Mengajar (' . Schedule::getIndonesianDayName($get('tanggal') ?: Carbon::today()) . ')')
                             ->searchable()
                             ->placeholder(function (Forms\Get $get) {
                                 $tanggal = $get('tanggal') ?: Carbon::today()->format('Y-m-d');
@@ -338,16 +346,11 @@ class TeachingJournalResource extends Resource
                                 return false;
                             })
                             ->rules([
-                                function (Forms\Get $get) use ($isAdminOrWaka) {
-                                    return function (string $attribute, $value, \Closure $fail) use ($get, $isAdminOrWaka) {
+                                function (Forms\Get $get) {
+                                    return function (string $attribute, $value, \Closure $fail) use ($get) {
                                         $teacherId = $get('teacher_id') ?: Auth::id();
                                         $tanggal = $get('tanggal') ?: Carbon::today()->format('Y-m-d');
                                         $hari = Schedule::getIndonesianDayName($tanggal);
-
-                                        if (!$isAdminOrWaka && $tanggal !== Carbon::today()->toDateString()) {
-                                            $fail("Pengisian jurnal mengajar hanya dapat dilakukan pada hari ini (" . Carbon::today()->translatedFormat('d F Y') . ").");
-                                            return;
-                                        }
 
                                         $schedule = Schedule::find($value);
                                         if (!$schedule) {
@@ -909,9 +912,141 @@ class TeachingJournalResource extends Resource
                         $hasKurang = collect($state)->where('type', 'kurang_baik')->count() > 0;
                         return $hasKurang ? 'danger' : 'success';
                     }),
+                Tables\Columns\TextColumn::make('late_status')
+                    ->label('Status Pengisian')
+                    ->badge()
+                    ->formatStateUsing(fn ($state, TeachingJournal $record) => match ($state) {
+                        TeachingJournal::LATE_STATUS_ON_TIME => 'Tepat Waktu',
+                        TeachingJournal::LATE_STATUS_PENDING_WAKA => '⚠️ Terlambat (Menunggu Waka)',
+                        TeachingJournal::LATE_STATUS_APPROVED_WAKA => '✅ Terlambat (ACC Waka)',
+                        TeachingJournal::LATE_STATUS_REJECTED_WAKA => '❌ Ditolak Waka',
+                        default => $record->is_late ? '⚠️ Terlambat' : 'Tepat Waktu',
+                    })
+                    ->color(fn ($state, TeachingJournal $record) => match ($state) {
+                        TeachingJournal::LATE_STATUS_ON_TIME => 'success',
+                        TeachingJournal::LATE_STATUS_PENDING_WAKA => 'warning',
+                        TeachingJournal::LATE_STATUS_APPROVED_WAKA => 'info',
+                        TeachingJournal::LATE_STATUS_REJECTED_WAKA => 'danger',
+                        default => $record->is_late ? 'warning' : 'success',
+                    })
+                    ->description(fn (TeachingJournal $record) => $record->wakaApprover ? "ACC Waka: {$record->wakaApprover->name}" : null),
+
+                Tables\Columns\TextColumn::make('status_acc_kepsek')
+                    ->label('ACC Kepala Sekolah')
+                    ->badge()
+                    ->formatStateUsing(fn ($state) => match ($state) {
+                        TeachingJournal::ACC_KEPSEK_APPROVED => '✅ Disetujui KS',
+                        TeachingJournal::ACC_KEPSEK_NEED_REVISION => '⚠️ Perlu Revisi',
+                        default => '⏳ Menunggu ACC',
+                    })
+                    ->color(fn ($state) => match ($state) {
+                        TeachingJournal::ACC_KEPSEK_APPROVED => 'success',
+                        TeachingJournal::ACC_KEPSEK_NEED_REVISION => 'danger',
+                        default => 'gray',
+                    })
+                    ->description(function (TeachingJournal $record) {
+                        if ($record->status_acc_kepsek === TeachingJournal::ACC_KEPSEK_APPROVED) {
+                            return $record->kepsekApprover ? "Oleh: {$record->kepsekApprover->name}" : 'Disahkan KS';
+                        }
+                        if ($record->is_late && $record->late_status === TeachingJournal::LATE_STATUS_PENDING_WAKA) {
+                            return 'Menunggu Persetujuan Waka';
+                        }
+                        return null;
+                    }),
             ])
             ->defaultSort('tanggal', 'desc')
             ->actions([
+                // 1. Persetujuan Terlambat oleh Waka Kurikulum
+                Tables\Actions\Action::make('approve_late_waka')
+                    ->label('Persetujuan Terlambat')
+                    ->icon('heroicon-o-check-badge')
+                    ->color('warning')
+                    ->visible(fn (TeachingJournal $record) => auth()->user()?->hasAnyRole(['waka_kurikulum', 'superadmin']) && $record->is_late && $record->late_status === TeachingJournal::LATE_STATUS_PENDING_WAKA)
+                    ->modalHeading('Persetujuan Pengisian Jurnal Mengajar Terlambat (Waka Kurikulum)')
+                    ->modalDescription('Verifikasi dan setujui dispensasi keterlambatan pengisian jurnal mengajar guru. Setelah Anda menyetujui, jurnal ini otomatis muncul di Laporan Monitoring Kepala Sekolah untuk di-ACC.')
+                    ->modalSubmitActionLabel('Setujui Pengisian Terlambat')
+                    ->modalIcon('heroicon-o-check-badge')
+                    ->modalWidth('xl')
+                    ->form([
+                        Forms\Components\Placeholder::make('info_keterlambatan')
+                            ->label('Detail Jurnal Terlambat')
+                            ->content(function (TeachingJournal $record) {
+                                return new \Illuminate\Support\HtmlString("
+                                    <div class='p-3.5 bg-amber-50 dark:bg-amber-950/40 rounded-xl border border-amber-200 dark:border-amber-800 text-xs space-y-1.5 text-amber-900 dark:text-amber-200'>
+                                        <div><strong>Guru Pengampu:</strong> {$record->teacher?->name}</div>
+                                        <div><strong>Jadwal Mengajar:</strong> " . \Carbon\Carbon::parse($record->tanggal)->translatedFormat('l, d F Y') . " (Jam Ke-{$record->jam_ke})</div>
+                                        <div><strong>Kelas & Mapel:</strong> {$record->classroom?->name} — {$record->subject?->name}</div>
+                                        <div><strong>Materi:</strong> {$record->materi}</div>
+                                        <div class='text-amber-700 font-bold mt-1'>⚠️ Keterlambatan: Melewati batas 23:59 pada hari mengajar.</div>
+                                    </div>
+                                ");
+                            }),
+                        Forms\Components\Textarea::make('waka_notes')
+                            ->label('Catatan / Arahan Waka Kurikulum (Opsional)')
+                            ->placeholder('Contoh: Dispensasi disetujui karena ada kendala jaringan / kegiatan sekolah. Harap ke depan tertib waktu.')
+                            ->rows(3),
+                    ])
+                    ->action(function (TeachingJournal $record, array $data) {
+                        $record->update([
+                            'late_status' => TeachingJournal::LATE_STATUS_APPROVED_WAKA,
+                            'waka_approved_by' => auth()->id(),
+                            'waka_approved_at' => now(),
+                            'waka_notes' => $data['waka_notes'] ?? null,
+                        ]);
+
+                        \Filament\Notifications\Notification::make()
+                            ->title('Jurnal Terlambat Berhasil Disetujui')
+                            ->body("Pengisian jurnal terlambat milik {$record->teacher?->name} telah disetujui dan kini resmi muncul di Laporan Monitoring Kepala Sekolah.")
+                            ->success()
+                            ->send();
+                    }),
+
+                // 2. ACC Kepala Sekolah
+                Tables\Actions\Action::make('acc_kepsek')
+                    ->label('ACC Kepala Sekolah')
+                    ->icon('heroicon-o-check-circle')
+                    ->color('success')
+                    ->visible(fn (TeachingJournal $record) => auth()->user()?->hasAnyRole(['kepala_sekolah', 'superadmin', 'waka_kurikulum']) && $record->isReadyForKepsek() && $record->status_acc_kepsek !== TeachingJournal::ACC_KEPSEK_APPROVED)
+                    ->modalHeading('ACC & Pengesahan Jurnal Mengajar (Kepala Sekolah)')
+                    ->modalDescription('Sahkan keterlaksanaan pembelajaran guru di kelas ini. Anda dapat menyertakan catatan evaluasi atau apresiasi tertulis.')
+                    ->modalSubmitActionLabel('Sahkan & ACC Jurnal')
+                    ->modalIcon('heroicon-o-check-circle')
+                    ->modalWidth('xl')
+                    ->form([
+                        Forms\Components\Placeholder::make('info_pembelajaran')
+                            ->label('Detail Pembelajaran')
+                            ->content(function (TeachingJournal $record) {
+                                return new \Illuminate\Support\HtmlString("
+                                    <div class='p-3.5 bg-emerald-50 dark:bg-emerald-950/40 rounded-xl border border-emerald-200 dark:border-emerald-800 text-xs space-y-1.5 text-emerald-900 dark:text-emerald-200'>
+                                        <div><strong>Guru Pengampu:</strong> {$record->teacher?->name}</div>
+                                        <div><strong>Hari, Tanggal:</strong> " . \Carbon\Carbon::parse($record->tanggal)->translatedFormat('l, d F Y') . " (Jam Ke-{$record->jam_ke})</div>
+                                        <div><strong>Kelas & Mapel:</strong> {$record->classroom?->name} — {$record->subject?->name}</div>
+                                        <div><strong>Materi Pokok:</strong> {$record->materi}</div>
+                                        " . ($record->is_late ? "<div class='text-amber-700 font-bold'>⚠️ Terlambat Diisi (Disetujui Waka: " . ($record->wakaApprover?->name ?? 'Waka Kurikulum') . ")</div>" : "<div class='text-emerald-700 font-bold'>✅ Diisi Tepat Waktu</div>") . "
+                                    </div>
+                                ");
+                            }),
+                        Forms\Components\Textarea::make('catatan_kepala_sekolah')
+                            ->label('Catatan Apresiasi / Evaluasi Kepala Sekolah')
+                            ->placeholder('Contoh: Pembelajaran berjalan tertib sesuai kurikulum, lanjutkan pemantauan karakter murid.')
+                            ->default(fn (TeachingJournal $record) => $record->catatan_kepala_sekolah ?: 'Pembelajaran telah terlaksana dengan baik.')
+                            ->rows(3),
+                    ])
+                    ->action(function (TeachingJournal $record, array $data) {
+                        $record->update([
+                            'status_acc_kepsek' => TeachingJournal::ACC_KEPSEK_APPROVED,
+                            'kepsek_approved_by' => auth()->id(),
+                            'kepsek_approved_at' => now(),
+                            'catatan_kepala_sekolah' => $data['catatan_kepala_sekolah'] ?? null,
+                        ]);
+
+                        \Filament\Notifications\Notification::make()
+                            ->title('Jurnal Mengajar Telah Di-ACC')
+                            ->body("Jurnal mengajar milik {$record->teacher?->name} telah berhasil disahkan.")
+                            ->success()
+                            ->send();
+                    }),
+
                 Tables\Actions\Action::make('cetak_pdf')
                     ->label('Cetak PDF')
                     ->icon('heroicon-o-printer')
