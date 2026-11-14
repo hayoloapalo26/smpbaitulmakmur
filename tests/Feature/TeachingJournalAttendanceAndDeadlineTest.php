@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Filament\Staff\Resources\TeachingJournalResource\Pages\ManageTeachingJournals;
 use App\Models\Classroom;
 use App\Models\Institution;
 use App\Models\Schedule;
@@ -182,6 +183,8 @@ class TeachingJournalAttendanceAndDeadlineTest extends TestCase
         Role::firstOrCreate(['name' => 'kepala_sekolah']);
         $kepsek->assignRole('kepala_sekolah');
 
+        \Filament\Facades\Filament::setCurrentPanel(\Filament\Facades\Filament::getPanel('staff'));
+
         $this->actingAs($kepsek);
         $fresh->update([
             'status_acc_kepsek' => TeachingJournal::ACC_KEPSEK_APPROVED,
@@ -222,5 +225,29 @@ class TeachingJournalAttendanceAndDeadlineTest extends TestCase
         ]);
 
         Carbon::setTestNow();
+    }
+
+    public function test_kepala_sekolah_can_view_manage_teaching_journals_without_role_does_not_exist_error(): void
+    {
+        $kepsek = User::factory()->create([
+            'institution_id' => $this->institution->id,
+            'name' => 'Kepala Sekolah SMP Islam Baitul Makmur',
+        ]);
+        Role::firstOrCreate(['name' => 'kepala_sekolah', 'guard_name' => 'web']);
+        $kepsek->assignRole('kepala_sekolah');
+
+        \Filament\Facades\Filament::setCurrentPanel(\Filament\Facades\Filament::getPanel('staff'));
+
+        $this->actingAs($kepsek);
+
+        // Akses halaman ManageTeachingJournals sebagai Kepala Sekolah
+        $component = \Livewire\Livewire::test(ManageTeachingJournals::class);
+        $component->assertSuccessful();
+
+        // Pastikan monitoringData dapat diakses tanpa Spatie RoleDoesNotExist exception
+        $monitoringData = $component->get('monitoringData');
+        $this->assertIsArray($monitoringData);
+        $this->assertArrayHasKey('rows', $monitoringData);
+        $this->assertArrayHasKey('total_guru', $monitoringData);
     }
 }

@@ -150,7 +150,11 @@ class User extends Authenticatable implements FilamentUser, HasAvatar
 
     public function isQuranTeacher(): bool
     {
-        return $this->hasAnyRole(self::QURAN_TEACHER_ROLES);
+        try {
+            return $this->hasAnyRole(self::QURAN_TEACHER_ROLES);
+        } catch (\Throwable $e) {
+            return $this->roles->pluck('name')->intersect(self::QURAN_TEACHER_ROLES)->isNotEmpty();
+        }
     }
 
     /**
@@ -237,15 +241,27 @@ class User extends Authenticatable implements FilamentUser, HasAvatar
         return $this->hasRole('guru_ekstrakurikuler');
     }
 
+    public function hasRoleSafely(string $role): bool
+    {
+        try {
+            if ($this->relationLoaded('roles')) {
+                return $this->roles->contains('name', $role);
+            }
+            return $this->hasRole($role);
+        } catch (\Throwable $e) {
+            return false;
+        }
+    }
+
     public function getQuranSpecializationLabel(): ?string
     {
-        if ($this->hasRole(self::ROLE_GURU_QURAN_YANBUA) || $this->hasRole('guru_yanbua')) return 'Yanbu\'a';
-        if ($this->hasRole(self::ROLE_GURU_QURAN_TAHSIN) || $this->hasRole('guru_tahsin')) return 'Tahsin';
-        if ($this->hasRole(self::ROLE_GURU_QURAN_TAHFIDZ_DASAR) || $this->hasRole('guru_tahfidz_dasar')) return 'Tahfidz Dasar';
-        if ($this->hasRole(self::ROLE_GURU_QURAN_TAHFIDZ_LANJUTAN) || $this->hasRole('guru_tahfidz_lanjutan')) return 'Tahfidz Lanjutan';
-        if ($this->hasRole('guru_tahfidz')) return 'Tahfidz';
+        if ($this->hasRoleSafely(self::ROLE_GURU_QURAN_YANBUA) || $this->hasRoleSafely('guru_yanbua')) return 'Yanbu\'a';
+        if ($this->hasRoleSafely(self::ROLE_GURU_QURAN_TAHSIN) || $this->hasRoleSafely('guru_tahsin')) return 'Tahsin';
+        if ($this->hasRoleSafely(self::ROLE_GURU_QURAN_TAHFIDZ_DASAR) || $this->hasRoleSafely('guru_tahfidz_dasar')) return 'Tahfidz Dasar';
+        if ($this->hasRoleSafely(self::ROLE_GURU_QURAN_TAHFIDZ_LANJUTAN) || $this->hasRoleSafely('guru_tahfidz_lanjutan')) return 'Tahfidz Lanjutan';
+        if ($this->hasRoleSafely('guru_tahfidz')) return 'Tahfidz';
 
-        if ($this->hasRole('guru_alquran')) {
+        if ($this->hasRoleSafely('guru_alquran')) {
             $jabatan = strtolower($this->jabatan ?? '');
             if (str_contains($jabatan, 'yanbua')) return 'Yanbu\'a';
             if (str_contains($jabatan, 'tahsin')) return 'Tahsin';
@@ -270,13 +286,13 @@ class User extends Authenticatable implements FilamentUser, HasAvatar
 
     public function getQuranSpecializationKey(): ?string
     {
-        if ($this->hasRole(self::ROLE_GURU_QURAN_YANBUA) || $this->hasRole('guru_yanbua')) return 'yanbua';
-        if ($this->hasRole(self::ROLE_GURU_QURAN_TAHSIN) || $this->hasRole('guru_tahsin')) return 'tahsin';
-        if ($this->hasRole(self::ROLE_GURU_QURAN_TAHFIDZ_DASAR) || $this->hasRole('guru_tahfidz_dasar')) return 'tahfidz_dasar';
-        if ($this->hasRole(self::ROLE_GURU_QURAN_TAHFIDZ_LANJUTAN) || $this->hasRole('guru_tahfidz_lanjutan')) return 'tahfidz_lanjutan';
-        if ($this->hasRole('guru_tahfidz')) return 'tahfidz';
+        if ($this->hasRoleSafely(self::ROLE_GURU_QURAN_YANBUA) || $this->hasRoleSafely('guru_yanbua')) return 'yanbua';
+        if ($this->hasRoleSafely(self::ROLE_GURU_QURAN_TAHSIN) || $this->hasRoleSafely('guru_tahsin')) return 'tahsin';
+        if ($this->hasRoleSafely(self::ROLE_GURU_QURAN_TAHFIDZ_DASAR) || $this->hasRoleSafely('guru_tahfidz_dasar')) return 'tahfidz_dasar';
+        if ($this->hasRoleSafely(self::ROLE_GURU_QURAN_TAHFIDZ_LANJUTAN) || $this->hasRoleSafely('guru_tahfidz_lanjutan')) return 'tahfidz_lanjutan';
+        if ($this->hasRoleSafely('guru_tahfidz')) return 'tahfidz';
 
-        if ($this->hasRole('guru_alquran')) {
+        if ($this->hasRoleSafely('guru_alquran')) {
             $label = $this->getQuranSpecializationLabel();
             return match ($label) {
                 'Yanbu\'a' => 'yanbua',

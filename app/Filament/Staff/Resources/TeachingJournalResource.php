@@ -23,10 +23,19 @@ class TeachingJournalResource extends Resource
 {
     public static function canAccess(): bool
     {
-        return auth()->user()->hasAnyRole(array_merge([
+        $user = auth()->user();
+        if (!$user) return false;
+
+        $allowedRoles = array_merge([
             'guru_kelas', 'guru_mapel', 'koordinator_madin', 'wali_kelas',
             'waka_kurikulum', 'kepala_sekolah', 'superadmin'
-        ], \App\Models\User::QURAN_TEACHER_ROLES));
+        ], \App\Models\User::QURAN_TEACHER_ROLES);
+
+        try {
+            return $user->hasAnyRole($allowedRoles);
+        } catch (\Throwable $e) {
+            return $user->roles->pluck('name')->intersect($allowedRoles)->isNotEmpty();
+        }
     }
 
     public static function canCreate(): bool
