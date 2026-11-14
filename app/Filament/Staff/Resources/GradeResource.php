@@ -216,11 +216,31 @@ class GradeResource extends Resource
                                         elseif (str_contains($nameLower, 'dasar')) $quranKey = 'tahfidz_dasar';
                                         elseif (str_contains($nameLower, 'lanjutan')) $quranKey = 'tahfidz_lanjutan';
 
-                                        $query->where(function ($q) use ($selectedCls, $teacherId, $quranKey) {
-                                            $q->where('classroom_id', $selectedCls->id);
-                                            if ($teacherId) $q->orWhere('guru_quran_id', $teacherId);
-                                            if ($quranKey) $q->orWhere('kelas_quran', $quranKey);
-                                        });
+                                        if ($quranKey) {
+                                            $query->where(function ($q) use ($selectedCls, $teacherId, $quranKey) {
+                                                $q->where(function ($sub) use ($teacherId, $quranKey) {
+                                                    $sub->where('kelas_quran', $quranKey);
+                                                    if ($teacherId) {
+                                                        $sub->where(function ($tq) use ($teacherId) {
+                                                            $tq->where('guru_quran_id', $teacherId)
+                                                               ->orWhereNull('guru_quran_id');
+                                                        });
+                                                    }
+                                                })->orWhere(function ($sub) use ($selectedCls, $quranKey) {
+                                                    $sub->where('classroom_id', $selectedCls->id)
+                                                        ->where(function ($kq) use ($quranKey) {
+                                                            $kq->whereNull('kelas_quran')
+                                                               ->orWhere('kelas_quran', '')
+                                                               ->orWhere('kelas_quran', $quranKey);
+                                                        });
+                                                });
+                                            });
+                                        } else {
+                                            $query->where(function ($q) use ($selectedCls, $teacherId) {
+                                                $q->where('classroom_id', $selectedCls->id);
+                                                if ($teacherId) $q->orWhere('guru_quran_id', $teacherId);
+                                            });
+                                        }
                                     } else {
                                         $query->where('classroom_id', $classroomId);
                                     }
@@ -253,11 +273,31 @@ class GradeResource extends Resource
                                         elseif (str_contains($nameLower, 'dasar')) $quranKey = 'tahfidz_dasar';
                                         elseif (str_contains($nameLower, 'lanjutan')) $quranKey = 'tahfidz_lanjutan';
 
-                                        $query->where(function ($q) use ($selectedCls, $teacherId, $quranKey) {
-                                            $q->where('classroom_id', $selectedCls->id);
-                                            if ($teacherId) $q->orWhere('guru_quran_id', $teacherId);
-                                            if ($quranKey) $q->orWhere('kelas_quran', $quranKey);
-                                        });
+                                        if ($quranKey) {
+                                            $query->where(function ($q) use ($selectedCls, $teacherId, $quranKey) {
+                                                $q->where(function ($sub) use ($teacherId, $quranKey) {
+                                                    $sub->where('kelas_quran', $quranKey);
+                                                    if ($teacherId) {
+                                                        $sub->where(function ($tq) use ($teacherId) {
+                                                            $tq->where('guru_quran_id', $teacherId)
+                                                               ->orWhereNull('guru_quran_id');
+                                                        });
+                                                    }
+                                                })->orWhere(function ($sub) use ($selectedCls, $quranKey) {
+                                                    $sub->where('classroom_id', $selectedCls->id)
+                                                        ->where(function ($kq) use ($quranKey) {
+                                                            $kq->whereNull('kelas_quran')
+                                                               ->orWhere('kelas_quran', '')
+                                                               ->orWhere('kelas_quran', $quranKey);
+                                                        });
+                                                });
+                                            });
+                                        } else {
+                                            $query->where(function ($q) use ($selectedCls, $teacherId) {
+                                                $q->where('classroom_id', $selectedCls->id);
+                                                if ($teacherId) $q->orWhere('guru_quran_id', $teacherId);
+                                            });
+                                        }
                                     } else {
                                         $query->where('classroom_id', $classroomId);
                                     }

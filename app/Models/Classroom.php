@@ -126,21 +126,28 @@ class Classroom extends Model
                     }
                 })
                 ->where(function ($q) use ($teacherId, $quranKey) {
-                    $q->where('classroom_id', $this->id);
-                    if ($teacherId) {
-                        $q->orWhere('guru_quran_id', $teacherId);
-                    }
                     if ($quranKey) {
+                        $q->where(function ($matchQ) use ($teacherId, $quranKey) {
+                            $matchQ->where('kelas_quran', $quranKey);
+                            if ($teacherId) {
+                                $matchQ->where(function ($t) use ($teacherId) {
+                                    $t->where('guru_quran_id', $teacherId)
+                                      ->orWhereNull('guru_quran_id')
+                                      ->orWhere('classroom_id', $this->id);
+                                });
+                            }
+                        })->orWhere(function ($matchQ) use ($quranKey) {
+                            $matchQ->where('classroom_id', $this->id)
+                                   ->where(function ($sub) use ($quranKey) {
+                                       $sub->whereNull('kelas_quran')
+                                           ->orWhere('kelas_quran', '')
+                                           ->orWhere('kelas_quran', $quranKey);
+                                   });
+                        });
+                    } else {
+                        $q->where('classroom_id', $this->id);
                         if ($teacherId) {
-                            $q->orWhere(function ($sub) use ($teacherId, $quranKey) {
-                                $sub->where('kelas_quran', $quranKey)
-                                    ->where(function ($t) use ($teacherId) {
-                                        $t->where('guru_quran_id', $teacherId)
-                                          ->orWhereNull('guru_quran_id');
-                                    });
-                            });
-                        } else {
-                            $q->orWhere('kelas_quran', $quranKey);
+                            $q->orWhere('guru_quran_id', $teacherId);
                         }
                     }
                 })->count();
@@ -192,21 +199,28 @@ class Classroom extends Model
                     }
                 })
                 ->where(function ($q) use ($teacherId, $quranKey) {
-                    $q->where('classroom_id', $this->id);
-                    if ($teacherId) {
-                        $q->orWhere('guru_quran_id', $teacherId);
-                    }
                     if ($quranKey) {
+                        $q->where(function ($matchQ) use ($teacherId, $quranKey) {
+                            $matchQ->where('kelas_quran', $quranKey);
+                            if ($teacherId) {
+                                $matchQ->where(function ($t) use ($teacherId) {
+                                    $t->where('guru_quran_id', $teacherId)
+                                      ->orWhereNull('guru_quran_id')
+                                      ->orWhere('classroom_id', $this->id);
+                                });
+                            }
+                        })->orWhere(function ($matchQ) use ($quranKey) {
+                            $matchQ->where('classroom_id', $this->id)
+                                   ->where(function ($sub) use ($quranKey) {
+                                       $sub->whereNull('kelas_quran')
+                                           ->orWhere('kelas_quran', '')
+                                           ->orWhere('kelas_quran', $quranKey);
+                                   });
+                        });
+                    } else {
+                        $q->where('classroom_id', $this->id);
                         if ($teacherId) {
-                            $q->orWhere(function ($sub) use ($teacherId, $quranKey) {
-                                $sub->where('kelas_quran', $quranKey)
-                                    ->where(function ($t) use ($teacherId) {
-                                        $t->where('guru_quran_id', $teacherId)
-                                          ->orWhereNull('guru_quran_id');
-                                    });
-                            });
-                        } else {
-                            $q->orWhere('kelas_quran', $quranKey);
+                            $q->orWhere('guru_quran_id', $teacherId);
                         }
                     }
                 })

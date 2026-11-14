@@ -89,7 +89,44 @@ class StudentQuranPlacementResource extends Resource
         return $query;
     }
 
-    public static function getGuruQuranOptions(?int $institutionId = null): array
+    public static function getDefaultTeacherForProgram(string $program, ?int $institutionId = null): ?User
+    {
+        $roleName = match ($program) {
+            'yanbua' => User::ROLE_GURU_QURAN_YANBUA,
+            'tahsin' => User::ROLE_GURU_QURAN_TAHSIN,
+            'tahfidz_dasar' => User::ROLE_GURU_QURAN_TAHFIDZ_DASAR,
+            'tahfidz_lanjutan' => User::ROLE_GURU_QURAN_TAHFIDZ_LANJUTAN,
+            default => null,
+        };
+
+        $altName = match ($program) {
+            'yanbua' => 'zaenal',
+            'tahsin' => 'chisbulloh',
+            'tahfidz_dasar' => 'romli',
+            'tahfidz_lanjutan' => 'lukman',
+            default => null,
+        };
+
+        return User::query()
+            ->when($institutionId && $institutionId != 1, fn ($q) => $q->where(function ($sub) use ($institutionId) {
+                $sub->where('institution_id', $institutionId)
+                    ->orWhere('institution_id', 1)
+                    ->orWhereNull('institution_id')
+                    ->orWhereHas('institutions', fn ($iq) => $iq->where('institutions.id', $institutionId));
+            }))
+            ->where(function ($q) use ($roleName, $altName) {
+                if ($roleName) {
+                    $q->whereHas('roles', fn ($r) => $r->where('name', $roleName));
+                }
+                if ($altName) {
+                    $q->orWhere('email', 'like', "%{$altName}%")
+                      ->orWhere('name', 'like', "%{$altName}%");
+                }
+            })
+            ->first();
+    }
+
+    public static function getGuruQuranOptions(?int $institutionId = null, ?string $program = null): array
     {
         $query = User::query()
             ->when($institutionId && $institutionId != 1, fn ($q) => $q->where(function ($sub) use ($institutionId) {
@@ -105,22 +142,42 @@ class StudentQuranPlacementResource extends Resource
 
         $users = $query->orderBy('name')->get();
 
-        // Prioritaskan guru dengan role spesialis Al-Qur'an
+        // Pisahkan guru spesialis yang tepat sesuai program yang dipilih
+        $priorityList = [];
         $specialistList = [];
         $generalList = [];
 
         foreach ($users as $u) {
             $roles = $u->getRoleNames()->filter(fn ($r) => in_array($r, User::QURAN_TEACHER_ROLES))->values();
             $crossTag = ($u->institution_id == 1) ? ' [Yayasan / Lintas Lembaga]' : '';
+
+            $isMatchingProgram = false;
+            if ($program) {
+                $targetRole = match ($program) {
+                    'yanbua' => User::ROLE_GURU_QURAN_YANBUA,
+                    'tahsin' => User::ROLE_GURU_QURAN_TAHSIN,
+                    'tahfidz_dasar' => User::ROLE_GURU_QURAN_TAHFIDZ_DASAR,
+                    'tahfidz_lanjutan' => User::ROLE_GURU_QURAN_TAHFIDZ_LANJUTAN,
+                    default => null,
+                };
+                if ($targetRole && ($u->hasRole($targetRole) || ($program === 'yanbua' && str_contains(strtolower($u->name), 'zaenal')) || ($program === 'tahsin' && str_contains(strtolower($u->name), 'chisbulloh')))) {
+                    $isMatchingProgram = true;
+                }
+            }
+
             if ($roles->isNotEmpty()) {
                 $labels = $roles->map(fn ($r) => User::getQuranTeacherRoleLabels()[$r] ?? $r)->implode(', ');
-                $specialistList[$u->id] = "{$u->name} [{$labels}]{$crossTag}";
+                if ($isMatchingProgram) {
+                    $priorityList[$u->id] = "⭐ {$u->name} [{$labels}]{$crossTag} (Pengampu Utama " . ucfirst($program) . ")";
+                } else {
+                    $specialistList[$u->id] = "{$u->name} [{$labels}]{$crossTag}";
+                }
             } else {
                 $generalList[$u->id] = "{$u->name} (Guru){$crossTag}";
             }
         }
 
-        return !empty($specialistList) ? ($specialistList + $generalList) : $generalList;
+        return $priorityList + $specialistList + $generalList;
     }
 
     public static function table(Table $table): Table
@@ -244,17 +301,28 @@ class StudentQuranPlacementResource extends Resource
                         Forms\Components\Select::make('kelas_quran')
                             ->label('1. Program / Kelompok Al-Qur\'an')
                             ->options([
-                                'yanbua'           => '1. Al-Qur\'an (Yanbu\'a) - Metode Baca Tulis & Makhraj',
-                                'tahsin'           => '2. Al-Qur\'an (Tahsin) - Kualitas & Kaidah Tajwid',
-                                'tahfidz_dasar'    => '3. Al-Qur\'an (Tahfidz Dasar) - Juz 30 / Juz \'Amma',
-                                'tahfidz_lanjutan' => '4. Al-Qur\'an (Tahfidz Lanjutan) - Juz 1 s/d 29',
+                                'yanbua'           => '📗 1. Al-Qur\'an (Yanbu\'a) - Metode Baca Tulis & Makhraj (Mandiri)',
+                                'tahsin'           => '📘 2. Al-Qur\'an (Tahsin) - Kualitas & Kaidah Tajwid (Mandiri)',
+                                'tahfidz_dasar'    => '📙 3. Al-Qur\'an (Tahfidz Dasar) - Juz 30 / Juz \'Amma',
+                                'tahfidz_lanjutan' => '📕 4. Al-Qur\'an (Tahfidz Lanjutan) - Juz 1 s/d 29',
                             ])
                             ->required()
-                            ->native(false),
+                            ->native(false)
+                            ->live()
+                            ->afterStateUpdated(function (Forms\Set $set, ?string $state, Student $record) {
+                                if (!$state) return;
+                                $targetTeacher = static::getDefaultTeacherForProgram($state, $record->institution_id ?? Auth::user()?->institution_id);
+                                if ($targetTeacher) {
+                                    $set('guru_quran_id', $targetTeacher->id);
+                                }
+                            }),
 
                         Forms\Components\Select::make('guru_quran_id')
                             ->label('2. Guru Al-Qur\'an Pengampu')
-                            ->options(fn (Student $record) => static::getGuruQuranOptions($record->institution_id ?? Auth::user()?->institution_id))
+                            ->options(fn (Forms\Get $get, Student $record) => static::getGuruQuranOptions(
+                                $record->institution_id ?? Auth::user()?->institution_id,
+                                $get('kelas_quran')
+                            ))
                             ->searchable()
                             ->preload()
                             ->required()
@@ -323,17 +391,28 @@ class StudentQuranPlacementResource extends Resource
                             Forms\Components\Select::make('kelas_quran')
                                 ->label('1. Program / Kelompok Al-Qur\'an')
                                 ->options([
-                                    'yanbua'           => '1. Al-Qur\'an (Yanbu\'a) - Metode Baca Tulis & Makhraj',
-                                    'tahsin'           => '2. Al-Qur\'an (Tahsin) - Kualitas & Kaidah Tajwid',
-                                    'tahfidz_dasar'    => '3. Al-Qur\'an (Tahfidz Dasar) - Juz 30 / Juz \'Amma',
-                                    'tahfidz_lanjutan' => '4. Al-Qur\'an (Tahfidz Lanjutan) - Juz 1 s/d 29',
+                                    'yanbua'           => '📗 1. Al-Qur\'an (Yanbu\'a) - Metode Baca Tulis & Makhraj (Mandiri)',
+                                    'tahsin'           => '📘 2. Al-Qur\'an (Tahsin) - Kualitas & Kaidah Tajwid (Mandiri)',
+                                    'tahfidz_dasar'    => '📙 3. Al-Qur\'an (Tahfidz Dasar) - Juz 30 / Juz \'Amma',
+                                    'tahfidz_lanjutan' => '📕 4. Al-Qur\'an (Tahfidz Lanjutan) - Juz 1 s/d 29',
                                 ])
                                 ->required()
-                                ->native(false),
+                                ->native(false)
+                                ->live()
+                                ->afterStateUpdated(function (Forms\Set $set, ?string $state) {
+                                    if (!$state) return;
+                                    $targetTeacher = static::getDefaultTeacherForProgram($state, Auth::user()?->institution_id);
+                                    if ($targetTeacher) {
+                                        $set('guru_quran_id', $targetTeacher->id);
+                                    }
+                                }),
 
                             Forms\Components\Select::make('guru_quran_id')
                                 ->label('2. Guru Al-Qur\'an Pengampu')
-                                ->options(fn () => static::getGuruQuranOptions(Auth::user()?->institution_id))
+                                ->options(fn (Forms\Get $get) => static::getGuruQuranOptions(
+                                    Auth::user()?->institution_id,
+                                    $get('kelas_quran')
+                                ))
                                 ->searchable()
                                 ->preload()
                                 ->required()

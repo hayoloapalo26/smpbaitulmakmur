@@ -208,9 +208,9 @@ class User extends Authenticatable implements FilamentUser, HasAvatar
             // Abaikan
         }
 
-        // 5. Cek jabatan jika mengandung kata 'guru' atau pengampu mapel selain tahfidz/yanbua murni
+        // 5. Cek jabatan jika mengandung kata 'guru' atau pengampu mapel selain rumpun Al-Qur'an (tahfidz, yanbua, tahsin) murni
         $jabatan = strtolower($this->jabatan ?? '');
-        if (str_contains($jabatan, 'guru') && !str_contains($jabatan, 'tahfidz') && !str_contains($jabatan, 'yanbua')) {
+        if (str_contains($jabatan, 'guru') && !str_contains($jabatan, 'tahfidz') && !str_contains($jabatan, 'yanbua') && !str_contains($jabatan, 'tahsin') && !str_contains($jabatan, 'qur')) {
             return true;
         }
 

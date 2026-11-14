@@ -399,4 +399,65 @@ class StudentQuranPlacementAndTeacherDropdownTest extends TestCase
 
         $this->assertArrayHasKey($this->santri2->id, $optionsTahsin);
     }
+
+    public function test_yanbua_and_tahsin_are_strictly_separated_without_cross_contamination(): void
+    {
+        // 1. Tempatkan santri 1 ke Yanbu'a (Pengampu: guruYanbua)
+        $this->santri1->update([
+            'kelas_quran' => 'yanbua',
+            'guru_quran_id' => $this->guruYanbua->id,
+            'tanggal_penempatan_quran' => '2026-11-15',
+        ]);
+
+        // 2. Tempatkan santri 4 ke Tahsin (Pengampu: guruTahsin)
+        $this->santri4->update([
+            'kelas_quran' => 'tahsin',
+            'guru_quran_id' => $this->guruTahsin->id,
+            'tanggal_penempatan_quran' => '2026-11-15',
+        ]);
+
+        // 3. Buat Rombel Yanbu'a dan Tahsin mandiri
+        $clsYanbua = Classroom::create([
+            'institution_id' => $this->institution->id,
+            'name' => 'Yanbu\'a',
+            'tingkat' => 'Yanbu\'a SMP',
+            'tipe' => Classroom::TIPE_QURAN,
+            'wali_kelas_id' => $this->guruYanbua->id,
+        ]);
+
+        $clsTahsin = Classroom::create([
+            'institution_id' => $this->institution->id,
+            'name' => 'Tahsin',
+            'tingkat' => 'Tahsin SMP',
+            'tipe' => Classroom::TIPE_QURAN,
+            'wali_kelas_id' => $this->guruTahsin->id,
+        ]);
+
+        // Rombel Yanbu'a hanya boleh beranggotakan santri 1, santri 4 TIDAK BOLEH masuk
+        $this->assertEquals(1, $clsYanbua->getRealStudentsCount());
+        $yanbuaStudents = $clsYanbua->getRealStudents();
+        $this->assertTrue($yanbuaStudents->contains('id', $this->santri1->id));
+        $this->assertFalse($yanbuaStudents->contains('id', $this->santri4->id));
+
+        // Rombel Tahsin hanya boleh beranggotakan santri 4, santri 1 TIDAK BOLEH masuk
+        $this->assertEquals(1, $clsTahsin->getRealStudentsCount());
+        $tahsinStudents = $clsTahsin->getRealStudents();
+        $this->assertTrue($tahsinStudents->contains('id', $this->santri4->id));
+        $this->assertFalse($tahsinStudents->contains('id', $this->santri1->id));
+
+        // 4. Verifikasi Helper getGuruQuranOptions dan default teacher terpisah rapi
+        $defaultYanbuaTeacher = StudentQuranPlacementResource::getDefaultTeacherForProgram('yanbua', $this->institution->id);
+        $this->assertNotNull($defaultYanbuaTeacher);
+        $this->assertEquals($this->guruYanbua->id, $defaultYanbuaTeacher->id);
+
+        $defaultTahsinTeacher = StudentQuranPlacementResource::getDefaultTeacherForProgram('tahsin', $this->institution->id);
+        $this->assertNotNull($defaultTahsinTeacher);
+        $this->assertEquals($this->guruTahsin->id, $defaultTahsinTeacher->id);
+
+        $yanbuaOptions = StudentQuranPlacementResource::getGuruQuranOptions($this->institution->id, 'yanbua');
+        $this->assertStringContainsString('Pengampu Utama Yanbua', $yanbuaOptions[$this->guruYanbua->id]);
+
+        $tahsinOptions = StudentQuranPlacementResource::getGuruQuranOptions($this->institution->id, 'tahsin');
+        $this->assertStringContainsString('Pengampu Utama Tahsin', $tahsinOptions[$this->guruTahsin->id]);
+    }
 }

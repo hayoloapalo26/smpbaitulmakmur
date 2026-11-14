@@ -289,8 +289,16 @@ class QuranAchievementResource extends Resource
                             ->required(),
 
                         Forms\Components\TextInput::make('jilid_halaman')
-                            ->label('Jilid / Halaman (Khusus Yanbu\'a / Tahsin)')
-                            ->placeholder('Contoh: Jilid 4 Hal. 20'),
+                            ->label(fn (Forms\Get $get) => match ($get('program') ?? Auth::user()?->getQuranSpecializationKey()) {
+                                'yanbua' => 'Jilid & Halaman Yanbu\'a (Jilid 1-7)',
+                                'tahsin' => 'Tingkat / Halaman Tahsin (Tajwid)',
+                                default  => 'Jilid / Halaman / Target Bimbingan',
+                            })
+                            ->placeholder(fn (Forms\Get $get) => match ($get('program') ?? Auth::user()?->getQuranSpecializationKey()) {
+                                'yanbua' => 'Contoh: Yanbu\'a Jilid 4 Hal. 20',
+                                'tahsin' => 'Contoh: Tahsin Level 2 Hal. 15',
+                                default  => 'Contoh: Jilid 4 Hal. 20',
+                            }),
                     ])->columns(3),
 
                 Forms\Components\Section::make('🔁 3. Capaian Muraja\'ah (Pengulangan Hafalan)')

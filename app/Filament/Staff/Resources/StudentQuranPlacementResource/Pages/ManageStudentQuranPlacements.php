@@ -42,22 +42,22 @@ class ManageStudentQuranPlacements extends ManageRecords
                 ->badge(fn () => $this->getBaseStudentQuery()->whereNull('kelas_quran')->count())
                 ->badgeColor('danger'),
 
-            'yanbua' => Tab::make('Yanbu\'a')
+            'yanbua' => Tab::make('📗 Kelompok Yanbu\'a (Mandiri)')
                 ->modifyQueryUsing(fn (Builder $query) => $query->where('kelas_quran', 'yanbua'))
                 ->badge(fn () => $this->getBaseStudentQuery()->where('kelas_quran', 'yanbua')->count())
                 ->badgeColor('purple'),
 
-            'tahsin' => Tab::make('Tahsin')
+            'tahsin' => Tab::make('📘 Kelompok Tahsin (Mandiri)')
                 ->modifyQueryUsing(fn (Builder $query) => $query->where('kelas_quran', 'tahsin'))
                 ->badge(fn () => $this->getBaseStudentQuery()->where('kelas_quran', 'tahsin')->count())
                 ->badgeColor('warning'),
 
-            'tahfidz_dasar' => Tab::make('Tahfidz Dasar')
+            'tahfidz_dasar' => Tab::make('📙 Kelompok Tahfidz Dasar')
                 ->modifyQueryUsing(fn (Builder $query) => $query->where('kelas_quran', 'tahfidz_dasar'))
                 ->badge(fn () => $this->getBaseStudentQuery()->where('kelas_quran', 'tahfidz_dasar')->count())
                 ->badgeColor('success'),
 
-            'tahfidz_lanjutan' => Tab::make('Tahfidz Lanjutan')
+            'tahfidz_lanjutan' => Tab::make('📕 Kelompok Tahfidz Lanjutan')
                 ->modifyQueryUsing(fn (Builder $query) => $query->where('kelas_quran', 'tahfidz_lanjutan'))
                 ->badge(fn () => $this->getBaseStudentQuery()->where('kelas_quran', 'tahfidz_lanjutan')->count())
                 ->badgeColor('info'),

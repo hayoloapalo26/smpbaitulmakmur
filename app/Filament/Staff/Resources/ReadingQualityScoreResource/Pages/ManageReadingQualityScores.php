@@ -119,14 +119,17 @@ class ManageReadingQualityScores extends ManageRecords
 
                                     $query = Student::query()->with(['classroom', 'guruQuran']);
 
-                                    // Otomatisasi data santri binaan dari Waka Kurikulum
-                                    if ($user?->isQuranTeacher() && !$user?->hasRole('superadmin')) {
-                                        $query->where(function ($q) use ($user, $program) {
-                                            $q->where('guru_quran_id', $user->id)
-                                              ->orWhere('kelas_quran', $program);
-                                        });
-                                    } else {
+                                    // Otomatisasi data santri binaan dari Waka Kurikulum (tersendirikan per program)
+                                    if ($program) {
                                         $query->where('kelas_quran', $program);
+                                        if ($user?->isQuranTeacher() && !$user?->hasRole('superadmin')) {
+                                            $query->where(function ($q) use ($user) {
+                                                $q->where('guru_quran_id', $user->id)
+                                                  ->orWhereNull('guru_quran_id');
+                                            });
+                                        }
+                                    } elseif ($user?->isQuranTeacher() && !$user?->hasRole('superadmin')) {
+                                        $query->where('guru_quran_id', $user->id);
                                     }
 
                                     $students = $query->orderBy('name')->get();

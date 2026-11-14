@@ -210,10 +210,10 @@ class StudentResource extends Resource
                         Forms\Components\Select::make('kelas_quran')
                             ->label('Program / Kelompok Al-Qur\'an')
                             ->options([
-                                'yanbua'           => '1. Al-Qur\'an (Yanbu\'a) - Metode Baca Tulis & Makhraj',
-                                'tahsin'           => '2. Al-Qur\'an (Tahsin) - Kualitas & Kaidah Tajwid',
-                                'tahfidz_dasar'    => '3. Al-Qur\'an (Tahfidz Dasar) - Juz 30 / Juz \'Amma',
-                                'tahfidz_lanjutan' => '4. Al-Qur\'an (Tahfidz Lanjutan) - Juz 1 s/d 29',
+                                'yanbua'           => '📗 1. Al-Qur\'an (Yanbu\'a) - Metode Baca Tulis & Makhraj (Mandiri)',
+                                'tahsin'           => '📘 2. Al-Qur\'an (Tahsin) - Kualitas & Kaidah Tajwid (Mandiri)',
+                                'tahfidz_dasar'    => '📙 3. Al-Qur\'an (Tahfidz Dasar) - Juz 30 / Juz \'Amma',
+                                'tahfidz_lanjutan' => '📕 4. Al-Qur\'an (Tahfidz Lanjutan) - Juz 1 s/d 29',
                             ])
                             ->placeholder('-- Pilih Program Al-Qur\'an --')
                             ->live()
@@ -233,21 +233,21 @@ class StudentResource extends Resource
                                         ->first();
                                     if ($classroom?->wali_kelas_id) {
                                         $set('guru_quran_id', $classroom->wali_kelas_id);
+                                    } else {
+                                        $targetTeacher = \App\Filament\Staff\Resources\StudentQuranPlacementResource::getDefaultTeacherForProgram($state, auth()->user()?->institution_id);
+                                        if ($targetTeacher) {
+                                            $set('guru_quran_id', $targetTeacher->id);
+                                        }
                                     }
                                 }
                             }),
 
                         Forms\Components\Select::make('guru_quran_id')
                             ->label('Guru Al-Qur\'an Pengampu (Ustadz Pembimbing)')
-                            ->options(function () {
-                                return User::query()
-                                    ->where(function ($q) {
-                                        $q->whereHas('roles', fn ($r) => $r->whereIn('name', User::QURAN_TEACHER_ROLES))
-                                          ->orWhere('has_account', true);
-                                    })
-                                    ->orderBy('name')
-                                    ->pluck('name', 'id');
-                            })
+                            ->options(fn (Forms\Get $get) => \App\Filament\Staff\Resources\StudentQuranPlacementResource::getGuruQuranOptions(
+                                auth()->user()?->institution_id,
+                                $get('kelas_quran')
+                            ))
                             ->searchable()
                             ->preload()
                             ->placeholder('-- Pilih Guru Pengampu Al-Qur\'an --')
