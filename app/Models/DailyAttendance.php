@@ -13,6 +13,10 @@ class DailyAttendance extends Model
 
     protected $guarded = ['id'];
 
+    protected $casts = [
+        'is_late' => 'boolean',
+    ];
+
     public static bool $isSyncing = false;
 
     protected static function booted(): void

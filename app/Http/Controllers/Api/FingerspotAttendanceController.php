@@ -1008,9 +1008,9 @@ class FingerspotAttendanceController extends Controller
             }
 
             // PENGUNCIAN SCAN PERTAMA:
-            // Siswa biasa hanya bisa absen 1x per waktu/sesi.
-            // Akun trial (Lana / PIN 78) boleh multi-scan pada menit berbeda, namun tetap deduplikasi pada menit (H:i) yang sama
-            // agar sinkronisasi Cloud (get_attlog) + Webhook (attlog) tidak pernah menggandakan ketukan jari yang sama.
+            // Siswa biasa HANYA diambil 1x scan pertama per sesi (Kedatangan, Sholat Dhuhur, Sholat Ashar).
+            // Scan pertama kali langsung dikunci. Jika siswa iseng scan lagi pada sesi yang sama, scan kedua dst diabaikan.
+            // Khusus siswa bernama Lana (Trial User) diperbolehkan multi-scan untuk keperluan testing.
             if ($isTrialUser) {
                 $sameMinuteScan = DailyAttendance::withoutGlobalScopes()
                     ->where('student_id', $student->id)
@@ -1034,6 +1034,7 @@ class FingerspotAttendanceController extends Controller
                     ->where('student_id', $student->id)
                     ->where('tanggal', $today)
                     ->whereIn('tipe_absen', $rule['check_tipes'])
+                    ->orderByRaw('COALESCE(waktu_kedatangan, "99:99:99") ASC, id ASC')
                     ->first();
 
                 if ($existingSession) {
@@ -1048,13 +1049,39 @@ class FingerspotAttendanceController extends Controller
                         ];
                     }
 
+                    $incomingTime = $now->format('H:i:s');
+                    $existingTime = $existingSession->waktu_kedatangan;
+
+                    // Jika scan masuk memiliki jam LEBIH AWAL daripada data yang sudah ada (misal keterlambatan transmisi cloud),
+                    // maka perbarui data ke scan pertama yang sebenarnya!
+                    if ($existingTime && $incomingTime < $existingTime) {
+                        $timing = $this->evaluateAttendanceTiming($tipe, $now, $metode);
+                        $existingSession->update([
+                            'waktu_kedatangan' => $incomingTime,
+                            'is_late'          => $timing['is_late'],
+                            'keterangan'       => $timing['keterangan'],
+                            'metode_absen'     => $metode,
+                        ]);
+
+                        return [
+                            'status'     => 'success',
+                            'action'     => 'updated_to_earlier_first_scan',
+                            'student'    => $student->name,
+                            'tipe'       => $tipe,
+                            'jam'        => $now->format('H:i'),
+                            'is_late'    => $timing['is_late'],
+                            'message'    => "Presensi {$student->name} diperbarui ke jam scan pertama yang lebih awal: {$incomingTime}",
+                        ];
+                    }
+
+                    // Scan kedua atau berikutnya (siswa iseng scan lagi) DITOLAK & DIABAIKAN. Scan pertama tetap dikunci!
                     return [
                         'status'          => 'duplicate',
                         'locked'          => true,
                         'student'         => $student->name,
                         'tipe'            => $tipe,
                         'first_scan_time' => $existingSession->waktu_kedatangan,
-                        'message'         => "Terkunci: {$student->name} sudah absen {$rule['label']} pada jam " . ($existingSession->waktu_kedatangan ?? '-') . ' (1x per waktu)',
+                        'message'         => "Terkunci: {$student->name} sudah absen {$rule['label']} pada jam " . ($existingSession->waktu_kedatangan ?? '-') . ' (hanya scan pertama yang diambil, scan kedua diabaikan)',
                     ];
                 }
             }
@@ -1187,7 +1214,9 @@ class FingerspotAttendanceController extends Controller
     }
 
     /**
-     * Tentukan apakah akun berada dalam mode trial multi-scan (berdasarkan konfigurasi atau akun uji Lana / PIN 78).
+     * Tentukan apakah profil siswa merupakan akun uji coba (Lana).
+     * Sesuai ketentuan: seluruh siswa hanya diambil scan pertama dan dikunci,
+     * KECUALI siswa bernama Lana karena digunakan khusus untuk keperluan testing.
      */
     private function isTrialProfile(string $name, array $pins = []): bool
     {
@@ -1196,15 +1225,9 @@ class FingerspotAttendanceController extends Controller
             return false;
         }
 
+        // Pengecualian resmi: hanya siswa bernama Lana yang diperbolehkan multi-scan untuk keperluan testing
         if (strcasecmp(trim($name), 'Lana') === 0 || stripos($name, 'Lana') !== false) {
             return true;
-        }
-
-        $trialPins = array_map('strval', (array) ($config['trial_pins'] ?? ['78']));
-        foreach ($pins as $p) {
-            if ($p !== null && $p !== '' && in_array((string) $p, $trialPins, true)) {
-                return true;
-            }
         }
 
         return false;

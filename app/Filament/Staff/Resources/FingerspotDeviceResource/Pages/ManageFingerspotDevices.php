@@ -275,16 +275,29 @@ class ManageFingerspotDevices extends ManageRecords
                     $controller = new FingerspotAttendanceController();
 
                     $lines = explode("\n", str_replace("\r", "", $content));
-                    $inserted = 0;
+                    $rawRecords = [];
                     foreach ($lines as $line) {
                         $line = trim($line);
                         if (empty($line)) continue;
                         $cols = preg_split('/\t+|\s{2,}/', $line);
                         if (count($cols) >= 2 && !empty(trim($cols[0]))) {
-                            $res = $controller->processAttendanceRecord(trim($cols[0]), trim($cols[1]), isset($cols[3]) ? (int) $cols[3] : 1, isset($cols[2]) ? (int) $cols[2] : 0);
-                            if (($res['status'] ?? '') === 'success') {
-                                $inserted++;
-                            }
+                            $rawRecords[] = [
+                                'pin'         => trim($cols[0]),
+                                'scan_date'   => trim($cols[1]),
+                                'status_scan' => isset($cols[2]) ? (int) $cols[2] : 0,
+                                'verify'      => isset($cols[3]) ? (int) $cols[3] : 1,
+                            ];
+                        }
+                    }
+
+                    // Urutkan kronologis dari scan terawal agar scan pertama selalu terkunci lebih dulu
+                    usort($rawRecords, fn ($a, $b) => strtotime((string)$a['scan_date']) <=> strtotime((string)$b['scan_date']));
+
+                    $inserted = 0;
+                    foreach ($rawRecords as $rec) {
+                        $res = $controller->processAttendanceRecord($rec['pin'], $rec['scan_date'], $rec['verify'], $rec['status_scan']);
+                        if (($res['status'] ?? '') === 'success') {
+                            $inserted++;
                         }
                     }
 

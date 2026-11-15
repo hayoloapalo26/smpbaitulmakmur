@@ -111,27 +111,33 @@ class Student extends Model
 
     /**
      * Dapatkan presensi harian siswa berdasarkan tanggal dan tipe sesi tertentu.
+     * Mengunci dan memprioritaskan scan pertama (waktu paling awal), kecuali untuk akun Lana (testing).
      */
     public function getAttendanceOnDate(string $date, string|array $tipe): ?DailyAttendance
     {
         $tipes = is_array($tipe) ? $tipe : [$tipe];
+        $isLana = $this->name && stripos($this->name, 'Lana') !== false;
 
         if ($this->relationLoaded('dailyAttendances')) {
-            return $this->dailyAttendances
+            $filtered = $this->dailyAttendances
                 ->filter(function ($att) use ($date, $tipes) {
                     $attDate = \Carbon\Carbon::parse($att->tanggal)->toDateString();
                     return $attDate === $date && in_array($att->tipe_absen, $tipes);
-                })
-                ->sortByDesc('id')
-                ->first();
+                });
+
+            return $isLana
+                ? $filtered->sortByDesc('id')->first()
+                : $filtered->sortBy(fn ($att) => ($att->waktu_kedatangan ?: '99:99:99') . '_' . str_pad((string)$att->id, 10, '0', STR_PAD_LEFT))->first();
         }
 
-        return $this->dailyAttendances()
+        $query = $this->dailyAttendances()
             ->withoutGlobalScopes()
             ->whereDate('tanggal', $date)
-            ->whereIn('tipe_absen', $tipes)
-            ->latest('id')
-            ->first();
+            ->whereIn('tipe_absen', $tipes);
+
+        return $isLana
+            ? $query->latest('id')->first()
+            : $query->orderByRaw('COALESCE(waktu_kedatangan, "99:99:99") ASC, id ASC')->first();
     }
 
     /**

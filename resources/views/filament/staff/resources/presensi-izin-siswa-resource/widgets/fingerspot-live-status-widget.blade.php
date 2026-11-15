@@ -53,7 +53,7 @@
                 @endif
 
                 <span class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-medium text-[11px] bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300">
-                    🧪 Mode Trial: Lana (ID 78) Bebas Multi-Scan (Dedup per Menit)
+                    🧪 Mode Trial: Khusus Siswa Lana Bebas Multi-Scan (Siswa Lain Dikunci 1x Scan Pertama)
                 </span>
 
                 <span class="text-gray-600 dark:text-gray-300">

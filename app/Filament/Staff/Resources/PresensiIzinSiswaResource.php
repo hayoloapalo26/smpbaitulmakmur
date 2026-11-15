@@ -240,7 +240,8 @@ class PresensiIzinSiswaResource extends Resource
                             $atts = $record->dailyAttendances->filter(function ($a) use ($start, $end) {
                                 $d = Carbon::parse($a->tanggal)->toDateString();
                                 return $d >= $start && $d <= $end && $a->tipe_absen === 'masuk';
-                            });
+                            })->sortBy(fn ($a) => ($a->waktu_kedatangan ?: '99:99:99') . '_' . $a->id)
+                              ->unique(fn ($a) => Carbon::parse($a->tanggal)->toDateString());
 
                             $tepat = $atts->where('status', 'hadir')->where('is_late', false)->count();
                             $telat = $atts->where('status', 'hadir')->where('is_late', true)->count();
@@ -333,7 +334,8 @@ class PresensiIzinSiswaResource extends Resource
                             $atts = $record->dailyAttendances->filter(function ($a) use ($start, $end) {
                                 $d = Carbon::parse($a->tanggal)->toDateString();
                                 return $d >= $start && $d <= $end && $a->tipe_absen === 'sholat_dhuhur';
-                            });
+                            })->sortBy(fn ($a) => ($a->waktu_kedatangan ?: '99:99:99') . '_' . $a->id)
+                              ->unique(fn ($a) => Carbon::parse($a->tanggal)->toDateString());
 
                             $tepat = $atts->where('status', 'hadir')->where('is_late', false)->count();
                             $telat = $atts->where('status', 'hadir')->where('is_late', true)->count();
@@ -442,7 +444,8 @@ class PresensiIzinSiswaResource extends Resource
                             $atts = $record->dailyAttendances->filter(function ($a) use ($start, $end) {
                                 $d = Carbon::parse($a->tanggal)->toDateString();
                                 return $d >= $start && $d <= $end && in_array($a->tipe_absen, ['sholat_ashar', 'pulang']);
-                            });
+                            })->sortBy(fn ($a) => ($a->waktu_kedatangan ?: '99:99:99') . '_' . $a->id)
+                              ->unique(fn ($a) => Carbon::parse($a->tanggal)->toDateString());
 
                             $tepat = $atts->where('status', 'hadir')->where('is_late', false)->count();
                             $telat = $atts->where('status', 'hadir')->where('is_late', true)->count();
@@ -551,7 +554,8 @@ class PresensiIzinSiswaResource extends Resource
                             $atts = $record->dailyAttendances->filter(function ($a) use ($start, $end) {
                                 $d = Carbon::parse($a->tanggal)->toDateString();
                                 return $d >= $start && $d <= $end && $a->tipe_absen === 'masuk';
-                            });
+                            })->sortBy(fn ($a) => ($a->waktu_kedatangan ?: '99:99:99') . '_' . $a->id)
+                              ->unique(fn ($a) => Carbon::parse($a->tanggal)->toDateString());
 
                             $s = $atts->where('status', 'sakit')->count();
                             $i = $atts->where('status', 'izin')->count();
