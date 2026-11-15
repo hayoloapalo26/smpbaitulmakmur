@@ -409,7 +409,14 @@
                                         </span>
                                     </td>
                                     <td class="py-3.5 px-6 text-gray-800 dark:text-gray-200 leading-relaxed font-medium">
-                                        {{ $row->bentuk_pelanggaran }}
+                                        <div>{{ $row->bentuk_pelanggaran }}</div>
+                                        @if($row->student_case_id)
+                                            <a href="{{ \App\Filament\Staff\Resources\StudentCaseResource::getUrl('view', ['record' => $row->student_case_id]) }}"
+                                               target="_blank"
+                                               class="inline-flex items-center gap-1 mt-1.5 px-2.5 py-0.5 rounded-md bg-amber-50 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-200 dark:border-amber-800 font-bold text-[10px] hover:bg-amber-100 transition-colors shadow-2xs">
+                                                <span>⚠️</span> Terhubung ke Kasus Pelanggaran
+                                            </a>
+                                        @endif
                                     </td>
                                     <td class="py-3.5 px-4 text-center whitespace-nowrap">
                                         <span class="inline-flex px-3 py-1 rounded-full bg-rose-50 text-rose-700 border border-rose-200 dark:bg-rose-950/40 dark:text-rose-300 font-black text-xs">

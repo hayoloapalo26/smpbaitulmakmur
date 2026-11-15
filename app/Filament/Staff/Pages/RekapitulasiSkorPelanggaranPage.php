@@ -24,10 +24,12 @@ class RekapitulasiSkorPelanggaranPage extends Page
             return false;
         }
 
-        if ($user->hasAnyRole(['waka_kesiswaan', 'kepala_sekolah', 'superadmin', 'bk', 'wali_kelas', 'guru_kelas', 'guru_piket'])) {
+        // Selalu muncul untuk Wali Kelas, Waka Kesiswaan, BK, Kepala Sekolah, Superadmin, Guru Kelas
+        if ($user->hasAnyRole(['wali_kelas', 'guru_kelas', 'waka_kesiswaan', 'bk', 'kepala_sekolah', 'superadmin'])) {
             return true;
         }
 
+        // Muncul disaat guru bertugas piket (hari H)
         return $user->isPiketToday();
     }
 
@@ -55,8 +57,11 @@ class RekapitulasiSkorPelanggaranPage extends Page
     public static function getNavigationGroup(): ?string
     {
         $user = Auth::user();
-        if ($user?->isPiketToday() && !$user->hasAnyRole(['waka_kesiswaan', 'kepala_sekolah', 'superadmin', 'bk'])) {
+        if ($user?->isPiketToday() && !$user->hasAnyRole(['waka_kesiswaan', 'kepala_sekolah', 'superadmin', 'bk', 'wali_kelas', 'guru_kelas'])) {
             return 'Tugas Guru Piket';
+        }
+        if ($user?->hasRole('waka_kesiswaan')) {
+            return 'Kesiswaan & Karakter';
         }
         if ($user && $user->hasAnyRole(['wali_kelas', 'guru_kelas']) && !$user->hasAnyRole(['waka_kesiswaan', 'kepala_sekolah', 'superadmin', 'bk'])) {
             return 'Fitur Wali Kelas';
@@ -68,6 +73,12 @@ class RekapitulasiSkorPelanggaranPage extends Page
     protected function getHeaderActions(): array
     {
         return [
+            Action::make('pelanggaran_siswa')
+                ->label('Fitur Pelanggaran Siswa')
+                ->icon('heroicon-o-exclamation-triangle')
+                ->color('warning')
+                ->url(fn () => \App\Filament\Staff\Resources\StudentCaseResource::getUrl('index')),
+
             Action::make('download_pdf')
                 ->label(fn () => 'Unduh PDF ' . ucfirst($this->activeTab))
                 ->icon('heroicon-o-document-arrow-down')

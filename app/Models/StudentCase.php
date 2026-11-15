@@ -13,6 +13,7 @@ class StudentCase extends Model
 
     protected $casts = [
         'kategori_kasus'             => 'array',
+        'poin_pelanggaran'           => 'integer',
         'tanggal_kejadian'           => 'date',
         'recommended_to_bk'         => 'boolean',
         'recommended_to_kesiswaan'  => 'boolean',
@@ -58,6 +59,11 @@ class StudentCase extends Model
     public function parentSummons()
     {
         return $this->hasMany(ParentSummon::class, 'student_case_id');
+    }
+
+    public function violationLogs()
+    {
+        return $this->hasMany(StudentViolationLog::class, 'student_case_id');
     }
 
     // ─── Helper status ─────────────────────────────────────────────

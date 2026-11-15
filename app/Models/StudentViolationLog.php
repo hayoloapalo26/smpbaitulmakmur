@@ -13,10 +13,11 @@ class StudentViolationLog extends Model
     protected $guarded = ['id'];
 
     protected $casts = [
-        'tanggal'      => 'date',
-        'poin'         => 'integer',
-        'acc_piket'    => 'boolean',
-        'acc_piket_at' => 'datetime',
+        'student_case_id' => 'integer',
+        'tanggal'         => 'date',
+        'poin'            => 'integer',
+        'acc_piket'       => 'boolean',
+        'acc_piket_at'    => 'datetime',
     ];
 
     protected static function booted(): void
@@ -55,6 +56,11 @@ class StudentViolationLog extends Model
     public function student(): BelongsTo
     {
         return $this->belongsTo(Student::class, 'student_id');
+    }
+
+    public function studentCase(): BelongsTo
+    {
+        return $this->belongsTo(StudentCase::class, 'student_case_id');
     }
 
     public function classroom(): BelongsTo

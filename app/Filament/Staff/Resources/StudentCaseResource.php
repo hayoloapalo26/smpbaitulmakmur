@@ -30,6 +30,16 @@ class StudentCaseResource extends Resource
 
     public static function getNavigationGroup(): ?string
     {
+        $user = Auth::user();
+        if ($user?->isPiketToday() && !$user->hasAnyRole(['waka_kesiswaan', 'kepala_sekolah', 'superadmin', 'bk', 'wali_kelas'])) {
+            return 'Tugas Guru Piket';
+        }
+        if ($user?->hasRole('waka_kesiswaan')) {
+            return 'Kesiswaan & Karakter';
+        }
+        if ($user && $user->hasRole('wali_kelas') && !$user->hasAnyRole(['waka_kesiswaan', 'superadmin', 'kepala_sekolah'])) {
+            return 'Fitur Wali Kelas';
+        }
         return 'Kesiswaan & Karakter';
     }
 
@@ -45,20 +55,33 @@ class StudentCaseResource extends Resource
     {
         $user = Auth::user();
         if (!$user || $user->isPureQuranTeacher()) return false;
-        return $user->hasAnyRole([
+        if ($user->hasAnyRole([
             'wali_kelas', 'waka_kesiswaan', 'bk', 'kepala_sekolah', 'superadmin',
-        ]);
+        ])) {
+            return true;
+        }
+
+        // Muncul disaat guru bertugas piket (hari H)
+        return $user->isPiketToday();
     }
 
-    /** Wali kelas, kesiswaan, dan superadmin bisa CREATE kasus */
+    /** Wali kelas, kesiswaan, superadmin, dan guru piket hari H bisa CREATE kasus */
     public static function canCreate(): bool
     {
-        return Auth::user()->hasAnyRole(['wali_kelas', 'waka_kesiswaan', 'superadmin']);
+        $user = Auth::user();
+        if (!$user || $user->isPureQuranTeacher()) return false;
+
+        if ($user->hasAnyRole(['wali_kelas', 'waka_kesiswaan', 'superadmin'])) {
+            return true;
+        }
+
+        return $user->isPiketToday();
     }
 
     public static function canEdit($record): bool
     {
         $user = Auth::user();
+        if (!$user)                           return false;
         if ($user->hasRole('superadmin'))     return true;
         if ($user->hasRole('waka_kesiswaan')) return ($record->recommended_to_kesiswaan || $record->ditangani_oleh === 'kesiswaan') && $record->status !== 'selesai';
         if ($user->hasRole('wali_kelas')) {
@@ -69,6 +92,7 @@ class StudentCaseResource extends Resource
         }
         if ($user->hasRole('bk'))             return $record->recommended_to_bk && $record->status !== 'selesai';
         if ($user->hasRole('kepala_sekolah')) return true;
+        if ($user->isPiketToday() && $record->wali_kelas_id === $user->id) return $record->status !== 'selesai';
         return false;
     }
 
@@ -78,27 +102,45 @@ class StudentCaseResource extends Resource
         $query = parent::getEloquentQuery();
         $user  = Auth::user();
 
-        if ($user->hasAnyRole(['kepala_sekolah', 'superadmin'])) {
-            return $query; // lihat semua
+        if (!$user) {
+            return $query->whereRaw('1=0');
         }
 
-        if ($user->hasRole('waka_kesiswaan')) {
-            // Kasus yang direkomendasikan ke kesiswaan, kepsek, atau ditangani kesiswaan
-            return $query->where(function ($q) {
-                $q->where('recommended_to_kesiswaan', true)
-                  ->orWhere('recommended_to_kepsek', true)
-                  ->orWhere('ditangani_oleh', 'kesiswaan');
-            });
+        if ($user->hasAnyRole(['kepala_sekolah', 'superadmin', 'waka_kesiswaan'])) {
+            if (!$user->hasRole('superadmin') && $user->institution_id && $user->institution_id != 1) {
+                return $query->where(function ($q) use ($user) {
+                    $q->where('institution_id', $user->institution_id)
+                      ->orWhereHas('student', fn ($sq) => $sq->where('institution_id', $user->institution_id));
+                });
+            }
+            return $query; // lihat semua untuk pimpinan & waka kesiswaan
+        }
+
+        if ($user->isPiketToday() && !$user->hasRole('wali_kelas')) {
+            // Guru piket saat bertugas bisa melihat seluruh kasus siswa di lembaganya
+            if ($user->institution_id && $user->institution_id != 1) {
+                return $query->where(function ($q) use ($user) {
+                    $q->where('institution_id', $user->institution_id)
+                      ->orWhereHas('student', fn ($sq) => $sq->where('institution_id', $user->institution_id));
+                });
+            }
+            return $query;
         }
 
         if ($user->hasRole('bk')) {
-            return $query->where('recommended_to_bk', true);
+            return $query->where(function ($q) {
+                $q->where('recommended_to_bk', true)
+                  ->orWhere('ditangani_oleh', 'bk');
+            });
         }
 
         if ($user->hasRole('wali_kelas')) {
             $classroomIds = Classroom::where('wali_kelas_id', $user->id)->pluck('id');
             $studentIds   = Student::whereIn('classroom_id', $classroomIds)->pluck('id');
-            return $query->whereIn('student_id', $studentIds);
+            return $query->where(function ($q) use ($studentIds, $user) {
+                $q->whereIn('student_id', $studentIds)
+                  ->orWhere('wali_kelas_id', $user->id);
+            });
         }
 
         return $query->whereRaw('1=0'); // tidak ada akses
@@ -109,6 +151,8 @@ class StudentCaseResource extends Resource
     {
         $user = Auth::user();
         $isWaliKelasOnly = $user->hasRole('wali_kelas') && !$user->hasAnyRole(['waka_kesiswaan', 'superadmin', 'kepala_sekolah']);
+        $isWaliKelas = $user->hasRole('wali_kelas') || $isWaliKelasOnly;
+        $canEditIncident = $isWaliKelas || $user->hasRole('waka_kesiswaan') || $user->hasRole('superadmin') || $user->isPiketToday();
 
         $classroomIds = $isWaliKelasOnly
             ? Classroom::where('wali_kelas_id', $user->id)->pluck('id')
@@ -200,33 +244,61 @@ class StudentCaseResource extends Resource
                         ->label('Tanggal Kejadian')
                         ->default(now())
                         ->required()
-                        ->disabled(fn ($record) => $record !== null && !$isWaliKelas),
+                        ->disabled(fn ($record) => $record !== null && !$canEditIncident),
+
+                    Forms\Components\TextInput::make('poin_pelanggaran')
+                        ->label('Skor Poin Pelanggaran')
+                        ->numeric()
+                        ->default(5)
+                        ->minValue(1)
+                        ->required()
+                        ->helperText('Poin ini terintegrasi langsung ke Rekapitulasi Skor Poin Pelanggaran (Harian, Mingguan, Bulanan, Triwulan, Semester).')
+                        ->suffix('Poin')
+                        ->disabled(fn ($record) => $record !== null && !$canEditIncident),
 
                     Forms\Components\CheckboxList::make('kategori_kasus')
                         ->label('Kategori / Jenis Pelanggaran')
                         ->options([
-                            'Terlambat'                         => '🕐 Terlambat',
-                            'Membolos'                          => '🚷 Membolos',
-                            'Berkelahi'                         => '👊 Berkelahi',
-                            'Bullying / Perundungan'            => '😰 Bullying / Perundungan',
-                            'Membawa Barang Terlarang'          => '🚫 Membawa Barang Terlarang',
-                            'Tidak Mengerjakan Tugas'           => '📚 Tidak Mengerjakan Tugas',
-                            'Pelanggaran Atribut Seragam'       => '👕 Pelanggaran Atribut Seragam',
-                            'Merokok'                           => '🚬 Merokok',
-                            'Pencurian'                         => '💰 Pencurian',
-                            'Pelanggaran Tata Tertib Ibadah'    => '🕌 Pelanggaran Tata Tertib Ibadah',
-                            'Lainnya'                           => '📝 Lainnya',
+                            'Terlambat'                         => '🕐 Terlambat (+5 Poin)',
+                            'Membolos'                          => '🚷 Membolos (+10 Poin)',
+                            'Berkelahi'                         => '👊 Berkelahi (+15 Poin)',
+                            'Bullying / Perundungan'            => '😰 Bullying / Perundungan (+25 Poin)',
+                            'Membawa Barang Terlarang'          => '🚫 Membawa Barang Terlarang (+15 Poin)',
+                            'Tidak Mengerjakan Tugas'           => '📚 Tidak Mengerjakan Tugas (+5 Poin)',
+                            'Pelanggaran Atribut Seragam'       => '👕 Pelanggaran Atribut Seragam (+5 Poin)',
+                            'Merokok'                           => '🚬 Merokok (+15 Poin)',
+                            'Pencurian'                         => '💰 Pencurian (+25 Poin)',
+                            'Pelanggaran Tata Tertib Ibadah'    => '🕌 Pelanggaran Tata Tertib Ibadah (+10 Poin)',
+                            'Lainnya'                           => '📝 Lainnya (+5 Poin)',
                         ])
                         ->columns(2)
                         ->columnSpanFull()
-                        ->disabled(fn ($record) => $record !== null && !$isWaliKelas),
+                        ->live()
+                        ->afterStateUpdated(function (Forms\Set $set, $state) {
+                            if (!empty($state) && is_array($state)) {
+                                $maxPoint = 5;
+                                foreach ($state as $kategori) {
+                                    $pt = match(true) {
+                                        str_contains($kategori, 'Bullying') || str_contains($kategori, 'Pencurian') => 25,
+                                        str_contains($kategori, 'Berkelahi') || str_contains($kategori, 'Merokok') || str_contains($kategori, 'Membawa Barang') => 15,
+                                        str_contains($kategori, 'Membolos') || str_contains($kategori, 'Tata Tertib Ibadah') => 10,
+                                        default => 5,
+                                    };
+                                    if ($pt > $maxPoint) {
+                                        $maxPoint = $pt;
+                                    }
+                                }
+                                $set('poin_pelanggaran', $maxPoint);
+                            }
+                        })
+                        ->disabled(fn ($record) => $record !== null && !$canEditIncident),
 
                     Forms\Components\Textarea::make('deskripsi')
                         ->label('Kronologi / Uraian Kasus')
                         ->rows(4)
                         ->required()
                         ->columnSpanFull()
-                        ->disabled(fn ($record) => $record !== null && !$isWaliKelas),
+                        ->disabled(fn ($record) => $record !== null && !$canEditIncident),
                 ])
                 ->columns(2),
 
@@ -237,7 +309,7 @@ class StudentCaseResource extends Resource
                         ->label('Catatan & Tindakan yang Sudah Dilakukan')
                         ->rows(3)
                         ->columnSpanFull()
-                        ->disabled(fn ($record) => $record !== null && !$isWaliKelas),
+                        ->disabled(fn ($record) => $record !== null && !$canEditIncident),
                 ]),
 
             // ── Catatan BK (hanya jika sudah diteruskan) ─────────────
@@ -338,6 +410,11 @@ class StudentCaseResource extends Resource
                         Infolists\Components\TextEntry::make('tanggal_kejadian')
                             ->label('Tanggal Kejadian')
                             ->date('d F Y'),
+                        Infolists\Components\TextEntry::make('poin_pelanggaran')
+                            ->label('Skor Poin')
+                            ->badge()
+                            ->color('danger')
+                            ->formatStateUsing(fn ($state) => '+' . ($state ?? 5) . ' Poin (Masuk Rekapitulasi)'),
                         Infolists\Components\TextEntry::make('waliKelas.name')
                             ->label('Wali Kelas Pelapor')
                             ->placeholder('Wali Kelas'),
@@ -464,6 +541,13 @@ class StudentCaseResource extends Resource
                     ->badge()
                     ->formatStateUsing(fn ($state) => is_array($state) ? implode(', ', array_map(fn($k) => preg_replace('/^[^\s]+\s/', '', $k), $state)) : $state)
                     ->wrap(),
+
+                Tables\Columns\TextColumn::make('poin_pelanggaran')
+                    ->label('Skor Poin')
+                    ->badge()
+                    ->color('danger')
+                    ->formatStateUsing(fn ($state) => '+' . ($state ?? 5) . ' Poin')
+                    ->sortable(),
 
                 Tables\Columns\TextColumn::make('ditangani_oleh')
                     ->label('Level Penanganan')
