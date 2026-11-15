@@ -95,12 +95,27 @@ class TeacherScheduleCalendarWidget extends Widget
                 ];
             }
             
-            // Format jam mengajar (contoh: "Jam Ke-1, 2")
+            // Format jam mengajar (contoh: "Jam Ke-1, 2" atau "Jam Mengaji 1, 2")
             foreach ($classesGrouped as &$cg) {
                 sort($cg['jam_numbers']);
-                $cg['jam_text'] = !empty($cg['jam_numbers'])
-                    ? 'Jam Ke-' . implode(', ', $cg['jam_numbers'])
-                    : '';
+                if (empty($cg['jam_numbers'])) {
+                    $cg['jam_text'] = '';
+                    continue;
+                }
+
+                $isAllMengaji = collect($cg['jam_numbers'])->every(fn ($j) => in_array((int)$j, [-1, 0]));
+                if ($isAllMengaji) {
+                    $mengajiLabels = array_map(fn ($j) => (int)$j === -1 ? '1' : '2', $cg['jam_numbers']);
+                    $cg['jam_text'] = 'Jam Mengaji ' . implode(', ', $mengajiLabels);
+                } else {
+                    $hasMengaji = collect($cg['jam_numbers'])->contains(fn ($j) => in_array((int)$j, [-1, 0]));
+                    if ($hasMengaji) {
+                        $labels = array_map(fn ($j) => Schedule::getJamLabel($j), $cg['jam_numbers']);
+                        $cg['jam_text'] = implode(', ', $labels);
+                    } else {
+                        $cg['jam_text'] = 'Jam Ke-' . implode(', ', $cg['jam_numbers']);
+                    }
+                }
             }
             unset($cg);
 

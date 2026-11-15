@@ -59,23 +59,24 @@ class Schedule extends Model
     }
 
     /**
-     * Konfigurasi Jam Pelajaran & Jam Mengajar SMP (Jam ke-0 s/d Jam ke-11)
+     * Konfigurasi Jam Pelajaran & Jam Mengajar SMP (Jam Mengaji 1 & 2 serta Jam ke-1 s/d Jam ke-11)
      */
     public static function getJamSlots(): array
     {
         return [
-            0 => ['label' => 'Jam Ke-0', 'time' => '07.00 - 08.10', 'full' => 'Jam Ke-0 (07.00 - 08.10)'],
-            1 => ['label' => 'Jam Ke-1', 'time' => '08.10 - 08.40', 'full' => 'Jam Ke-1 (08.10 - 08.40)'],
-            2 => ['label' => 'Jam Ke-2', 'time' => '08.40 - 09.10', 'full' => 'Jam Ke-2 (08.40 - 09.10)'],
-            3 => ['label' => 'Jam Ke-3', 'time' => '09.10 - 09.40', 'full' => 'Jam Ke-3 (09.10 - 09.40)'],
-            4 => ['label' => 'Jam Ke-4', 'time' => '10.00 - 10.30', 'full' => 'Jam Ke-4 (10.00 - 10.30)'],
-            5 => ['label' => 'Jam Ke-5', 'time' => '10.30 - 11.00', 'full' => 'Jam Ke-5 (10.30 - 11.00)'],
-            6 => ['label' => 'Jam Ke-6', 'time' => '11.00 - 11.30', 'full' => 'Jam Ke-6 (11.00 - 11.30)'],
-            7 => ['label' => 'Jam Ke-7', 'time' => '11.30 - 12.00', 'full' => 'Jam Ke-7 (11.30 - 12.00)'],
-            8 => ['label' => 'Jam Ke-8', 'time' => '13.00 - 13.30', 'full' => 'Jam Ke-8 (13.00 - 13.30)'],
-            9 => ['label' => 'Jam Ke-9', 'time' => '13.30 - 14.00', 'full' => 'Jam Ke-9 (13.30 - 14.00)'],
-            10 => ['label' => 'Jam Ke-10', 'time' => '14.00 - 14.30', 'full' => 'Jam Ke-10 (14.00 - 14.30)'],
-            11 => ['label' => 'Jam Ke-11', 'time' => '14.30 - 15.00', 'full' => 'Jam Ke-11 (14.30 - 15.00)'],
+            -1 => ['label' => 'Jam Mengaji 1', 'time' => '07.00 - 07.35', 'full' => 'Jam Mengaji 1 (07.00 - 07.35)'],
+             0 => ['label' => 'Jam Mengaji 2', 'time' => '07.35 - 08.10', 'full' => 'Jam Mengaji 2 (07.35 - 08.10)'],
+             1 => ['label' => 'Jam Ke-1', 'time' => '08.10 - 08.40', 'full' => 'Jam Ke-1 (08.10 - 08.40)'],
+             2 => ['label' => 'Jam Ke-2', 'time' => '08.40 - 09.10', 'full' => 'Jam Ke-2 (08.40 - 09.10)'],
+             3 => ['label' => 'Jam Ke-3', 'time' => '09.10 - 09.40', 'full' => 'Jam Ke-3 (09.10 - 09.40)'],
+             4 => ['label' => 'Jam Ke-4', 'time' => '10.00 - 10.30', 'full' => 'Jam Ke-4 (10.00 - 10.30)'],
+             5 => ['label' => 'Jam Ke-5', 'time' => '10.30 - 11.00', 'full' => 'Jam Ke-5 (10.30 - 11.00)'],
+             6 => ['label' => 'Jam Ke-6', 'time' => '11.00 - 11.30', 'full' => 'Jam Ke-6 (11.00 - 11.30)'],
+             7 => ['label' => 'Jam Ke-7', 'time' => '11.30 - 12.00', 'full' => 'Jam Ke-7 (11.30 - 12.00)'],
+             8 => ['label' => 'Jam Ke-8', 'time' => '13.00 - 13.30', 'full' => 'Jam Ke-8 (13.00 - 13.30)'],
+             9 => ['label' => 'Jam Ke-9', 'time' => '13.30 - 14.00', 'full' => 'Jam Ke-9 (13.30 - 14.00)'],
+             10 => ['label' => 'Jam Ke-10', 'time' => '14.00 - 14.30', 'full' => 'Jam Ke-10 (14.00 - 14.30)'],
+             11 => ['label' => 'Jam Ke-11', 'time' => '14.30 - 15.00', 'full' => 'Jam Ke-11 (14.30 - 15.00)'],
         ];
     }
 
@@ -86,6 +87,13 @@ class Schedule extends Model
             $options[$jam] = $data['full'];
         }
         return $options;
+    }
+
+    public static function getJamLabel(int|string|null $jam): string
+    {
+        if ($jam === null || $jam === '') return '-';
+        $slots = static::getJamSlots();
+        return $slots[(int)$jam]['label'] ?? "Jam Ke-{$jam}";
     }
 
     public static function getJamTime(int|string|null $jam): ?string

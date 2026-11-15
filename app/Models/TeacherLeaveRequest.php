@@ -104,7 +104,7 @@ class TeacherLeaveRequest extends Model
                 $startTime = Schedule::getJamTime($min);
                 $endTime = Schedule::getJamTime($max);
 
-                $jamList = 'Jam Ke-' . implode(', ', $hours);
+                $jamList = implode(', ', array_map(fn ($h) => Schedule::getJamLabel($h), $hours));
                 if ($startTime && $endTime) {
                     $startParts = explode(' - ', $startTime);
                     $endParts = explode(' - ', $endTime);

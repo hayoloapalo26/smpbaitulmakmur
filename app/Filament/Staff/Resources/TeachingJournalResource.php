@@ -374,7 +374,7 @@ class TeachingJournalResource extends Resource
 
                                         if ($schedule->teacher_id == $teacherId && \App\Models\TeacherLeaveRequest::isTeacherOnLeave($teacherId, $tanggal, $schedule->jam_ke)) {
                                             $leave = \App\Models\TeacherLeaveRequest::getActiveLeaveFor($teacherId, $tanggal, $schedule->jam_ke);
-                                            $fail("Tidak dapat mengisi jurnal mengajar! Anda tercatat memiliki perizinan yang telah disetujui (ACC) pada hari ini (" . ($leave?->waktu_izin_label ?? "Jam Ke-{$schedule->jam_ke}") . ").");
+                                            $fail("Tidak dapat mengisi jurnal mengajar! Anda tercatat memiliki perizinan yang telah disetujui (ACC) pada hari ini (" . ($leave?->waktu_izin_label ?? \App\Models\Schedule::getJamLabel($schedule->jam_ke)) . ").");
                                         }
                                     };
                                 }
@@ -983,7 +983,7 @@ class TeachingJournalResource extends Resource
                                 return new \Illuminate\Support\HtmlString("
                                     <div class='p-3.5 bg-amber-50 dark:bg-amber-950/40 rounded-xl border border-amber-200 dark:border-amber-800 text-xs space-y-1.5 text-amber-900 dark:text-amber-200'>
                                         <div><strong>Guru Pengampu:</strong> {$record->teacher?->name}</div>
-                                        <div><strong>Jadwal Mengajar:</strong> " . \Carbon\Carbon::parse($record->tanggal)->translatedFormat('l, d F Y') . " (Jam Ke-{$record->jam_ke})</div>
+                                        <div><strong>Jadwal Mengajar:</strong> " . \Carbon\Carbon::parse($record->tanggal)->translatedFormat('l, d F Y') . " (" . \App\Models\Schedule::getJamLabelWithTime($record->jam_ke) . ")</div>
                                         <div><strong>Kelas & Mapel:</strong> {$record->classroom?->name} — {$record->subject?->name}</div>
                                         <div><strong>Materi:</strong> {$record->materi}</div>
                                         <div class='text-amber-700 font-bold mt-1'>⚠️ Keterlambatan: Melewati batas 23:59 pada hari mengajar.</div>
@@ -1028,7 +1028,7 @@ class TeachingJournalResource extends Resource
                                 return new \Illuminate\Support\HtmlString("
                                     <div class='p-3.5 bg-emerald-50 dark:bg-emerald-950/40 rounded-xl border border-emerald-200 dark:border-emerald-800 text-xs space-y-1.5 text-emerald-900 dark:text-emerald-200'>
                                         <div><strong>Guru Pengampu:</strong> {$record->teacher?->name}</div>
-                                        <div><strong>Hari, Tanggal:</strong> " . \Carbon\Carbon::parse($record->tanggal)->translatedFormat('l, d F Y') . " (Jam Ke-{$record->jam_ke})</div>
+                                        <div><strong>Hari, Tanggal:</strong> " . \Carbon\Carbon::parse($record->tanggal)->translatedFormat('l, d F Y') . " (" . \App\Models\Schedule::getJamLabelWithTime($record->jam_ke) . ")</div>
                                         <div><strong>Kelas & Mapel:</strong> {$record->classroom?->name} — {$record->subject?->name}</div>
                                         <div><strong>Materi Pokok:</strong> {$record->materi}</div>
                                         " . ($record->is_late ? "<div class='text-amber-700 font-bold'>⚠️ Terlambat Diisi (Disetujui Waka: " . ($record->wakaApprover?->name ?? 'Waka Kurikulum') . ")</div>" : "<div class='text-emerald-700 font-bold'>✅ Diisi Tepat Waktu</div>") . "
