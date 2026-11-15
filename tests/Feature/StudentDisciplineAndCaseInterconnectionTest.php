@@ -34,11 +34,15 @@ class StudentDisciplineAndCaseInterconnectionTest extends TestCase
         Role::firstOrCreate(['name' => 'bk', 'guard_name' => 'web']);
         Role::firstOrCreate(['name' => 'guru_piket', 'guard_name' => 'web']);
 
-        $this->institution = Institution::create([
-            'name' => 'SMP Islam Baitul Makmur',
-            'slug' => 'smpi',
-            'is_active' => true,
-        ]);
+        Institution::firstOrCreate(
+            ['id' => 1],
+            ['name' => 'Yayasan Baitul Makmur', 'slug' => 'yayasan', 'is_active' => true]
+        );
+
+        $this->institution = Institution::firstOrCreate(
+            ['id' => 2],
+            ['name' => 'SMP Islam Baitul Makmur', 'slug' => 'smpi', 'is_active' => true]
+        );
 
         $this->teacher = User::factory()->create([
             'email' => 'walikelas@baitulmakmur.sch.id',

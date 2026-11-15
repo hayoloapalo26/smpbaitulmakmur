@@ -244,11 +244,23 @@ class PresensiIzinSiswaResource extends Resource
 
                             $tepat = $atts->where('status', 'hadir')->where('is_late', false)->count();
                             $telat = $atts->where('status', 'hadir')->where('is_late', true)->count();
+                            $sakit = $atts->where('status', 'sakit')->count();
+                            $izin  = $atts->where('status', 'izin')->count();
+                            $alpa  = $atts->where('status', 'alpa')->count();
 
                             $out = '<div class="flex flex-col gap-1">';
                             $out .= '<span class="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700 bg-emerald-50 dark:text-emerald-300 dark:bg-emerald-950/40 px-2 py-0.5 rounded border border-emerald-200 dark:border-emerald-800">✅ ' . $tepat . 'x Tepat</span>';
                             if ($telat > 0) {
                                 $out .= '<span class="inline-flex items-center gap-1 text-xs font-bold text-rose-700 bg-rose-50 dark:text-rose-300 dark:bg-rose-950/40 px-2 py-0.5 rounded border border-rose-200 dark:border-rose-800">⏰ ' . $telat . 'x Telat</span>';
+                            }
+                            if ($sakit > 0) {
+                                $out .= '<span class="inline-flex items-center gap-1 text-xs font-semibold text-amber-700 bg-amber-50 dark:text-amber-300 dark:bg-amber-950/40 px-2 py-0.5 rounded border border-amber-200 dark:border-amber-800">🤒 ' . $sakit . 'x Sakit</span>';
+                            }
+                            if ($izin > 0) {
+                                $out .= '<span class="inline-flex items-center gap-1 text-xs font-semibold text-sky-700 bg-sky-50 dark:text-sky-300 dark:bg-sky-950/40 px-2 py-0.5 rounded border border-sky-200 dark:border-sky-800">📋 ' . $izin . 'x Izin</span>';
+                            }
+                            if ($alpa > 0) {
+                                $out .= '<span class="inline-flex items-center gap-1 text-xs font-semibold text-rose-700 bg-rose-50 dark:text-rose-300 dark:bg-rose-950/40 px-2 py-0.5 rounded border border-rose-200 dark:border-rose-800">❌ ' . $alpa . 'x Alpha</span>';
                             }
                             $out .= '</div>';
                             return $out;
@@ -259,6 +271,30 @@ class PresensiIzinSiswaResource extends Resource
                         $att = $record->getAttendanceOnDate($tanggal, 'masuk');
                         $excused = $record->getGeneralExcusedOnDate($tanggal);
 
+                        // 1. Jika Siswa Sakit, Izin, atau Alpha
+                        $statusIzin = ($att && in_array($att->status, ['sakit', 'izin', 'alpa'])) ? $att->status : ($excused ? $excused->status : null);
+                        if ($statusIzin) {
+                            $statusLabel = match ($statusIzin) {
+                                'sakit' => '🤒 Sakit',
+                                'izin'  => '📋 Izin',
+                                default => '❌ Alpha',
+                            };
+                            $badgeColor = match ($statusIzin) {
+                                'sakit' => 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800',
+                                'izin'  => 'bg-sky-50 text-sky-700 border-sky-200 dark:bg-sky-950/40 dark:text-sky-300 dark:border-sky-800',
+                                default => 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800',
+                            };
+                            $ket = ($att && $att->keterangan) ? $att->keterangan : ($excused ? $excused->keterangan : null);
+                            $out = '<div class="flex flex-col gap-0.5">';
+                            $out .= '<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold border ' . $badgeColor . '">' . $statusLabel . '</span>';
+                            if (!empty($ket)) {
+                                $out .= '<span class="text-[11px] text-slate-500 dark:text-slate-400 italic max-w-[170px] truncate" title="' . e($ket) . '">' . e($ket) . '</span>';
+                            }
+                            $out .= '</div>';
+                            return $out;
+                        }
+
+                        // 2. Jika Hadir Scan / Input Manual
                         if ($att && $att->status === 'hadir') {
                             $jam = $att->waktu_kedatangan ? Carbon::parse($att->waktu_kedatangan)->format('H:i') : '-';
                             $isLate = $att->is_late || ($att->waktu_kedatangan && Carbon::parse($att->waktu_kedatangan)->format('H:i') > '06:50');
@@ -278,15 +314,7 @@ class PresensiIzinSiswaResource extends Resource
                             </div>';
                         }
 
-                        if ($excused) {
-                            $badgeColor = match ($excused->status) {
-                                'sakit' => 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800',
-                                'izin' => 'bg-sky-50 text-sky-700 border-sky-200 dark:bg-sky-950/40 dark:text-sky-300 dark:border-sky-800',
-                                default => 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800',
-                            };
-                            return '<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold border ' . $badgeColor . '">' . ucfirst($excused->status) . '</span>';
-                        }
-
+                        // 3. Belum Scan Kedatangan
                         return '<span class="inline-flex items-center gap-1 text-xs text-slate-400 dark:text-slate-500 font-medium">
                             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/></svg>
                             Belum Scan
@@ -310,6 +338,9 @@ class PresensiIzinSiswaResource extends Resource
                             $tepat = $atts->where('status', 'hadir')->where('is_late', false)->count();
                             $telat = $atts->where('status', 'hadir')->where('is_late', true)->count();
                             $halangan = $atts->where('status', 'halangan')->count();
+                            $sakit = $atts->where('status', 'sakit')->count();
+                            $izin  = $atts->where('status', 'izin')->count();
+                            $alpa  = $atts->where('status', 'alpa')->count();
 
                             $out = '<div class="flex flex-col gap-1">';
                             $out .= '<span class="inline-flex items-center gap-1 text-xs font-semibold text-blue-700 bg-blue-50 dark:text-blue-300 dark:bg-blue-950/40 px-2 py-0.5 rounded border border-blue-200 dark:border-blue-800">✅ ' . $tepat . 'x Tepat</span>';
@@ -317,7 +348,16 @@ class PresensiIzinSiswaResource extends Resource
                                 $out .= '<span class="inline-flex items-center gap-1 text-xs font-bold text-amber-700 bg-amber-50 dark:text-amber-300 dark:bg-amber-950/40 px-2 py-0.5 rounded border border-amber-200 dark:border-amber-800">⏰ ' . $telat . 'x Telat</span>';
                             }
                             if ($halangan > 0) {
-                                $out .= '<span class="inline-flex items-center gap-1 text-xs font-semibold text-purple-700 bg-purple-50 dark:text-purple-300 dark:bg-purple-950/40 px-2 py-0.5 rounded border border-purple-200 dark:border-purple-800">🌸 ' . $halangan . 'x Udzur</span>';
+                                $out .= '<span class="inline-flex items-center gap-1 text-xs font-semibold text-purple-700 bg-purple-50 dark:text-purple-300 dark:bg-purple-950/40 px-2 py-0.5 rounded border border-purple-200 dark:border-purple-800">🌸 ' . $halangan . 'x Halangan</span>';
+                            }
+                            if ($sakit > 0) {
+                                $out .= '<span class="inline-flex items-center gap-1 text-xs font-semibold text-amber-700 bg-amber-50 dark:text-amber-300 dark:bg-amber-950/40 px-2 py-0.5 rounded border border-amber-200 dark:border-amber-800">🤒 ' . $sakit . 'x Sakit</span>';
+                            }
+                            if ($izin > 0) {
+                                $out .= '<span class="inline-flex items-center gap-1 text-xs font-semibold text-sky-700 bg-sky-50 dark:text-sky-300 dark:bg-sky-950/40 px-2 py-0.5 rounded border border-sky-200 dark:border-sky-800">📋 ' . $izin . 'x Izin</span>';
+                            }
+                            if ($alpa > 0) {
+                                $out .= '<span class="inline-flex items-center gap-1 text-xs font-semibold text-rose-700 bg-rose-50 dark:text-rose-300 dark:bg-rose-950/40 px-2 py-0.5 rounded border border-rose-200 dark:border-rose-800">❌ ' . $alpa . 'x Alpha</span>';
                             }
                             $out .= '</div>';
                             return $out;
@@ -329,12 +369,41 @@ class PresensiIzinSiswaResource extends Resource
                         $isHalangan = $record->jenis_kelamin === 'P' && (StudentHalangan::isHalangan($record->id, $tanggal) || ($att && $att->status === 'halangan'));
                         $excused = $record->getGeneralExcusedOnDate($tanggal);
 
+                        // 1. Siswi Putri Halangan / Udzur Syar'i
                         if ($isHalangan) {
-                            return '<div class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-purple-50 text-purple-700 border border-purple-200 dark:bg-purple-950/40 dark:text-purple-300 dark:border-purple-800">
-                                <span class="text-[10px] font-bold bg-purple-200 text-purple-800 dark:bg-purple-900 dark:text-purple-200 px-1.5 py-0.5 rounded">Halangan / Udzur</span>
+                            $ket = ($att && $att->keterangan) ? $att->keterangan : "Sedang halangan / udzur syar'i";
+                            return '<div class="flex flex-col gap-0.5">
+                                <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-purple-50 text-purple-700 border border-purple-200 dark:bg-purple-950/40 dark:text-purple-300 dark:border-purple-800">
+                                    🌸 Sedang Halangan
+                                </span>
+                                <span class="text-[11px] text-purple-600 dark:text-purple-400 italic max-w-[170px] truncate" title="' . e($ket) . '">' . e($ket) . '</span>
                             </div>';
                         }
 
+                        // 2. Siswa Sakit / Izin / Alpha
+                        $statusIzin = ($att && in_array($att->status, ['sakit', 'izin', 'alpa'])) ? $att->status : ($excused ? $excused->status : null);
+                        if ($statusIzin) {
+                            $statusLabel = match ($statusIzin) {
+                                'sakit' => '🤒 Sakit',
+                                'izin'  => '📋 Izin',
+                                default => '❌ Alpha',
+                            };
+                            $badgeColor = match ($statusIzin) {
+                                'sakit' => 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800',
+                                'izin'  => 'bg-sky-50 text-sky-700 border-sky-200 dark:bg-sky-950/40 dark:text-sky-300 dark:border-sky-800',
+                                default => 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800',
+                            };
+                            $ket = ($att && $att->keterangan) ? $att->keterangan : ($excused ? $excused->keterangan : null);
+                            $out = '<div class="flex flex-col gap-0.5">';
+                            $out .= '<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold border ' . $badgeColor . '">' . $statusLabel . '</span>';
+                            if (!empty($ket)) {
+                                $out .= '<span class="text-[11px] text-slate-500 dark:text-slate-400 italic max-w-[170px] truncate" title="' . e($ket) . '">' . e($ket) . '</span>';
+                            }
+                            $out .= '</div>';
+                            return $out;
+                        }
+
+                        // 3. Hadir Scan
                         if ($att && $att->status === 'hadir') {
                             $jam = $att->waktu_kedatangan ? Carbon::parse($att->waktu_kedatangan)->format('H:i') : '-';
                             $isLate = $att->is_late || ($att->waktu_kedatangan && Carbon::parse($att->waktu_kedatangan)->format('H:i') > '12:15');
@@ -354,10 +423,7 @@ class PresensiIzinSiswaResource extends Resource
                             </div>';
                         }
 
-                        if ($excused) {
-                            return '<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400">Izin Harian</span>';
-                        }
-
+                        // 4. Belum Scan
                         return '<span class="inline-flex items-center gap-1 text-xs text-slate-400 dark:text-slate-500 font-medium">
                             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/></svg>
                             Belum Scan
@@ -381,6 +447,9 @@ class PresensiIzinSiswaResource extends Resource
                             $tepat = $atts->where('status', 'hadir')->where('is_late', false)->count();
                             $telat = $atts->where('status', 'hadir')->where('is_late', true)->count();
                             $halangan = $atts->where('status', 'halangan')->count();
+                            $sakit = $atts->where('status', 'sakit')->count();
+                            $izin  = $atts->where('status', 'izin')->count();
+                            $alpa  = $atts->where('status', 'alpa')->count();
 
                             $out = '<div class="flex flex-col gap-1">';
                             $out .= '<span class="inline-flex items-center gap-1 text-xs font-semibold text-amber-700 bg-amber-50 dark:text-amber-300 dark:bg-amber-950/40 px-2 py-0.5 rounded border border-amber-200 dark:border-amber-800">✅ ' . $tepat . 'x Tepat</span>';
@@ -388,7 +457,16 @@ class PresensiIzinSiswaResource extends Resource
                                 $out .= '<span class="inline-flex items-center gap-1 text-xs font-bold text-rose-700 bg-rose-50 dark:text-rose-300 dark:bg-rose-950/40 px-2 py-0.5 rounded border border-rose-200 dark:border-rose-800">⏰ ' . $telat . 'x Telat</span>';
                             }
                             if ($halangan > 0) {
-                                $out .= '<span class="inline-flex items-center gap-1 text-xs font-semibold text-purple-700 bg-purple-50 dark:text-purple-300 dark:bg-purple-950/40 px-2 py-0.5 rounded border border-purple-200 dark:border-purple-800">🌸 ' . $halangan . 'x Udzur</span>';
+                                $out .= '<span class="inline-flex items-center gap-1 text-xs font-semibold text-purple-700 bg-purple-50 dark:text-purple-300 dark:bg-purple-950/40 px-2 py-0.5 rounded border border-purple-200 dark:border-purple-800">🌸 ' . $halangan . 'x Halangan</span>';
+                            }
+                            if ($sakit > 0) {
+                                $out .= '<span class="inline-flex items-center gap-1 text-xs font-semibold text-amber-700 bg-amber-50 dark:text-amber-300 dark:bg-amber-950/40 px-2 py-0.5 rounded border border-amber-200 dark:border-amber-800">🤒 ' . $sakit . 'x Sakit</span>';
+                            }
+                            if ($izin > 0) {
+                                $out .= '<span class="inline-flex items-center gap-1 text-xs font-semibold text-sky-700 bg-sky-50 dark:text-sky-300 dark:bg-sky-950/40 px-2 py-0.5 rounded border border-sky-200 dark:border-sky-800">📋 ' . $izin . 'x Izin</span>';
+                            }
+                            if ($alpa > 0) {
+                                $out .= '<span class="inline-flex items-center gap-1 text-xs font-semibold text-rose-700 bg-rose-50 dark:text-rose-300 dark:bg-rose-950/40 px-2 py-0.5 rounded border border-rose-200 dark:border-rose-800">❌ ' . $alpa . 'x Alpha</span>';
                             }
                             $out .= '</div>';
                             return $out;
@@ -400,12 +478,41 @@ class PresensiIzinSiswaResource extends Resource
                         $isHalangan = $record->jenis_kelamin === 'P' && (StudentHalangan::isHalangan($record->id, $tanggal) || ($att && $att->status === 'halangan'));
                         $excused = $record->getGeneralExcusedOnDate($tanggal);
 
+                        // 1. Siswi Putri Halangan / Udzur Syar'i
                         if ($isHalangan) {
-                            return '<div class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-purple-50 text-purple-700 border border-purple-200 dark:bg-purple-950/40 dark:text-purple-300 dark:border-purple-800">
-                                <span class="text-[10px] font-bold bg-purple-200 text-purple-800 dark:bg-purple-900 dark:text-purple-200 px-1.5 py-0.5 rounded">Halangan / Udzur</span>
+                            $ket = ($att && $att->keterangan) ? $att->keterangan : "Sedang halangan / udzur syar'i";
+                            return '<div class="flex flex-col gap-0.5">
+                                <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-purple-50 text-purple-700 border border-purple-200 dark:bg-purple-950/40 dark:text-purple-300 dark:border-purple-800">
+                                    🌸 Sedang Halangan
+                                </span>
+                                <span class="text-[11px] text-purple-600 dark:text-purple-400 italic max-w-[170px] truncate" title="' . e($ket) . '">' . e($ket) . '</span>
                             </div>';
                         }
 
+                        // 2. Siswa Sakit / Izin / Alpha
+                        $statusIzin = ($att && in_array($att->status, ['sakit', 'izin', 'alpa'])) ? $att->status : ($excused ? $excused->status : null);
+                        if ($statusIzin) {
+                            $statusLabel = match ($statusIzin) {
+                                'sakit' => '🤒 Sakit',
+                                'izin'  => '📋 Izin',
+                                default => '❌ Alpha',
+                            };
+                            $badgeColor = match ($statusIzin) {
+                                'sakit' => 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800',
+                                'izin'  => 'bg-sky-50 text-sky-700 border-sky-200 dark:bg-sky-950/40 dark:text-sky-300 dark:border-sky-800',
+                                default => 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800',
+                            };
+                            $ket = ($att && $att->keterangan) ? $att->keterangan : ($excused ? $excused->keterangan : null);
+                            $out = '<div class="flex flex-col gap-0.5">';
+                            $out .= '<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold border ' . $badgeColor . '">' . $statusLabel . '</span>';
+                            if (!empty($ket)) {
+                                $out .= '<span class="text-[11px] text-slate-500 dark:text-slate-400 italic max-w-[170px] truncate" title="' . e($ket) . '">' . e($ket) . '</span>';
+                            }
+                            $out .= '</div>';
+                            return $out;
+                        }
+
+                        // 3. Hadir Scan
                         if ($att && $att->status === 'hadir') {
                             $jam = $att->waktu_kedatangan ? Carbon::parse($att->waktu_kedatangan)->format('H:i') : '-';
                             $isLate = $att->is_late || ($att->waktu_kedatangan && Carbon::parse($att->waktu_kedatangan)->format('H:i') > '15:15');
@@ -425,10 +532,7 @@ class PresensiIzinSiswaResource extends Resource
                             </div>';
                         }
 
-                        if ($excused) {
-                            return '<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400">Izin Harian</span>';
-                        }
-
+                        // 4. Belum Scan
                         return '<span class="inline-flex items-center gap-1 text-xs text-slate-400 dark:text-slate-500 font-medium">
                             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/></svg>
                             Belum Scan
@@ -462,24 +566,35 @@ class PresensiIzinSiswaResource extends Resource
 
                         // Mode Harian
                         $tanggal = static::getActiveDate($livewire);
-                        $excused = $record->getGeneralExcusedOnDate($tanggal);
-                        if ($excused) {
-                            return match ($excused->status) {
-                                'sakit' => '🤒 Sakit',
-                                'izin' => '📋 Izin',
-                                default => '❌ Alpa',
-                            };
-                        }
-
                         $attMasuk = $record->getAttendanceOnDate($tanggal, 'masuk');
                         $attDhuhur = $record->getAttendanceOnDate($tanggal, 'sholat_dhuhur');
                         $attAshar = $record->getAttendanceOnDate($tanggal, ['sholat_ashar', 'pulang']);
-                        $isHalangan = $record->jenis_kelamin === 'P' && StudentHalangan::isHalangan($record->id, $tanggal);
+                        $excused = $record->getGeneralExcusedOnDate($tanggal);
+
+                        // 1. Jika Sakit / Izin / Alpha
+                        $statusIzin = ($attMasuk && in_array($attMasuk->status, ['sakit', 'izin', 'alpa'])) ? $attMasuk->status : ($excused ? $excused->status : null);
+                        if ($statusIzin) {
+                            return match ($statusIzin) {
+                                'sakit' => '🤒 Sakit',
+                                'izin'  => '📋 Izin',
+                                default => '❌ Alpha',
+                            };
+                        }
+
+                        // 2. Siswi Halangan
+                        $isHalangan = $record->jenis_kelamin === 'P' && (
+                            StudentHalangan::isHalangan($record->id, $tanggal)
+                            || ($attDhuhur && $attDhuhur->status === 'halangan')
+                            || ($attAshar && $attAshar->status === 'halangan')
+                        );
 
                         $dhuhurOk = ($attDhuhur && $attDhuhur->status === 'hadir') || $isHalangan;
                         $asharOk = ($attAshar && $attAshar->status === 'hadir') || $isHalangan;
 
                         if ($attMasuk && $attMasuk->status === 'hadir') {
+                            if ($isHalangan) {
+                                return '🌸 Hadir (Sedang Halangan)';
+                            }
                             if ($dhuhurOk && $asharOk) {
                                 return '✅ Lengkap (3/3)';
                             }
@@ -489,14 +604,19 @@ class PresensiIzinSiswaResource extends Resource
                             return '🔸 Masuk Saja (1/3)';
                         }
 
+                        if ($isHalangan) {
+                            return '🌸 Sedang Halangan';
+                        }
+
                         return 'Belum Ada Data';
                     })
                     ->color(fn (string $state): string => match (true) {
                         str_contains($state, 'Lengkap') || str_contains($state, '100%') || str_contains($state, '9') => 'success',
+                        str_contains($state, 'Halangan') => 'purple',
                         str_contains($state, '2/3') || str_contains($state, 'Hadir') => 'info',
                         str_contains($state, '1/3') || str_contains($state, 'Sakit') => 'warning',
                         str_contains($state, 'Izin') => 'info',
-                        str_contains($state, 'Alpa') => 'danger',
+                        str_contains($state, 'Alpa') || str_contains($state, 'Alpha') => 'danger',
                         default => 'gray',
                     }),
             ])
@@ -520,7 +640,7 @@ class PresensiIzinSiswaResource extends Resource
                     ->icon('heroicon-o-document-text')
                     ->color('warning')
                     ->modalHeading(fn (Student $record) => "Catat Izin / Sakit: {$record->name}")
-                    ->modalDescription('Catatan izin, sakit, atau alpa akan otomatis disinkronkan ke seluruh sesi kehadiran dan sholat.')
+                    ->modalDescription('Catatan izin, sakit, atau alpha akan otomatis disinkronkan ke seluruh sesi: kedatangan di sekolah, sholat Dhuhur, dan sholat Ashar.')
                     ->form([
                         Forms\Components\DatePicker::make('tanggal')
                             ->label('Tanggal')
@@ -528,18 +648,18 @@ class PresensiIzinSiswaResource extends Resource
                             ->required(),
 
                         Forms\Components\Select::make('status')
-                            ->label('Status')
+                            ->label('Pilihan Status')
                             ->options([
                                 'sakit' => '🤒 Sakit',
                                 'izin'  => '📋 Izin',
-                                'alpa'  => '❌ Alpa / Tanpa Keterangan',
+                                'alpa'  => '❌ Alpha / Tanpa Keterangan',
                             ])
                             ->default('sakit')
                             ->required(),
 
                         Forms\Components\Textarea::make('keterangan')
                             ->label('Alasan / Keterangan')
-                            ->placeholder('Contoh: Sakit demam tinggi, rawat inap di RS...')
+                            ->placeholder('Contoh: Sakit demam berobat ke klinik / Izin ada acara keluarga...')
                             ->rows(3)
                             ->required(),
 
@@ -564,7 +684,7 @@ class PresensiIzinSiswaResource extends Resource
                                 ],
                                 [
                                     'institution_id'   => $record->institution_id ?: 2,
-                                    'teacher_id'       => Auth::id(),
+                                    'teacher_id'       => Auth::id() ?: 1,
                                     'status'           => $data['status'],
                                     'metode_absen'     => 'manual',
                                     'keterangan'       => $data['keterangan'] ?? null,
@@ -575,16 +695,168 @@ class PresensiIzinSiswaResource extends Resource
                             );
                         }
 
+                        // Sinkronkan ke PrayerAttendance (Dhuhur & Ashar)
+                        foreach (['Dhuhur', 'Ashar'] as $prayerName) {
+                            \App\Models\PrayerAttendance::$isSyncing = true;
+                            try {
+                                \App\Models\PrayerAttendance::withoutGlobalScopes()->updateOrCreate(
+                                    [
+                                        'student_id'   => $record->id,
+                                        'tanggal'      => $tanggal,
+                                        'jenis_sholat' => $prayerName,
+                                    ],
+                                    [
+                                        'institution_id' => $record->institution_id ?: 2,
+                                        'teacher_id'     => Auth::id() ?: 1,
+                                        'status'         => $data['status'],
+                                        'is_khusyu'      => true,
+                                    ]
+                                );
+                            } finally {
+                                \App\Models\PrayerAttendance::$isSyncing = false;
+                            }
+                        }
+
+                        $statusLabel = match ($data['status']) {
+                            'sakit' => 'Sakit',
+                            'izin'  => 'Izin',
+                            default => 'Alpha',
+                        };
+
                         Notification::make()
                             ->title('Status Berhasil Dicatat')
-                            ->body("Status {$data['status']} untuk {$record->name} pada {$tanggal} berhasil disimpan.")
+                            ->body("Status {$statusLabel} untuk {$record->name} pada {$tanggal} berhasil disimpan untuk kedatangan, sholat Dhuhur, dan sholat Ashar.")
                             ->success()
                             ->send();
 
                         $livewire->dispatch('refresh-presensi-table');
                     }),
 
-                // 2. Input Manual / Koreksi Jam (Khusus Mode Harian)
+                // 2. Tandai Halangan (Khusus Siswi Putri - Berada di Sebelah Tombol Catat Izin)
+                Tables\Actions\Action::make('tandai_halangan')
+                    ->label('Tandai Halangan')
+                    ->icon('heroicon-o-sparkles')
+                    ->color('purple')
+                    ->visible(fn (Student $record) => $record->jenis_kelamin === 'P')
+                    ->modalHeading(fn (Student $record) => "Tandai Halangan Sholat: {$record->name}")
+                    ->modalDescription("Tandai siswi sedang berhalangan syar'i (haid). Otomatis absensi Sholat Dhuhur & Ashar dicatat 'Sedang Halangan', sedangkan absensi kedatangan tetap tercatat normal.")
+                    ->form([
+                        Forms\Components\DatePicker::make('tanggal_mulai')
+                            ->label('Tanggal Mulai Halangan')
+                            ->default(fn ($livewire) => static::getActiveDate($livewire))
+                            ->required(),
+
+                        Forms\Components\Select::make('durasi_hari')
+                            ->label('Estimasi Lama Periode Halangan')
+                            ->options([
+                                1  => '1 Hari (Hari Ini Saja)',
+                                2  => '2 Hari',
+                                3  => '3 Hari',
+                                5  => '5 Hari',
+                                7  => '7 Hari (Standar Siklus)',
+                                10 => '10 Hari',
+                                14 => '14 Hari (Maksimal)',
+                            ])
+                            ->default(7)
+                            ->reactive()
+                            ->afterStateUpdated(function ($state, callable $set, $get) {
+                                $start = $get('tanggal_mulai') ?: now()->toDateString();
+                                $days = (int) ($state ?: 7);
+                                $set('tanggal_selesai', Carbon::parse($start)->addDays($days - 1)->toDateString());
+                            })
+                            ->helperText('Pilih durasi estimasi siswi berhalangan sholat.'),
+
+                        Forms\Components\DatePicker::make('tanggal_selesai')
+                            ->label('Tanggal Selesai Halangan')
+                            ->default(fn ($livewire) => Carbon::parse(static::getActiveDate($livewire))->addDays(6)->toDateString())
+                            ->required(),
+
+                        Forms\Components\TextInput::make('keterangan')
+                            ->label('Keterangan / Catatan')
+                            ->default("Sedang halangan / udzur syar'i")
+                            ->maxLength(255),
+
+                        Forms\Components\Toggle::make('batal_halangan')
+                            ->label('Hapus / Batalkan Tanda Halangan')
+                            ->helperText('Aktifkan pilihan ini jika siswi sudah suci lebih awal atau tanda halangan keliru dimasukkan.')
+                            ->default(false)
+                            ->visible(fn (Student $record, $livewire) => StudentHalangan::isHalangan($record->id, static::getActiveDate($livewire))),
+                    ])
+                    ->action(function (Student $record, array $data, $livewire): void {
+                        $start = $data['tanggal_mulai'];
+                        $end = $data['tanggal_selesai'] ?? $start;
+
+                        if (!empty($data['batal_halangan'])) {
+                            // Hapus rekaman StudentHalangan yang beririsan
+                            StudentHalangan::withoutGlobalScopes()
+                                ->where('student_id', $record->id)
+                                ->where('tanggal_mulai', '<=', $end)
+                                ->where(function ($q) use ($start) {
+                                    $q->whereNull('tanggal_selesai')
+                                      ->orWhere('tanggal_selesai', '>=', $start);
+                                })
+                                ->delete();
+
+                            // Reset DailyAttendance sholat yang statusnya halangan pada rentang tersebut
+                            DailyAttendance::withoutGlobalScopes()
+                                ->where('student_id', $record->id)
+                                ->whereBetween('tanggal', [$start, $end])
+                                ->whereIn('tipe_absen', ['sholat_dhuhur', 'sholat_ashar'])
+                                ->where('status', 'halangan')
+                                ->delete();
+
+                            Notification::make()
+                                ->title('Tanda Halangan Dibatalkan')
+                                ->body("Status halangan untuk {$record->name} berhasil dihapus/dibatalkan.")
+                                ->info()
+                                ->send();
+                        } else {
+                            // Catat di tabel StudentHalangan
+                            StudentHalangan::create([
+                                'student_id'      => $record->id,
+                                'institution_id'  => $record->institution_id ?: 2,
+                                'tanggal_mulai'   => $start,
+                                'tanggal_selesai' => $end,
+                                'catatan'         => $data['keterangan'] ?? "Sedang halangan / udzur syar'i",
+                                'recorded_by'     => Auth::id() ?: 1,
+                            ]);
+
+                            // Pastikan DailyAttendance untuk Sholat Dhuhur & Ashar tercatat sebagai halangan pada rentang tersebut
+                            // PENTING: Absensi kedatangan (masuk) TIDAK diubah sama sekali agar kehadiran tetap tercatat
+                            $period = \Carbon\CarbonPeriod::create(Carbon::parse($start), Carbon::parse($end));
+                            foreach ($period as $dt) {
+                                $curDate = $dt->toDateString();
+                                foreach (['sholat_dhuhur', 'sholat_ashar'] as $sesi) {
+                                    DailyAttendance::withoutGlobalScopes()->updateOrCreate(
+                                        [
+                                            'student_id' => $record->id,
+                                            'tanggal'    => $curDate,
+                                            'tipe_absen' => $sesi,
+                                        ],
+                                        [
+                                            'institution_id'   => $record->institution_id ?: 2,
+                                            'teacher_id'       => Auth::id() ?: 1,
+                                            'status'           => 'halangan',
+                                            'metode_absen'     => 'manual',
+                                            'waktu_kedatangan' => null,
+                                            'is_late'          => false,
+                                            'keterangan'       => $data['keterangan'] ?? "Sedang halangan / udzur syar'i",
+                                        ]
+                                    );
+                                }
+                            }
+
+                            Notification::make()
+                                ->title('Siswi Berhasil Ditandai Halangan')
+                                ->body("Siswi {$record->name} ditandai halangan dari {$start} s.d {$end}. Absensi sholat Dhuhur & Ashar otomatis tercatat 'Sedang Halangan', sedangkan absensi kedatangan tetap tercatat normal.")
+                                ->success()
+                                ->send();
+                        }
+
+                        $livewire->dispatch('refresh-presensi-table');
+                    }),
+
+                // 3. Input Manual / Koreksi Jam (Khusus Mode Harian)
                 Tables\Actions\Action::make('input_manual_jam')
                     ->label('Koreksi Jam')
                     ->icon('heroicon-o-clock')
@@ -661,66 +933,6 @@ class PresensiIzinSiswaResource extends Resource
                         $livewire->dispatch('refresh-presensi-table');
                     }),
 
-                // 3. Catat Halangan (Khusus Siswi Putri)
-                Tables\Actions\Action::make('catat_halangan')
-                    ->label('Catat Halangan')
-                    ->icon('heroicon-o-heart')
-                    ->color('purple')
-                    ->visible(fn (Student $record) => $record->jenis_kelamin === 'P')
-                    ->modalHeading(fn (Student $record) => "Catat Halangan / Udzur: {$record->name}")
-                    ->modalDescription('Mencatat siswi yang sedang udzur syar\'i (haid) sehingga tidak dihitung alpa pada sholat Dhuhur & Ashar.')
-                    ->form([
-                        Forms\Components\DatePicker::make('tanggal_mulai')
-                            ->label('Tanggal Mulai')
-                            ->default(fn ($livewire) => static::getActiveDate($livewire))
-                            ->required(),
-
-                        Forms\Components\DatePicker::make('tanggal_selesai')
-                            ->label('Tanggal Selesai (Estimasi 7 Hari)')
-                            ->default(fn ($livewire) => Carbon::parse(static::getActiveDate($livewire))->addDays(6)->toDateString())
-                            ->required(),
-
-                        Forms\Components\TextInput::make('keterangan')
-                            ->label('Keterangan')
-                            ->default('Udzur syar\'i (haid)')
-                            ->maxLength(255),
-                    ])
-                    ->action(function (Student $record, array $data, $livewire): void {
-                        StudentHalangan::create([
-                            'student_id'      => $record->id,
-                            'tanggal_mulai'   => $data['tanggal_mulai'],
-                            'tanggal_selesai' => $data['tanggal_selesai'],
-                            'catatan'         => $data['keterangan'] ?? 'Udzur syar\'i',
-                            'recorded_by'     => Auth::id() ?: 1,
-                        ]);
-
-                        $currDate = $data['tanggal_mulai'];
-                        foreach (['sholat_dhuhur', 'sholat_ashar'] as $sesi) {
-                            DailyAttendance::withoutGlobalScopes()->updateOrCreate(
-                                [
-                                    'student_id' => $record->id,
-                                    'tanggal'    => $currDate,
-                                    'tipe_absen' => $sesi,
-                                ],
-                                [
-                                    'institution_id' => $record->institution_id ?: 2,
-                                    'teacher_id'     => Auth::id(),
-                                    'status'         => 'halangan',
-                                    'metode_absen'   => 'manual',
-                                    'keterangan'     => $data['keterangan'] ?? 'Udzur syar\'i',
-                                ]
-                            );
-                        }
-
-                        Notification::make()
-                            ->title('Udzur Siswi Berhasil Dicatat')
-                            ->body("Data halangan {$record->name} dari {$data['tanggal_mulai']} s.d {$data['tanggal_selesai']} berhasil dicatat.")
-                            ->success()
-                            ->send();
-
-                        $livewire->dispatch('refresh-presensi-table');
-                    }),
-
                 // 4. Kirim WA Laporan ke Orang Tua
                 Tables\Actions\Action::make('kirim_wa')
                     ->label('Kirim WA Ortu')
@@ -743,19 +955,26 @@ class PresensiIzinSiswaResource extends Resource
                         $attDhuhur = $record->getAttendanceOnDate($tanggal, 'sholat_dhuhur');
                         $attAshar = $record->getAttendanceOnDate($tanggal, ['sholat_ashar', 'pulang']);
                         $excused = $record->getGeneralExcusedOnDate($tanggal);
-                        $isHalangan = $record->jenis_kelamin === 'P' && StudentHalangan::isHalangan($record->id, $tanggal);
+                        $isHalangan = $record->jenis_kelamin === 'P' && (
+                            StudentHalangan::isHalangan($record->id, $tanggal)
+                            || ($attDhuhur && $attDhuhur->status === 'halangan')
+                            || ($attAshar && $attAshar->status === 'halangan')
+                        );
+
+                        $statusIzin = ($attMasuk && in_array($attMasuk->status, ['sakit', 'izin', 'alpa'])) ? $attMasuk->status : ($excused ? $excused->status : null);
+                        $ketIzin = ($attMasuk && $attMasuk->keterangan) ? $attMasuk->keterangan : ($excused ? $excused->keterangan : '');
 
                         $masukText = $attMasuk && $attMasuk->status === 'hadir'
                             ? ($attMasuk->waktu_kedatangan ? Carbon::parse($attMasuk->waktu_kedatangan)->format('H:i') . ' WIB' : 'Hadir') . ($attMasuk->is_late ? ' (Terlambat)' : ' (Tepat Waktu)')
-                            : ($excused ? ucfirst($excused->status) : 'Belum Scan Masuk');
+                            : ($statusIzin ? ucfirst($statusIzin) . ($ketIzin ? " ({$ketIzin})" : '') : 'Belum Scan Masuk');
 
-                        $dhuhurText = $isHalangan ? 'Halangan / Udzur Syar\'i' : ($attDhuhur && $attDhuhur->status === 'hadir'
+                        $dhuhurText = $isHalangan ? '🌸 Sedang Halangan / Udzur Syar\'i' : ($attDhuhur && $attDhuhur->status === 'hadir'
                             ? ($attDhuhur->waktu_kedatangan ? Carbon::parse($attDhuhur->waktu_kedatangan)->format('H:i') . ' WIB' : 'Hadir') . ($attDhuhur->is_late ? ' (Terlambat)' : ' (Tepat Waktu)')
-                            : ($excused ? 'Izin Harian' : 'Belum Sholat / Scan'));
+                            : ($statusIzin ? ucfirst($statusIzin) . ($ketIzin ? " ({$ketIzin})" : '') : 'Belum Sholat / Scan'));
 
-                        $asharText = $isHalangan ? 'Halangan / Udzur Syar\'i' : ($attAshar && $attAshar->status === 'hadir'
+                        $asharText = $isHalangan ? '🌸 Sedang Halangan / Udzur Syar\'i' : ($attAshar && $attAshar->status === 'hadir'
                             ? ($attAshar->waktu_kedatangan ? Carbon::parse($attAshar->waktu_kedatangan)->format('H:i') . ' WIB' : 'Hadir') . ($attAshar->is_late ? ' (Terlambat)' : ' (Tepat Waktu)')
-                            : ($excused ? 'Izin Harian' : 'Belum Sholat / Scan'));
+                            : ($statusIzin ? ucfirst($statusIzin) . ($ketIzin ? " ({$ketIzin})" : '') : 'Belum Sholat / Scan'));
 
                         $kelas = $record->classroom?->name ?? '-';
                         $msg = "Assalamu'alaikum Wr. Wb.\n\n"
@@ -771,6 +990,143 @@ class PresensiIzinSiswaResource extends Resource
                     })
                     ->openUrlInNewTab()
                     ->visible(fn (Student $record) => (bool) ($record->telepon_ayah ?: $record->telepon_ibu ?: $record->telepon_wali)),
+            ])
+            ->bulkActions([
+                Tables\Actions\BulkActionGroup::make([
+                    Tables\Actions\BulkAction::make('tandai_halangan_bulk')
+                        ->label('Tandai Halangan Siswi (Pilihan)')
+                        ->icon('heroicon-o-heart')
+                        ->color('purple')
+                        ->modalHeading('Tandai Halangan Sholat Siswi Terpilih')
+                        ->modalDescription("Tandai siswi-siswi terpilih sedang berhalangan syar'i (haid). Otomatis sholat Dhuhur & Ashar dicatat 'Sedang Halangan', sedangkan absensi kedatangan tetap tercatat normal.")
+                        ->form([
+                            Forms\Components\DatePicker::make('tanggal_mulai')
+                                ->label('Tanggal Mulai')
+                                ->default(fn ($livewire) => static::getActiveDate($livewire))
+                                ->required(),
+                            Forms\Components\DatePicker::make('tanggal_selesai')
+                                ->label('Tanggal Selesai')
+                                ->default(fn ($livewire) => Carbon::parse(static::getActiveDate($livewire))->addDays(6)->toDateString())
+                                ->required(),
+                            Forms\Components\TextInput::make('keterangan')
+                                ->label('Keterangan')
+                                ->default("Sedang halangan / udzur syar'i")
+                                ->maxLength(255),
+                        ])
+                        ->action(function (\Illuminate\Database\Eloquent\Collection $records, array $data, $livewire): void {
+                            $start = $data['tanggal_mulai'];
+                            $end = $data['tanggal_selesai'] ?? $start;
+                            $count = 0;
+
+                            foreach ($records as $record) {
+                                if ($record->jenis_kelamin !== 'P') {
+                                    continue;
+                                }
+
+                                StudentHalangan::create([
+                                    'student_id'      => $record->id,
+                                    'institution_id'  => $record->institution_id ?: 2,
+                                    'tanggal_mulai'   => $start,
+                                    'tanggal_selesai' => $end,
+                                    'catatan'         => $data['keterangan'] ?? "Sedang halangan / udzur syar'i",
+                                    'recorded_by'     => Auth::id() ?: 1,
+                                ]);
+
+                                $period = \Carbon\CarbonPeriod::create(Carbon::parse($start), Carbon::parse($end));
+                                foreach ($period as $dt) {
+                                    $curDate = $dt->toDateString();
+                                    foreach (['sholat_dhuhur', 'sholat_ashar'] as $sesi) {
+                                        DailyAttendance::withoutGlobalScopes()->updateOrCreate(
+                                            [
+                                                'student_id' => $record->id,
+                                                'tanggal'    => $curDate,
+                                                'tipe_absen' => $sesi,
+                                            ],
+                                            [
+                                                'institution_id'   => $record->institution_id ?: 2,
+                                                'teacher_id'       => Auth::id() ?: 1,
+                                                'status'           => 'halangan',
+                                                'metode_absen'     => 'manual',
+                                                'waktu_kedatangan' => null,
+                                                'is_late'          => false,
+                                                'keterangan'       => $data['keterangan'] ?? "Sedang halangan / udzur syar'i",
+                                            ]
+                                        );
+                                    }
+                                }
+                                $count++;
+                            }
+
+                            Notification::make()
+                                ->title('Halangan Siswi Berhasil Ditandai')
+                                ->body("Berhasil menandai {$count} siswi perempuan sedang halangan sholat.")
+                                ->success()
+                                ->send();
+
+                            $livewire->dispatch('refresh-presensi-table');
+                        }),
+
+                    Tables\Actions\BulkAction::make('catat_izin_bulk')
+                        ->label('Catat Izin / Sakit (Pilihan)')
+                        ->icon('heroicon-o-document-text')
+                        ->color('warning')
+                        ->modalHeading('Catat Izin / Sakit Siswa Terpilih')
+                        ->modalDescription('Catatan izin/sakit/alpa akan otomatis disinkronkan ke seluruh sesi: kedatangan, sholat Dhuhur, dan sholat Ashar.')
+                        ->form([
+                            Forms\Components\DatePicker::make('tanggal')
+                                ->label('Tanggal')
+                                ->default(fn ($livewire) => static::getActiveDate($livewire))
+                                ->required(),
+                            Forms\Components\Select::make('status')
+                                ->label('Status')
+                                ->options([
+                                    'sakit' => '🤒 Sakit',
+                                    'izin'  => '📋 Izin',
+                                    'alpa'  => '❌ Alpha',
+                                ])
+                                ->default('sakit')
+                                ->required(),
+                            Forms\Components\TextInput::make('keterangan')
+                                ->label('Alasan / Keterangan')
+                                ->placeholder('Contoh: Mengikuti kegiatan / izin keluarga')
+                                ->required(),
+                        ])
+                        ->action(function (\Illuminate\Database\Eloquent\Collection $records, array $data, $livewire): void {
+                            $tanggal = $data['tanggal'];
+                            $sesiList = ['masuk', 'sholat_dhuhur', 'sholat_ashar'];
+                            $count = 0;
+
+                            foreach ($records as $record) {
+                                foreach ($sesiList as $sesi) {
+                                    DailyAttendance::withoutGlobalScopes()->updateOrCreate(
+                                        [
+                                            'student_id' => $record->id,
+                                            'tanggal'    => $tanggal,
+                                            'tipe_absen' => $sesi,
+                                        ],
+                                        [
+                                            'institution_id'   => $record->institution_id ?: 2,
+                                            'teacher_id'       => Auth::id() ?: 1,
+                                            'status'           => $data['status'],
+                                            'metode_absen'     => 'manual',
+                                            'keterangan'       => $data['keterangan'] ?? null,
+                                            'waktu_kedatangan' => null,
+                                            'is_late'          => false,
+                                        ]
+                                    );
+                                }
+                                $count++;
+                            }
+
+                            Notification::make()
+                                ->title('Status Berhasil Dicatat')
+                                ->body("Berhasil mencatat status {$data['status']} untuk {$count} siswa.")
+                                ->success()
+                                ->send();
+
+                            $livewire->dispatch('refresh-presensi-table');
+                        }),
+                ]),
             ]);
     }
 

@@ -317,4 +317,122 @@ class DailyStudentAttendanceMonitoringTest extends TestCase
             ->call('onDateRangeChanged', Carbon::today()->subDays(7)->toDateString(), Carbon::today()->toDateString())
             ->assertSuccessful();
     }
+
+    /**
+     * 6. Test Fitur Tandai Halangan: Sholat Dhuhur & Ashar otomatis Halangan, sedangkan Kedatangan tetap normal.
+     */
+    public function test_tandai_halangan_records_prayer_as_halangan_and_leaves_kedatangan_untouched(): void
+    {
+        $this->actingAs($this->guruPiketToday);
+        $today = Carbon::today()->toDateString();
+
+        // Kedatangan siswi di pagi hari berhasil scan finger tepat waktu
+        DailyAttendance::create([
+            'student_id'       => $this->studentFemale->id,
+            'institution_id'   => $this->institution->id,
+            'tanggal'          => $today,
+            'tipe_absen'       => 'masuk',
+            'waktu_kedatangan' => '06:45:00',
+            'status'           => 'hadir',
+            'is_late'          => false,
+            'metode_absen'     => 'fingerprint',
+        ]);
+
+        // Guru piket menandai siswi sedang halangan
+        StudentHalangan::create([
+            'student_id'      => $this->studentFemale->id,
+            'institution_id'  => $this->institution->id,
+            'tanggal_mulai'   => $today,
+            'tanggal_selesai' => Carbon::today()->addDays(6)->toDateString(),
+            'catatan'         => "Sedang halangan / udzur syar'i",
+            'recorded_by'     => $this->guruPiketToday->id,
+        ]);
+
+        // Verifikasi: Kedatangan tetap Hadir
+        $attMasuk = $this->studentFemale->getAttendanceOnDate($today, 'masuk');
+        $this->assertNotNull($attMasuk);
+        $this->assertEquals('hadir', $attMasuk->status);
+        $this->assertEquals('06:45:00', $attMasuk->waktu_kedatangan);
+
+        // Verifikasi: Sholat Dhuhur & Ashar otomatis tercatat Halangan
+        $attDhuhur = $this->studentFemale->getAttendanceOnDate($today, 'sholat_dhuhur');
+        $this->assertNotNull($attDhuhur);
+        $this->assertEquals('halangan', $attDhuhur->status);
+
+        $attAshar = $this->studentFemale->getAttendanceOnDate($today, ['sholat_ashar', 'pulang']);
+        $this->assertNotNull($attAshar);
+        $this->assertEquals('halangan', $attAshar->status);
+
+        // Verifikasi isHalangan
+        $this->assertTrue(StudentHalangan::isHalangan($this->studentFemale->id, $today));
+    }
+
+    /**
+     * 7. Test Fitur Catat Izin: Siswa Sakit, Izin, Alpha otomatis terisi ke Kedatangan, Dhuhur, dan Ashar sesuai yang dipilih.
+     */
+    public function test_catat_izin_sets_all_three_sessions_to_selected_status_with_matching_keterangan(): void
+    {
+        $this->actingAs($this->guruPiketToday);
+        $today = Carbon::today()->toDateString();
+
+        // 1. Catat Sakit
+        $sesiList = ['masuk', 'sholat_dhuhur', 'sholat_ashar'];
+        foreach ($sesiList as $sesi) {
+            DailyAttendance::updateOrCreate(
+                [
+                    'student_id' => $this->studentMale->id,
+                    'tanggal'    => $today,
+                    'tipe_absen' => $sesi,
+                ],
+                [
+                    'institution_id' => $this->institution->id,
+                    'teacher_id'     => $this->guruPiketToday->id,
+                    'status'         => 'sakit',
+                    'metode_absen'   => 'manual',
+                    'keterangan'     => 'Demam tinggi berobat ke RS',
+                ]
+            );
+        }
+
+        $attMasukMale = $this->studentMale->getAttendanceOnDate($today, 'masuk');
+        $attDhuhurMale = $this->studentMale->getAttendanceOnDate($today, 'sholat_dhuhur');
+        $attAsharMale = $this->studentMale->getAttendanceOnDate($today, ['sholat_ashar', 'pulang']);
+
+        $this->assertEquals('sakit', $attMasukMale->status);
+        $this->assertEquals('Demam tinggi berobat ke RS', $attMasukMale->keterangan);
+        $this->assertEquals('sakit', $attDhuhurMale->status);
+        $this->assertEquals('Demam tinggi berobat ke RS', $attDhuhurMale->keterangan);
+        $this->assertEquals('sakit', $attAsharMale->status);
+        $this->assertEquals('Demam tinggi berobat ke RS', $attAsharMale->keterangan);
+
+        // 2. Catat Izin
+        $tomorrow = Carbon::tomorrow()->toDateString();
+        foreach ($sesiList as $sesi) {
+            DailyAttendance::updateOrCreate(
+                [
+                    'student_id' => $this->studentMale->id,
+                    'tanggal'    => $tomorrow,
+                    'tipe_absen' => $sesi,
+                ],
+                [
+                    'institution_id' => $this->institution->id,
+                    'teacher_id'     => $this->guruPiketToday->id,
+                    'status'         => 'izin',
+                    'metode_absen'   => 'manual',
+                    'keterangan'     => 'Izin acara keluarga',
+                ]
+            );
+        }
+
+        $attMasukTomorrow = $this->studentMale->getAttendanceOnDate($tomorrow, 'masuk');
+        $attDhuhurTomorrow = $this->studentMale->getAttendanceOnDate($tomorrow, 'sholat_dhuhur');
+        $attAsharTomorrow = $this->studentMale->getAttendanceOnDate($tomorrow, ['sholat_ashar', 'pulang']);
+
+        $this->assertEquals('izin', $attMasukTomorrow->status);
+        $this->assertEquals('Izin acara keluarga', $attMasukTomorrow->keterangan);
+        $this->assertEquals('izin', $attDhuhurTomorrow->status);
+        $this->assertEquals('Izin acara keluarga', $attDhuhurTomorrow->keterangan);
+        $this->assertEquals('izin', $attAsharTomorrow->status);
+        $this->assertEquals('Izin acara keluarga', $attAsharTomorrow->keterangan);
+    }
 }

@@ -114,7 +114,7 @@ class DailyAttendance extends Model
                                     'status'         => $attendance->status,
                                     'metode_absen'   => $attendance->metode_absen ?? 'manual',
                                     'is_late'        => false,
-                                    'keterangan'     => "Otomatis 1 hari ({$attendance->status}) dari input presensi piket",
+                                    'keterangan'     => $attendance->keterangan ?: "Otomatis 1 hari ({$attendance->status}) dari input presensi piket",
                                 ]
                             );
                         } finally {
@@ -164,7 +164,7 @@ class DailyAttendance extends Model
                                     'status'         => 'halangan',
                                     'metode_absen'   => 'manual',
                                     'is_late'        => false,
-                                    'keterangan'     => "Udzur syar'i (Halangan / Haid)",
+                                    'keterangan'     => $attendance->keterangan ?: "Udzur syar'i (Halangan / Haid)",
                                 ]
                             );
                         } finally {

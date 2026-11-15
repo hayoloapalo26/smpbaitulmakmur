@@ -327,6 +327,117 @@ class ManagePresensiIzinSiswa extends ManageRecords
                     $this->dispatch('refresh-presensi-table');
                 }),
 
+            // 3. Tandai Halangan Siswi Putri (Header Action)
+            Actions\Action::make('tandai_halangan_siswi')
+                ->label('Tandai Halangan Siswi')
+                ->icon('heroicon-o-heart')
+                ->color('purple')
+                ->modalHeading('Tandai Halangan Sholat Siswi Putri')
+                ->modalDescription("Tandai siswi-siswi putri yang sedang udzur syar'i (haid). Absensi Sholat Dhuhur & Ashar otomatis dicatat 'Sedang Halangan', sedangkan absensi kedatangan tetap tercatat normal.")
+                ->form([
+                    Forms\Components\Select::make('student_ids')
+                        ->label('Pilih Siswi Putri')
+                        ->multiple()
+                        ->searchable()
+                        ->options(function () {
+                            $user = Auth::user();
+                            $query = Student::withoutGlobalScopes()
+                                ->where('status_siswa', 'aktif')
+                                ->where('jenis_kelamin', 'P');
+                            if ($user && !$user->hasRole('superadmin') && $user->institution_id && $user->institution_id != 1) {
+                                $query->where('institution_id', $user->institution_id);
+                            }
+                            return $query->orderBy('name')->pluck('name', 'id');
+                        })
+                        ->required(),
+
+                    Forms\Components\DatePicker::make('tanggal_mulai')
+                        ->label('Tanggal Mulai Halangan')
+                        ->default(fn () => $this->filterTanggal ?: Carbon::today()->toDateString())
+                        ->required(),
+
+                    Forms\Components\Select::make('durasi_hari')
+                        ->label('Estimasi Lama Halangan')
+                        ->options([
+                            1  => '1 Hari (Hari Ini Saja)',
+                            3  => '3 Hari',
+                            5  => '5 Hari',
+                            7  => '7 Hari (Standar Siklus)',
+                            10 => '10 Hari',
+                            14 => '14 Hari (Maksimal)',
+                        ])
+                        ->default(7)
+                        ->reactive()
+                        ->afterStateUpdated(function ($state, callable $set, $get) {
+                            $start = $get('tanggal_mulai') ?: now()->toDateString();
+                            $days = (int) ($state ?: 7);
+                            $set('tanggal_selesai', Carbon::parse($start)->addDays($days - 1)->toDateString());
+                        }),
+
+                    Forms\Components\DatePicker::make('tanggal_selesai')
+                        ->label('Tanggal Selesai Halangan')
+                        ->default(fn () => Carbon::parse($this->filterTanggal ?: Carbon::today()->toDateString())->addDays(6)->toDateString())
+                        ->required(),
+
+                    Forms\Components\TextInput::make('keterangan')
+                        ->label('Keterangan / Catatan')
+                        ->default("Sedang halangan / udzur syar'i")
+                        ->maxLength(255),
+                ])
+                ->action(function (array $data): void {
+                    $start = $data['tanggal_mulai'];
+                    $end = $data['tanggal_selesai'] ?? $start;
+                    $studentIds = $data['student_ids'] ?? [];
+                    $count = 0;
+
+                    foreach ($studentIds as $stId) {
+                        $student = Student::withoutGlobalScopes()->find($stId);
+                        if (!$student) continue;
+
+                        \App\Models\StudentHalangan::create([
+                            'student_id'      => $student->id,
+                            'institution_id'  => $student->institution_id ?: 2,
+                            'tanggal_mulai'   => $start,
+                            'tanggal_selesai' => $end,
+                            'catatan'         => $data['keterangan'] ?? "Sedang halangan / udzur syar'i",
+                            'recorded_by'     => Auth::id() ?: 1,
+                        ]);
+
+                        $period = \Carbon\CarbonPeriod::create(Carbon::parse($start), Carbon::parse($end));
+                        foreach ($period as $dt) {
+                            $curDate = $dt->toDateString();
+                            foreach (['sholat_dhuhur', 'sholat_ashar'] as $sesi) {
+                                DailyAttendance::withoutGlobalScopes()->updateOrCreate(
+                                    [
+                                        'student_id' => $student->id,
+                                        'tanggal'    => $curDate,
+                                        'tipe_absen' => $sesi,
+                                    ],
+                                    [
+                                        'institution_id'   => $student->institution_id ?: 2,
+                                        'teacher_id'       => Auth::id() ?: 1,
+                                        'status'           => 'halangan',
+                                        'metode_absen'     => 'manual',
+                                        'waktu_kedatangan' => null,
+                                        'is_late'          => false,
+                                        'keterangan'       => $data['keterangan'] ?? "Sedang halangan / udzur syar'i",
+                                    ]
+                                );
+                            }
+                        }
+                        $count++;
+                    }
+
+                    Notification::make()
+                        ->title('Halangan Siswi Berhasil Ditandai')
+                        ->body("Berhasil menandai {$count} siswi putri berhalangan sholat. Absensi sholat Dhuhur & Ashar otomatis tercatat 'Sedang Halangan', sedangkan absensi kedatangan tetap tercatat normal.")
+                        ->success()
+                        ->send();
+
+                    $this->resetTable();
+                    $this->dispatch('refresh-presensi-table');
+                }),
+
             // 3. Tombol Khusus Superadmin: Shortcut ke Pengaturan Mesin Fingerspot
             Actions\Action::make('pengaturan_mesin')
                 ->label('Integrasi Mesin Fingerspot')

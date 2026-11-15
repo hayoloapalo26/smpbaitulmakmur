@@ -392,10 +392,11 @@
                             $isLate = $attMasuk->is_late || ($attMasuk->waktu_kedatangan && \Carbon\Carbon::parse($attMasuk->waktu_kedatangan)->format('H:i') > '06:50');
                             $ketMasuk = $isLate ? 'Terlambat' : 'Tepat Waktu';
                             $badgeMasuk = $isLate ? 'badge-rose' : 'badge-green';
-                        } elseif ($excused) {
-                            $jamMasuk = strtoupper($excused->status);
-                            $ketMasuk = 'Izin/Sakit';
-                            $badgeMasuk = $excused->status === 'sakit' ? 'badge-amber' : ($excused->status === 'izin' ? 'badge-blue' : 'badge-rose');
+                        } elseif ($excused || ($attMasuk && in_array($attMasuk->status, ['sakit', 'izin', 'alpa']))) {
+                            $stObj = $attMasuk && in_array($attMasuk->status, ['sakit', 'izin', 'alpa']) ? $attMasuk : $excused;
+                            $jamMasuk = strtoupper($stObj->status);
+                            $ketMasuk = $stObj->keterangan ?: ucfirst($stObj->status);
+                            $badgeMasuk = $stObj->status === 'sakit' ? 'badge-amber' : ($stObj->status === 'izin' ? 'badge-blue' : 'badge-rose');
                         }
 
                         // 2. Dhuhur
@@ -404,17 +405,21 @@
                         $badgeDhuhur = 'badge-gray';
                         if ($isHalangan || ($attDhuhur && $attDhuhur->status === 'halangan')) {
                             $jamDhuhur = 'Udzur';
-                            $ketDhuhur = 'Halangan';
+                            $ketDhuhur = ($attDhuhur && $attDhuhur->keterangan) ? $attDhuhur->keterangan : 'Sedang Halangan';
                             $badgeDhuhur = 'badge-purple';
+                        } elseif ($attDhuhur && in_array($attDhuhur->status, ['sakit', 'izin', 'alpa'])) {
+                            $jamDhuhur = strtoupper($attDhuhur->status);
+                            $ketDhuhur = $attDhuhur->keterangan ?: ucfirst($attDhuhur->status);
+                            $badgeDhuhur = $attDhuhur->status === 'sakit' ? 'badge-amber' : ($attDhuhur->status === 'izin' ? 'badge-blue' : 'badge-rose');
                         } elseif ($attDhuhur && $attDhuhur->status === 'hadir') {
                             $jamDhuhur = $attDhuhur->waktu_kedatangan ? \Carbon\Carbon::parse($attDhuhur->waktu_kedatangan)->format('H:i') : 'Hadir';
                             $isLate = $attDhuhur->is_late || ($attDhuhur->waktu_kedatangan && \Carbon\Carbon::parse($attDhuhur->waktu_kedatangan)->format('H:i') > '12:15');
                             $ketDhuhur = $isLate ? 'Terlambat' : 'Tepat Waktu';
                             $badgeDhuhur = $isLate ? 'badge-rose' : 'badge-green';
                         } elseif ($excused) {
-                            $jamDhuhur = '-';
-                            $ketDhuhur = 'Izin Harian';
-                            $badgeDhuhur = 'badge-blue';
+                            $jamDhuhur = strtoupper($excused->status);
+                            $ketDhuhur = $excused->keterangan ?: ucfirst($excused->status);
+                            $badgeDhuhur = $excused->status === 'sakit' ? 'badge-amber' : ($excused->status === 'izin' ? 'badge-blue' : 'badge-rose');
                         }
 
                         // 3. Ashar
@@ -423,26 +428,34 @@
                         $badgeAshar = 'badge-gray';
                         if ($isHalangan || ($attAshar && $attAshar->status === 'halangan')) {
                             $jamAshar = 'Udzur';
-                            $ketAshar = 'Halangan';
+                            $ketAshar = ($attAshar && $attAshar->keterangan) ? $attAshar->keterangan : 'Sedang Halangan';
                             $badgeAshar = 'badge-purple';
+                        } elseif ($attAshar && in_array($attAshar->status, ['sakit', 'izin', 'alpa'])) {
+                            $jamAshar = strtoupper($attAshar->status);
+                            $ketAshar = $attAshar->keterangan ?: ucfirst($attAshar->status);
+                            $badgeAshar = $attAshar->status === 'sakit' ? 'badge-amber' : ($attAshar->status === 'izin' ? 'badge-blue' : 'badge-rose');
                         } elseif ($attAshar && $attAshar->status === 'hadir') {
                             $jamAshar = $attAshar->waktu_kedatangan ? \Carbon\Carbon::parse($attAshar->waktu_kedatangan)->format('H:i') : 'Hadir';
                             $isLate = $attAshar->is_late || ($attAshar->waktu_kedatangan && \Carbon\Carbon::parse($attAshar->waktu_kedatangan)->format('H:i') > '15:15');
                             $ketAshar = $isLate ? 'Terlambat' : 'Tepat Waktu';
                             $badgeAshar = $isLate ? 'badge-rose' : 'badge-green';
                         } elseif ($excused) {
-                            $jamAshar = '-';
-                            $ketAshar = 'Izin Harian';
-                            $badgeAshar = 'badge-blue';
+                            $jamAshar = strtoupper($excused->status);
+                            $ketAshar = $excused->keterangan ?: ucfirst($excused->status);
+                            $badgeAshar = $excused->status === 'sakit' ? 'badge-amber' : ($excused->status === 'izin' ? 'badge-blue' : 'badge-rose');
                         }
 
                         // Status Akhir
                         $statusRingkas = 'Belum Lengkap';
                         $badgeRingkas = 'badge-gray';
-                        if ($excused) {
-                            $statusRingkas = ucfirst($excused->status);
-                            $badgeRingkas = $excused->status === 'sakit' ? 'badge-amber' : ($excused->status === 'izin' ? 'badge-blue' : 'badge-rose');
-                        } elseif ($attMasuk && $attMasuk->status === 'hadir' && ($attDhuhur || $isHalangan) && ($attAshar || $isHalangan)) {
+                        if ($excused || ($attMasuk && in_array($attMasuk->status, ['sakit', 'izin', 'alpa']))) {
+                            $stObj = $attMasuk && in_array($attMasuk->status, ['sakit', 'izin', 'alpa']) ? $attMasuk : $excused;
+                            $statusRingkas = ucfirst($stObj->status);
+                            $badgeRingkas = $stObj->status === 'sakit' ? 'badge-amber' : ($stObj->status === 'izin' ? 'badge-blue' : 'badge-rose');
+                        } elseif ($isHalangan) {
+                            $statusRingkas = ($attMasuk && $attMasuk->status === 'hadir') ? 'Hadir (Halangan)' : 'Sedang Halangan';
+                            $badgeRingkas = 'badge-purple';
+                        } elseif ($attMasuk && $attMasuk->status === 'hadir' && ($attDhuhur && $attDhuhur->status === 'hadir') && ($attAshar && $attAshar->status === 'hadir')) {
                             $statusRingkas = 'Lengkap (3/3)';
                             $badgeRingkas = 'badge-green';
                         } elseif ($attMasuk && $attMasuk->status === 'hadir') {
