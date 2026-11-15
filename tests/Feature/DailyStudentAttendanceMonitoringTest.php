@@ -298,4 +298,23 @@ class DailyStudentAttendanceMonitoringTest extends TestCase
         $responseRentang->assertStatus(200);
         $responseRentang->assertHeader('content-type', 'application/pdf');
     }
+
+    /**
+     * 5. Test Livewire Page ManagePresensiIzinSiswa mounts successfully and handles tabs & modes without error.
+     */
+    public function test_manage_presensi_izin_siswa_page_mounts_and_handles_tabs(): void
+    {
+        $this->actingAs($this->wakaKesiswaan);
+
+        \Livewire\Livewire::test(\App\Filament\Staff\Resources\PresensiIzinSiswaResource\Pages\ManagePresensiIzinSiswa::class)
+            ->assertSuccessful()
+            ->call('onModeChanged', 'rentang')
+            ->assertSuccessful()
+            ->call('onModeChanged', 'harian')
+            ->assertSuccessful()
+            ->call('onDateChanged', Carbon::yesterday()->toDateString())
+            ->assertSuccessful()
+            ->call('onDateRangeChanged', Carbon::today()->subDays(7)->toDateString(), Carbon::today()->toDateString())
+            ->assertSuccessful();
+    }
 }

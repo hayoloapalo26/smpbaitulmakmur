@@ -78,7 +78,7 @@ class ManagePresensiIzinSiswa extends ManageRecords
         $endDate = $this->filterTanggalSelesai ?: Carbon::today()->toDateString();
         $date = $this->filterTanggal ?: Carbon::today()->toDateString();
 
-        return [
+        $tabs = [
             'all' => Tab::make('Semua Siswa Aktif'),
 
             'lengkap' => Tab::make('Hadir Lengkap (3/3)')
@@ -130,10 +130,12 @@ class ManagePresensiIzinSiswa extends ManageRecords
                           });
                     });
                 }),
+        ];
 
-            'belum_masuk' => Tab::make('Belum Scan Masuk')
+        // Tab "Belum Scan / Sholat" hanya ditampilkan pada Mode Harian
+        if (!$isRentang) {
+            $tabs['belum_masuk'] = Tab::make('Belum Scan Masuk')
                 ->badgeColor('warning')
-                ->visible(fn () => $this->mode === 'harian')
                 ->modifyQueryUsing(function (Builder $query) use ($date) {
                     $query->whereDoesntHave('dailyAttendances', function ($q) use ($date) {
                         $q->withoutGlobalScopes()
@@ -143,10 +145,9 @@ class ManagePresensiIzinSiswa extends ManageRecords
                                   ->orWhereIn('status', ['sakit', 'izin', 'alpa']);
                           });
                     });
-                }),
+                });
 
-            'belum_dhuhur' => Tab::make('Belum Sholat Dhuhur')
-                ->visible(fn () => $this->mode === 'harian')
+            $tabs['belum_dhuhur'] = Tab::make('Belum Sholat Dhuhur')
                 ->modifyQueryUsing(function (Builder $query) use ($date) {
                     $query->whereDoesntHave('dailyAttendances', function ($q) use ($date) {
                         $q->withoutGlobalScopes()
@@ -156,10 +157,9 @@ class ManagePresensiIzinSiswa extends ManageRecords
                                   ->orWhereIn('status', ['sakit', 'izin', 'alpa', 'halangan']);
                           });
                     });
-                }),
+                });
 
-            'belum_ashar' => Tab::make('Belum Sholat Ashar')
-                ->visible(fn () => $this->mode === 'harian')
+            $tabs['belum_ashar'] = Tab::make('Belum Sholat Ashar')
                 ->modifyQueryUsing(function (Builder $query) use ($date) {
                     $query->whereDoesntHave('dailyAttendances', function ($q) use ($date) {
                         $q->withoutGlobalScopes()
@@ -169,46 +169,48 @@ class ManagePresensiIzinSiswa extends ManageRecords
                                   ->orWhereIn('status', ['sakit', 'izin', 'alpa', 'halangan']);
                           });
                     });
-                }),
+                });
+        }
 
-            'izin_sakit' => Tab::make('Izin / Sakit / Alpa')
-                ->badgeColor('info')
-                ->modifyQueryUsing(function (Builder $query) use ($isRentang, $startDate, $endDate, $date) {
-                    $query->whereHas('dailyAttendances', function ($q) use ($isRentang, $startDate, $endDate, $date) {
-                        $q->withoutGlobalScopes();
-                        if ($isRentang) {
-                            $q->whereBetween('tanggal', [$startDate, $endDate]);
-                        } else {
-                            $q->whereDate('tanggal', $date);
-                        }
-                        $q->whereIn('status', ['sakit', 'izin', 'alpa']);
-                    });
-                }),
+        $tabs['izin_sakit'] = Tab::make('Izin / Sakit / Alpa')
+            ->badgeColor('info')
+            ->modifyQueryUsing(function (Builder $query) use ($isRentang, $startDate, $endDate, $date) {
+                $query->whereHas('dailyAttendances', function ($q) use ($isRentang, $startDate, $endDate, $date) {
+                    $q->withoutGlobalScopes();
+                    if ($isRentang) {
+                        $q->whereBetween('tanggal', [$startDate, $endDate]);
+                    } else {
+                        $q->whereDate('tanggal', $date);
+                    }
+                    $q->whereIn('status', ['sakit', 'izin', 'alpa']);
+                });
+            });
 
-            'halangan' => Tab::make('Halangan Siswi')
-                ->modifyQueryUsing(function (Builder $query) use ($isRentang, $startDate, $endDate, $date) {
-                    $query->where('jenis_kelamin', 'P')
-                          ->where(function ($q) use ($isRentang, $startDate, $endDate, $date) {
-                              $q->whereHas('dailyAttendances', function ($sub) use ($isRentang, $startDate, $endDate, $date) {
-                                  $sub->withoutGlobalScopes();
-                                  if ($isRentang) {
-                                      $sub->whereBetween('tanggal', [$startDate, $endDate]);
-                                  } else {
-                                      $sub->whereDate('tanggal', $date);
-                                  }
-                                  $sub->where('status', 'halangan');
-                              })->orWhereHas('halangans', function ($sub) use ($isRentang, $startDate, $endDate, $date) {
-                                  if ($isRentang) {
-                                      $sub->where('tanggal_mulai', '<=', $endDate)
-                                          ->where('tanggal_selesai', '>=', $startDate);
-                                  } else {
-                                      $sub->where('tanggal_mulai', '<=', $date)
-                                          ->where('tanggal_selesai', '>=', $date);
-                                  }
-                              });
+        $tabs['halangan'] = Tab::make('Halangan Siswi')
+            ->modifyQueryUsing(function (Builder $query) use ($isRentang, $startDate, $endDate, $date) {
+                $query->where('jenis_kelamin', 'P')
+                      ->where(function ($q) use ($isRentang, $startDate, $endDate, $date) {
+                          $q->whereHas('dailyAttendances', function ($sub) use ($isRentang, $startDate, $endDate, $date) {
+                              $sub->withoutGlobalScopes();
+                              if ($isRentang) {
+                                  $sub->whereBetween('tanggal', [$startDate, $endDate]);
+                              } else {
+                                  $sub->whereDate('tanggal', $date);
+                              }
+                              $sub->where('status', 'halangan');
+                          })->orWhereHas('halangans', function ($sub) use ($isRentang, $startDate, $endDate, $date) {
+                              if ($isRentang) {
+                                  $sub->where('tanggal_mulai', '<=', $endDate)
+                                      ->where('tanggal_selesai', '>=', $startDate);
+                              } else {
+                                  $sub->where('tanggal_mulai', '<=', $date)
+                                      ->where('tanggal_selesai', '>=', $date);
+                              }
                           });
-                }),
-        ];
+                      });
+            });
+
+        return $tabs;
     }
 
     protected function getHeaderActions(): array
