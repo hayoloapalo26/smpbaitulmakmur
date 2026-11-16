@@ -20,8 +20,8 @@ class CreateStudentCase extends CreateRecord
     {
         $user = auth()->user();
         if (!empty($data['student_id'])) {
-            $student = Student::with('classroom')->find($data['student_id']);
-            if (empty($data['wali_kelas_id']) && $student?->classroom?->wali_kelas_id) {
+            $student = Student::withoutGlobalScopes()->with(['classroom' => fn ($q) => $q->withoutGlobalScopes()])->find($data['student_id']);
+            if ($student?->classroom?->wali_kelas_id) {
                 $data['wali_kelas_id'] = $student->classroom->wali_kelas_id;
             }
             if (empty($data['institution_id'])) {

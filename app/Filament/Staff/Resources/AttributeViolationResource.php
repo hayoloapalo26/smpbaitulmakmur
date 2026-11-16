@@ -72,13 +72,66 @@ class AttributeViolationResource extends Resource
                             ->label('Siswa yang Melanggar')
                             ->options(function () {
                                 $user = Auth::user();
-                                $q = Student::query();
+                                $query = Student::withoutGlobalScopes()
+                                    ->with(['classroom' => fn ($q) => $q->withoutGlobalScopes()]);
+
                                 if ($user && $user->institution_id && !$user->hasRole('superadmin') && $user->institution_id != 1) {
-                                    $q->where('institution_id', $user->institution_id);
+                                    $query->where(function ($q) use ($user) {
+                                        $q->where('institution_id', $user->institution_id)
+                                          ->orWhereNull('institution_id');
+                                        if ($user->institution_id == 2) {
+                                            $q->orWhere('institution_id', 1);
+                                        }
+                                    });
                                 }
-                                return $q->pluck('name', 'id');
+
+                                return $query->orderBy('name')->get()->mapWithKeys(function ($st) {
+                                    $className = $st->classroom?->name;
+                                    $classLabel = $className ? (str_starts_with(strtolower($className), 'kelas') ? $className : 'Kelas ' . $className) : 'Tanpa Kelas';
+                                    $nisLabel = $st->nis ? " [NIS: {$st->nis}]" : '';
+                                    return [$st->id => "{$st->name} — {$classLabel}{$nisLabel}"];
+                                });
+                            })
+                            ->getSearchResultsUsing(function (string $search) {
+                                $user = Auth::user();
+                                $query = Student::withoutGlobalScopes()
+                                    ->with(['classroom' => fn ($q) => $q->withoutGlobalScopes()]);
+
+                                if ($user && $user->institution_id && !$user->hasRole('superadmin') && $user->institution_id != 1) {
+                                    $query->where(function ($q) use ($user) {
+                                        $q->where('institution_id', $user->institution_id)
+                                          ->orWhereNull('institution_id');
+                                        if ($user->institution_id == 2) {
+                                            $q->orWhere('institution_id', 1);
+                                        }
+                                    });
+                                }
+
+                                return $query->where(function ($q) use ($search) {
+                                        $q->where('name', 'like', "%{$search}%")
+                                          ->orWhere('nis', 'like', "%{$search}%")
+                                          ->orWhereHas('classroom', fn ($cq) => $cq->withoutGlobalScopes()->where('name', 'like', "%{$search}%"));
+                                    })
+                                    ->orderBy('name')
+                                    ->limit(50)
+                                    ->get()
+                                    ->mapWithKeys(function ($st) {
+                                        $className = $st->classroom?->name;
+                                        $classLabel = $className ? (str_starts_with(strtolower($className), 'kelas') ? $className : 'Kelas ' . $className) : 'Tanpa Kelas';
+                                        $nisLabel = $st->nis ? " [NIS: {$st->nis}]" : '';
+                                        return [$st->id => "{$st->name} — {$classLabel}{$nisLabel}"];
+                                    });
+                            })
+                            ->getOptionLabelUsing(function ($value): ?string {
+                                $st = Student::withoutGlobalScopes()->with(['classroom' => fn ($q) => $q->withoutGlobalScopes()])->find($value);
+                                if (!$st) return null;
+                                $className = $st->classroom?->name;
+                                $classLabel = $className ? (str_starts_with(strtolower($className), 'kelas') ? $className : 'Kelas ' . $className) : 'Tanpa Kelas';
+                                $nisLabel = $st->nis ? " [NIS: {$st->nis}]" : '';
+                                return "{$st->name} — {$classLabel}{$nisLabel}";
                             })
                             ->searchable()
+                            ->preload()
                             ->required()
                             ->live(),
 
@@ -86,7 +139,7 @@ class AttributeViolationResource extends Resource
                             ->label('Profil Siswa & Riwayat Pelanggaran')
                             ->visible(fn (Forms\Get $get) => filled($get('student_id')))
                             ->content(function (Forms\Get $get) {
-                                $student = Student::with(['classroom.waliKelas', 'attributeViolations'])->find($get('student_id'));
+                                $student = Student::withoutGlobalScopes()->with(['classroom.waliKelas', 'attributeViolations'])->find($get('student_id'));
                                 if (!$student) return '-';
 
                                 $kelas = $student->classroom->name ?? '-';

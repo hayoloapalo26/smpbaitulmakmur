@@ -116,7 +116,7 @@ class StudentCaseResource extends Resource
             return $query; // lihat semua untuk pimpinan & waka kesiswaan
         }
 
-        if ($user->isPiketToday() && !$user->hasRole('wali_kelas')) {
+        if ($user->isPiketToday()) {
             // Guru piket saat bertugas bisa melihat seluruh kasus siswa di lembaganya
             if ($user->institution_id && $user->institution_id != 1) {
                 return $query->where(function ($q) use ($user) {
@@ -136,7 +136,7 @@ class StudentCaseResource extends Resource
 
         if ($user->hasRole('wali_kelas')) {
             $classroomIds = Classroom::where('wali_kelas_id', $user->id)->pluck('id');
-            $studentIds   = Student::whereIn('classroom_id', $classroomIds)->pluck('id');
+            $studentIds   = Student::withoutGlobalScopes()->whereIn('classroom_id', $classroomIds)->pluck('id');
             return $query->where(function ($q) use ($studentIds, $user) {
                 $q->whereIn('student_id', $studentIds)
                   ->orWhere('wali_kelas_id', $user->id);
@@ -154,10 +154,6 @@ class StudentCaseResource extends Resource
         $isWaliKelas = $user->hasRole('wali_kelas') || $isWaliKelasOnly;
         $canEditIncident = $isWaliKelas || $user->hasRole('waka_kesiswaan') || $user->hasRole('superadmin') || $user->isPiketToday();
 
-        $classroomIds = $isWaliKelasOnly
-            ? Classroom::where('wali_kelas_id', $user->id)->pluck('id')
-            : [];
-
         return $form->schema([
 
             // ── Informasi Dasar (diisi Wali Kelas) ──────────────────
@@ -172,30 +168,85 @@ class StudentCaseResource extends Resource
 
                     Forms\Components\Select::make('student_id')
                         ->label('Nama Siswa')
-                        ->options(
-                            $isWaliKelasOnly
-                                ? Student::whereIn('classroom_id', $classroomIds)
-                                    ->orderBy('name')->pluck('name', 'id')
-                                : Student::orderBy('name')->pluck('name', 'id')
-                        )
+                        ->options(function () {
+                            $user = Auth::user();
+                            $query = Student::withoutGlobalScopes()
+                                ->with(['classroom' => fn ($q) => $q->withoutGlobalScopes()]);
+
+                            if ($user && $user->institution_id && !$user->hasRole('superadmin') && $user->institution_id != 1) {
+                                $query->where(function ($q) use ($user) {
+                                    $q->where('institution_id', $user->institution_id)
+                                      ->orWhereNull('institution_id');
+                                    if ($user->institution_id == 2) {
+                                        $q->orWhere('institution_id', 1);
+                                    }
+                                });
+                            }
+
+                            return $query->orderBy('name')->get()->mapWithKeys(function ($st) {
+                                $className = $st->classroom?->name;
+                                $classLabel = $className ? (str_starts_with(strtolower($className), 'kelas') ? $className : 'Kelas ' . $className) : 'Tanpa Kelas';
+                                $nisLabel = $st->nis ? " [NIS: {$st->nis}]" : '';
+                                return [$st->id => "{$st->name} — {$classLabel}{$nisLabel}"];
+                            });
+                        })
+                        ->getSearchResultsUsing(function (string $search) {
+                            $user = Auth::user();
+                            $query = Student::withoutGlobalScopes()
+                                ->with(['classroom' => fn ($q) => $q->withoutGlobalScopes()]);
+
+                            if ($user && $user->institution_id && !$user->hasRole('superadmin') && $user->institution_id != 1) {
+                                $query->where(function ($q) use ($user) {
+                                    $q->where('institution_id', $user->institution_id)
+                                      ->orWhereNull('institution_id');
+                                    if ($user->institution_id == 2) {
+                                        $q->orWhere('institution_id', 1);
+                                    }
+                                });
+                            }
+
+                            return $query->where(function ($q) use ($search) {
+                                    $q->where('name', 'like', "%{$search}%")
+                                      ->orWhere('nis', 'like', "%{$search}%")
+                                      ->orWhereHas('classroom', fn ($cq) => $cq->withoutGlobalScopes()->where('name', 'like', "%{$search}%"));
+                                })
+                                ->orderBy('name')
+                                ->limit(50)
+                                ->get()
+                                ->mapWithKeys(function ($st) {
+                                    $className = $st->classroom?->name;
+                                    $classLabel = $className ? (str_starts_with(strtolower($className), 'kelas') ? $className : 'Kelas ' . $className) : 'Tanpa Kelas';
+                                    $nisLabel = $st->nis ? " [NIS: {$st->nis}]" : '';
+                                    return [$st->id => "{$st->name} — {$classLabel}{$nisLabel}"];
+                                });
+                        })
+                        ->getOptionLabelUsing(function ($value): ?string {
+                            $st = Student::withoutGlobalScopes()->with(['classroom' => fn ($q) => $q->withoutGlobalScopes()])->find($value);
+                            if (!$st) return null;
+                            $className = $st->classroom?->name;
+                            $classLabel = $className ? (str_starts_with(strtolower($className), 'kelas') ? $className : 'Kelas ' . $className) : 'Tanpa Kelas';
+                            $nisLabel = $st->nis ? " [NIS: {$st->nis}]" : '';
+                            return "{$st->name} — {$classLabel}{$nisLabel}";
+                        })
                         ->searchable()
+                        ->preload()
                         ->required()
                         ->live()
                         ->afterStateUpdated(function (Forms\Set $set, $state) {
                             if ($state) {
-                                $st = Student::with('classroom')->find($state);
+                                $st = Student::withoutGlobalScopes()->with(['classroom' => fn ($q) => $q->withoutGlobalScopes()])->find($state);
                                 if ($st?->classroom?->wali_kelas_id) {
                                     $set('wali_kelas_id', $st->classroom->wali_kelas_id);
                                 }
                             }
                         })
-                        ->disabled(fn ($record) => $record !== null && $isWaliKelasOnly),
+                        ->disabled(fn ($record) => $record !== null && !$user->hasAnyRole(['superadmin', 'waka_kesiswaan'])),
 
                     Forms\Components\Placeholder::make('student_profile_preview')
                         ->label('Profil Siswa & Rekam Jejak Terkait')
                         ->visible(fn (Forms\Get $get) => filled($get('student_id')))
                         ->content(function (Forms\Get $get, $record) {
-                            $student = Student::with(['classroom', 'studentCases', 'attributeViolations'])->find($get('student_id'));
+                            $student = Student::withoutGlobalScopes()->with(['classroom', 'studentCases', 'attributeViolations'])->find($get('student_id'));
                             if (!$student) return '-';
 
                             $kelas = $student->classroom->name ?? '-';
