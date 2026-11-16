@@ -250,7 +250,7 @@ class TeachingJournal extends Model
 
                     CharacterScoreLog::create([
                         'student_id'     => $student->id,
-                        'source'         => 'guru_mapel',
+                        'source'         => 'guru_kelas',
                         'category'       => $kategori ?: ($isBaik ? 'Karakter Baik' : 'Karakter Kurang Baik'),
                         'description'    => $descriptionText,
                         'point_change'   => $isBaik ? 1 : -1,
