@@ -28,6 +28,25 @@ class TeachingJournal extends Model
     public const ACC_KEPSEK_APPROVED = 'approved';
     public const ACC_KEPSEK_NEED_REVISION = 'need_revision';
 
+    /**
+     * Accessor untuk form multiple choice schedule_ids
+     */
+    public function getScheduleIdsAttribute(): array
+    {
+        return $this->schedule_id ? [(int) $this->schedule_id] : [];
+    }
+
+    /**
+     * Mutator untuk schedule_ids
+     */
+    public function setScheduleIdsAttribute($value): void
+    {
+        $ids = (array) $value;
+        if (!empty($ids)) {
+            $this->attributes['schedule_id'] = (int) reset($ids);
+        }
+    }
+
     protected static function booted()
     {
         static::saving(function (TeachingJournal $journal) {

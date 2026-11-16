@@ -203,10 +203,12 @@ class TeachingJournalResource extends Resource
                             ->dehydrated()
                             ->live()
                             ->afterStateUpdated(function (Forms\Set $set) {
+                                $set('schedule_ids', []);
                                 $set('schedule_id', null);
                                 $set('classroom_id', null);
                                 $set('subject_id', null);
                                 $set('jam_ke', null);
+                                $set('jam_ke_display', null);
                                 $set('rppm_id', null);
                                 $set('materi', null);
                                 $set('tp_ids', []);
@@ -235,10 +237,12 @@ class TeachingJournalResource extends Resource
                             })
                             ->live()
                             ->afterStateUpdated(function (Forms\Set $set) {
+                                $set('schedule_ids', []);
                                 $set('schedule_id', null);
                                 $set('classroom_id', null);
                                 $set('subject_id', null);
                                 $set('jam_ke', null);
+                                $set('jam_ke_display', null);
                                 $set('rppm_id', null);
                                 $set('materi', null);
                                 $set('tp_ids', []);
@@ -247,13 +251,15 @@ class TeachingJournalResource extends Resource
                             })
                             ->required(),
 
-                        Forms\Components\Select::make('schedule_id')
-                            ->label(fn (Forms\Get $get) => 'Pilih Jadwal Mengajar (' . Schedule::getIndonesianDayName($get('tanggal') ?: Carbon::today()) . ')')
+                        Forms\Components\Select::make('schedule_ids')
+                            ->label(fn (Forms\Get $get) => 'Pilih Jadwal Mengajar (' . Schedule::getIndonesianDayName($get('tanggal') ?: Carbon::today()) . ') (Multiple Choice)')
+                            ->multiple()
                             ->searchable()
+                            ->preload()
                             ->placeholder(function (Forms\Get $get) {
                                 $tanggal = $get('tanggal') ?: Carbon::today()->format('Y-m-d');
                                 $hari = Schedule::getIndonesianDayName($tanggal);
-                                return "Pilih jadwal mengajar hari {$hari}...";
+                                return "Pilih satu atau beberapa jam mengajar hari {$hari}...";
                             })
                             ->options(function (Forms\Get $get, ?TeachingJournal $record) use ($isAdminOrWaka) {
                                 $teacherId = $get('teacher_id') ?: Auth::id();
@@ -326,7 +332,7 @@ class TeachingJournalResource extends Resource
                                     }
 
                                     $jamText = \App\Models\Schedule::getJamLabelWithTime($s->jam_ke);
-                                    $options[$s->id] = "{$jamText} | Kelas {$s->classroom?->name} — {$s->subject?->name}{$statusText}";
+                                    $options[$s->id] = "{$jamText} | Kelas {$s->classroom?->name} — {$s->subject?->name} (1 JP){$statusText}";
                                 }
 
                                 return $options;
@@ -352,29 +358,53 @@ class TeachingJournalResource extends Resource
                                     return true;
                                 }
 
+                                // 3. Kunci opsi jika berbeda kelas atau mata pelajaran dengan jadwal yang telah dipilih
+                                $selectedIds = (array) ($get('schedule_ids') ?? []);
+                                if (!empty($selectedIds) && !in_array($value, $selectedIds)) {
+                                    $firstSelected = Schedule::find(reset($selectedIds));
+                                    if ($firstSelected && ($schedule->classroom_id !== $firstSelected->classroom_id || $schedule->subject_id !== $firstSelected->subject_id)) {
+                                        return true;
+                                    }
+                                }
+
                                 return false;
                             })
                             ->rules([
                                 function (Forms\Get $get) {
                                     return function (string $attribute, $value, \Closure $fail) use ($get) {
+                                        $ids = is_array($value) ? $value : (!empty($value) ? [$value] : []);
+                                        if (empty($ids)) {
+                                            $fail("Silakan pilih minimal satu jadwal mengajar.");
+                                            return;
+                                        }
+
                                         $teacherId = $get('teacher_id') ?: Auth::id();
                                         $tanggal = $get('tanggal') ?: Carbon::today()->format('Y-m-d');
                                         $hari = Schedule::getIndonesianDayName($tanggal);
 
-                                        $schedule = Schedule::find($value);
-                                        if (!$schedule) {
-                                            $fail("Jadwal mengajar tidak ditemukan.");
+                                        $schedules = Schedule::whereIn('id', $ids)->get();
+                                        if ($schedules->count() !== count($ids)) {
+                                            $fail("Sebagian jadwal mengajar yang dipilih tidak ditemukan.");
                                             return;
                                         }
 
-                                        if ($schedule->hari !== $hari) {
-                                            $fail("Jadwal yang dipilih merupakan jadwal hari {$schedule->hari}, bukan jadwal hari {$hari}.");
-                                            return;
-                                        }
+                                        $first = $schedules->first();
+                                        foreach ($schedules as $s) {
+                                            if ($s->hari !== $hari) {
+                                                $fail("Jadwal jam ke-{$s->jam_ke} merupakan jadwal hari {$s->hari}, bukan jadwal hari {$hari}.");
+                                                return;
+                                            }
 
-                                        if ($schedule->teacher_id == $teacherId && \App\Models\TeacherLeaveRequest::isTeacherOnLeave($teacherId, $tanggal, $schedule->jam_ke)) {
-                                            $leave = \App\Models\TeacherLeaveRequest::getActiveLeaveFor($teacherId, $tanggal, $schedule->jam_ke);
-                                            $fail("Tidak dapat mengisi jurnal mengajar! Anda tercatat memiliki perizinan yang telah disetujui (ACC) pada hari ini (" . ($leave?->waktu_izin_label ?? \App\Models\Schedule::getJamLabel($schedule->jam_ke)) . ").");
+                                            if ($s->classroom_id !== $first->classroom_id || $s->subject_id !== $first->subject_id) {
+                                                $fail("Semua jadwal yang dipilih bersamaan harus berada pada kelas dan mata pelajaran yang sama.");
+                                                return;
+                                            }
+
+                                            if ($s->teacher_id == $teacherId && \App\Models\TeacherLeaveRequest::isTeacherOnLeave($teacherId, $tanggal, $s->jam_ke)) {
+                                                $leave = \App\Models\TeacherLeaveRequest::getActiveLeaveFor($teacherId, $tanggal, $s->jam_ke);
+                                                $fail("Tidak dapat mengisi jurnal mengajar! Anda tercatat memiliki perizinan yang telah disetujui (ACC) pada jam ke-{$s->jam_ke} (" . ($leave?->waktu_izin_label ?? \App\Models\Schedule::getJamLabel($s->jam_ke)) . ").");
+                                                return;
+                                            }
                                         }
                                     };
                                 }
@@ -389,18 +419,37 @@ class TeachingJournalResource extends Resource
                                     return "⛔ PERHATIAN: Terdapat perizinan guru yang telah di-ACC pada hari ini ({$leaveToday->waktu_izin_label} — Alasan: {$leaveToday->alasan}). Jadwal jam pelajaran yang bertepatan dengan izin otomatis terkunci.";
                                 }
 
+                                $selectedIds = (array) ($get('schedule_ids') ?? []);
+                                $selectedCount = count(array_filter($selectedIds));
+                                if ($selectedCount > 0) {
+                                    $selectedSchedules = Schedule::whereIn('id', $selectedIds)->orderBy('jam_ke')->get();
+                                    $labels = $selectedSchedules->map(fn ($s) => Schedule::getJamLabel($s->jam_ke))->implode(', ');
+                                    return "✅ Terpilih: {$selectedCount} Jam Pelajaran ({$labels} • Total {$selectedCount} JP). Sistem akan otomatis menyimpan {$selectedCount} jurnal mengajar dan mencatat {$selectedCount} JP kehadiran mengajar guru.";
+                                }
+
                                 $count = Schedule::where('teacher_id', $teacherId)->where('hari', $hari)->count();
                                 if ($count === 0) {
                                     return "⚠️ Anda tidak memiliki jadwal mengajar pada hari {$hari} berdasarkan Jadwal Pelajaran Kurikulum. Pengisian jurnal hanya dapat dilakukan saat Anda memiliki jadwal pada hari ini.";
                                 }
-                                return "📋 Terdapat {$count} jam mengajar terjadwal untuk Anda pada hari {$hari}. Silakan pilih jadwal untuk mengisi jurnal mengajar.";
+                                return "📋 Terdapat {$count} jam mengajar terjadwal untuk Anda pada hari {$hari}. Anda dapat mencentang/memilih beberapa jam mengajar sekaligus (multiple choice) jika mengajar lebih dari 1 JP di kelas yang sama.";
                             })
                             ->live()
+                            ->afterStateHydrated(function (Forms\Components\Select $component, ?TeachingJournal $record, Forms\Set $set) {
+                                if ($record && $record->schedule_id) {
+                                    $component->state([(int) $record->schedule_id]);
+                                    $set('schedule_id', (int) $record->schedule_id);
+                                    $set('jam_ke', $record->jam_ke);
+                                    $set('jam_ke_display', Schedule::getJamLabelWithTime($record->jam_ke) . ' (1 JP)');
+                                }
+                            })
                             ->afterStateUpdated(function (Forms\Set $set, Forms\Get $get, $state) {
-                                if (!$state) {
+                                $ids = array_values(array_filter((array) $state));
+                                if (empty($ids)) {
+                                    $set('schedule_id', null);
                                     $set('classroom_id', null);
                                     $set('subject_id', null);
                                     $set('jam_ke', null);
+                                    $set('jam_ke_display', null);
                                     $set('rppm_id', null);
                                     $set('materi', null);
                                     $set('tp_ids', []);
@@ -409,17 +458,23 @@ class TeachingJournalResource extends Resource
                                     return;
                                 }
 
-                                $schedule = Schedule::find($state);
-                                if (!$schedule) return;
+                                $schedules = Schedule::whereIn('id', $ids)->orderBy('jam_ke')->get();
+                                $firstSchedule = $schedules->first();
+                                if (!$firstSchedule) return;
 
-                                $set('classroom_id', $schedule->classroom_id);
-                                $set('subject_id', $schedule->subject_id);
-                                $set('jam_ke', $schedule->jam_ke);
+                                $set('schedule_id', $firstSchedule->id);
+                                $set('classroom_id', $firstSchedule->classroom_id);
+                                $set('subject_id', $firstSchedule->subject_id);
+                                $set('jam_ke', $firstSchedule->jam_ke);
+
+                                $labels = $schedules->map(fn ($s) => Schedule::getJamLabelWithTime($s->jam_ke))->implode(' + ');
+                                $totalJp = $schedules->count();
+                                $set('jam_ke_display', "{$labels} ({$totalJp} JP)");
 
                                 // Auto pre-fill RPPM & TP jika BUKAN konteks Al-Qur'an dan guru memiliki dokumen RPPM untuk mapel ini
                                 $teacherId = $get('teacher_id') ?: Auth::id();
                                 $teacher = User::find($teacherId);
-                                $subjectName = $schedule->subject?->name;
+                                $subjectName = $firstSchedule->subject?->name;
                                 $isQuran = ($teacher && $teacher->isPureQuranTeacher())
                                     || ($subjectName && (
                                         str_contains(strtolower($subjectName), 'qur')
@@ -437,9 +492,9 @@ class TeachingJournalResource extends Resource
                                 } else {
                                     $matchingRppm = Rppm::query()
                                         ->where('guru_id', $teacherId)
-                                        ->where(function ($q) use ($schedule, $subjectName) {
-                                            if ($schedule->subject_id) {
-                                                $q->whereHas('capaianPembelajaran', fn ($cp) => $cp->where('subject_id', $schedule->subject_id));
+                                        ->where(function ($q) use ($firstSchedule, $subjectName) {
+                                            if ($firstSchedule->subject_id) {
+                                                $q->whereHas('capaianPembelajaran', fn ($cp) => $cp->where('subject_id', $firstSchedule->subject_id));
                                             }
                                             if ($subjectName) {
                                                 $q->orWhere('mata_pelajaran', 'like', "%{$subjectName}%");
@@ -476,23 +531,37 @@ class TeachingJournalResource extends Resource
                                 }
 
                                 $tanggal = $get('tanggal') ?? Carbon::today()->format('Y-m-d');
-                                $students = \App\Models\Student::where('classroom_id', $schedule->classroom_id)->orderBy('name')->get();
-                                $attendanceData = [];
-                                foreach ($students as $student) {
-                                    $morning = \App\Models\DailyAttendance::where('student_id', $student->id)
-                                        ->whereDate('tanggal', $tanggal)
-                                        ->where('tipe_absen', 'masuk')
-                                        ->first();
-                                    if ($morning && in_array($morning->status, ['sakit', 'izin', 'alpa'])) {
-                                        $attendanceData[$student->id] = $morning->status;
-                                    } else {
-                                        $attendanceData[$student->id] = 'hadir';
+                                $currentAttendance = (array) ($get('student_attendances') ?? []);
+                                if (empty($currentAttendance)) {
+                                    $students = \App\Models\Student::where('classroom_id', $firstSchedule->classroom_id)->orderBy('name')->get();
+                                    $attendanceData = [];
+                                    foreach ($students as $student) {
+                                        $morning = \App\Models\DailyAttendance::where('student_id', $student->id)
+                                            ->whereDate('tanggal', $tanggal)
+                                            ->where('tipe_absen', 'masuk')
+                                            ->first();
+                                        if ($morning && in_array($morning->status, ['sakit', 'izin', 'alpa'])) {
+                                            $attendanceData[$student->id] = $morning->status;
+                                        } else {
+                                            $attendanceData[$student->id] = 'hadir';
+                                        }
                                     }
+                                    $set('student_attendances', $attendanceData);
                                 }
-                                $set('student_attendances', $attendanceData);
                             })
                             ->required()
                             ->columnSpanFull(),
+
+                        Forms\Components\Hidden::make('schedule_id')
+                            ->dehydrated()
+                            ->afterStateHydrated(function ($component, $state, Forms\Set $set, Forms\Get $get) {
+                                if ($state && empty($get('schedule_ids'))) {
+                                    $set('schedule_ids', [(int) $state]);
+                                }
+                            }),
+
+                        Forms\Components\Hidden::make('jam_ke')
+                            ->dehydrated(),
 
                         Forms\Components\Select::make('classroom_id')
                             ->label('Kelas')
@@ -508,12 +577,11 @@ class TeachingJournalResource extends Resource
                             ->dehydrated()
                             ->required(),
 
-                        Forms\Components\Select::make('jam_ke')
-                            ->label('Jam Pelajaran & Waktu')
-                            ->options(Schedule::getJamOptions())
+                        Forms\Components\TextInput::make('jam_ke_display')
+                            ->label('Alokasi Jam Pelajaran (JP)')
                             ->disabled()
-                            ->dehydrated()
-                            ->required(),
+                            ->dehydrated(false)
+                            ->placeholder('Otomatis dari jadwal terpilih...'),
                     ])->columns(3),
 
                 Forms\Components\Section::make(fn (Forms\Get $get) => static::isQuranContext($get) ? '📖 Lingkup Materi Pembelajaran Al-Qur\'an' : '🎯 Lingkup Materi & Penarikan TP dari RPPM & Perangkat Pembelajaran')
@@ -1067,14 +1135,16 @@ class TeachingJournalResource extends Resource
                     ->before(function (Tables\Actions\EditAction $action, TeachingJournal $record, array $data) {
                         $teacherId = $data['teacher_id'] ?? $record->teacher_id;
                         $tanggal = $data['tanggal'] ?? $record->tanggal;
-                        $schedule = isset($data['schedule_id']) ? Schedule::find($data['schedule_id']) : null;
+                        $scheduleIds = (array) ($data['schedule_ids'] ?? ($data['schedule_id'] ?? [$record->schedule_id]));
+                        $firstId = reset($scheduleIds);
+                        $schedule = $firstId ? Schedule::find($firstId) : null;
                         $jamKe = $schedule ? $schedule->jam_ke : ($data['jam_ke'] ?? $record->jam_ke);
 
                         if (\App\Models\TeacherLeaveRequest::isTeacherOnLeave($teacherId, $tanggal, $jamKe)) {
                             $leave = \App\Models\TeacherLeaveRequest::getActiveLeaveFor($teacherId, $tanggal, $jamKe);
                             \Filament\Notifications\Notification::make()
                                 ->title('Perubahan Jurnal Ditolak')
-                                ->body('Jurnal ini tidak dapat diubah karena guru bersangkutan memiliki perizinan yang telah di-ACC pada waktu tersebut (' . ($leave?->waktu_izin_label ?? "Jam Ke-{$jamKe}") . ').')
+                                ->body('Jurnal ini tidak dapat diubah karena guru bersangkutan memiliki perizinan yang telah disetujui (ACC) pada waktu tersebut (' . ($leave?->waktu_izin_label ?? "Jam Ke-{$jamKe}") . ').')
                                 ->danger()
                                 ->send();
 

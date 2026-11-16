@@ -58,50 +58,170 @@ class ManageTeachingJournals extends ManageRecords
                 ->before(function (Actions\CreateAction $action, array $data) {
                     $teacherId = $data['teacher_id'] ?? auth()->id();
                     $tanggal = $data['tanggal'] ?? now()->toDateString();
-                    $schedule = isset($data['schedule_id']) ? Schedule::find($data['schedule_id']) : null;
-                    $jamKe = $schedule ? $schedule->jam_ke : ($data['jam_ke'] ?? null);
+                    $scheduleIds = (array) ($data['schedule_ids'] ?? ($data['schedule_id'] ?? []));
+                    $scheduleIds = array_values(array_filter(array_map('intval', $scheduleIds)));
 
-                    // 1. Validasi jadwal harus sesuai dengan hari pada tanggal yang dipilih
-                    if ($schedule) {
-                        $hariJadwal = Schedule::getIndonesianDayName($tanggal);
-                        if ($schedule->hari !== $hariJadwal) {
+                    if (empty($scheduleIds)) {
+                        \Filament\Notifications\Notification::make()
+                            ->title('Pilih Jadwal Mengajar')
+                            ->body('Silakan pilih minimal satu jadwal mengajar.')
+                            ->danger()
+                            ->send();
+
+                        $action->halt();
+                    }
+
+                    $schedules = Schedule::withoutGlobalScopes()->whereIn('id', $scheduleIds)->get();
+                    if ($schedules->count() !== count($scheduleIds)) {
+                        \Filament\Notifications\Notification::make()
+                            ->title('Jadwal Tidak Ditemukan')
+                            ->body('Sebagian jadwal mengajar yang dipilih tidak ditemukan.')
+                            ->danger()
+                            ->send();
+
+                        $action->halt();
+                    }
+
+                    $hariTanggal = Schedule::getIndonesianDayName($tanggal);
+                    $firstSchedule = $schedules->first();
+
+                    foreach ($schedules as $schedule) {
+                        // 1. Validasi jadwal harus sesuai dengan hari pada tanggal yang dipilih
+                        if ($schedule->hari !== $hariTanggal) {
                             \Filament\Notifications\Notification::make()
                                 ->title('Jadwal Tidak Sesuai Hari')
-                                ->body("Jadwal yang dipilih merupakan jadwal hari {$schedule->hari}, sedangkan tanggal yang dipilih adalah hari {$hariJadwal}.")
+                                ->body("Jadwal jam ke-{$schedule->jam_ke} merupakan jadwal hari {$schedule->hari}, sedangkan tanggal yang dipilih adalah hari {$hariTanggal}.")
                                 ->danger()
                                 ->persistent()
                                 ->send();
 
                             $action->halt();
                         }
-                    }
 
-                    // 2. Cek izin mengajar guru
-                    if (\App\Models\TeacherLeaveRequest::isTeacherOnLeave($teacherId, $tanggal, $jamKe)) {
-                        $leave = \App\Models\TeacherLeaveRequest::getActiveLeaveFor($teacherId, $tanggal, $jamKe);
-                        \Filament\Notifications\Notification::make()
-                            ->title('Pengisian Jurnal Ditolak')
-                            ->body('Anda tidak dapat mengisi jurnal mengajar karena sedang dalam status perizinan yang telah disetujui (ACC) pada waktu tersebut (' . ($leave?->waktu_izin_label ?? "Jam Ke-{$jamKe}") . ').')
-                            ->danger()
-                            ->persistent()
-                            ->send();
+                        // 2. Validasi kesamaan kelas dan mapel
+                        if ($schedule->classroom_id !== $firstSchedule->classroom_id || $schedule->subject_id !== $firstSchedule->subject_id) {
+                            \Filament\Notifications\Notification::make()
+                                ->title('Kombinasi Jadwal Tidak Valid')
+                                ->body('Semua jadwal yang dipilih bersamaan harus berada pada kelas dan mata pelajaran yang sama.')
+                                ->danger()
+                                ->persistent()
+                                ->send();
 
-                        $action->halt();
+                            $action->halt();
+                        }
+
+                        // 3. Cek izin mengajar guru
+                        if (\App\Models\TeacherLeaveRequest::isTeacherOnLeave($teacherId, $tanggal, $schedule->jam_ke)) {
+                            $leave = \App\Models\TeacherLeaveRequest::getActiveLeaveFor($teacherId, $tanggal, $schedule->jam_ke);
+                            \Filament\Notifications\Notification::make()
+                                ->title('Pengisian Jurnal Ditolak')
+                                ->body('Anda tidak dapat mengisi jurnal mengajar karena sedang dalam status perizinan yang telah disetujui (ACC) pada jam ke-' . $schedule->jam_ke . ' (' . ($leave?->waktu_izin_label ?? "Jam Ke-{$schedule->jam_ke}") . ').')
+                                ->danger()
+                                ->persistent()
+                                ->send();
+
+                            $action->halt();
+                        }
+
+                        // 4. Cek apakah sudah pernah diisi hari ini
+                        $alreadyFilled = TeachingJournal::where('schedule_id', $schedule->id)
+                            ->whereDate('tanggal', $tanggal)
+                            ->exists();
+                        if ($alreadyFilled) {
+                            \Filament\Notifications\Notification::make()
+                                ->title('Jadwal Sudah Pernah Diisi')
+                                ->body("Jadwal jam ke-{$schedule->jam_ke} sudah pernah diisi jurnalnya pada tanggal {$tanggal}.")
+                                ->danger()
+                                ->send();
+
+                            $action->halt();
+                        }
                     }
                 })
-                ->after(function (TeachingJournal $record) {
+                ->using(function (array $data, string $model, \Filament\Forms\Form $form): \Illuminate\Database\Eloquent\Model {
+                    $scheduleIds = (array) ($data['schedule_ids'] ?? ($data['schedule_id'] ?? []));
+                    $scheduleIds = array_values(array_filter(array_map('intval', $scheduleIds)));
+
+                    $schedules = Schedule::withoutGlobalScopes()->whereIn('id', $scheduleIds)->orderBy('jam_ke')->get();
+                    if ($schedules->isEmpty()) {
+                        throw new \Exception("Jadwal mengajar tidak ditemukan.");
+                    }
+
+                    // Ambil data presensi siswa dan catatan karakter
+                    $rawState = method_exists($form, 'getRawState') ? $form->getRawState() : [];
+                    $studentAttendances = $data['student_attendances'] ?? $rawState['student_attendances'] ?? [];
+                    $catatanKarakter = $data['catatan_karakter'] ?? $rawState['catatan_karakter'] ?? [];
+
+                    $firstJournal = null;
+
+                    \Illuminate\Support\Facades\DB::transaction(function () use ($schedules, $data, $studentAttendances, $catatanKarakter, &$firstJournal) {
+                        foreach ($schedules as $schedule) {
+                            $journalData = [
+                                'teacher_id' => $data['teacher_id'] ?? auth()->id(),
+                                'schedule_id' => $schedule->id,
+                                'classroom_id' => $schedule->classroom_id,
+                                'subject_id' => $schedule->subject_id,
+                                'jam_ke' => $schedule->jam_ke,
+                                'institution_id' => $schedule->institution_id ?? ($data['institution_id'] ?? null),
+                                'tanggal' => $data['tanggal'] ?? now()->toDateString(),
+                                'materi' => $data['materi'] ?? null,
+                                'rencana_kegiatan_guru' => $data['rencana_kegiatan_guru'] ?? null,
+                                'kegiatan_siswa' => $data['kegiatan_siswa'] ?? null,
+                                'tindak_lanjut' => $data['tindak_lanjut'] ?? null,
+                                'rppm_id' => $data['rppm_id'] ?? null,
+                                'tp_ids' => $data['tp_ids'] ?? [],
+                                'kegiatan_rutin' => $data['kegiatan_rutin'] ?? [],
+                                'catatan_karakter' => $catatanKarakter,
+                            ];
+
+                            $journal = TeachingJournal::create($journalData);
+
+                            // Catat presensi siswa (SubjectAttendance) untuk jurnal ini
+                            $students = \App\Models\Student::where('classroom_id', $schedule->classroom_id)->get();
+                            foreach ($students as $student) {
+                                $status = $studentAttendances[$student->id] ?? $studentAttendances[(string) $student->id] ?? 'hadir';
+                                if (!in_array($status, ['hadir', 'sakit', 'izin', 'alpa'])) {
+                                    $status = 'hadir';
+                                }
+
+                                \App\Models\SubjectAttendance::updateOrCreate(
+                                    [
+                                        'teaching_journal_id' => $journal->id,
+                                        'student_id' => $student->id,
+                                    ],
+                                    [
+                                        'institution_id' => $student->institution_id,
+                                        'status' => $status,
+                                    ]
+                                );
+                            }
+
+                            if ($firstJournal === null) {
+                                $firstJournal = $journal;
+                            }
+                        }
+                    });
+
+                    return $firstJournal;
+                })
+                ->after(function (TeachingJournal $record, array $data) {
+                    $scheduleIds = (array) ($data['schedule_ids'] ?? ($data['schedule_id'] ?? []));
+                    $count = count(array_filter($scheduleIds));
+                    $jpText = $count > 1 ? "{$count} Jurnal Mengajar ({$count} JP)" : "Jurnal Mengajar";
+
                     if ($record->is_late) {
                         \Filament\Notifications\Notification::make()
                             ->title('Jurnal Tercatat Terlambat')
-                            ->body('Jurnal berhasil disimpan dan tercatat terlambat (melewati 23:59 tanggal mengajar). Jurnal ini masuk ke antrean Persetujuan Waka Kurikulum terlebih dahulu sebelum masuk ke laporan Kepala Sekolah.')
+                            ->body("Berhasil menyimpan {$jpText} dan tercatat terlambat (melewati 23:59 tanggal mengajar). Jurnal masuk ke antrean Persetujuan Waka Kurikulum.")
                             ->warning()
                             ->duration(8000)
                             ->send();
                     } else {
                         \Filament\Notifications\Notification::make()
                             ->title('Jurnal Berhasil Disimpan')
-                            ->body('Jurnal pembelajaran tepat waktu berhasil dicatat dan langsung diteruskan ke Kepala Sekolah untuk pemantauan.')
+                            ->body("Berhasil menyimpan {$jpText} tepat waktu dan langsung diteruskan ke Kepala Sekolah untuk pemantauan.")
                             ->success()
+                            ->duration(6000)
                             ->send();
                     }
                 }),

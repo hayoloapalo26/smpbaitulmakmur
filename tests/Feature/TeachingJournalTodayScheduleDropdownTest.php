@@ -145,7 +145,7 @@ class TeachingJournalTodayScheduleDropdownTest extends TestCase
         Livewire::test(TeachingJournalResource\Pages\ManageTeachingJournals::class)
             ->mountAction('create')
             ->setActionData([
-                'schedule_id' => $this->jadwalHariIni->id,
+                'schedule_ids' => [$this->jadwalHariIni->id],
             ])
             ->assertActionDataSet([
                 'classroom_id' => $this->kelas7A->id,
@@ -165,7 +165,7 @@ class TeachingJournalTodayScheduleDropdownTest extends TestCase
             ->mountAction('create')
             ->setActionData([
                 'tanggal' => Carbon::today()->toDateString(),
-                'schedule_id' => $this->jadwalHariIni->id,
+                'schedule_ids' => [$this->jadwalHariIni->id],
                 'classroom_id' => $this->kelas7A->id,
                 'subject_id' => $this->mapelMtk->id,
                 'jam_ke' => 1,
@@ -182,6 +182,75 @@ class TeachingJournalTodayScheduleDropdownTest extends TestCase
             'classroom_id' => $this->kelas7A->id,
             'subject_id' => $this->mapelMtk->id,
             'tanggal' => Carbon::today()->toDateString(),
+        ]);
+    }
+
+    /**
+     * Test 3b: Pengisian multiple choice jadwal (2 JP) berhasil membuat 2 jurnal sekaligus
+     */
+    public function test_teacher_can_select_multiple_schedules_and_create_multiple_journals(): void
+    {
+        $this->actingAs($this->guru);
+
+        $hariIni = Schedule::getIndonesianDayName(Carbon::today());
+
+        // Buat jadwal kedua untuk kelas dan mapel yang sama (Jam Ke-2)
+        $jadwalKedua = Schedule::create([
+            'teacher_id' => $this->guru->id,
+            'classroom_id' => $this->kelas7A->id,
+            'subject_id' => $this->mapelMtk->id,
+            'hari' => $hariIni,
+            'jam_ke' => 2,
+            'institution_id' => $this->institution->id,
+        ]);
+
+        Livewire::test(TeachingJournalResource\Pages\ManageTeachingJournals::class)
+            ->mountAction('create')
+            ->setActionData([
+                'tanggal' => Carbon::today()->toDateString(),
+                'schedule_ids' => [$this->jadwalHariIni->id, $jadwalKedua->id],
+                'classroom_id' => $this->kelas7A->id,
+                'subject_id' => $this->mapelMtk->id,
+                'jam_ke' => 1,
+                'materi' => 'Aljabar dan Persamaan Linier',
+                'rencana_kegiatan_guru' => 'Menerangkan konsep persamaan dua variabel',
+                'kegiatan_siswa' => 'Diskusi kelompok',
+            ])
+            ->callMountedAction()
+            ->assertHasNoActionErrors();
+
+        // Harus membuat jurnal untuk Jam Ke-1
+        $this->assertDatabaseHas('teaching_journals', [
+            'teacher_id' => $this->guru->id,
+            'schedule_id' => $this->jadwalHariIni->id,
+            'classroom_id' => $this->kelas7A->id,
+            'subject_id' => $this->mapelMtk->id,
+            'jam_ke' => 1,
+            'tanggal' => Carbon::today()->toDateString(),
+        ]);
+
+        // Dan otomatis membuat jurnal untuk Jam Ke-2
+        $this->assertDatabaseHas('teaching_journals', [
+            'teacher_id' => $this->guru->id,
+            'schedule_id' => $jadwalKedua->id,
+            'classroom_id' => $this->kelas7A->id,
+            'subject_id' => $this->mapelMtk->id,
+            'jam_ke' => 2,
+            'tanggal' => Carbon::today()->toDateString(),
+        ]);
+
+        // Dan kehadiran guru (TeacherAttendance) tercatat untuk kedua jam mengajar
+        $this->assertDatabaseHas('teacher_attendances', [
+            'teacher_id' => $this->guru->id,
+            'schedule_id' => $this->jadwalHariIni->id,
+            'jam_ke' => 1,
+            'status' => 'masuk',
+        ]);
+        $this->assertDatabaseHas('teacher_attendances', [
+            'teacher_id' => $this->guru->id,
+            'schedule_id' => $jadwalKedua->id,
+            'jam_ke' => 2,
+            'status' => 'masuk',
         ]);
     }
 
