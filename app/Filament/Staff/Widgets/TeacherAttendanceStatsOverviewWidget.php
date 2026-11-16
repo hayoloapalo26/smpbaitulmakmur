@@ -30,16 +30,17 @@ class TeacherAttendanceStatsOverviewWidget extends BaseWidget
         $totalPengganti = (clone $query)->whereNotNull('substitute_teacher_id')->count();
 
         $totalSesi = $totalHadir + $totalIzin + $totalSakit + $totalAlpa + $totalDinas;
-        $persenHadir = $totalSesi > 0 ? round(($totalHadir / $totalSesi) * 100, 1) : 0;
+        $totalKehadiran = $totalHadir + $totalDinas;
+        $persenHadir = $totalSesi > 0 ? round(($totalKehadiran / $totalSesi) * 100, 1) : 0;
 
         return [
-            Stat::make('Total Jam Masuk Mengajar', "{$totalHadir} JP / Sesi")
-                ->description('Jam tatap muka guru di kelas')
+            Stat::make('Total Kehadiran & Dinas', "{$totalKehadiran} JP / Sesi")
+                ->description("Tatap Muka: {$totalHadir} JP | Dinas Luar: {$totalDinas} JP")
                 ->descriptionIcon('heroicon-m-check-circle')
                 ->color('success'),
 
-            Stat::make('Total Jam Izin & Sakit', ($totalIzin + $totalSakit + $totalDinas) . ' JP / Sesi')
-                ->description("Izin: {$totalIzin} | Sakit: {$totalSakit} | Dinas: {$totalDinas}")
+            Stat::make('Total Jam Izin & Sakit', ($totalIzin + $totalSakit) . ' JP / Sesi')
+                ->description("Izin Pribadi: {$totalIzin} JP | Sakit: {$totalSakit} JP")
                 ->descriptionIcon('heroicon-m-calendar-days')
                 ->color('warning'),
 

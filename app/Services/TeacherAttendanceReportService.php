@@ -104,7 +104,7 @@ class TeacherAttendanceReportService
                 ->whereMonth('tanggal', $month)
                 ->count();
 
-            $totalKehadiranJP = $hadirJP + $invalJP;
+            $totalKehadiranJP = $hadirJP + $invalJP + $dinasJP;
             $selisihJP = $totalKehadiranJP - $monthlyTargetJP;
             $persen = $monthlyTargetJP > 0 ? round(($totalKehadiranJP / $monthlyTargetJP) * 100, 1) : ($totalKehadiranJP > 0 ? 100 : 0);
 

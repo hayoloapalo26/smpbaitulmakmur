@@ -182,6 +182,14 @@ class TeachingJournal extends Model
                     ->first();
             }
 
+            $leaveRecord = \App\Models\TeacherLeaveRequest::getActiveLeaveFor($journal->teacher_id, $journal->tanggal, $journal->jam_ke);
+            $isDinasLuar = $leaveRecord?->isDinasLuar() || ($existing && $existing->status === 'dinas_luar');
+
+            $statusToSet = $isDinasLuar ? 'dinas_luar' : 'masuk';
+            $keteranganToSet = $isDinasLuar
+                ? 'Dinas Luar: ' . ($leaveRecord?->alasan ?? ($existing?->keterangan ?? 'Tugas Dinas Luar')) . ' (Jurnal mengajar telah diisi guru bersangkutan)'
+                : ($leaveAttendance ? 'Masuk mengajar sebagai Guru Pengganti (Inval)' : ($existing?->keterangan ?? 'Masuk mengajar sesuai Jurnal Mengajar'));
+
             $payload = [
                 'institution_id' => $journal->schedule?->institution_id ?? $journal->classroom?->institution_id ?? $journal->teacher?->institution_id,
                 'teacher_id' => $journal->teacher_id,
@@ -191,9 +199,16 @@ class TeachingJournal extends Model
                 'subject_id' => $journal->subject_id,
                 'jam_ke' => $journal->jam_ke,
                 'tanggal' => $journal->tanggal,
-                'status' => 'masuk',
-                'keterangan' => $leaveAttendance ? 'Masuk mengajar sebagai Guru Pengganti (Inval)' : ($existing?->keterangan ?? 'Masuk mengajar sesuai Jurnal Mengajar'),
+                'status' => $statusToSet,
+                'keterangan' => $keteranganToSet,
             ];
+
+            if ($isDinasLuar && ($leaveRecord?->substitute_teacher_id || $existing?->substitute_teacher_id)) {
+                $payload['substitute_teacher_id'] = $existing?->substitute_teacher_id ?? $leaveRecord?->substitute_teacher_id;
+            }
+            if ($leaveRecord) {
+                $payload['teacher_leave_request_id'] = $existing?->teacher_leave_request_id ?? $leaveRecord->id;
+            }
 
             if ($existing) {
                 $existing->update($payload);

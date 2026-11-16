@@ -85,8 +85,8 @@
     @include('pdf.kop_surat', ['institutionName' => $leaveRequest->teacher?->institution?->name ?? 'SMP ISLAM BAITUL MAKMUR'])
 
     <div class="doc-title-box">
-        <div class="doc-title-main">SURAT PERMOHONAN IZIN / CUTI GURU</div>
-        <div class="doc-title-sub">Nomor Registrasi: PERM-CUTI/{{ date('Y') }}/{{ str_pad($leaveRequest->id, 4, '0', STR_PAD_LEFT) }}</div>
+        <div class="doc-title-main">{{ $leaveRequest->isDinasLuar() ? 'SURAT PENUGASAN DINAS LUAR GURU' : 'SURAT PERMOHONAN IZIN / CUTI GURU' }}</div>
+        <div class="doc-title-sub">Nomor Registrasi: {{ $leaveRequest->isDinasLuar() ? 'SURAT-DINAS' : 'PERM-CUTI' }}/{{ date('Y') }}/{{ str_pad($leaveRequest->id, 4, '0', STR_PAD_LEFT) }}</div>
     </div>
 
     <p>Yang bertanda tangan di bawah ini:</p>
@@ -108,9 +108,9 @@
             <td class="val">Guru Mata Pelajaran</td>
         </tr>
         <tr>
-            <td class="label">Jenis Perizinan / Cuti</td>
+            <td class="label">Kategori / Jenis Perizinan</td>
             <td class="colon">:</td>
-            <td class="val"><strong>{{ strtoupper($leaveRequest->jenis_cuti ?? ($leaveRequest->tipe_izin ?? 'IZIN')) }}</strong></td>
+            <td class="val"><strong>{{ $leaveRequest->isDinasLuar() ? 'DINAS LUAR (KEHADIRAN HADIR)' : strtoupper($leaveRequest->kategori_izin ?? ($leaveRequest->jenis_cuti ?? ($leaveRequest->tipe_izin ?? 'IZIN'))) }}</strong></td>
         </tr>
         <tr>
             <td class="label">Tanggal Mulai Izin</td>
@@ -123,14 +123,14 @@
             <td class="val"><strong>{{ \Carbon\Carbon::parse($leaveRequest->tanggal_selesai ?? $leaveRequest->tanggal_mulai)->translatedFormat('l, d F Y') }}</strong></td>
         </tr>
         <tr>
-            <td class="label">Alasan / Keperluan</td>
+            <td class="label">Alasan / Uraian Tugas</td>
             <td class="colon">:</td>
             <td class="val">{{ $leaveRequest->alasan ?? '-' }}</td>
         </tr>
         <tr>
             <td class="label">Guru Pengganti (Inval)</td>
             <td class="colon">:</td>
-            <td class="val"><strong>{{ $leaveRequest->substituteTeacher->name ?? 'Dikoordinasikan oleh Guru Piket' }}</strong></td>
+            <td class="val"><strong>{{ $leaveRequest->substituteTeacher->name ?? ($leaveRequest->isDinasLuar() ? 'Wajib Ditetapkan (Guru Inval)' : 'Dikoordinasikan oleh Guru Piket') }}</strong></td>
         </tr>
         <tr>
             <td class="label">Status Verifikasi & ACC</td>

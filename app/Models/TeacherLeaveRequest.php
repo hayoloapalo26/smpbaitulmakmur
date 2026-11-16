@@ -44,6 +44,16 @@ class TeacherLeaveRequest extends Model
     }
 
     /**
+     * Cek apakah perizinan ini merupakan penugasan dinas luar.
+     */
+    public function isDinasLuar(): bool
+    {
+        return ($this->kategori_izin === 'dinas_luar')
+            || str_contains(strtolower($this->alasan ?? ''), 'dinas')
+            || str_contains(strtolower($this->alasan ?? ''), 'tugas');
+    }
+
+    /**
      * Cek apakah seorang guru memiliki izin yang sudah di-ACC pada tanggal dan (opsional) jam ke tertentu.
      */
     public static function isTeacherOnLeave(int $teacherId, string $date, ?int $jamKe = null): bool
@@ -227,10 +237,10 @@ class TeacherLeaveRequest extends Model
 
         $alasanLower = strtolower($this->alasan ?? '');
         $statusPresensi = 'izin';
-        if (str_contains($alasanLower, 'sakit')) {
-            $statusPresensi = 'sakit';
-        } elseif (str_contains($alasanLower, 'dinas') || str_contains($alasanLower, 'tugas')) {
+        if ($this->isDinasLuar()) {
             $statusPresensi = 'dinas_luar';
+        } elseif (($this->kategori_izin === 'sakit') || str_contains($alasanLower, 'sakit')) {
+            $statusPresensi = 'sakit';
         }
 
         $leaveHours = is_array($this->jam_ke) ? array_map('intval', $this->jam_ke) : [];

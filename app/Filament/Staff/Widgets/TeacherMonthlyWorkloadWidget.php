@@ -118,8 +118,8 @@ class TeacherMonthlyWorkloadWidget extends Widget
                 ->whereMonth('tanggal', $month)
                 ->count();
 
-            // 5. Total Kehadiran Mengajar (Hadir Tatap Muka + Jam Pengganti Inval)
-            $totalKehadiranJP = $hadirJP + $invalJP;
+            // 5. Total Kehadiran Mengajar (Hadir Tatap Muka + Jam Pengganti Inval + Dinas Luar)
+            $totalKehadiranJP = $hadirJP + $invalJP + $dinasJP;
 
             // 6. Selisih dan Persentase
             $selisihJP = $totalKehadiranJP - $monthlyTargetJP;

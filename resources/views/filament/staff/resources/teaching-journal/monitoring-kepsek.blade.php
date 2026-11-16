@@ -180,15 +180,37 @@
                                     <!-- Status Hari Ini -->
                                     <td class="px-4 py-3.5 text-center">
                                         @if($row['leave_info'])
-                                            <div class="inline-flex flex-col items-center">
-                                                <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-100 dark:bg-blue-950/60 text-blue-800 dark:text-blue-300 font-bold border border-blue-300 dark:border-blue-700 text-xs shadow-sm">
-                                                    <x-heroicon-m-calendar-days class="w-4 h-4 text-blue-600" />
-                                                    Izin ACC ({{ $row['leave_info']->waktu_izin_label }})
-                                                </span>
-                                                <span class="text-[10px] text-blue-600 font-medium mt-0.5" title="{{ $row['leave_info']->alasan }}">
-                                                    {{ \Illuminate\Support\Str::limit($row['leave_info']->alasan, 25) }}
-                                                </span>
-                                            </div>
+                                            @if($row['leave_info']->isDinasLuar())
+                                                <div class="inline-flex flex-col items-center">
+                                                    @if($row['is_filled'])
+                                                        <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-indigo-100 dark:bg-indigo-950/60 text-indigo-800 dark:text-indigo-300 font-bold border border-indigo-300 dark:border-indigo-700 text-xs shadow-sm">
+                                                            <x-heroicon-m-check-badge class="w-4 h-4 text-indigo-600" />
+                                                            Dinas Luar (Hadir & Terisi)
+                                                        </span>
+                                                        <span class="text-[10px] text-indigo-600 font-medium mt-0.5">
+                                                            {{ $row['journals_count'] }} JP • Inval: {{ $row['leave_info']->substituteTeacher?->name ?? 'Guru Inval' }}
+                                                        </span>
+                                                    @else
+                                                        <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-sky-100 dark:bg-sky-950/60 text-sky-800 dark:text-sky-300 font-bold border border-sky-300 dark:border-sky-700 text-xs shadow-sm">
+                                                            <x-heroicon-m-arrow-top-right-on-square class="w-4 h-4 text-sky-600" />
+                                                            Dinas Luar (Wajib Jurnal)
+                                                        </span>
+                                                        <span class="text-[10px] text-sky-600 font-medium mt-0.5">
+                                                            Inval: {{ $row['leave_info']->substituteTeacher?->name ?? 'Guru Inval' }}
+                                                        </span>
+                                                    @endif
+                                                </div>
+                                            @else
+                                                <div class="inline-flex flex-col items-center">
+                                                    <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-100 dark:bg-blue-950/60 text-blue-800 dark:text-blue-300 font-bold border border-blue-300 dark:border-blue-700 text-xs shadow-sm">
+                                                        <x-heroicon-m-calendar-days class="w-4 h-4 text-blue-600" />
+                                                        Izin ACC ({{ $row['leave_info']->waktu_izin_label }})
+                                                    </span>
+                                                    <span class="text-[10px] text-blue-600 font-medium mt-0.5" title="{{ $row['leave_info']->alasan }}">
+                                                        {{ \Illuminate\Support\Str::limit($row['leave_info']->alasan, 25) }}
+                                                    </span>
+                                                </div>
+                                            @endif
                                         @elseif($row['is_filled'])
                                             <div class="inline-flex flex-col items-center">
                                                 <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 font-bold border border-emerald-300 dark:border-emerald-700 text-xs shadow-sm">

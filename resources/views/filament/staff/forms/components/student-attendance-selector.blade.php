@@ -15,6 +15,26 @@
             </p>
         </div>
     @else
+        @if(!empty($isDinasLuar))
+            <div class="mb-4 p-4 rounded-xl border border-sky-300 bg-sky-50 dark:bg-sky-950/40 dark:border-sky-800 text-sky-900 dark:text-sky-200">
+                <div class="flex items-start gap-3">
+                    <x-heroicon-o-information-circle class="w-6 h-6 text-sky-600 dark:text-sky-400 shrink-0 mt-0.5" />
+                    <div>
+                        <p class="font-bold text-sm">
+                            ✈️ Status Guru: Bertugas Dinas Luar (Presensi Siswa Diisi Guru Inval: {{ $invalTeacherName ?? 'Guru Inval' }})
+                        </p>
+                        <p class="text-xs text-sky-700 dark:text-sky-300 mt-1 leading-relaxed">
+                            @if(!empty($invalFilled))
+                                ✅ <strong>Guru Inval telah mengisi presensi siswa di kelas.</strong> Data kehadiran siswa di bawah otomatis terhubung dan tersinkronisasi dari laporan Guru Inval. Anda dapat fokus mengisi materi dan uraian tugas dinas luar.
+                            @else
+                                ℹ️ Presensi fisik kehadiran siswa di kelas akan diisi langsung oleh <strong>{{ $invalTeacherName ?? 'Guru Inval' }}</strong>. Anda tetap dapat menginputkan rincian materi/tugas dinas luar pada lembar jurnal ini. Presensi siswa akan otomatis disinkronkan saat Guru Inval mengisi kelas.
+                            @endif
+                        </p>
+                    </div>
+                </div>
+            </div>
+        @endif
+
         <div
             wire:key="{{ (isset($this) && method_exists($this, 'getId') ? $this->getId() : $field->getId()) }}.{{ $statePath }}.class-{{ $classroomId ?? 'empty' }}"
             x-data="{

@@ -138,6 +138,20 @@ class TeacherLeaveRequestResource extends Resource
                             ->default(Auth::id())
                             ->visible(fn () => !Auth::user()->hasAnyRole(['waka_kurikulum', 'kepala_sekolah', 'superadmin'])),
 
+                        Forms\Components\Select::make('kategori_izin')
+                            ->label('Kategori Izin')
+                            ->options([
+                                'dinas_luar' => '✈️ Dinas Luar / Tugas Luar (Wajib Guru Inval)',
+                                'izin' => '📋 Izin Keperluan Pribadi / Keluarga',
+                                'sakit' => '🏥 Sakit',
+                            ])
+                            ->default('izin')
+                            ->required()
+                            ->live()
+                            ->helperText(fn (Forms\Get $get) => $get('kategori_izin') === 'dinas_luar'
+                                ? '💡 Guru dinas luar kehadirannya dihitung HADIR dan wajib menginputkan jurnal mengajar. Presensi fisik siswa di kelas wajib diisi oleh Guru Inval.'
+                                : null),
+
                         Forms\Components\Radio::make('tipe_izin')
                             ->label('Pilihan Waktu / Durasi Izin')
                             ->options([
@@ -209,11 +223,17 @@ class TeacherLeaveRequestResource extends Resource
                             ->columnSpanFull(),
 
                         Forms\Components\Select::make('substitute_teacher_id')
-                            ->label('Guru Pengganti (Inval)')
+                            ->label(fn (Forms\Get $get) => $get('kategori_izin') === 'dinas_luar' ? 'Guru Pengganti (Inval) *WAJIB*' : 'Guru Pengganti (Inval)')
                             ->options(fn (Forms\Get $get) => \App\Models\User::getSubstituteTeacherOptions($get('teacher_id') ?: Auth::id()))
                             ->searchable()
                             ->placeholder('Pilih Guru Pengganti atau Guru Piket...')
-                            ->helperText('Pilih guru pengganti jika ada guru tertentu yang menggantikan (akan mendapatkan jam inval), atau pilih opsi "Guru Piket" jika kelas di-inval oleh guru piket (guru piket tidak mendapatkan jam inval).'),
+                            ->required(fn (Forms\Get $get) => $get('kategori_izin') === 'dinas_luar')
+                            ->validationMessages([
+                                'required' => 'Untuk tugas Dinas Luar, Anda wajib memilih Guru Pengganti (Inval)!',
+                            ])
+                            ->helperText(fn (Forms\Get $get) => $get('kategori_izin') === 'dinas_luar'
+                                ? '⚠️ WAJIB: Untuk dinas luar, Anda wajib memilih Guru Inval. Guru Inval bertugas mengisi presensi fisik kehadiran siswa di kelas selama jam pelajaran Anda.'
+                                : 'Pilih guru pengganti jika ada guru tertentu yang menggantikan (akan mendapatkan jam inval), atau pilih opsi "Guru Piket" jika kelas di-inval oleh guru piket (guru piket tidak mendapatkan jam inval).'),
 
                         Forms\Components\Textarea::make('alasan')
                             ->label('Alasan Izin')
@@ -294,6 +314,19 @@ class TeacherLeaveRequestResource extends Resource
                         Infolists\Components\TextEntry::make('teacher.name')
                             ->label('Nama Guru')
                             ->icon('heroicon-o-user'),
+                        Infolists\Components\TextEntry::make('kategori_izin')
+                            ->label('Kategori Izin')
+                            ->badge()
+                            ->color(fn ($state) => match ($state) {
+                                'dinas_luar' => 'warning',
+                                'sakit' => 'danger',
+                                default => 'primary',
+                            })
+                            ->formatStateUsing(fn ($state) => match ($state) {
+                                'dinas_luar' => '✈️ Dinas Luar (Hadir & Wajib Inval)',
+                                'sakit' => '🏥 Sakit',
+                                default => '📋 Izin',
+                            }),
                         Infolists\Components\TextEntry::make('tipe_izin')
                             ->label('Tipe / Durasi Izin')
                             ->badge()
@@ -351,6 +384,20 @@ class TeacherLeaveRequestResource extends Resource
                     ->searchable()
                     ->sortable()
                     ->label('Guru'),
+                Tables\Columns\TextColumn::make('kategori_izin')
+                    ->label('Kategori')
+                    ->badge()
+                    ->color(fn ($state) => match ($state) {
+                        'dinas_luar' => 'warning',
+                        'sakit' => 'danger',
+                        default => 'primary',
+                    })
+                    ->formatStateUsing(fn ($state) => match ($state) {
+                        'dinas_luar' => '✈️ Dinas Luar',
+                        'sakit' => '🏥 Sakit',
+                        default => '📋 Izin',
+                    })
+                    ->sortable(),
                 Tables\Columns\TextColumn::make('tipe_izin')
                     ->label('Tipe Izin')
                     ->badge()
@@ -432,30 +479,59 @@ class TeacherLeaveRequestResource extends Resource
                     ->icon('heroicon-o-check-badge')
                     ->color('success')
                     ->requiresConfirmation()
-                    ->modalHeading('Konfirmasi ACC Perizinan Guru')
-                    ->modalDescription('Setelah di-ACC oleh Waka Kurikulum, perizinan guru otomatis aktif. Guru yang bersangkutan tidak dapat mengisi jurnal mengajar pada waktu tersebut.')
+                    ->modalHeading(fn (TeacherLeaveRequest $record) => $record->isDinasLuar() ? 'Konfirmasi ACC Dinas Luar Guru' : 'Konfirmasi ACC Perizinan Guru')
+                    ->modalDescription(fn (TeacherLeaveRequest $record) => $record->isDinasLuar()
+                        ? 'Setelah di-ACC oleh Waka Kurikulum, kehadiran guru dinas luar dihitung HADIR. Guru yang bersangkutan wajib menginputkan jurnal mengajar (tugas dinas), sedangkan presensi fisik siswa di kelas diisi oleh Guru Inval.'
+                        : 'Setelah di-ACC oleh Waka Kurikulum, perizinan guru otomatis aktif. Guru yang bersangkutan tidak dapat mengisi jurnal mengajar pada waktu tersebut.')
                     ->visible(fn ($record) => Auth::user()->hasAnyRole(['waka_kurikulum', 'superadmin']) && $record->status === 'diajukan')
                     ->form([
                         Forms\Components\Select::make('substitute_teacher_id')
-                            ->label('Pilih Guru Pengganti (Inval)')
+                            ->label(fn ($record) => $record?->isDinasLuar() ? 'Pilih Guru Pengganti (Inval) *WAJIB UNTUK DINAS LUAR*' : 'Pilih Guru Pengganti (Inval)')
                             ->options(fn ($record) => \App\Models\User::getSubstituteTeacherOptions($record?->teacher_id))
                             ->searchable()
                             ->placeholder('Pilih Guru Pengganti atau Guru Piket...')
-                            ->helperText('Pilih guru pengganti yang akan mendapatkan jam inval sesuai jumlah JP, atau pilih opsi "Guru Piket" jika kelas di-inval oleh guru piket (guru piket tidak mendapatkan jam inval).')
+                            ->required(fn ($record) => (bool) $record?->isDinasLuar())
+                            ->validationMessages([
+                                'required' => 'Pengajuan Dinas Luar wajib memiliki Guru Inval sebelum dapat di-ACC!',
+                            ])
+                            ->helperText(fn ($record) => $record?->isDinasLuar()
+                                ? '⚠️ WAJIB: Pastikan Guru Inval telah ditentukan karena guru inval yang akan mengisi presensi kehadiran siswa di kelas.'
+                                : 'Pilih guru pengganti yang akan mendapatkan jam inval sesuai jumlah JP, atau pilih opsi "Guru Piket" jika kelas di-inval oleh guru piket (guru piket tidak mendapatkan jam inval).')
                             ->default(fn ($record) => $record?->substitute_teacher_id),
                     ])
                     ->action(function ($record, array $data) {
+                        $substituteId = $data['substitute_teacher_id'] ?? $record->substitute_teacher_id;
+                        if ($record->isDinasLuar() && empty($substituteId)) {
+                            \Filament\Notifications\Notification::make()
+                                ->title('Gagal ACC: Guru Inval Wajib Ditentukan')
+                                ->body('Pengajuan dinas luar wajib menetapkan Guru Inval pengganti sebelum dapat disetujui (ACC).')
+                                ->danger()
+                                ->persistent()
+                                ->send();
+                            return;
+                        }
+
                         $record->update([
                             'status' => 'disetujui_wakakur',
-                            'substitute_teacher_id' => $data['substitute_teacher_id'] ?? $record->substitute_teacher_id,
+                            'substitute_teacher_id' => $substituteId,
                             'wakakur_approved_by' => Auth::id(),
                             'wakakur_approved_at' => now(),
                         ]);
-                        \Filament\Notifications\Notification::make()
-                            ->title('Perizinan Berhasil di-ACC')
-                            ->body('Perizinan telah disetujui (ACC) oleh Waka Kurikulum. Guru yang bersangkutan otomatis tidak dapat mengisi jurnal mengajar pada waktu tersebut.')
-                            ->success()
-                            ->send();
+
+                        if ($record->isDinasLuar()) {
+                            \Filament\Notifications\Notification::make()
+                                ->title('Dinas Luar Berhasil di-ACC')
+                                ->body('Perizinan Dinas Luar telah disetujui Waka Kurikulum. Kehadiran guru dihitung HADIR. Guru yang bersangkutan wajib menginputkan jurnal mengajar, dan presensi siswa diisi oleh Guru Inval.')
+                                ->success()
+                                ->duration(8000)
+                                ->send();
+                        } else {
+                            \Filament\Notifications\Notification::make()
+                                ->title('Perizinan Berhasil di-ACC')
+                                ->body('Perizinan telah disetujui (ACC) oleh Waka Kurikulum. Guru yang bersangkutan otomatis tidak dapat mengisi jurnal mengajar pada waktu tersebut.')
+                                ->success()
+                                ->send();
+                        }
                     }),
                 Tables\Actions\Action::make('tolak')
                     ->label('Tolak')

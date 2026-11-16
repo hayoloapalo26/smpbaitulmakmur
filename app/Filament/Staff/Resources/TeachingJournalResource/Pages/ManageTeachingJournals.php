@@ -110,27 +110,30 @@ class ManageTeachingJournals extends ManageRecords
                             $action->halt();
                         }
 
-                        // 3. Cek izin mengajar guru
+                        // 3. Cek izin mengajar guru (Kecuali Dinas Luar)
                         if (\App\Models\TeacherLeaveRequest::isTeacherOnLeave($teacherId, $tanggal, $schedule->jam_ke)) {
                             $leave = \App\Models\TeacherLeaveRequest::getActiveLeaveFor($teacherId, $tanggal, $schedule->jam_ke);
-                            \Filament\Notifications\Notification::make()
-                                ->title('Pengisian Jurnal Ditolak')
-                                ->body('Anda tidak dapat mengisi jurnal mengajar karena sedang dalam status perizinan yang telah disetujui (ACC) pada jam ke-' . $schedule->jam_ke . ' (' . ($leave?->waktu_izin_label ?? "Jam Ke-{$schedule->jam_ke}") . ').')
-                                ->danger()
-                                ->persistent()
-                                ->send();
+                            if ($leave && !$leave->isDinasLuar()) {
+                                \Filament\Notifications\Notification::make()
+                                    ->title('Pengisian Jurnal Ditolak')
+                                    ->body('Anda tidak dapat mengisi jurnal mengajar karena sedang dalam status perizinan yang telah disetujui (ACC) pada jam ke-' . $schedule->jam_ke . ' (' . ($leave?->waktu_izin_label ?? "Jam Ke-{$schedule->jam_ke}") . ').')
+                                    ->danger()
+                                    ->persistent()
+                                    ->send();
 
-                            $action->halt();
+                                $action->halt();
+                            }
                         }
 
-                        // 4. Cek apakah sudah pernah diisi hari ini
+                        // 4. Cek apakah sudah pernah diisi hari ini oleh guru ini
                         $alreadyFilled = TeachingJournal::where('schedule_id', $schedule->id)
+                            ->where('teacher_id', $teacherId)
                             ->whereDate('tanggal', $tanggal)
                             ->exists();
                         if ($alreadyFilled) {
                             \Filament\Notifications\Notification::make()
                                 ->title('Jadwal Sudah Pernah Diisi')
-                                ->body("Jadwal jam ke-{$schedule->jam_ke} sudah pernah diisi jurnalnya pada tanggal {$tanggal}.")
+                                ->body("Jadwal jam ke-{$schedule->jam_ke} sudah pernah Anda isi jurnalnya pada tanggal {$tanggal}.")
                                 ->danger()
                                 ->send();
 
@@ -174,6 +177,25 @@ class ManageTeachingJournals extends ManageRecords
                                 'catatan_karakter' => $catatanKarakter,
                             ];
 
+                            // Jika guru pengisi adalah guru dinas luar dan guru inval sudah mengisi presensi siswa sebelumnya
+                            $leaveForSchedule = \App\Models\TeacherLeaveRequest::getActiveLeaveFor($journalData['teacher_id'], $journalData['tanggal'], $schedule->jam_ke);
+                            if ($leaveForSchedule?->isDinasLuar()) {
+                                $invalJournal = TeachingJournal::where('schedule_id', $schedule->id)
+                                    ->whereDate('tanggal', $journalData['tanggal'])
+                                    ->where('teacher_id', '!=', $journalData['teacher_id'])
+                                    ->latest()
+                                    ->first();
+
+                                if ($invalJournal) {
+                                    $invalAttendances = \App\Models\SubjectAttendance::where('teaching_journal_id', $invalJournal->id)
+                                        ->pluck('status', 'student_id')
+                                        ->toArray();
+                                    if (!empty($invalAttendances)) {
+                                        $studentAttendances = $invalAttendances;
+                                    }
+                                }
+                            }
+
                             $journal = TeachingJournal::create($journalData);
 
                             // Catat presensi siswa (SubjectAttendance) untuk jurnal ini
@@ -194,6 +216,35 @@ class ManageTeachingJournals extends ManageRecords
                                         'status' => $status,
                                     ]
                                 );
+                            }
+
+                            // Jika yang mengisi saat ini adalah Guru Inval, sinkronkan juga presensi siswa ke Jurnal Guru Dinas Luar (jika guru dinas luar sudah membuat jurnal duluan)
+                            $isSubstitute = ($schedule->teacher_id != $journalData['teacher_id']);
+                            if ($isSubstitute) {
+                                $originalTeacherJournal = TeachingJournal::where('schedule_id', $schedule->id)
+                                    ->where('teacher_id', $schedule->teacher_id)
+                                    ->whereDate('tanggal', $journalData['tanggal'])
+                                    ->where('id', '!=', $journal->id)
+                                    ->first();
+
+                                if ($originalTeacherJournal) {
+                                    foreach ($students as $student) {
+                                        $status = $studentAttendances[$student->id] ?? $studentAttendances[(string) $student->id] ?? 'hadir';
+                                        if (!in_array($status, ['hadir', 'sakit', 'izin', 'alpa'])) {
+                                            $status = 'hadir';
+                                        }
+                                        \App\Models\SubjectAttendance::updateOrCreate(
+                                            [
+                                                'teaching_journal_id' => $originalTeacherJournal->id,
+                                                'student_id' => $student->id,
+                                            ],
+                                            [
+                                                'institution_id' => $student->institution_id,
+                                                'status' => $status,
+                                            ]
+                                        );
+                                    }
+                                }
                             }
 
                             if ($firstJournal === null) {
@@ -327,7 +378,7 @@ class ManageTeachingJournals extends ManageRecords
                 'is_filled' => $isFilled,
                 'total_history' => $totalHistory,
                 'leave_info' => $leaveOnDate,
-                'attendance_status' => $attendance?->status ?? ($isFilled ? 'hadir' : ($leaveOnDate ? 'izin' : 'belum_absen')),
+                'attendance_status' => $attendance?->status ?? ($isFilled ? 'hadir' : ($leaveOnDate ? ($leaveOnDate->isDinasLuar() ? 'dinas_luar' : 'izin') : 'belum_absen')),
             ];
         }
 

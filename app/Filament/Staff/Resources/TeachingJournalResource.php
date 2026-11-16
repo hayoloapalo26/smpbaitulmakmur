@@ -312,6 +312,7 @@ class TeachingJournalResource extends Resource
                                 foreach ($schedules as $s) {
                                     $isSubstituteForThis = ($s->teacher_id != $teacherId);
                                     $alreadyFilled = TeachingJournal::where('schedule_id', $s->id)
+                                        ->where('teacher_id', $teacherId)
                                         ->whereDate('tanggal', $tanggal)
                                         ->when($record, fn ($q) => $q->where('id', '!=', $record->id))
                                         ->exists();
@@ -325,7 +326,12 @@ class TeachingJournalResource extends Resource
                                         // Cek apakah guru sedang izin yang telah di-ACC pada jam pelajaran ini
                                         $onLeave = \App\Models\TeacherLeaveRequest::getActiveLeaveFor($teacherId, $tanggal, $s->jam_ke);
                                         if ($onLeave) {
-                                            $statusText = " 🚫 [Izin ACC: {$onLeave->waktu_izin_label}]";
+                                            if ($onLeave->isDinasLuar()) {
+                                                $invalName = $onLeave->substituteTeacher?->name ?? 'Guru Inval';
+                                                $statusText = " ✈️ [DINAS LUAR - Presensi diisi Inval: {$invalName}]" . $statusText;
+                                            } else {
+                                                $statusText = " 🚫 [Izin ACC: {$onLeave->waktu_izin_label}]";
+                                            }
                                         }
                                     } else {
                                         $statusText = " 🔄 [TUGAS INVAL DARI {$s->teacher?->name}]" . $statusText;
@@ -345,13 +351,17 @@ class TeachingJournalResource extends Resource
 
                                 $isSubstituteForThis = ($schedule->teacher_id != $teacherId);
 
-                                // 1. Kunci opsi jika guru reguler memiliki izin yang telah di-ACC pada jam ini
-                                if (!$isSubstituteForThis && \App\Models\TeacherLeaveRequest::isTeacherOnLeave($teacherId, $tanggal, $schedule->jam_ke)) {
-                                    return true;
+                                // 1. Kunci opsi jika guru reguler memiliki izin yang telah di-ACC pada jam ini (Kecuali Dinas Luar)
+                                if (!$isSubstituteForThis) {
+                                    $leave = \App\Models\TeacherLeaveRequest::getActiveLeaveFor($teacherId, $tanggal, $schedule->jam_ke);
+                                    if ($leave && !$leave->isDinasLuar()) {
+                                        return true;
+                                    }
                                 }
 
-                                // 2. Kunci opsi jika sudah diisi sebelumnya pada hari ini
+                                // 2. Kunci opsi jika guru ini sudah mengisi jurnal jadwal ini hari ini
                                 if (TeachingJournal::where('schedule_id', $schedule->id)
+                                    ->where('teacher_id', $teacherId)
                                     ->whereDate('tanggal', $tanggal)
                                     ->when($record, fn ($q) => $q->where('id', '!=', $record->id))
                                     ->exists()) {
@@ -402,8 +412,10 @@ class TeachingJournalResource extends Resource
 
                                             if ($s->teacher_id == $teacherId && \App\Models\TeacherLeaveRequest::isTeacherOnLeave($teacherId, $tanggal, $s->jam_ke)) {
                                                 $leave = \App\Models\TeacherLeaveRequest::getActiveLeaveFor($teacherId, $tanggal, $s->jam_ke);
-                                                $fail("Tidak dapat mengisi jurnal mengajar! Anda tercatat memiliki perizinan yang telah disetujui (ACC) pada jam ke-{$s->jam_ke} (" . ($leave?->waktu_izin_label ?? \App\Models\Schedule::getJamLabel($s->jam_ke)) . ").");
-                                                return;
+                                                if ($leave && !$leave->isDinasLuar()) {
+                                                    $fail("Tidak dapat mengisi jurnal mengajar! Anda tercatat memiliki perizinan yang telah disetujui (ACC) pada jam ke-{$s->jam_ke} (" . ($leave->waktu_izin_label ?? \App\Models\Schedule::getJamLabel($s->jam_ke)) . ").");
+                                                    return;
+                                                }
                                             }
                                         }
                                     };
@@ -416,6 +428,10 @@ class TeachingJournalResource extends Resource
 
                                 $leaveToday = \App\Models\TeacherLeaveRequest::getActiveLeaveFor($teacherId, $tanggal);
                                 if ($leaveToday) {
+                                    if ($leaveToday->isDinasLuar()) {
+                                        $invalName = $leaveToday->substituteTeacher?->name ?? 'Guru Inval';
+                                        return "✈️ PERHATIAN DINAS LUAR: Anda tercatat bertugas dinas luar hari ini. Kehadiran Anda dihitung HADIR. Anda tetap wajib menginputkan materi jurnal mengajar, sedangkan presensi fisik siswa di kelas diisi oleh Guru Inval ({$invalName}).";
+                                    }
                                     return "⛔ PERHATIAN: Terdapat perizinan guru yang telah di-ACC pada hari ini ({$leaveToday->waktu_izin_label} — Alasan: {$leaveToday->alasan}). Jadwal jam pelajaran yang bertepatan dengan izin otomatis terkunci.";
                                 }
 
@@ -531,8 +547,31 @@ class TeachingJournalResource extends Resource
                                 }
 
                                 $tanggal = $get('tanggal') ?? Carbon::today()->format('Y-m-d');
+                                $teacherId = $get('teacher_id') ?: Auth::id();
+                                $leaveForSchedule = \App\Models\TeacherLeaveRequest::getActiveLeaveFor($teacherId, $tanggal, $firstSchedule->jam_ke);
+
+                                // Jika guru ini sedang dinas luar, cek apakah Guru Inval sudah mengisi presensi siswa
+                                $syncedFromInval = false;
+                                if ($leaveForSchedule?->isDinasLuar()) {
+                                    $invalJournal = TeachingJournal::where('schedule_id', $firstSchedule->id)
+                                        ->whereDate('tanggal', $tanggal)
+                                        ->where('teacher_id', '!=', $teacherId)
+                                        ->latest()
+                                        ->first();
+
+                                    if ($invalJournal) {
+                                        $invalAttendances = \App\Models\SubjectAttendance::where('teaching_journal_id', $invalJournal->id)
+                                            ->pluck('status', 'student_id')
+                                            ->toArray();
+                                        if (!empty($invalAttendances)) {
+                                            $set('student_attendances', $invalAttendances);
+                                            $syncedFromInval = true;
+                                        }
+                                    }
+                                }
+
                                 $currentAttendance = (array) ($get('student_attendances') ?? []);
-                                if (empty($currentAttendance)) {
+                                if (empty($currentAttendance) && !$syncedFromInval) {
                                     $students = \App\Models\Student::where('classroom_id', $firstSchedule->classroom_id)->orderBy('name')->get();
                                     $attendanceData = [];
                                     foreach ($students as $student) {
@@ -833,10 +872,34 @@ class TeachingJournalResource extends Resource
                             ? \App\Models\Student::where('classroom_id', $classroomId)->orderBy('name')->get()
                             : collect();
 
+                        $teacherId = $get('teacher_id') ?: Auth::id();
+                        $tanggal = $get('tanggal') ?? now()->toDateString();
+                        $scheduleId = $get('schedule_id') ?? $record?->schedule_id;
+                        $leave = null;
+                        $invalTeacherName = null;
+                        $invalFilled = false;
+                        if ($scheduleId) {
+                            $sched = Schedule::find($scheduleId);
+                            if ($sched) {
+                                $leave = \App\Models\TeacherLeaveRequest::getActiveLeaveFor($teacherId, $tanggal, $sched->jam_ke);
+                                if ($leave?->isDinasLuar()) {
+                                    $invalTeacherName = $leave->substituteTeacher?->name ?? 'Guru Inval';
+                                    $invalJournal = TeachingJournal::where('schedule_id', $sched->id)
+                                        ->whereDate('tanggal', $tanggal)
+                                        ->where('teacher_id', '!=', $teacherId)
+                                        ->first();
+                                    $invalFilled = (bool) $invalJournal;
+                                }
+                            }
+                        }
+
                         return [
                             'students' => $students,
                             'classroomId' => $classroomId,
                             'charStatePath' => str_replace('student_attendances', 'catatan_karakter', $component->getStatePath()),
+                            'isDinasLuar' => (bool) ($leave?->isDinasLuar()),
+                            'invalTeacherName' => $invalTeacherName,
+                            'invalFilled' => $invalFilled,
                         ];
                     })
                     ->dehydrated()
@@ -1142,13 +1205,15 @@ class TeachingJournalResource extends Resource
 
                         if (\App\Models\TeacherLeaveRequest::isTeacherOnLeave($teacherId, $tanggal, $jamKe)) {
                             $leave = \App\Models\TeacherLeaveRequest::getActiveLeaveFor($teacherId, $tanggal, $jamKe);
-                            \Filament\Notifications\Notification::make()
-                                ->title('Perubahan Jurnal Ditolak')
-                                ->body('Jurnal ini tidak dapat diubah karena guru bersangkutan memiliki perizinan yang telah disetujui (ACC) pada waktu tersebut (' . ($leave?->waktu_izin_label ?? "Jam Ke-{$jamKe}") . ').')
-                                ->danger()
-                                ->send();
+                            if ($leave && !$leave->isDinasLuar()) {
+                                \Filament\Notifications\Notification::make()
+                                    ->title('Perubahan Jurnal Ditolak')
+                                    ->body('Jurnal ini tidak dapat diubah karena guru bersangkutan memiliki perizinan yang telah disetujui (ACC) pada waktu tersebut (' . ($leave?->waktu_izin_label ?? "Jam Ke-{$jamKe}") . ').')
+                                    ->danger()
+                                    ->send();
 
-                            $action->halt();
+                                $action->halt();
+                            }
                         }
                     }),
             ])
