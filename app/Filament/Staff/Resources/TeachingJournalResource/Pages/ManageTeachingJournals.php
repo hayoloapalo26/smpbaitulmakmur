@@ -138,7 +138,7 @@ class ManageTeachingJournals extends ManageRecords
                         }
                     }
                 })
-                ->using(function (array $data, string $model, \Filament\Forms\Form $form): \Illuminate\Database\Eloquent\Model {
+                ->using(function (array $data, ?string $model = null): \Illuminate\Database\Eloquent\Model {
                     $scheduleIds = (array) ($data['schedule_ids'] ?? ($data['schedule_id'] ?? []));
                     $scheduleIds = array_values(array_filter(array_map('intval', $scheduleIds)));
 
@@ -148,7 +148,7 @@ class ManageTeachingJournals extends ManageRecords
                     }
 
                     // Ambil data presensi siswa dan catatan karakter
-                    $rawState = method_exists($form, 'getRawState') ? $form->getRawState() : [];
+                    $rawState = method_exists($this, 'getMountedActionForm') ? ($this->getMountedActionForm()?->getRawState() ?? []) : [];
                     $studentAttendances = $data['student_attendances'] ?? $rawState['student_attendances'] ?? [];
                     $catatanKarakter = $data['catatan_karakter'] ?? $rawState['catatan_karakter'] ?? [];
 

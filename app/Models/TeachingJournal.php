@@ -47,6 +47,22 @@ class TeachingJournal extends Model
         }
     }
 
+    /**
+     * Accessor untuk form presensi siswa per mapel
+     */
+    public function getStudentAttendancesAttribute(): array
+    {
+        return $this->subjectAttendances()->pluck('status', 'student_id')->toArray();
+    }
+
+    /**
+     * Mutator untuk form presensi siswa per mapel
+     */
+    public function setStudentAttendancesAttribute($value): void
+    {
+        // Virtual attribute for form hydration & attendance processing
+    }
+
     protected static function booted()
     {
         static::saving(function (TeachingJournal $journal) {

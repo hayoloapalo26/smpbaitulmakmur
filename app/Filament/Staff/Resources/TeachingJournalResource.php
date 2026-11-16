@@ -839,7 +839,7 @@ class TeachingJournalResource extends Resource
                             'charStatePath' => str_replace('student_attendances', 'catatan_karakter', $component->getStatePath()),
                         ];
                     })
-                    ->dehydrated(false)
+                    ->dehydrated()
                     ->afterStateHydrated(function (Forms\Components\ViewField $component, ?TeachingJournal $record) {
                         if ($record) {
                             $existing = \App\Models\SubjectAttendance::where('teaching_journal_id', $record->id)
