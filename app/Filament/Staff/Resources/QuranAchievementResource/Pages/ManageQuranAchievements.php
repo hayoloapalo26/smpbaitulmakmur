@@ -149,6 +149,24 @@ class ManageQuranAchievements extends ManageRecords
                                             ->get();
                                     }
 
+                                    // Ambil riwayat capaian setoran terakhir per santri untuk otomatisasi kelanjutan surat & ayat
+                                    $studentIds = $students->pluck('id')->filter()->toArray();
+                                    $latestAchievements = collect();
+                                    if (!empty($studentIds)) {
+                                        $latestAchievements = QuranAchievement::withoutGlobalScopes()
+                                            ->whereIn('student_id', $studentIds)
+                                            ->orderBy('tanggal', 'desc')
+                                            ->orderBy('id', 'desc')
+                                            ->get()
+                                            ->groupBy('student_id')
+                                            ->map(fn ($group) => $group->first());
+                                    }
+
+                                    foreach ($students as $student) {
+                                        $last = $latestAchievements->get($student->id);
+                                        $student->progress_data = QuranAchievement::calculateNextProgress($last);
+                                    }
+
                                     return [
                                         'students'              => $students,
                                         'program'               => $program,

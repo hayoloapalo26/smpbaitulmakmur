@@ -147,4 +147,185 @@ class QuranAchievement extends Model
         }
         return !empty($parts) ? implode(', ', $parts) : '-';
     }
+
+    /**
+     * Daftar jumlah total ayat untuk 114 surat dalam Al-Qur'an
+     */
+    public static function getSurahVerseCounts(): array
+    {
+        return [
+            1 => 7,     2 => 286,   3 => 200,   4 => 176,   5 => 120,
+            6 => 165,   7 => 206,   8 => 75,    9 => 129,   10 => 109,
+            11 => 123,  12 => 111,  13 => 43,   14 => 52,   15 => 99,
+            16 => 128,  17 => 111,  18 => 110,  19 => 98,   20 => 135,
+            21 => 112,  22 => 78,   23 => 118,  24 => 64,   25 => 77,
+            26 => 227,  27 => 93,   28 => 88,   29 => 69,   30 => 60,
+            31 => 34,   32 => 30,   33 => 73,   34 => 54,   35 => 45,
+            36 => 83,   37 => 182,  38 => 88,   39 => 75,   40 => 85,
+            41 => 54,   42 => 53,   43 => 89,   44 => 59,   45 => 37,
+            46 => 35,   47 => 38,   48 => 29,   49 => 18,   50 => 45,
+            51 => 60,   52 => 49,   53 => 62,   54 => 55,   55 => 78,
+            56 => 96,   57 => 29,   58 => 22,   59 => 24,   60 => 13,
+            61 => 14,   62 => 11,   63 => 11,   64 => 18,   65 => 12,
+            66 => 12,   67 => 30,   68 => 52,   69 => 52,   70 => 44,
+            71 => 28,   72 => 28,   73 => 20,   74 => 56,   75 => 40,
+            76 => 31,   77 => 50,   78 => 40,   79 => 46,   80 => 42,
+            81 => 29,   82 => 19,   83 => 36,   84 => 25,   85 => 22,
+            86 => 17,   87 => 19,   88 => 26,   89 => 30,   90 => 20,
+            91 => 15,   92 => 21,   93 => 11,   94 => 8,    95 => 8,
+            96 => 19,   97 => 5,    98 => 8,    99 => 8,    100 => 11,
+            101 => 11,  102 => 8,   103 => 3,   104 => 9,   105 => 5,
+            106 => 4,   107 => 7,   108 => 3,   109 => 6,   110 => 3,
+            111 => 5,   112 => 4,   113 => 5,   114 => 6,
+        ];
+    }
+
+    /**
+     * Estimasi Juz berdasarkan nomor surat dan ayat dalam Al-Qur'an
+     */
+    public static function getJuzForSurah(int $surah, int $ayah = 1, int $fallbackJuz = 30): int
+    {
+        if ($surah >= 78) return 30;
+        if ($surah >= 67) return 29;
+        if ($surah >= 58) return 28;
+        if ($surah >= 52 || ($surah == 51 && $ayah >= 31)) return 27;
+        if ($surah >= 46) return 26;
+        if ($surah >= 42 || ($surah == 41 && $ayah >= 47)) return 25;
+        if ($surah >= 40 || ($surah == 39 && $ayah >= 32)) return 24;
+        if ($surah >= 37 || ($surah == 36 && $ayah >= 28)) return 23;
+        if ($surah >= 34 || ($surah == 33 && $ayah >= 31)) return 22;
+        if ($surah >= 30 || ($surah == 29 && $ayah >= 46)) return 21;
+        if ($surah >= 28 || ($surah == 27 && $ayah >= 56)) return 20;
+        if ($surah >= 26 || ($surah == 25 && $ayah >= 21)) return 19;
+        if ($surah >= 23) return 18;
+        if ($surah >= 21) return 17;
+        if ($surah >= 19 || ($surah == 18 && $ayah >= 75)) return 16;
+        if ($surah >= 17) return 15;
+        if ($surah >= 15) return 14;
+        if ($surah >= 13 || ($surah == 12 && $ayah >= 53)) return 13;
+        if ($surah >= 11 && ($ayah >= 6 || $surah >= 12)) return 12;
+        if ($surah >= 10 || ($surah == 9 && $ayah >= 93)) return 11;
+        if ($surah == 9 || ($surah == 8 && $ayah >= 41)) return 10;
+        if ($surah == 8 || ($surah == 7 && $ayah >= 88)) return 9;
+        if ($surah == 7 || ($surah == 6 && $ayah >= 111)) return 8;
+        if ($surah == 6 || ($surah == 5 && $ayah >= 82)) return 7;
+        if ($surah == 5 || ($surah == 4 && $ayah >= 148)) return 6;
+        if ($surah == 4 && $ayah >= 24) return 5;
+        if ($surah == 4 || ($surah == 3 && $ayah >= 93)) return 4;
+        if ($surah == 3 || ($surah == 2 && $ayah >= 253)) return 3;
+        if ($surah == 2 && $ayah >= 142) return 2;
+        if ($surah <= 2) return 1;
+
+        return $fallbackJuz;
+    }
+
+    /**
+     * Hitung kelanjutan otomatis (next progress) berdasarkan setoran terakhir santri
+     */
+    public static function calculateNextProgress(?self $last): array
+    {
+        if (!$last) {
+            return [
+                'has_previous'         => false,
+                'last_label'           => null,
+                'juz'                  => 30,
+                'surah'                => '78',
+                'ayah'                 => '1-10',
+                'juz_murajaah'         => '',
+                'surah_murajaah'       => '',
+                'ayah_murajaah'        => '',
+                'scale_score'          => 85,
+                'predikat'             => 'Jayyid Jiddan',
+                'catatan'              => '',
+            ];
+        }
+
+        $verseCounts = self::getSurahVerseCounts();
+        $surahNames = \App\Filament\Staff\Resources\QuranAchievementResource::getSurahs();
+
+        $lastJuz = $last->juz ?: 30;
+        $lastSurah = (int)($last->surah ?: 78);
+        $lastAyahStr = trim((string)$last->ayah);
+        $lastSurahName = $surahNames[(string)$lastSurah] ?? "Surat {$lastSurah}";
+
+        // Tentukan jumlah total ayat surat terakhir
+        $totalVerses = $verseCounts[$lastSurah] ?? 40;
+
+        // Ekstrak rentang ayat
+        $isAkhir = str_contains(strtolower($lastAyahStr), 'akhir') || str_contains(strtolower($lastAyahStr), 'selesai');
+        preg_match_all('/\d+/', $lastAyahStr, $matches);
+        $numbers = !empty($matches[0]) ? array_map('intval', $matches[0]) : [];
+
+        if ($isAkhir) {
+            $endAyah = $totalVerses;
+            $span = 10;
+        } elseif (count($numbers) >= 2) {
+            $startAyah = $numbers[0];
+            $endAyah = end($numbers);
+            $span = max(1, $endAyah - $startAyah + 1);
+        } elseif (count($numbers) === 1) {
+            $endAyah = $numbers[0];
+            $span = 10;
+        } else {
+            $endAyah = 10;
+            $span = 10;
+        }
+
+        // Tentukan Ziyadah berikutnya
+        if ($endAyah >= $totalVerses) {
+            // Surat terakhir sudah selesai, lanjut ke surat berikutnya
+            $nextSurah = $lastSurah + 1;
+            if ($nextSurah > 114) {
+                $nextSurah = 1; // Kembali ke awal Al-Qur'an jika sudah khatam
+            }
+            $nextTotalVerses = $verseCounts[$nextSurah] ?? 40;
+            $nextStart = 1;
+            $nextEnd = min($nextTotalVerses, $span);
+            $nextAyah = "{$nextStart}-{$nextEnd}";
+            $nextJuz = self::getJuzForSurah($nextSurah, $nextStart, $lastJuz);
+            $lastStatusNote = ' (Selesai)';
+        } else {
+            // Lanjut ayat berikutnya di surat yang sama
+            $nextSurah = $lastSurah;
+            $nextStart = $endAyah + 1;
+            $nextEnd = min($totalVerses, $nextStart + $span - 1);
+            $nextAyah = ($nextStart == $nextEnd) ? (string)$nextStart : "{$nextStart}-{$nextEnd}";
+            $nextJuz = $lastJuz;
+            $lastStatusNote = '';
+        }
+
+        // Label riwayat setoran terakhir untuk ditampilkan di UI
+        $dateStr = $last->tanggal ? \Carbon\Carbon::parse($last->tanggal)->format('d/m') : '';
+        $lastLabel = "{$lastSurahName}: {$lastAyahStr}{$lastStatusNote}" . ($dateStr ? " ({$dateStr})" : '');
+
+        // Muraja'ah:
+        // Jika sebelumnya ada muraja'ah, lanjutkan muraja'ah
+        // Jika tidak, gunakan ziyadah kemarin sebagai bahan muraja'ah hari ini
+        if (!empty($last->surah_murajaah)) {
+            $lastMurajaahSurah = (int)$last->surah_murajaah;
+            $lastMurajaahAyah = trim((string)$last->ayah_murajaah);
+            $nextJuzMurajaah = $last->juz_murajaah ?: $lastJuz;
+            $nextSurahMurajaah = (string)$lastMurajaahSurah;
+            $nextAyahMurajaah = $lastMurajaahAyah ?: '1-Akhir';
+        } else {
+            // Ziyadah kemarin otomatis disarankan sebagai muraja'ah hari ini
+            $nextJuzMurajaah = $lastJuz;
+            $nextSurahMurajaah = (string)$lastSurah;
+            $nextAyahMurajaah = $lastAyahStr ?: '1-10';
+        }
+
+        return [
+            'has_previous'         => true,
+            'last_label'           => $lastLabel,
+            'juz'                  => $nextJuz,
+            'surah'                => (string)$nextSurah,
+            'ayah'                 => $nextAyah,
+            'juz_murajaah'         => $nextJuzMurajaah,
+            'surah_murajaah'       => $nextSurahMurajaah,
+            'ayah_murajaah'        => $nextAyahMurajaah,
+            'scale_score'          => $last->scale_score ?: 85,
+            'predikat'             => $last->predikat ?: 'Jayyid Jiddan',
+            'catatan'              => '',
+        ];
+    }
 }

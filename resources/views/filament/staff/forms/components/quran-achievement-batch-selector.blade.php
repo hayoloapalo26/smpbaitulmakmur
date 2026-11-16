@@ -36,10 +36,20 @@
                 ],
                 surahs: @js($surahs ?? []),
                 students: @js($students->map(fn($s) => [
-                    'id' => (string) $s->id,
-                    'name' => $s->name,
-                    'nis' => $s->nis ?? '-',
-                    'gender' => $s->jenis_kelamin,
+                    'id'                  => (string) $s->id,
+                    'name'                => $s->name,
+                    'nis'                 => $s->nis ?? '-',
+                    'gender'              => $s->jenis_kelamin,
+                    'has_previous'        => $s->progress_data['has_previous'] ?? false,
+                    'last_progress_label' => $s->progress_data['last_label'] ?? null,
+                    'next_juz'            => $s->progress_data['juz'] ?? ($defaultJuz ?? 30),
+                    'next_surah'          => (string)($s->progress_data['surah'] ?? ($defaultSurah ?? '78')),
+                    'next_ayah'           => (string)($s->progress_data['ayah'] ?? ($defaultAyah ?? '1-10')),
+                    'next_juz_murajaah'   => $s->progress_data['juz_murajaah'] ?? ($defaultJuzMurajaah ?? ''),
+                    'next_surah_murajaah' => (string)($s->progress_data['surah_murajaah'] ?? ($defaultSurahMurajaah ?? '')),
+                    'next_ayah_murajaah'  => (string)($s->progress_data['ayah_murajaah'] ?? ($defaultAyahMurajaah ?? '')),
+                    'scale_score'         => $s->progress_data['scale_score'] ?? ($defaultScaleScore ?? 85),
+                    'predikat'            => $s->progress_data['predikat'] ?? 'Jayyid Jiddan',
                 ])),
                 init() {
                     if (!this.state || typeof this.state !== 'object' || Array.isArray(this.state)) {
@@ -49,14 +59,14 @@
                         if (!this.state[s.id]) {
                             this.state[s.id] = {
                                 active: true,
-                                juz: this.defaultJuz,
-                                surah: this.defaultSurah,
-                                ayah: this.defaultAyah,
-                                juz_murajaah: this.defaultJuzMurajaah,
-                                surah_murajaah: this.defaultSurahMurajaah,
-                                ayah_murajaah: this.defaultAyahMurajaah,
-                                scale_score: this.defaultScaleScore,
-                                predikat: this.quickPredikat,
+                                juz: s.next_juz,
+                                surah: s.next_surah,
+                                ayah: s.next_ayah,
+                                juz_murajaah: s.next_juz_murajaah,
+                                surah_murajaah: s.next_surah_murajaah,
+                                ayah_murajaah: s.next_ayah_murajaah,
+                                scale_score: s.scale_score,
+                                predikat: s.predikat,
                                 catatan: ''
                             };
                         } else {
@@ -64,14 +74,14 @@
                                 this.state[s.id] = { active: false };
                             }
                             if (this.state[s.id].active === undefined) this.state[s.id].active = true;
-                            if (!this.state[s.id].juz) this.state[s.id].juz = this.defaultJuz;
-                            if (!this.state[s.id].surah) this.state[s.id].surah = this.defaultSurah;
-                            if (!this.state[s.id].ayah) this.state[s.id].ayah = this.defaultAyah;
-                            if (this.state[s.id].juz_murajaah === undefined) this.state[s.id].juz_murajaah = this.defaultJuzMurajaah;
-                            if (this.state[s.id].surah_murajaah === undefined) this.state[s.id].surah_murajaah = this.defaultSurahMurajaah;
-                            if (this.state[s.id].ayah_murajaah === undefined) this.state[s.id].ayah_murajaah = this.defaultAyahMurajaah;
-                            if (this.state[s.id].scale_score === undefined) this.state[s.id].scale_score = this.defaultScaleScore;
-                            if (!this.state[s.id].predikat) this.state[s.id].predikat = this.quickPredikat;
+                            if (!this.state[s.id].juz) this.state[s.id].juz = s.next_juz;
+                            if (!this.state[s.id].surah) this.state[s.id].surah = s.next_surah;
+                            if (!this.state[s.id].ayah) this.state[s.id].ayah = s.next_ayah;
+                            if (this.state[s.id].juz_murajaah === undefined) this.state[s.id].juz_murajaah = s.next_juz_murajaah;
+                            if (this.state[s.id].surah_murajaah === undefined) this.state[s.id].surah_murajaah = s.next_surah_murajaah;
+                            if (this.state[s.id].ayah_murajaah === undefined) this.state[s.id].ayah_murajaah = s.next_ayah_murajaah;
+                            if (this.state[s.id].scale_score === undefined) this.state[s.id].scale_score = s.scale_score;
+                            if (!this.state[s.id].predikat) this.state[s.id].predikat = s.predikat;
                             if (this.state[s.id].catatan === undefined) this.state[s.id].catatan = '';
                         }
                     });
@@ -79,16 +89,17 @@
                 getItem(id) {
                     if (!this.state) this.state = {};
                     if (!this.state[id]) {
+                        let s = this.students.find(st => st.id === id);
                         this.state[id] = {
                             active: true,
-                            juz: this.defaultJuz,
-                            surah: this.defaultSurah,
-                            ayah: this.defaultAyah,
-                            juz_murajaah: this.defaultJuzMurajaah,
-                            surah_murajaah: this.defaultSurahMurajaah,
-                            ayah_murajaah: this.defaultAyahMurajaah,
-                            scale_score: this.defaultScaleScore,
-                            predikat: this.quickPredikat,
+                            juz: s ? s.next_juz : this.defaultJuz,
+                            surah: s ? s.next_surah : this.defaultSurah,
+                            ayah: s ? s.next_ayah : this.defaultAyah,
+                            juz_murajaah: s ? s.next_juz_murajaah : this.defaultJuzMurajaah,
+                            surah_murajaah: s ? s.next_surah_murajaah : this.defaultSurahMurajaah,
+                            ayah_murajaah: s ? s.next_ayah_murajaah : this.defaultAyahMurajaah,
+                            scale_score: s ? s.scale_score : this.defaultScaleScore,
+                            predikat: s ? s.predikat : this.quickPredikat,
                             catatan: ''
                         };
                     }
@@ -116,6 +127,20 @@
                 setAllActive(val) {
                     this.students.forEach(s => {
                         this.updateItem(s.id, 'active', val);
+                    });
+                },
+                applyContinuations() {
+                    this.students.forEach(s => {
+                        if (this.getItem(s.id).active) {
+                            this.updateItem(s.id, 'juz', s.next_juz);
+                            this.updateItem(s.id, 'surah', s.next_surah);
+                            this.updateItem(s.id, 'ayah', s.next_ayah);
+                            this.updateItem(s.id, 'juz_murajaah', s.next_juz_murajaah);
+                            this.updateItem(s.id, 'surah_murajaah', s.next_surah_murajaah);
+                            this.updateItem(s.id, 'ayah_murajaah', s.next_ayah_murajaah);
+                            if (s.scale_score) this.updateScore(s.id, s.scale_score);
+                            if (s.predikat) this.updateItem(s.id, 'predikat', s.predikat);
+                        }
                     });
                 },
                 applyQuickDefaults() {
@@ -181,6 +206,14 @@
                             <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
                             Menyetor Hari Ini: <strong x-text="countActive()"></strong> Santri
                         </span>
+                        <button
+                            type="button"
+                            @click="applyContinuations()"
+                            class="inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-bold rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white shadow-xs transition"
+                            title="Otomatis muat kelanjutan surat & ayat terakhir masing-masing santri"
+                        >
+                            <span>🔄</span> Lanjutkan Setoran Terakhir
+                        </button>
                         <button
                             type="button"
                             @click="applyQuickDefaults()"
@@ -336,17 +369,28 @@
 
                                     {{-- Identitas Santri --}}
                                     <td class="px-4 py-3 border-r border-gray-100 dark:border-gray-800">
-                                        <div class="flex items-center gap-2">
+                                        <div class="flex items-start gap-2">
                                             <div
-                                                class="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0"
+                                                class="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 mt-0.5"
                                                 :class="student.gender === 'P' ? 'bg-pink-100 text-pink-700 dark:bg-pink-950/60 dark:text-pink-300' : 'bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300'"
                                                 x-text="student.gender === 'P' ? '♀' : '♂'"
                                             ></div>
-                                            <div>
-                                                <div class="font-bold text-gray-900 dark:text-white" x-text="student.name"></div>
-                                                <div class="text-[10px] text-gray-500 dark:text-gray-400">
+                                            <div class="min-w-0">
+                                                <div class="font-bold text-gray-900 dark:text-white leading-tight" x-text="student.name"></div>
+                                                <div class="text-[10px] text-gray-500 dark:text-gray-400 mt-0.5">
                                                     NIS: <span x-text="student.nis"></span>
                                                 </div>
+                                                <template x-if="student.has_previous && student.last_progress_label">
+                                                    <div class="mt-1 inline-flex items-center gap-1 text-[9px] font-medium text-emerald-800 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded-md border border-emerald-200 dark:border-emerald-800 max-w-full truncate">
+                                                        <span>📌 Terakhir:</span>
+                                                        <strong class="truncate" x-text="student.last_progress_label"></strong>
+                                                    </div>
+                                                </template>
+                                                <template x-if="!student.has_previous">
+                                                    <div class="mt-0.5 text-[9px] text-gray-400 dark:text-gray-500 italic">
+                                                        (Belum ada riwayat)
+                                                    </div>
+                                                </template>
                                             </div>
                                         </div>
                                     </td>

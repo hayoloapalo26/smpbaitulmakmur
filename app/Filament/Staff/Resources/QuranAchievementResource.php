@@ -247,12 +247,31 @@ class QuranAchievementResource extends Resource
                             ->live()
                             ->afterStateUpdated(function ($state, Forms\Set $set) {
                                 if ($state) {
-                                    $student = Student::with(['classroom', 'guruQuran'])->find($state);
+                                    $student = Student::withoutGlobalScopes()->with(['classroom', 'guruQuran'])->find($state);
                                     if ($student?->kelas_quran) {
                                         $set('program', $student->kelas_quran);
                                     }
                                     if ($student?->classroom_id) {
                                         $set('classroom_id', $student->classroom_id);
+                                    }
+
+                                    // Otomatisasi kelanjutan dari setoran terakhir
+                                    $last = QuranAchievement::withoutGlobalScopes()
+                                        ->where('student_id', $state)
+                                        ->orderBy('tanggal', 'desc')
+                                        ->orderBy('id', 'desc')
+                                        ->first();
+
+                                    $next = QuranAchievement::calculateNextProgress($last);
+                                    if ($next['has_previous']) {
+                                        $set('juz', $next['juz']);
+                                        $set('surah', $next['surah']);
+                                        $set('ayah', $next['ayah']);
+                                        if (!empty($next['juz_murajaah'])) $set('juz_murajaah', $next['juz_murajaah']);
+                                        if (!empty($next['surah_murajaah'])) $set('surah_murajaah', $next['surah_murajaah']);
+                                        if (!empty($next['ayah_murajaah'])) $set('ayah_murajaah', $next['ayah_murajaah']);
+                                        if (!empty($next['scale_score'])) $set('scale_score', $next['scale_score']);
+                                        if (!empty($next['predikat'])) $set('predikat', $next['predikat']);
                                     }
                                 }
                             })
