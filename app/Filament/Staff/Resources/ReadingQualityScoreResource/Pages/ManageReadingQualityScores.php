@@ -114,25 +114,45 @@ class ManageReadingQualityScores extends ManageRecords
                                         $program = $user->getQuranSpecializationKey();
                                     }
                                     if (empty($program)) {
-                                        $program = $get('program') ?? $get('program_otomatis') ?? 'tahsin';
+                                        $program = $get('program') ?? $get('program_otomatis') ?? 'yanbua';
                                     }
 
-                                    $query = Student::query()->with(['classroom', 'guruQuran']);
+                                    $query = Student::withoutGlobalScopes()->with(['classroom', 'guruQuran']);
 
                                     // Otomatisasi data santri binaan dari Waka Kurikulum (tersendirikan per program)
-                                    if ($program) {
-                                        $query->where('kelas_quran', $program);
-                                        if ($user?->isQuranTeacher() && !$user?->hasRole('superadmin')) {
-                                            $query->where(function ($q) use ($user) {
-                                                $q->where('guru_quran_id', $user->id)
-                                                  ->orWhereNull('guru_quran_id');
-                                            });
-                                        }
-                                    } elseif ($user?->isQuranTeacher() && !$user?->hasRole('superadmin')) {
-                                        $query->where('guru_quran_id', $user->id);
+                                    if ($user?->isQuranTeacher() && !$user?->hasAnyRole(['waka_kurikulum', 'superadmin'])) {
+                                        $query->where(function ($q) use ($user, $program) {
+                                            // 1. Prioritas Utama: Santri yang telah ditempatkan ke guru ini oleh Waka Kurikulum
+                                            $q->where('guru_quran_id', $user->id);
+
+                                            // 2. ATAU santri pada kelompok Al-Qur'an ini yang belum ditentukan guru spesifiknya
+                                            if ($program) {
+                                                $q->orWhere(function ($sub) use ($program) {
+                                                    $sub->where(function ($p) use ($program) {
+                                                        $p->where('kelas_quran', $program)
+                                                          ->orWhere('kelas_quran', 'like', "%{$program}%");
+                                                    })->whereNull('guru_quran_id');
+                                                });
+                                            }
+                                        });
+                                    } elseif ($program) {
+                                        $query->where(function ($p) use ($program) {
+                                            $p->where('kelas_quran', $program)
+                                              ->orWhere('kelas_quran', 'like', "%{$program}%");
+                                        });
                                     }
 
                                     $students = $query->orderBy('name')->get();
+
+                                    // Fallback cerdas: Jika query kosong namun user adalah guru Al-Qur'an,
+                                    // muat langsung seluruh santri yang diampu guru_quran_id = user->id
+                                    if ($students->isEmpty() && $user?->isQuranTeacher()) {
+                                        $students = Student::withoutGlobalScopes()
+                                            ->where('guru_quran_id', $user->id)
+                                            ->with(['classroom', 'guruQuran'])
+                                            ->orderBy('name')
+                                            ->get();
+                                    }
 
                                     return [
                                         'students' => $students,
@@ -177,17 +197,18 @@ class ManageReadingQualityScores extends ManageRecords
                                 continue;
                             }
 
-                            $student = Student::find($studentId);
+                            $student = Student::withoutGlobalScopes()->find($studentId);
                             if (!$student) continue;
 
-                            $instId = $student->institution_id ?: Auth::user()?->institution_id;
+                            $instId = $student->institution_id ?: Auth::user()?->institution_id ?: 1;
+                            $studentProgram = $student->kelas_quran ?: $program;
                             $scale = Grade::determineScale((float)$score);
 
                             ReadingQualityScore::create([
                                 'institution_id'    => $instId,
                                 'student_id'        => $student->id,
                                 'teacher_id'        => $teacherId,
-                                'program'           => $program,
+                                'program'           => $studentProgram,
                                 'scale_score'       => (int) $score,
                                 'jilid_halaman'     => $jilidHalaman,
                                 'catatan_guru'      => $catatan,

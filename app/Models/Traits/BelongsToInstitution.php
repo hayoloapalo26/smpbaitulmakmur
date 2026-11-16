@@ -65,6 +65,9 @@ trait BelongsToInstitution
                     if (\Illuminate\Support\Facades\Schema::hasColumn($table, 'guru_id')) {
                         $q->orWhere($table . '.guru_id', $user->id);
                     }
+                    if (\Illuminate\Support\Facades\Schema::hasColumn($table, 'guru_quran_id')) {
+                        $q->orWhere($table . '.guru_quran_id', $user->id);
+                    }
 
                     // 2. Jika tabel classrooms atau subjects:
                     // Izinkan guru mengakses kelas atau mapel lintas lembaga yang dijadwalkan untuknya

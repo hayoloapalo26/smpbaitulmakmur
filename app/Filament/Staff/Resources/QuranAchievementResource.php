@@ -157,17 +157,21 @@ class QuranAchievementResource extends Resource
                                     $selectedProgram = $user->getQuranSpecializationKey();
                                 }
 
-                                $query = Student::query()->with(['classroom', 'guruQuran']);
+                                $query = Student::withoutGlobalScopes()->with(['classroom', 'guruQuran']);
 
                                 if ($user->isQuranTeacher() && !$user->hasRole('superadmin')) {
                                     $query->where(function ($q) use ($user, $selectedProgram) {
                                         $q->where('guru_quran_id', $user->id);
                                         if ($selectedProgram) {
-                                            $q->orWhere('kelas_quran', $selectedProgram);
+                                            $q->orWhere('kelas_quran', $selectedProgram)
+                                              ->orWhere('kelas_quran', 'like', "%{$selectedProgram}%");
                                         }
                                     });
                                 } elseif ($selectedProgram && in_array($selectedProgram, ['tahsin', 'yanbua', 'tahfidz_dasar', 'tahfidz_lanjutan'])) {
-                                    $query->where('kelas_quran', $selectedProgram);
+                                    $query->where(function ($p) use ($selectedProgram) {
+                                        $p->where('kelas_quran', $selectedProgram)
+                                          ->orWhere('kelas_quran', 'like', "%{$selectedProgram}%");
+                                    });
                                 } elseif (!empty($classroomId)) {
                                     $query->where('classroom_id', $classroomId);
                                 }
@@ -177,9 +181,9 @@ class QuranAchievementResource extends Resource
                                 // Fallback aman jika belum ada penempatan:
                                 if ($students->isEmpty()) {
                                     if ($user->isQuranTeacher()) {
-                                        $students = Student::where('guru_quran_id', $user->id)->with(['classroom', 'guruQuran'])->orderBy('name')->get();
+                                        $students = Student::withoutGlobalScopes()->where('guru_quran_id', $user->id)->with(['classroom', 'guruQuran'])->orderBy('name')->get();
                                     } else {
-                                        $students = Student::with(['classroom', 'guruQuran'])->orderBy('name')->get();
+                                        $students = Student::withoutGlobalScopes()->with(['classroom', 'guruQuran'])->orderBy('name')->get();
                                     }
                                 }
 
@@ -196,7 +200,7 @@ class QuranAchievementResource extends Resource
                             })
                             ->getSearchResultsUsing(function (string $search) {
                                 $user = Auth::user();
-                                $query = Student::query()->with(['classroom', 'guruQuran'])
+                                $query = Student::withoutGlobalScopes()->with(['classroom', 'guruQuran'])
                                     ->where(function ($sq) use ($search) {
                                         $sq->where('name', 'like', "%{$search}%")
                                            ->orWhere('nis', 'like', "%{$search}%");
@@ -207,7 +211,8 @@ class QuranAchievementResource extends Resource
                                     $query->where(function ($q) use ($user, $spec) {
                                         $q->where('guru_quran_id', $user->id);
                                         if ($spec) {
-                                            $q->orWhere('kelas_quran', $spec);
+                                            $q->orWhere('kelas_quran', $spec)
+                                              ->orWhere('kelas_quran', 'like', "%{$spec}%");
                                         }
                                     });
                                 }
@@ -228,7 +233,7 @@ class QuranAchievementResource extends Resource
                             })
                             ->getOptionLabelUsing(function ($value) {
                                 if (!$value) return null;
-                                $s = Student::with(['classroom', 'guruQuran'])->find($value);
+                                $s = Student::withoutGlobalScopes()->with(['classroom', 'guruQuran'])->find($value);
                                 if (!$s) return null;
                                 $quranLabel = $s->kelas_quran_label 
                                     ? " • [Kelas Al-Qur'an: {$s->kelas_quran_label}]" 
