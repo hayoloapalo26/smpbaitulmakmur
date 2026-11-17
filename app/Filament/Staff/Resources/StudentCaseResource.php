@@ -109,8 +109,21 @@ class StudentCaseResource extends Resource
         if ($user->hasAnyRole(['kepala_sekolah', 'superadmin', 'waka_kesiswaan'])) {
             if (!$user->hasRole('superadmin') && $user->institution_id && $user->institution_id != 1) {
                 return $query->where(function ($q) use ($user) {
-                    $q->where('institution_id', $user->institution_id)
-                      ->orWhereHas('student', fn ($sq) => $sq->where('institution_id', $user->institution_id));
+                    $q->where(function ($sub) use ($user) {
+                        $sub->where('student_cases.institution_id', $user->institution_id)
+                            ->orWhereNull('student_cases.institution_id');
+                        if ($user->institution_id == 2) {
+                            $sub->orWhere('student_cases.institution_id', 1);
+                        }
+                    })->orWhereHas('student', function ($sq) use ($user) {
+                        $sq->withoutGlobalScopes()->where(function ($sub) use ($user) {
+                            $sub->where('students.institution_id', $user->institution_id)
+                                ->orWhereNull('students.institution_id');
+                            if ($user->institution_id == 2) {
+                                $sub->orWhere('students.institution_id', 1);
+                            }
+                        });
+                    });
                 });
             }
             return $query; // lihat semua untuk pimpinan & waka kesiswaan
@@ -120,8 +133,21 @@ class StudentCaseResource extends Resource
             // Guru piket saat bertugas bisa melihat seluruh kasus siswa di lembaganya
             if ($user->institution_id && $user->institution_id != 1) {
                 return $query->where(function ($q) use ($user) {
-                    $q->where('institution_id', $user->institution_id)
-                      ->orWhereHas('student', fn ($sq) => $sq->where('institution_id', $user->institution_id));
+                    $q->where(function ($sub) use ($user) {
+                        $sub->where('student_cases.institution_id', $user->institution_id)
+                            ->orWhereNull('student_cases.institution_id');
+                        if ($user->institution_id == 2) {
+                            $sub->orWhere('student_cases.institution_id', 1);
+                        }
+                    })->orWhereHas('student', function ($sq) use ($user) {
+                        $sq->withoutGlobalScopes()->where(function ($sub) use ($user) {
+                            $sub->where('students.institution_id', $user->institution_id)
+                                ->orWhereNull('students.institution_id');
+                            if ($user->institution_id == 2) {
+                                $sub->orWhere('students.institution_id', 1);
+                            }
+                        });
+                    });
                 });
             }
             return $query;
@@ -135,7 +161,7 @@ class StudentCaseResource extends Resource
         }
 
         if ($user->hasRole('wali_kelas')) {
-            $classroomIds = Classroom::where('wali_kelas_id', $user->id)->pluck('id');
+            $classroomIds = Classroom::withoutGlobalScopes()->where('wali_kelas_id', $user->id)->pluck('id');
             $studentIds   = Student::withoutGlobalScopes()->whereIn('classroom_id', $classroomIds)->pluck('id');
             return $query->where(function ($q) use ($studentIds, $user) {
                 $q->whereIn('student_id', $studentIds)
@@ -169,49 +195,30 @@ class StudentCaseResource extends Resource
                     Forms\Components\Select::make('student_id')
                         ->label('Nama Siswa')
                         ->options(function () {
-                            $user = Auth::user();
-                            $query = Student::withoutGlobalScopes()
-                                ->with(['classroom' => fn ($q) => $q->withoutGlobalScopes()]);
-
-                            if ($user && $user->institution_id && !$user->hasRole('superadmin') && $user->institution_id != 1) {
-                                $query->where(function ($q) use ($user) {
-                                    $q->where('institution_id', $user->institution_id)
-                                      ->orWhereNull('institution_id');
-                                    if ($user->institution_id == 2) {
-                                        $q->orWhere('institution_id', 1);
-                                    }
+                            return Student::withoutGlobalScopes()
+                                ->with(['classroom' => fn ($q) => $q->withoutGlobalScopes()])
+                                ->orderBy('name')
+                                ->get()
+                                ->mapWithKeys(function ($st) {
+                                    $className = $st->classroom?->name;
+                                    $classLabel = $className ? (str_starts_with(strtolower($className), 'kelas') ? $className : 'Kelas ' . $className) : 'Tanpa Kelas';
+                                    $nisLabel = $st->nis ? " [NIS: {$st->nis}]" : '';
+                                    return [$st->id => "{$st->name} — {$classLabel}{$nisLabel}"];
                                 });
-                            }
-
-                            return $query->orderBy('name')->get()->mapWithKeys(function ($st) {
-                                $className = $st->classroom?->name;
-                                $classLabel = $className ? (str_starts_with(strtolower($className), 'kelas') ? $className : 'Kelas ' . $className) : 'Tanpa Kelas';
-                                $nisLabel = $st->nis ? " [NIS: {$st->nis}]" : '';
-                                return [$st->id => "{$st->name} — {$classLabel}{$nisLabel}"];
-                            });
                         })
                         ->getSearchResultsUsing(function (string $search) {
-                            $user = Auth::user();
                             $query = Student::withoutGlobalScopes()
                                 ->with(['classroom' => fn ($q) => $q->withoutGlobalScopes()]);
 
-                            if ($user && $user->institution_id && !$user->hasRole('superadmin') && $user->institution_id != 1) {
-                                $query->where(function ($q) use ($user) {
-                                    $q->where('institution_id', $user->institution_id)
-                                      ->orWhereNull('institution_id');
-                                    if ($user->institution_id == 2) {
-                                        $q->orWhere('institution_id', 1);
-                                    }
-                                });
-                            }
-
-                            return $query->where(function ($q) use ($search) {
+                            if (filled($search)) {
+                                $query->where(function ($q) use ($search) {
                                     $q->where('name', 'like', "%{$search}%")
                                       ->orWhere('nis', 'like', "%{$search}%")
                                       ->orWhereHas('classroom', fn ($cq) => $cq->withoutGlobalScopes()->where('name', 'like', "%{$search}%"));
-                                })
-                                ->orderBy('name')
-                                ->limit(50)
+                                });
+                            }
+
+                            return $query->orderBy('name')
                                 ->get()
                                 ->mapWithKeys(function ($st) {
                                     $className = $st->classroom?->name;

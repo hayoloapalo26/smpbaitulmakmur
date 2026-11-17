@@ -71,49 +71,30 @@ class AttributeViolationResource extends Resource
                         Forms\Components\Select::make('student_id')
                             ->label('Siswa yang Melanggar')
                             ->options(function () {
-                                $user = Auth::user();
-                                $query = Student::withoutGlobalScopes()
-                                    ->with(['classroom' => fn ($q) => $q->withoutGlobalScopes()]);
-
-                                if ($user && $user->institution_id && !$user->hasRole('superadmin') && $user->institution_id != 1) {
-                                    $query->where(function ($q) use ($user) {
-                                        $q->where('institution_id', $user->institution_id)
-                                          ->orWhereNull('institution_id');
-                                        if ($user->institution_id == 2) {
-                                            $q->orWhere('institution_id', 1);
-                                        }
+                                return Student::withoutGlobalScopes()
+                                    ->with(['classroom' => fn ($q) => $q->withoutGlobalScopes()])
+                                    ->orderBy('name')
+                                    ->get()
+                                    ->mapWithKeys(function ($st) {
+                                        $className = $st->classroom?->name;
+                                        $classLabel = $className ? (str_starts_with(strtolower($className), 'kelas') ? $className : 'Kelas ' . $className) : 'Tanpa Kelas';
+                                        $nisLabel = $st->nis ? " [NIS: {$st->nis}]" : '';
+                                        return [$st->id => "{$st->name} — {$classLabel}{$nisLabel}"];
                                     });
-                                }
-
-                                return $query->orderBy('name')->get()->mapWithKeys(function ($st) {
-                                    $className = $st->classroom?->name;
-                                    $classLabel = $className ? (str_starts_with(strtolower($className), 'kelas') ? $className : 'Kelas ' . $className) : 'Tanpa Kelas';
-                                    $nisLabel = $st->nis ? " [NIS: {$st->nis}]" : '';
-                                    return [$st->id => "{$st->name} — {$classLabel}{$nisLabel}"];
-                                });
                             })
                             ->getSearchResultsUsing(function (string $search) {
-                                $user = Auth::user();
                                 $query = Student::withoutGlobalScopes()
                                     ->with(['classroom' => fn ($q) => $q->withoutGlobalScopes()]);
 
-                                if ($user && $user->institution_id && !$user->hasRole('superadmin') && $user->institution_id != 1) {
-                                    $query->where(function ($q) use ($user) {
-                                        $q->where('institution_id', $user->institution_id)
-                                          ->orWhereNull('institution_id');
-                                        if ($user->institution_id == 2) {
-                                            $q->orWhere('institution_id', 1);
-                                        }
-                                    });
-                                }
-
-                                return $query->where(function ($q) use ($search) {
+                                if (filled($search)) {
+                                    $query->where(function ($q) use ($search) {
                                         $q->where('name', 'like', "%{$search}%")
                                           ->orWhere('nis', 'like', "%{$search}%")
                                           ->orWhereHas('classroom', fn ($cq) => $cq->withoutGlobalScopes()->where('name', 'like', "%{$search}%"));
-                                    })
-                                    ->orderBy('name')
-                                    ->limit(50)
+                                    });
+                                }
+
+                                return $query->orderBy('name')
                                     ->get()
                                     ->mapWithKeys(function ($st) {
                                         $className = $st->classroom?->name;
