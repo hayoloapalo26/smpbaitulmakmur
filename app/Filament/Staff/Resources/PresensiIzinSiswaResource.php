@@ -301,10 +301,17 @@ class PresensiIzinSiswaResource extends Resource
                             $isLate = $att->is_late || ($att->waktu_kedatangan && Carbon::parse($att->waktu_kedatangan)->format('H:i') > '06:45');
 
                             if ($isLate) {
+                                $accStatus = $att->late_approval_status ?? 'pending';
+                                $badgeAcc = match ($accStatus) {
+                                    'approved' => '<span class="text-[10px] bg-rose-200 text-rose-800 dark:bg-rose-900 dark:text-rose-200 px-1.5 py-0.5 rounded font-bold">Terlambat (ACC +5)</span>',
+                                    'rejected' => '<span class="text-[10px] bg-slate-200 text-slate-800 dark:bg-slate-800 dark:text-slate-200 px-1.5 py-0.5 rounded font-bold">Terlambat (Dispensasi)</span>',
+                                    default    => '<span class="text-[10px] bg-amber-200 text-amber-900 dark:bg-amber-900 dark:text-amber-200 px-1.5 py-0.5 rounded font-bold animate-pulse">Terlambat (Menunggu ACC Waka)</span>',
+                                };
+
                                 return '<div class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200 dark:bg-rose-950/40 dark:text-rose-400 dark:border-rose-800">
                                     <svg class="w-3.5 h-3.5 text-rose-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
                                     <span>' . $jam . ' WIB</span>
-                                    <span class="text-[10px] bg-rose-200 text-rose-800 dark:bg-rose-900 dark:text-rose-200 px-1.5 py-0.5 rounded font-bold">Terlambat</span>
+                                    ' . $badgeAcc . '
                                 </div>';
                             }
 
@@ -994,9 +1001,147 @@ class PresensiIzinSiswaResource extends Resource
                     })
                     ->openUrlInNewTab()
                     ->visible(fn (Student $record) => (bool) ($record->telepon_ayah ?: $record->telepon_ibu ?: $record->telepon_wali)),
+
+                // 5. ACC Poin Keterlambatan (+5 Poin) oleh Waka Kesiswaan
+                Tables\Actions\Action::make('acc_poin_terlambat')
+                    ->label('ACC Poin (+5)')
+                    ->icon('heroicon-o-check-badge')
+                    ->color('danger')
+                    ->visible(function (Student $record, $livewire): bool {
+                        if (!Auth::user()?->hasAnyRole(['waka_kesiswaan', 'superadmin'])) {
+                            return false;
+                        }
+                        if (static::getActiveMode($livewire) !== 'harian') {
+                            return false;
+                        }
+                        $att = $record->getAttendanceOnDate(static::getActiveDate($livewire), 'masuk');
+                        if (!$att) {
+                            return false;
+                        }
+                        $isLate = (bool) $att->is_late || ($att->waktu_kedatangan && Carbon::parse($att->waktu_kedatangan)->format('H:i') > '06:45');
+                        return $isLate && $att->late_approval_status !== 'approved';
+                    })
+                    ->requiresConfirmation()
+                    ->modalHeading('ACC Poin Keterlambatan (+5 Poin)?')
+                    ->modalDescription(fn (Student $record) => "Siswa ananda {$record->name} tercatat terlambat masuk sekolah. Dengan menyetujui (ACC), poin pelanggaran 5 poin akan resmi dibukukan ke rekap pelanggaran & mengurangi skor karakter siswa.")
+                    ->modalSubmitActionLabel('Ya, ACC Poin (+5)')
+                    ->action(function (Student $record, $livewire): void {
+                        $tanggal = static::getActiveDate($livewire);
+                        $att = $record->getAttendanceOnDate($tanggal, 'masuk');
+                        if ($att) {
+                            $att->approveLatePenalty(Auth::id());
+                            Notification::make()
+                                ->title('✅ Poin Keterlambatan Berhasil Di-ACC')
+                                ->body("Poin keterlambatan (+5 Poin) untuk {$record->name} resmi dibukukan.")
+                                ->success()
+                                ->send();
+                            $livewire->dispatch('refresh-presensi-table');
+                        }
+                    }),
+
+                // 6. Dispensasi Keterlambatan (0 Poin) oleh Waka Kesiswaan
+                Tables\Actions\Action::make('dispensasi_terlambat')
+                    ->label('Dispensasi')
+                    ->icon('heroicon-o-shield-check')
+                    ->color('gray')
+                    ->visible(function (Student $record, $livewire): bool {
+                        if (!Auth::user()?->hasAnyRole(['waka_kesiswaan', 'superadmin'])) {
+                            return false;
+                        }
+                        if (static::getActiveMode($livewire) !== 'harian') {
+                            return false;
+                        }
+                        $att = $record->getAttendanceOnDate(static::getActiveDate($livewire), 'masuk');
+                        if (!$att) {
+                            return false;
+                        }
+                        $isLate = (bool) $att->is_late || ($att->waktu_kedatangan && Carbon::parse($att->waktu_kedatangan)->format('H:i') > '06:45');
+                        return $isLate && $att->late_approval_status !== 'rejected';
+                    })
+                    ->modalHeading(fn (Student $record) => "Beri Dispensasi Keterlambatan: {$record->name}")
+                    ->modalDescription('Poin keterlambatan tidak akan dibebankan kepada siswa (0 poin).')
+                    ->modalSubmitActionLabel('Simpan Dispensasi')
+                    ->form([
+                        Forms\Components\TextInput::make('alasan_dispensasi')
+                            ->label('Alasan Dispensasi')
+                            ->default('Dispensasi udzur resmi dari Waka Kesiswaan')
+                            ->required(),
+                    ])
+                    ->action(function (Student $record, array $data, $livewire): void {
+                        $tanggal = static::getActiveDate($livewire);
+                        $att = $record->getAttendanceOnDate($tanggal, 'masuk');
+                        if ($att) {
+                            $att->rejectLatePenalty($data['alasan_dispensasi'], Auth::id());
+                            Notification::make()
+                                ->title('🛡️ Dispensasi Keterlambatan Diberikan')
+                                ->body("Keterlambatan {$record->name} diberikan dispensasi (0 Poin).")
+                                ->info()
+                                ->send();
+                            $livewire->dispatch('refresh-presensi-table');
+                        }
+                    }),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
+                    // Bulk Action: ACC Poin Keterlambatan Siswa Terpilih
+                    Tables\Actions\BulkAction::make('acc_poin_terlambat_bulk')
+                        ->label('ACC Poin Keterlambatan Terpilih (+5 Poin)')
+                        ->icon('heroicon-o-check-badge')
+                        ->color('danger')
+                        ->visible(fn () => Auth::user()?->hasAnyRole(['waka_kesiswaan', 'superadmin']))
+                        ->requiresConfirmation()
+                        ->modalHeading('ACC Poin Keterlambatan Siswa Terpilih?')
+                        ->modalDescription('Semua siswa terpilih yang terlambat pada tanggal ini akan disetujui poin keterlambatannya (+5 Poin Pelanggaran) dan dibukukan ke skor karakter.')
+                        ->modalSubmitActionLabel('Ya, ACC Semua Terpilih')
+                        ->action(function (\Illuminate\Database\Eloquent\Collection $records, $livewire): void {
+                            $tanggal = static::getActiveDate($livewire);
+                            $count = 0;
+                            foreach ($records as $record) {
+                                $att = $record->getAttendanceOnDate($tanggal, 'masuk');
+                                if ($att && ($att->is_late || ($att->waktu_kedatangan && Carbon::parse($att->waktu_kedatangan)->format('H:i') > '06:45')) && $att->late_approval_status !== 'approved') {
+                                    $att->approveLatePenalty(Auth::id());
+                                    $count++;
+                                }
+                            }
+                            Notification::make()
+                                ->title('✅ Poin Keterlambatan Berhasil Di-ACC')
+                                ->body("Sebanyak {$count} siswa berhasil di-ACC poin keterlambatannya (+5 Poin).")
+                                ->success()
+                                ->send();
+                            $livewire->dispatch('refresh-presensi-table');
+                        }),
+
+                    // Bulk Action: Beri Dispensasi Siswa Terpilih
+                    Tables\Actions\BulkAction::make('dispensasi_terlambat_bulk')
+                        ->label('Beri Dispensasi Terpilih (0 Poin)')
+                        ->icon('heroicon-o-shield-check')
+                        ->color('gray')
+                        ->visible(fn () => Auth::user()?->hasAnyRole(['waka_kesiswaan', 'superadmin']))
+                        ->modalHeading('Beri Dispensasi Keterlambatan Terpilih')
+                        ->modalDescription('Poin keterlambatan tidak akan dibebankan ke seluruh siswa terpilih.')
+                        ->form([
+                            Forms\Components\TextInput::make('alasan_dispensasi')
+                                ->label('Alasan Dispensasi')
+                                ->default('Dispensasi udzur resmi dari Waka Kesiswaan')
+                                ->required(),
+                        ])
+                        ->action(function (\Illuminate\Database\Eloquent\Collection $records, array $data, $livewire): void {
+                            $tanggal = static::getActiveDate($livewire);
+                            $count = 0;
+                            foreach ($records as $record) {
+                                $att = $record->getAttendanceOnDate($tanggal, 'masuk');
+                                if ($att && ($att->is_late || ($att->waktu_kedatangan && Carbon::parse($att->waktu_kedatangan)->format('H:i') > '06:45'))) {
+                                    $att->rejectLatePenalty($data['alasan_dispensasi'], Auth::id());
+                                    $count++;
+                                }
+                            }
+                            Notification::make()
+                                ->title('🛡️ Dispensasi Berhasil Diberikan')
+                                ->body("Sebanyak {$count} siswa berhasil diberikan dispensasi keterlambatan.")
+                                ->info()
+                                ->send();
+                            $livewire->dispatch('refresh-presensi-table');
+                        }),
                     Tables\Actions\BulkAction::make('tandai_halangan_bulk')
                         ->label('Tandai Halangan Siswi (Pilihan)')
                         ->icon('heroicon-o-heart')

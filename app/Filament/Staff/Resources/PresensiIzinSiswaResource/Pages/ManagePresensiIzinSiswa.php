@@ -114,6 +114,29 @@ class ManagePresensiIzinSiswa extends ManageRecords
 
             'terlambat' => Tab::make('Terlambat Masuk')
                 ->badgeColor('danger')
+                ->badge(function () use ($isRentang, $startDate, $endDate, $date) {
+                    $q = DailyAttendance::withoutGlobalScopes()
+                        ->where('tipe_absen', 'masuk')
+                        ->where('status', 'hadir')
+                        ->where(function ($sub) {
+                            $sub->where('is_late', true)
+                                ->orWhere('waktu_kedatangan', '>', '06:45:00');
+                        });
+                    if ($isRentang) {
+                        $q->whereBetween('tanggal', [$startDate, $endDate]);
+                    } else {
+                        $q->whereDate('tanggal', $date);
+                    }
+                    $pending = (clone $q)->where(function ($sub) {
+                        $sub->where('late_approval_status', 'pending')
+                            ->orWhereNull('late_approval_status');
+                    })->count();
+                    $total = $q->count();
+                    if ($pending > 0) {
+                        return "{$pending} Perlu ACC";
+                    }
+                    return $total > 0 ? (string) $total : null;
+                })
                 ->modifyQueryUsing(function (Builder $query) use ($isRentang, $startDate, $endDate, $date) {
                     $query->whereHas('dailyAttendances', function ($q) use ($isRentang, $startDate, $endDate, $date) {
                         $q->withoutGlobalScopes();

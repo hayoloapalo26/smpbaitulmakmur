@@ -201,6 +201,23 @@ class DailyAttendanceResource extends Resource
                     ->boolean()
                     ->sortable(),
 
+                Tables\Columns\TextColumn::make('late_approval_status')
+                    ->label('Status ACC Poin')
+                    ->badge()
+                    ->color(fn (?string $state, DailyAttendance $record): string => match ($state) {
+                        'approved' => 'danger',
+                        'rejected' => 'gray',
+                        'pending'  => 'warning',
+                        default    => $record->is_late ? 'warning' : 'gray',
+                    })
+                    ->formatStateUsing(fn (?string $state, DailyAttendance $record): string => match ($state) {
+                        'approved' => '✅ Di-ACC (+5 Poin)',
+                        'rejected' => '🛡️ Dispensasi (0 Poin)',
+                        'pending'  => '⏳ Menunggu ACC (+5)',
+                        default    => $record->is_late ? '⏳ Menunggu ACC (+5)' : '-',
+                    })
+                    ->sortable(),
+
                 Tables\Columns\TextColumn::make('keterangan')
                     ->label('Keterangan')
                     ->limit(30)
@@ -254,11 +271,105 @@ class DailyAttendanceResource extends Resource
                     ->openUrlInNewTab(),
 
                 Tables\Actions\EditAction::make(),
+                Tables\Actions\Action::make('acc_keterlambatan')
+                    ->label('ACC Poin (+5)')
+                    ->icon('heroicon-o-check-badge')
+                    ->color('danger')
+                    ->visible(fn (DailyAttendance $record) => 
+                        Auth::user()?->hasAnyRole(['waka_kesiswaan', 'superadmin']) 
+                        && $record->is_late 
+                        && $record->late_approval_status !== 'approved'
+                    )
+                    ->requiresConfirmation()
+                    ->modalHeading('Setujui (ACC) Poin Keterlambatan?')
+                    ->modalDescription(fn (DailyAttendance $record) => "Siswa {$record->student?->name} tercatat terlambat. Poin pelanggaran (+5 Poin) akan resmi dibukukan ke rekap pelanggaran & mengurangi skor karakter.")
+                    ->action(function (DailyAttendance $record) {
+                        $record->approveLatePenalty(Auth::id());
+                        Notification::make()
+                            ->title('✅ Poin Keterlambatan Di-ACC')
+                            ->body("Poin keterlambatan (+5 Poin) untuk {$record->student?->name} resmi dibukukan.")
+                            ->success()
+                            ->send();
+                    }),
+
+                Tables\Actions\Action::make('dispensasi_keterlambatan')
+                    ->label('Dispensasi')
+                    ->icon('heroicon-o-shield-check')
+                    ->color('gray')
+                    ->visible(fn (DailyAttendance $record) => 
+                        Auth::user()?->hasAnyRole(['waka_kesiswaan', 'superadmin']) 
+                        && $record->is_late 
+                        && $record->late_approval_status !== 'rejected'
+                    )
+                    ->form([
+                        Forms\Components\TextInput::make('alasan')
+                            ->label('Alasan Dispensasi')
+                            ->default('Dispensasi udzur resmi dari Waka Kesiswaan')
+                            ->required(),
+                    ])
+                    ->action(function (DailyAttendance $record, array $data) {
+                        $record->rejectLatePenalty($data['alasan'], Auth::id());
+                        Notification::make()
+                            ->title('🛡️ Dispensasi Keterlambatan Diberikan')
+                            ->body("Keterlambatan {$record->student?->name} diberikan dispensasi (0 Poin).")
+                            ->info()
+                            ->send();
+                    }),
+
                 Tables\Actions\DeleteAction::make()
                     ->visible(fn () => Auth::user()?->hasAnyRole(['waka_kesiswaan', 'superadmin'])),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
+                    Tables\Actions\BulkAction::make('acc_keterlambatan_bulk')
+                        ->label('ACC Poin Keterlambatan Terpilih (+5 Poin)')
+                        ->icon('heroicon-o-check-badge')
+                        ->color('danger')
+                        ->visible(fn () => Auth::user()?->hasAnyRole(['waka_kesiswaan', 'superadmin']))
+                        ->requiresConfirmation()
+                        ->modalHeading('ACC Poin Keterlambatan Siswa Terpilih?')
+                        ->modalDescription('Semua siswa terpilih yang terlambat dan berstatus pending akan disetujui (+5 Poin Pelanggaran).')
+                        ->action(function (\Illuminate\Database\Eloquent\Collection $records) {
+                            $count = 0;
+                            foreach ($records as $record) {
+                                if ($record->is_late && $record->late_approval_status !== 'approved') {
+                                    $record->approveLatePenalty(Auth::id());
+                                    $count++;
+                                }
+                            }
+                            Notification::make()
+                                ->title('✅ Poin Keterlambatan Berhasil Di-ACC')
+                                ->body("Sebanyak {$count} siswa berhasil di-ACC poin keterlambatannya.")
+                                ->success()
+                                ->send();
+                        }),
+
+                    Tables\Actions\BulkAction::make('dispensasi_keterlambatan_bulk')
+                        ->label('Beri Dispensasi Terpilih (0 Poin)')
+                        ->icon('heroicon-o-shield-check')
+                        ->color('gray')
+                        ->visible(fn () => Auth::user()?->hasAnyRole(['waka_kesiswaan', 'superadmin']))
+                        ->form([
+                            Forms\Components\TextInput::make('alasan')
+                                ->label('Alasan Dispensasi')
+                                ->default('Dispensasi dari Waka Kesiswaan')
+                                ->required(),
+                        ])
+                        ->action(function (\Illuminate\Database\Eloquent\Collection $records, array $data) {
+                            $count = 0;
+                            foreach ($records as $record) {
+                                if ($record->is_late) {
+                                    $record->rejectLatePenalty($data['alasan'], Auth::id());
+                                    $count++;
+                                }
+                            }
+                            Notification::make()
+                                ->title('🛡️ Dispensasi Keterlambatan Diberikan')
+                                ->body("Sebanyak {$count} siswa berhasil diberikan dispensasi keterlambatan.")
+                                ->info()
+                                ->send();
+                        }),
+
                     Tables\Actions\DeleteBulkAction::make()
                         ->visible(fn () => Auth::user()?->hasAnyRole(['waka_kesiswaan', 'superadmin'])),
                 ]),

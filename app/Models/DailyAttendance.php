@@ -14,7 +14,9 @@ class DailyAttendance extends Model
     protected $guarded = ['id'];
 
     protected $casts = [
-        'is_late' => 'boolean',
+        'is_late'              => 'boolean',
+        'late_penalty_points'  => 'integer',
+        'late_approved_at'     => 'datetime',
     ];
 
     public static bool $isSyncing = false;
@@ -39,6 +41,25 @@ class DailyAttendance extends Model
 
             if (empty($attendance->tipe_absen)) {
                 $attendance->tipe_absen = 'masuk';
+            }
+
+            // Otomatisasi Keterlambatan Masuk Sekolah (> 06.45 WIB):
+            // Default disiapkan poin 5 dan status 'pending' (menunggu ACC Waka Kesiswaan sebelum poin difixkan).
+            if ($attendance->tipe_absen === 'masuk' && $attendance->status === 'hadir') {
+                $waktu = $attendance->waktu_kedatangan ? Carbon::parse($attendance->waktu_kedatangan)->format('H:i:s') : null;
+                $isLate = (bool) $attendance->is_late || ($waktu && $waktu > '06:45:00');
+
+                if ($isLate) {
+                    $attendance->is_late = true;
+                    if (empty($attendance->late_penalty_points)) {
+                        $attendance->late_penalty_points = 5;
+                    }
+                    if (empty($attendance->late_approval_status)) {
+                        $attendance->late_approval_status = 'pending';
+                    }
+                } else {
+                    $attendance->late_approval_status = null;
+                }
             }
         });
 
@@ -184,6 +205,16 @@ class DailyAttendance extends Model
                 ) {
                     $attendance->notifyWakaKesiswaan();
                 }
+
+                // 5. Jika siswa terlambat masuk dan statusnya pending, informasikan ke Waka Kesiswaan untuk di-ACC
+                if (
+                    $attendance->tipe_absen === 'masuk' &&
+                    $attendance->is_late &&
+                    $attendance->late_approval_status === 'pending' &&
+                    ($attendance->wasRecentlyCreated || $attendance->wasChanged('is_late') || $attendance->wasChanged('late_approval_status'))
+                ) {
+                    $attendance->notifyWakaKesiswaanLate();
+                }
             } finally {
                 self::$isSyncing = false;
             }
@@ -229,6 +260,150 @@ class DailyAttendance extends Model
                 ])
                 ->sendToDatabase($waka);
         }
+    }
+
+    public function notifyWakaKesiswaanLate(): void
+    {
+        $student = $this->student ?: Student::withoutGlobalScopes()->with('classroom')->find($this->student_id);
+        if (!$student) {
+            return;
+        }
+
+        $wakaQuery = User::withoutGlobalScopes()
+            ->whereHas('roles', fn ($q) => $q->where('name', 'waka_kesiswaan'));
+
+        if ($student->institution_id && $student->institution_id != 1) {
+            $wakaQuery->where(function ($q) use ($student) {
+                $q->where('institution_id', $student->institution_id)
+                  ->orWhere('institution_id', 1);
+            });
+        }
+
+        $wakaUsers = $wakaQuery->get();
+
+        if ($wakaUsers->isEmpty()) {
+            return;
+        }
+
+        $kelasName = $student->classroom->name ?? '-';
+        $jam = $this->waktu_kedatangan ? Carbon::parse($this->waktu_kedatangan)->format('H:i') : '06:46';
+        $tglFormatted = Carbon::parse($this->tanggal)->translatedFormat('d M Y');
+
+        foreach ($wakaUsers as $waka) {
+            Notification::make()
+                ->title("⏰ Siswa Terlambat: {$student->name} (Kelas {$kelasName})")
+                ->body("Siswa {$student->name} terlambat masuk ({$jam} WIB) pada {$tglFormatted}. Poin keterlambatan (+5 Poin) menunggu persetujuan (ACC) Anda.")
+                ->warning()
+                ->actions([
+                    NotificationAction::make('tinjau_acc')
+                        ->label('Tinjau & ACC Keterlambatan')
+                        ->url('/staff/presensi-izin-siswas?activeTab=terlambat'),
+                ])
+                ->sendToDatabase($waka);
+        }
+    }
+
+    /**
+     * ACC / Setujui Poin Keterlambatan (+5 Poin) oleh Waka Kesiswaan.
+     */
+    public function approveLatePenalty(?int $approvedById = null): bool
+    {
+        if (!$this->is_late || $this->tipe_absen !== 'masuk') {
+            return false;
+        }
+
+        $approvedById = $approvedById ?: (auth()->id() ?? 1);
+        $approver = User::find($approvedById);
+        $approverName = $approver ? $approver->name : 'Waka Kesiswaan';
+        $points = $this->late_penalty_points ?: 5;
+        $student = $this->student ?: Student::withoutGlobalScopes()->find($this->student_id);
+
+        $violationLog = null;
+        if ($this->late_violation_log_id) {
+            $violationLog = StudentViolationLog::find($this->late_violation_log_id);
+        }
+
+        $jam = $this->waktu_kedatangan ? Carbon::parse($this->waktu_kedatangan)->format('H:i') : '06:46';
+
+        if (!$violationLog) {
+            $violationLog = StudentViolationLog::create([
+                'student_id'             => $this->student_id,
+                'classroom_id'           => $student?->classroom_id,
+                'tanggal'                => $this->tanggal,
+                'jam'                    => $jam,
+                'bentuk_pelanggaran'     => 'Keterlambatan Masuk Sekolah (> 06.45 WIB)',
+                'poin'                   => $points,
+                'teacher_id'             => $approvedById,
+                'tindak_lanjut_langsung' => "Poin keterlambatan (+{$points} Poin) disetujui (ACC) oleh Waka Kesiswaan ({$approverName}).",
+                'acc_piket'              => true,
+                'acc_piket_by'           => $approvedById,
+                'acc_piket_at'           => now(),
+                'institution_id'         => $this->institution_id ?: $student?->institution_id,
+            ]);
+        } else {
+            $violationLog->update([
+                'poin'                   => $points,
+                'teacher_id'             => $approvedById,
+                'tindak_lanjut_langsung' => "Poin keterlambatan (+{$points} Poin) disetujui (ACC) oleh Waka Kesiswaan ({$approverName}).",
+                'acc_piket'              => true,
+                'acc_piket_by'           => $approvedById,
+                'acc_piket_at'           => now(),
+            ]);
+        }
+
+        $this->updateQuietly([
+            'late_approval_status'  => 'approved',
+            'late_approved_by'      => $approvedById,
+            'late_approved_at'      => now(),
+            'late_rejection_reason' => null,
+            'late_violation_log_id' => $violationLog->id,
+        ]);
+
+        return true;
+    }
+
+    /**
+     * Tolak / Berikan Dispensasi Keterlambatan (0 Poin).
+     */
+    public function rejectLatePenalty(string $reason = 'Dispensasi oleh Waka Kesiswaan', ?int $rejectedById = null): bool
+    {
+        if (!$this->is_late || $this->tipe_absen !== 'masuk') {
+            return false;
+        }
+
+        $rejectedById = $rejectedById ?: (auth()->id() ?? 1);
+
+        // Jika sebelumnya sudah ada log pelanggaran, hapus log dan score log agar skor dikembalikan
+        if ($this->late_violation_log_id) {
+            $log = StudentViolationLog::find($this->late_violation_log_id);
+            if ($log) {
+                CharacterScoreLog::where('student_id', $this->student_id)
+                    ->where('tanggal', $this->tanggal)
+                    ->where('description', 'like', '%Keterlambatan Masuk Sekolah%')
+                    ->delete();
+                $log->delete();
+            }
+        }
+
+        $this->updateQuietly([
+            'late_approval_status'  => 'rejected',
+            'late_approved_by'      => $rejectedById,
+            'late_approved_at'      => now(),
+            'late_rejection_reason' => $reason,
+            'late_violation_log_id' => null,
+        ]);
+
+        return true;
+    }
+
+    public function lateApprovedBy()
+    {
+        return $this->belongsTo(User::class, 'late_approved_by');
+    }
+
+    public function lateViolationLog()
+    {
+        return $this->belongsTo(StudentViolationLog::class, 'late_violation_log_id');
     }
 
     public function student()

@@ -42,6 +42,30 @@ class ManageStudentCases extends ManageRecords
                     return $data;
                 }),
 
+            Actions\Action::make('antrean_terlambat')
+                ->label(function () {
+                    $pendingCount = \App\Models\DailyAttendance::withoutGlobalScopes()
+                        ->where('tipe_absen', 'masuk')
+                        ->where('status', 'hadir')
+                        ->where(function ($sub) {
+                            $sub->where('is_late', true)
+                                ->orWhere('waktu_kedatangan', '>', '06:45:00');
+                        })
+                        ->where(function ($q) {
+                            $q->where('late_approval_status', 'pending')
+                              ->orWhereNull('late_approval_status');
+                        })
+                        ->whereDate('tanggal', \Carbon\Carbon::today())
+                        ->count();
+                    return $pendingCount > 0
+                        ? "⏰ ACC Keterlambatan ({$pendingCount} Menunggu)"
+                        : "⏰ ACC Keterlambatan";
+                })
+                ->icon('heroicon-o-clock')
+                ->color('warning')
+                ->visible(fn () => \Illuminate\Support\Facades\Auth::user()?->hasAnyRole(['waka_kesiswaan', 'superadmin']))
+                ->url(fn () => \App\Filament\Staff\Resources\PresensiIzinSiswaResource::getUrl() . '?activeTab=terlambat'),
+
             Actions\Action::make('rekapitulasi_skor')
                 ->label('Rekapitulasi Skor Poin')
                 ->icon('heroicon-o-shield-exclamation')
