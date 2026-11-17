@@ -19,6 +19,8 @@
             x-data="{
                 state: $wire.{{ $applyStateBindingModifiers("\$entangle('{$statePath}')") }},
                 search: '',
+                isTahsin: @js($isTahsin ?? false),
+                jilidOptions: @js($jilidOptions ?? []),
                 defaultScaleScore: '{{ $defaultScaleScore ?? 85 }}',
                 defaultJuz: '{{ $defaultJuz ?? 30 }}',
                 defaultSurah: '{{ $defaultSurah ?? 78 }}',
@@ -210,7 +212,7 @@
                             type="button"
                             @click="applyContinuations()"
                             class="inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-bold rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white shadow-xs transition"
-                            title="Otomatis muat kelanjutan surat & ayat terakhir masing-masing santri"
+                            :title="isTahsin ? 'Otomatis muat kelanjutan jilid & halaman terakhir masing-masing santri' : 'Otomatis muat kelanjutan surat & ayat terakhir masing-masing santri'"
                         >
                             <span>🔄</span> Lanjutkan Setoran Terakhir
                         </button>
@@ -218,7 +220,7 @@
                             type="button"
                             @click="applyQuickDefaults()"
                             class="inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-semibold rounded-xl bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-600 transition"
-                            title="Terapkan pengaturan default (Ziyadah & Muraja'ah) ke seluruh santri yang dicentang"
+                            :title="isTahsin ? 'Terapkan pengaturan default jilid & halaman ke seluruh santri yang dicentang' : 'Terapkan pengaturan default (Ziyadah & Muraja\'ah) ke seluruh santri yang dicentang'"
                         >
                             <span>⚡</span> Terapkan Default ke Rombel
                         </button>
@@ -311,15 +313,22 @@
                                     Nama Lengkap Santri
                                 </th>
                                 
-                                {{-- Grup Ziyadah (Hafalan Baru) --}}
-                                <th colspan="3" class="px-3 py-2 text-center bg-emerald-50/80 dark:bg-emerald-950/60 text-emerald-900 dark:text-emerald-200 border-r border-gray-200 dark:border-gray-700">
-                                    📖 Capaian Ziyadah (Hafalan Baru)
-                                </th>
-
-                                {{-- Grup Muraja'ah (Pengulangan) --}}
-                                <th colspan="3" class="px-3 py-2 text-center bg-blue-50/80 dark:bg-blue-950/60 text-blue-900 dark:text-blue-200 border-r border-gray-200 dark:border-gray-700">
-                                    🔁 Capaian Muraja'ah (Pengulangan)
-                                </th>
+                                {{-- Grup Ziyadah / Capaian Tahsin --}}
+                                @if(!empty($isTahsin))
+                                    <th colspan="2" class="px-3 py-2 text-center bg-emerald-50/80 dark:bg-emerald-950/60 text-emerald-900 dark:text-emerald-200 border-r border-gray-200 dark:border-gray-700">
+                                        📖 Capaian Tahsin (Materi Jilid & Halaman Baru)
+                                    </th>
+                                    <th colspan="2" class="px-3 py-2 text-center bg-blue-50/80 dark:bg-blue-950/60 text-blue-900 dark:text-blue-200 border-r border-gray-200 dark:border-gray-700">
+                                        🔁 Capaian Muraja'ah (Pengulangan Jilid & Halaman)
+                                    </th>
+                                @else
+                                    <th colspan="3" class="px-3 py-2 text-center bg-emerald-50/80 dark:bg-emerald-950/60 text-emerald-900 dark:text-emerald-200 border-r border-gray-200 dark:border-gray-700">
+                                        📖 Capaian Ziyadah (Hafalan Baru)
+                                    </th>
+                                    <th colspan="3" class="px-3 py-2 text-center bg-blue-50/80 dark:bg-blue-950/60 text-blue-900 dark:text-blue-200 border-r border-gray-200 dark:border-gray-700">
+                                        🔁 Capaian Muraja'ah (Pengulangan)
+                                    </th>
+                                @endif
 
                                 {{-- Grup Kualitas Bacaan --}}
                                 <th colspan="2" class="px-3 py-2 text-center bg-amber-50/80 dark:bg-amber-950/60 text-amber-900 dark:text-amber-200 border-r border-gray-200 dark:border-gray-700">
@@ -333,15 +342,25 @@
 
                             {{-- Header Tingkat 2: Sub-kolom Spesifik --}}
                             <tr class="bg-gray-50 dark:bg-gray-800/60 border-b border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 font-semibold text-[10px]">
-                                {{-- Sub-kolom Ziyadah --}}
-                                <th class="px-2 py-2 w-20 text-center bg-emerald-50/40 dark:bg-emerald-950/30">Juz</th>
-                                <th class="px-2 py-2 min-w-[140px] bg-emerald-50/40 dark:bg-emerald-950/30">Surat</th>
-                                <th class="px-2 py-2 w-24 text-center bg-emerald-50/40 dark:bg-emerald-950/30 border-r border-gray-200 dark:border-gray-700">Ayat</th>
+                                @if(!empty($isTahsin))
+                                    {{-- Sub-kolom Tahsin (Jilid Berapa & Halaman Berapa) --}}
+                                    <th class="px-2 py-2 min-w-[140px] bg-emerald-50/40 dark:bg-emerald-950/30">Jilid Berapa</th>
+                                    <th class="px-2 py-2 w-28 text-center bg-emerald-50/40 dark:bg-emerald-950/30 border-r border-gray-200 dark:border-gray-700">Halaman Berapa</th>
 
-                                {{-- Sub-kolom Muraja'ah --}}
-                                <th class="px-2 py-2 w-20 text-center bg-blue-50/40 dark:bg-blue-950/30">Juz</th>
-                                <th class="px-2 py-2 min-w-[140px] bg-blue-50/40 dark:bg-blue-950/30">Surat</th>
-                                <th class="px-2 py-2 w-24 text-center bg-blue-50/40 dark:bg-blue-950/30 border-r border-gray-200 dark:border-gray-700">Ayat</th>
+                                    {{-- Sub-kolom Muraja'ah Tahsin --}}
+                                    <th class="px-2 py-2 min-w-[140px] bg-blue-50/40 dark:bg-blue-950/30">Jilid Berapa</th>
+                                    <th class="px-2 py-2 w-28 text-center bg-blue-50/40 dark:bg-blue-950/30 border-r border-gray-200 dark:border-gray-700">Halaman Berapa</th>
+                                @else
+                                    {{-- Sub-kolom Ziyadah Tahfidz --}}
+                                    <th class="px-2 py-2 w-20 text-center bg-emerald-50/40 dark:bg-emerald-950/30">Juz</th>
+                                    <th class="px-2 py-2 min-w-[140px] bg-emerald-50/40 dark:bg-emerald-950/30">Surat</th>
+                                    <th class="px-2 py-2 w-24 text-center bg-emerald-50/40 dark:bg-emerald-950/30 border-r border-gray-200 dark:border-gray-700">Ayat</th>
+
+                                    {{-- Sub-kolom Muraja'ah Tahfidz --}}
+                                    <th class="px-2 py-2 w-20 text-center bg-blue-50/40 dark:bg-blue-950/30">Juz</th>
+                                    <th class="px-2 py-2 min-w-[140px] bg-blue-50/40 dark:bg-blue-950/30">Surat</th>
+                                    <th class="px-2 py-2 w-24 text-center bg-blue-50/40 dark:bg-blue-950/30 border-r border-gray-200 dark:border-gray-700">Ayat</th>
+                                @endif
 
                                 {{-- Sub-kolom Kualitas --}}
                                 <th class="px-2 py-2 w-20 text-center bg-amber-50/40 dark:bg-amber-950/30">Skor (0-100)</th>
@@ -395,87 +414,142 @@
                                         </div>
                                     </td>
 
-                                    {{-- 1. Ziyadah: Dropdown Juz --}}
-                                    <td class="px-2 py-3 text-center bg-emerald-50/20 dark:bg-emerald-950/10">
-                                        <select
-                                            :disabled="!getItem(student.id).active"
-                                            :value="getItem(student.id).juz"
-                                            @change="updateItem(student.id, 'juz', $event.target.value)"
-                                            class="w-18 text-center text-xs font-bold px-1.5 py-1.5 rounded-lg border border-emerald-300 dark:border-emerald-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 disabled:bg-gray-100 dark:disabled:bg-gray-800/40"
-                                        >
-                                            <template x-for="j in 30" :key="'z-juz-' + j">
-                                                <option :value="j" x-text="'Juz ' + j" :selected="Number(j) === Number(getItem(student.id).juz)"></option>
-                                            </template>
-                                        </select>
-                                    </td>
+                                    @if(!empty($isTahsin))
+                                        {{-- 1. Tahsin: Dropdown Jilid Berapa --}}
+                                        <td class="px-2 py-3 bg-emerald-50/20 dark:bg-emerald-950/10">
+                                            <select
+                                                :disabled="!getItem(student.id).active"
+                                                :value="getItem(student.id).surah"
+                                                @change="updateItem(student.id, 'surah', $event.target.value)"
+                                                class="w-full text-xs font-semibold px-2 py-1.5 rounded-lg border border-emerald-300 dark:border-emerald-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 disabled:bg-gray-100 dark:disabled:bg-gray-800/40"
+                                            >
+                                                <template x-for="(label, key) in jilidOptions" :key="'z-jilid-' + key">
+                                                    <option :value="key" x-text="label" :selected="String(key) === String(getItem(student.id).surah)"></option>
+                                                </template>
+                                            </select>
+                                        </td>
 
-                                    {{-- 1. Ziyadah: Dropdown Surat --}}
-                                    <td class="px-2 py-3 bg-emerald-50/20 dark:bg-emerald-950/10">
-                                        <select
-                                            :disabled="!getItem(student.id).active"
-                                            :value="getItem(student.id).surah"
-                                            @change="updateItem(student.id, 'surah', $event.target.value)"
-                                            class="w-full text-xs font-semibold px-2 py-1.5 rounded-lg border border-emerald-300 dark:border-emerald-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 disabled:bg-gray-100 dark:disabled:bg-gray-800/40"
-                                        >
-                                            <template x-for="(name, num) in surahs" :key="'z-surah-' + num">
-                                                <option :value="num" x-text="num + '. ' + name" :selected="String(num) === String(getItem(student.id).surah)"></option>
-                                            </template>
-                                        </select>
-                                    </td>
+                                        {{-- 1. Tahsin: Kolom Ketik Halaman Berapa --}}
+                                        <td class="px-2 py-3 text-center bg-emerald-50/20 dark:bg-emerald-950/10 border-r border-gray-100 dark:border-gray-800">
+                                            <input
+                                                type="text"
+                                                placeholder="Hal. 1-5"
+                                                :disabled="!getItem(student.id).active"
+                                                :value="getItem(student.id).ayah"
+                                                @input="updateItem(student.id, 'ayah', $event.target.value)"
+                                                class="w-24 text-center text-xs font-semibold px-2 py-1.5 rounded-lg border border-emerald-300 dark:border-emerald-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 disabled:bg-gray-100 dark:disabled:bg-gray-800/40"
+                                            />
+                                        </td>
 
-                                    {{-- 1. Ziyadah: Kolom Ketik Ayat --}}
-                                    <td class="px-2 py-3 text-center bg-emerald-50/20 dark:bg-emerald-950/10 border-r border-gray-100 dark:border-gray-800">
-                                        <input
-                                            type="text"
-                                            placeholder="1-10"
-                                            :disabled="!getItem(student.id).active"
-                                            :value="getItem(student.id).ayah"
-                                            @input="updateItem(student.id, 'ayah', $event.target.value)"
-                                            class="w-20 text-center text-xs font-mono px-2 py-1.5 rounded-lg border border-emerald-300 dark:border-emerald-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 disabled:bg-gray-100 dark:disabled:bg-gray-800/40"
-                                        />
-                                    </td>
+                                        {{-- 2. Muraja'ah Tahsin: Dropdown Jilid Berapa --}}
+                                        <td class="px-2 py-3 bg-blue-50/20 dark:bg-blue-950/10">
+                                            <select
+                                                :disabled="!getItem(student.id).active"
+                                                :value="getItem(student.id).surah_murajaah"
+                                                @change="updateItem(student.id, 'surah_murajaah', $event.target.value)"
+                                                class="w-full text-xs font-semibold px-2 py-1.5 rounded-lg border border-blue-300 dark:border-blue-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 disabled:bg-gray-100 dark:disabled:bg-gray-800/40"
+                                            >
+                                                <option value="">-- Tanpa Muraja'ah --</option>
+                                                <template x-for="(label, key) in jilidOptions" :key="'m-jilid-' + key">
+                                                    <option :value="key" x-text="label" :selected="String(key) === String(getItem(student.id).surah_murajaah)"></option>
+                                                </template>
+                                            </select>
+                                        </td>
 
-                                    {{-- 2. Muraja'ah: Dropdown Juz --}}
-                                    <td class="px-2 py-3 text-center bg-blue-50/20 dark:bg-blue-950/10">
-                                        <select
-                                            :disabled="!getItem(student.id).active"
-                                            :value="getItem(student.id).juz_murajaah"
-                                            @change="updateItem(student.id, 'juz_murajaah', $event.target.value)"
-                                            class="w-18 text-center text-xs font-semibold px-1.5 py-1.5 rounded-lg border border-blue-300 dark:border-blue-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 disabled:bg-gray-100 dark:disabled:bg-gray-800/40"
-                                        >
-                                            <option value="">-</option>
-                                            <template x-for="j in 30" :key="'m-juz-' + j">
-                                                <option :value="j" x-text="'Juz ' + j" :selected="Number(j) === Number(getItem(student.id).juz_murajaah)"></option>
-                                            </template>
-                                        </select>
-                                    </td>
+                                        {{-- 2. Muraja'ah Tahsin: Kolom Ketik Halaman Berapa --}}
+                                        <td class="px-2 py-3 text-center bg-blue-50/20 dark:bg-blue-950/10 border-r border-gray-100 dark:border-gray-800">
+                                            <input
+                                                type="text"
+                                                placeholder="Hal. 1-5"
+                                                :disabled="!getItem(student.id).active"
+                                                :value="getItem(student.id).ayah_murajaah"
+                                                @input="updateItem(student.id, 'ayah_murajaah', $event.target.value)"
+                                                class="w-24 text-center text-xs font-semibold px-2 py-1.5 rounded-lg border border-blue-300 dark:border-blue-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 disabled:bg-gray-100 dark:disabled:bg-gray-800/40"
+                                            />
+                                        </td>
+                                    @else
+                                        {{-- 1. Ziyadah: Dropdown Juz --}}
+                                        <td class="px-2 py-3 text-center bg-emerald-50/20 dark:bg-emerald-950/10">
+                                            <select
+                                                :disabled="!getItem(student.id).active"
+                                                :value="getItem(student.id).juz"
+                                                @change="updateItem(student.id, 'juz', $event.target.value)"
+                                                class="w-18 text-center text-xs font-bold px-1.5 py-1.5 rounded-lg border border-emerald-300 dark:border-emerald-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 disabled:bg-gray-100 dark:disabled:bg-gray-800/40"
+                                            >
+                                                <template x-for="j in 30" :key="'z-juz-' + j">
+                                                    <option :value="j" x-text="'Juz ' + j" :selected="Number(j) === Number(getItem(student.id).juz)"></option>
+                                                </template>
+                                            </select>
+                                        </td>
 
-                                    {{-- 2. Muraja'ah: Dropdown Surat --}}
-                                    <td class="px-2 py-3 bg-blue-50/20 dark:bg-blue-950/10">
-                                        <select
-                                            :disabled="!getItem(student.id).active"
-                                            :value="getItem(student.id).surah_murajaah"
-                                            @change="updateItem(student.id, 'surah_murajaah', $event.target.value)"
-                                            class="w-full text-xs font-semibold px-2 py-1.5 rounded-lg border border-blue-300 dark:border-blue-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 disabled:bg-gray-100 dark:disabled:bg-gray-800/40"
-                                        >
-                                            <option value="">-- Tanpa Muraja'ah --</option>
-                                            <template x-for="(name, num) in surahs" :key="'m-surah-' + num">
-                                                <option :value="num" x-text="num + '. ' + name" :selected="String(num) === String(getItem(student.id).surah_murajaah)"></option>
-                                            </template>
-                                        </select>
-                                    </td>
+                                        {{-- 1. Ziyadah: Dropdown Surat --}}
+                                        <td class="px-2 py-3 bg-emerald-50/20 dark:bg-emerald-950/10">
+                                            <select
+                                                :disabled="!getItem(student.id).active"
+                                                :value="getItem(student.id).surah"
+                                                @change="updateItem(student.id, 'surah', $event.target.value)"
+                                                class="w-full text-xs font-semibold px-2 py-1.5 rounded-lg border border-emerald-300 dark:border-emerald-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 disabled:bg-gray-100 dark:disabled:bg-gray-800/40"
+                                            >
+                                                <template x-for="(name, num) in surahs" :key="'z-surah-' + num">
+                                                    <option :value="num" x-text="num + '. ' + name" :selected="String(num) === String(getItem(student.id).surah)"></option>
+                                                </template>
+                                            </select>
+                                        </td>
 
-                                    {{-- 2. Muraja'ah: Kolom Ketik Ayat --}}
-                                    <td class="px-2 py-3 text-center bg-blue-50/20 dark:bg-blue-950/10 border-r border-gray-100 dark:border-gray-800">
-                                        <input
-                                            type="text"
-                                            placeholder="1-Akhir"
-                                            :disabled="!getItem(student.id).active"
-                                            :value="getItem(student.id).ayah_murajaah"
-                                            @input="updateItem(student.id, 'ayah_murajaah', $event.target.value)"
-                                            class="w-20 text-center text-xs font-mono px-2 py-1.5 rounded-lg border border-blue-300 dark:border-blue-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 disabled:bg-gray-100 dark:disabled:bg-gray-800/40"
-                                        />
-                                    </td>
+                                        {{-- 1. Ziyadah: Kolom Ketik Ayat --}}
+                                        <td class="px-2 py-3 text-center bg-emerald-50/20 dark:bg-emerald-950/10 border-r border-gray-100 dark:border-gray-800">
+                                            <input
+                                                type="text"
+                                                placeholder="1-10"
+                                                :disabled="!getItem(student.id).active"
+                                                :value="getItem(student.id).ayah"
+                                                @input="updateItem(student.id, 'ayah', $event.target.value)"
+                                                class="w-20 text-center text-xs font-mono px-2 py-1.5 rounded-lg border border-emerald-300 dark:border-emerald-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 disabled:bg-gray-100 dark:disabled:bg-gray-800/40"
+                                            />
+                                        </td>
+
+                                        {{-- 2. Muraja'ah: Dropdown Juz --}}
+                                        <td class="px-2 py-3 text-center bg-blue-50/20 dark:bg-blue-950/10">
+                                            <select
+                                                :disabled="!getItem(student.id).active"
+                                                :value="getItem(student.id).juz_murajaah"
+                                                @change="updateItem(student.id, 'juz_murajaah', $event.target.value)"
+                                                class="w-18 text-center text-xs font-semibold px-1.5 py-1.5 rounded-lg border border-blue-300 dark:border-blue-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 disabled:bg-gray-100 dark:disabled:bg-gray-800/40"
+                                            >
+                                                <option value="">-</option>
+                                                <template x-for="j in 30" :key="'m-juz-' + j">
+                                                    <option :value="j" x-text="'Juz ' + j" :selected="Number(j) === Number(getItem(student.id).juz_murajaah)"></option>
+                                                </template>
+                                            </select>
+                                        </td>
+
+                                        {{-- 2. Muraja'ah: Dropdown Surat --}}
+                                        <td class="px-2 py-3 bg-blue-50/20 dark:bg-blue-950/10">
+                                            <select
+                                                :disabled="!getItem(student.id).active"
+                                                :value="getItem(student.id).surah_murajaah"
+                                                @change="updateItem(student.id, 'surah_murajaah', $event.target.value)"
+                                                class="w-full text-xs font-semibold px-2 py-1.5 rounded-lg border border-blue-300 dark:border-blue-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 disabled:bg-gray-100 dark:disabled:bg-gray-800/40"
+                                            >
+                                                <option value="">-- Tanpa Muraja'ah --</option>
+                                                <template x-for="(name, num) in surahs" :key="'m-surah-' + num">
+                                                    <option :value="num" x-text="num + '. ' + name" :selected="String(num) === String(getItem(student.id).surah_murajaah)"></option>
+                                                </template>
+                                            </select>
+                                        </td>
+
+                                        {{-- 2. Muraja'ah: Kolom Ketik Ayat --}}
+                                        <td class="px-2 py-3 text-center bg-blue-50/20 dark:bg-blue-950/10 border-r border-gray-100 dark:border-gray-800">
+                                            <input
+                                                type="text"
+                                                placeholder="1-Akhir"
+                                                :disabled="!getItem(student.id).active"
+                                                :value="getItem(student.id).ayah_murajaah"
+                                                @input="updateItem(student.id, 'ayah_murajaah', $event.target.value)"
+                                                class="w-20 text-center text-xs font-mono px-2 py-1.5 rounded-lg border border-blue-300 dark:border-blue-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 disabled:bg-gray-100 dark:disabled:bg-gray-800/40"
+                                            />
+                                        </td>
+                                    @endif
 
                                     {{-- 3. Skor Nilai Skala (0-100) --}}
                                     <td class="px-2 py-3 text-center bg-amber-50/20 dark:bg-amber-950/10">

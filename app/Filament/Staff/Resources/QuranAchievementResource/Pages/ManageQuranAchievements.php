@@ -164,16 +164,20 @@ class ManageQuranAchievements extends ManageRecords
 
                                     foreach ($students as $student) {
                                         $last = $latestAchievements->get($student->id);
-                                        $student->progress_data = QuranAchievement::calculateNextProgress($last);
+                                        $student->progress_data = QuranAchievement::calculateNextProgress($last, $program);
                                     }
+
+                                    $isTahsin = ($program === 'tahsin' || str_contains(strtolower((string)$program), 'tahsin'));
 
                                     return [
                                         'students'              => $students,
                                         'program'               => $program,
+                                        'isTahsin'              => $isTahsin,
+                                        'jilidOptions'          => QuranAchievement::getJilidOptions(),
                                         'defaultScaleScore'     => 85,
-                                        'defaultJuz'            => 30,
-                                        'defaultSurah'          => '78',
-                                        'defaultAyah'           => '1-10',
+                                        'defaultJuz'            => $isTahsin ? null : 30,
+                                        'defaultSurah'          => $isTahsin ? 'Jilid 1' : '78',
+                                        'defaultAyah'           => $isTahsin ? 'Hal. 1-5' : '1-10',
                                         'defaultJuzMurajaah'    => '',
                                         'defaultSurahMurajaah'  => '',
                                         'defaultAyahMurajaah'   => '',
@@ -238,11 +242,13 @@ class ManageQuranAchievements extends ManageRecords
 
                             $instId = $student->institution_id ?: Auth::user()?->institution_id ?: 1;
                             $studentProgram = $student->kelas_quran ?: $program;
-                            $juz = !empty($row['juz']) ? (int)$row['juz'] : (int)$defaultJuz;
-                            $surah = !empty($row['surah']) ? (string)$row['surah'] : (string)$defaultSurah;
-                            $ayah = !empty($row['ayah']) ? (string)$row['ayah'] : (string)$defaultAyah;
+                            $isTahsinRow = ($studentProgram === 'tahsin' || str_contains(strtolower((string)$studentProgram), 'tahsin'));
 
-                            $juzMurajaah = !empty($row['juz_murajaah']) ? (int)$row['juz_murajaah'] : $defaultJuzMurajaah;
+                            $juz = !empty($row['juz']) ? (int)$row['juz'] : ($isTahsinRow ? null : (int)$defaultJuz);
+                            $surah = !empty($row['surah']) ? (string)$row['surah'] : ($isTahsinRow ? 'Jilid 1' : (string)$defaultSurah);
+                            $ayah = !empty($row['ayah']) ? (string)$row['ayah'] : ($isTahsinRow ? 'Hal. 1-5' : (string)$defaultAyah);
+
+                            $juzMurajaah = !empty($row['juz_murajaah']) ? (int)$row['juz_murajaah'] : ($isTahsinRow ? null : $defaultJuzMurajaah);
                             $surahMurajaah = !empty($row['surah_murajaah']) ? (string)$row['surah_murajaah'] : $defaultSurahMurajaah;
                             $ayahMurajaah = !empty($row['ayah_murajaah']) ? (string)$row['ayah_murajaah'] : $defaultAyahMurajaah;
 
@@ -257,7 +263,7 @@ class ManageQuranAchievements extends ManageRecords
                             }
 
                             $catatan = $row['catatan'] ?? null;
-                            $jilid = $row['jilid_halaman'] ?? null;
+                            $jilid = $row['jilid_halaman'] ?? ($isTahsinRow ? "{$surah} {$ayah}" : null);
 
                             $types = ['ziyadah'];
                             if (!empty($juzMurajaah) || !empty($surahMurajaah)) {

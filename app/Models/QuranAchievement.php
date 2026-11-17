@@ -24,6 +24,14 @@ class QuranAchievement extends Model
         parent::booted();
 
         static::saving(function (QuranAchievement $record) {
+            $isTahsin = ($record->program === 'tahsin' || str_contains(strtolower((string)$record->program), 'tahsin'));
+            if ($isTahsin) {
+                $record->juz = null;
+                if (empty($record->jilid_halaman) && (!empty($record->surah) || !empty($record->ayah))) {
+                    $record->jilid_halaman = trim("{$record->surah} {$record->ayah}");
+                }
+            }
+
             $types = is_array($record->type) ? $record->type : ($record->type ? [$record->type] : []);
             if (!empty($record->juz) || !empty($record->surah)) {
                 if (!in_array('ziyadah', $types)) {
@@ -117,6 +125,22 @@ class QuranAchievement extends Model
 
     public function getZiyadahFormattedAttribute(): string
     {
+        $isTahsin = ($this->program === 'tahsin' || str_contains(strtolower((string)$this->program), 'tahsin') || str_contains(strtolower((string)$this->surah), 'jilid'));
+
+        if ($isTahsin) {
+            $parts = [];
+            if (!empty($this->surah)) {
+                $parts[] = str_starts_with((string)$this->surah, 'Jilid') ? $this->surah : "Jilid {$this->surah}";
+            }
+            if (!empty($this->ayah)) {
+                $parts[] = (str_starts_with((string)$this->ayah, 'Hal') || str_starts_with((string)$this->ayah, 'hal')) ? $this->ayah : "Hal. {$this->ayah}";
+            }
+            if (empty($parts) && !empty($this->jilid_halaman)) {
+                $parts[] = $this->jilid_halaman;
+            }
+            return !empty($parts) ? implode(', ', $parts) : '-';
+        }
+
         $parts = [];
         if ($this->juz) {
             $parts[] = "Juz {$this->juz}";
@@ -135,6 +159,19 @@ class QuranAchievement extends Model
 
     public function getMurajaahFormattedAttribute(): string
     {
+        $isTahsin = ($this->program === 'tahsin' || str_contains(strtolower((string)$this->program), 'tahsin') || str_contains(strtolower((string)$this->surah_murajaah), 'jilid'));
+
+        if ($isTahsin) {
+            $parts = [];
+            if (!empty($this->surah_murajaah)) {
+                $parts[] = str_starts_with((string)$this->surah_murajaah, 'Jilid') ? $this->surah_murajaah : "Jilid {$this->surah_murajaah}";
+            }
+            if (!empty($this->ayah_murajaah)) {
+                $parts[] = (str_starts_with((string)$this->ayah_murajaah, 'Hal') || str_starts_with((string)$this->ayah_murajaah, 'hal')) ? $this->ayah_murajaah : "Hal. {$this->ayah_murajaah}";
+            }
+            return !empty($parts) ? implode(', ', $parts) : '-';
+        }
+
         $parts = [];
         if ($this->juz_murajaah) {
             $parts[] = "Juz {$this->juz_murajaah}";
@@ -146,6 +183,23 @@ class QuranAchievement extends Model
             $parts[] = "Ayat {$this->ayah_murajaah}";
         }
         return !empty($parts) ? implode(', ', $parts) : '-';
+    }
+
+    /**
+     * Pilihan Jilid resmi untuk kelas Tahsin (dan Yanbu'a)
+     */
+    public static function getJilidOptions(): array
+    {
+        return [
+            'Jilid 1'             => '📖 Jilid 1',
+            'Jilid 2'             => '📖 Jilid 2',
+            'Jilid 3'             => '📖 Jilid 3',
+            'Jilid 4'             => '📖 Jilid 4',
+            'Jilid 5'             => '📖 Jilid 5',
+            'Jilid 6'             => '📖 Jilid 6',
+            'Al-Qur\'an / Gharib' => '📖 Al-Qur\'an / Gharib',
+            'Tajwid'              => '📖 Tajwid',
+        ];
     }
 
     /**
@@ -222,9 +276,28 @@ class QuranAchievement extends Model
     /**
      * Hitung kelanjutan otomatis (next progress) berdasarkan setoran terakhir santri
      */
-    public static function calculateNextProgress(?self $last): array
+    public static function calculateNextProgress(?self $last, ?string $program = null): array
     {
+        $prog = $last?->program ?: $program;
+        $isTahsin = ($prog === 'tahsin' || str_contains(strtolower((string)$prog), 'tahsin'));
+
         if (!$last) {
+            if ($isTahsin) {
+                return [
+                    'has_previous'         => false,
+                    'last_label'           => null,
+                    'juz'                  => null,
+                    'surah'                => 'Jilid 1',
+                    'ayah'                 => 'Hal. 1-5',
+                    'juz_murajaah'         => null,
+                    'surah_murajaah'       => '',
+                    'ayah_murajaah'        => '',
+                    'scale_score'          => 85,
+                    'predikat'             => 'Jayyid Jiddan',
+                    'catatan'              => '',
+                ];
+            }
+
             return [
                 'has_previous'         => false,
                 'last_label'           => null,
@@ -240,6 +313,82 @@ class QuranAchievement extends Model
             ];
         }
 
+        // ── KHUSUS TAHSIN: Berbasis Jilid & Halaman ────────────────────────────
+        if ($isTahsin || str_contains(strtolower((string)$last->surah), 'jilid') || str_contains(strtolower((string)$last->ayah), 'hal')) {
+            $lastSurahStr = trim((string)$last->surah);
+            $lastAyahStr = trim((string)$last->ayah);
+
+            // Ekstrak angka nomor jilid
+            $jilidNum = 1;
+            if (preg_match('/\d+/', $lastSurahStr, $m)) {
+                $jilidNum = (int)$m[0];
+            } elseif (str_contains(strtolower($lastSurahStr), 'gharib') || str_contains(strtolower($lastSurahStr), 'tajwid')) {
+                $jilidNum = 6;
+            }
+
+            // Ekstrak rentang halaman
+            preg_match_all('/\d+/', $lastAyahStr, $matches);
+            $numbers = !empty($matches[0]) ? array_map('intval', $matches[0]) : [];
+            $isAkhir = str_contains(strtolower($lastAyahStr), 'akhir') || str_contains(strtolower($lastAyahStr), 'selesai');
+
+            $maxPagePerJilid = 40; // Batas rata-rata halaman buku jilid
+
+            if ($isAkhir) {
+                $endPage = $maxPagePerJilid;
+                $span = 5;
+            } elseif (count($numbers) >= 2) {
+                $startPage = $numbers[0];
+                $endPage = end($numbers);
+                $span = max(1, $endPage - $startPage + 1);
+            } elseif (count($numbers) === 1) {
+                $endPage = $numbers[0];
+                $span = 5;
+            } else {
+                $endPage = 5;
+                $span = 5;
+            }
+
+            if ($endPage >= $maxPagePerJilid) {
+                // Jilid selesai, naik ke jilid berikutnya
+                $nextJilidNum = min(6, $jilidNum + 1);
+                $nextJilid = "Jilid {$nextJilidNum}";
+                if ($jilidNum >= 6) {
+                    $nextJilid = "Al-Qur'an / Gharib";
+                }
+                $nextHalaman = "Hal. 1-{$span}";
+                $lastStatusNote = ' (Khatam Jilid)';
+            } else {
+                $nextJilid = $lastSurahStr ?: "Jilid {$jilidNum}";
+                $nextStart = $endPage + 1;
+                $nextEnd = min($maxPagePerJilid, $nextStart + $span - 1);
+                $nextHalaman = ($nextStart == $nextEnd) ? "Hal. {$nextStart}" : "Hal. {$nextStart}-{$nextEnd}";
+                $lastStatusNote = '';
+            }
+
+            $dateStr = $last->tanggal ? \Carbon\Carbon::parse($last->tanggal)->format('d/m') : '';
+            $jilidClean = $lastSurahStr ?: "Jilid {$jilidNum}";
+            $lastLabel = "{$jilidClean}: {$lastAyahStr}{$lastStatusNote}" . ($dateStr ? " ({$dateStr})" : '');
+
+            // Muraja'ah Tahsin
+            $nextSurahMurajaah = $last->surah_murajaah ?: $lastSurahStr;
+            $nextAyahMurajaah = $last->ayah_murajaah ?: $lastAyahStr;
+
+            return [
+                'has_previous'         => true,
+                'last_label'           => $lastLabel,
+                'juz'                  => null,
+                'surah'                => $nextJilid,
+                'ayah'                 => $nextHalaman,
+                'juz_murajaah'         => null,
+                'surah_murajaah'       => (string)$nextSurahMurajaah,
+                'ayah_murajaah'        => (string)$nextAyahMurajaah,
+                'scale_score'          => $last->scale_score ?: 85,
+                'predikat'             => $last->predikat ?: 'Jayyid Jiddan',
+                'catatan'              => '',
+            ];
+        }
+
+        // ── KHUSUS TAHFIDZ (Surat & Ayat Al-Qur'an) ───────────────────────────
         $verseCounts = self::getSurahVerseCounts();
         $surahNames = \App\Filament\Staff\Resources\QuranAchievementResource::getSurahs();
 
