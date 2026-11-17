@@ -149,7 +149,12 @@
             <td class="val"><span class="badge badge-blue">Kelas {{ $journal->classroom->name ?? '-' }}</span></td>
             <td class="label">Status Presensi Guru</td>
             <td class="colon">:</td>
-            <td class="val"><span class="badge badge-green">HADIR MENGAJAR</span></td>
+            <td class="val">
+                <span class="badge badge-green">HADIR MENGAJAR</span>
+                @if($journal->is_kegiatan_lain)
+                    <span style="font-size: 8px; font-weight: bold; color: #047857; margin-left: 5px;">(Mendampingi {{ $journal->nama_kegiatan_lain ?: 'Kegiatan Siswa' }})</span>
+                @endif
+            </td>
         </tr>
     </table>
 
@@ -158,7 +163,12 @@
     <table class="table-grid">
         <tr>
             <td style="width: 22%; font-weight: bold; background-color: #f8fafc;">Topik / Pokok Bahasan</td>
-            <td style="width: 78%; font-size: 10px; font-weight: bold; color: #047857;">{{ $journal->materi }}</td>
+            <td style="width: 78%; font-size: 10px; font-weight: bold; color: #047857;">
+                {{ $journal->materi }}
+                @if($journal->is_kegiatan_lain)
+                    <span style="font-size: 8.5px; background-color: #ecfdf5; color: #047857; padding: 2px 5px; border-radius: 3px; margin-left: 6px;">[Kegiatan Siswa / Sekolah]</span>
+                @endif
+            </td>
         </tr>
         @if($journal->rppm)
             <tr>

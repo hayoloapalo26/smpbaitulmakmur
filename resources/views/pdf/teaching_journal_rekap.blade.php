@@ -118,7 +118,11 @@
                     <td>{{ $j->subject->name ?? '-' }}</td>
                     <td>
                         <strong style="color: #047857;">{{ $j->materi }}</strong>
-                        @if(is_array($j->tp_ids) && count($j->tp_ids) > 0)
+                        @if($j->is_kegiatan_lain)
+                            <div style="font-size: 7.5px; color: #047857; margin-top: 2px;">
+                                🎪 Kegiatan: {{ $j->nama_kegiatan_lain ?: 'Kegiatan Siswa' }}
+                            </div>
+                        @elseif(is_array($j->tp_ids) && count($j->tp_ids) > 0)
                             <div style="font-size: 7.5px; color: #475569; margin-top: 2px;">
                                 🎯 {{ count($j->tp_ids) }} Tujuan Pembelajaran (TP) tercatat
                             </div>

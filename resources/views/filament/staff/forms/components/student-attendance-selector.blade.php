@@ -35,6 +35,22 @@
             </div>
         @endif
 
+        @if(!empty($isKegiatanLain))
+            <div class="mb-4 p-4 rounded-xl border border-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 dark:border-emerald-800 text-emerald-900 dark:text-emerald-200">
+                <div class="flex items-start gap-3">
+                    <x-heroicon-o-check-badge class="w-6 h-6 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
+                    <div>
+                        <p class="font-bold text-sm">
+                            🎪 Jam Pelajaran Bertepatan dengan Kegiatan Siswa: {{ $namaKegiatanLain ?: 'Kegiatan Sekolah' }}
+                        </p>
+                        <p class="text-xs text-emerald-700 dark:text-emerald-300 mt-1 leading-relaxed">
+                            Seluruh siswa di kelas ini secara otomatis tercatat <strong>HADIR</strong> mengikuti kegiatan sekolah. Anda tetap dapat menyesuaikan status presensi siswa di bawah jika terdapat siswa yang sakit, izin, atau tidak hadir mengikuti kegiatan.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        @endif
+
         <div
             wire:key="{{ (isset($this) && method_exists($this, 'getId') ? $this->getId() : $field->getId()) }}.{{ $statePath }}.class-{{ $classroomId ?? 'empty' }}"
             x-data="{

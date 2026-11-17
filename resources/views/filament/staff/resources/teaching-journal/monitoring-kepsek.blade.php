@@ -373,7 +373,11 @@
                                                 <x-heroicon-m-bookmark class="w-4 h-4 text-orange-600 dark:text-orange-400" />
                                                 <span class="font-bold text-gray-900 dark:text-white text-xs">Materi: {{ $j->materi ?: ($j->rencana_kegiatan_guru ?: '-') }}</span>
                                             </div>
-                                            @if($j->rppm)
+                                            @if($j->is_kegiatan_lain)
+                                                <span class="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-800 dark:text-emerald-200 bg-emerald-100 dark:bg-emerald-900/60 px-2 py-0.5 rounded border border-emerald-300 dark:border-emerald-700">
+                                                    🎪 Kegiatan Siswa: {{ $j->nama_kegiatan_lain ?: 'Kegiatan Sekolah' }}
+                                                </span>
+                                            @elseif($j->rppm)
                                                 <span class="inline-flex items-center gap-1 text-[11px] font-semibold text-orange-700 dark:text-orange-300 bg-orange-100 dark:bg-orange-900/60 px-2 py-0.5 rounded border border-orange-300 dark:border-orange-700">
                                                     <x-heroicon-m-document-text class="w-3.5 h-3.5" />
                                                     RPPM: {{ $j->rppm->topik }}

@@ -159,6 +159,9 @@ class ManageTeachingJournals extends ManageRecords
 
                     \Illuminate\Support\Facades\DB::transaction(function () use ($schedules, $data, $studentAttendances, $catatanKarakter, &$firstJournal) {
                         foreach ($schedules as $schedule) {
+                            $isKegiatanLain = !empty($data['is_kegiatan_lain']);
+                            $namaKegiatanLain = $data['nama_kegiatan_lain'] ?? null;
+
                             $journalData = [
                                 'teacher_id' => $data['teacher_id'] ?? auth()->id(),
                                 'schedule_id' => $schedule->id,
@@ -167,12 +170,15 @@ class ManageTeachingJournals extends ManageRecords
                                 'jam_ke' => $schedule->jam_ke,
                                 'institution_id' => $schedule->institution_id ?? ($data['institution_id'] ?? null),
                                 'tanggal' => $data['tanggal'] ?? now()->toDateString(),
-                                'materi' => $data['materi'] ?? null,
-                                'rencana_kegiatan_guru' => $data['rencana_kegiatan_guru'] ?? null,
-                                'kegiatan_siswa' => $data['kegiatan_siswa'] ?? null,
+                                'is_kegiatan_lain' => $isKegiatanLain,
+                                'nama_kegiatan_lain' => $namaKegiatanLain,
+                                'materi' => $data['materi'] ?? ($namaKegiatanLain ? "[Kegiatan Siswa] {$namaKegiatanLain}" : null),
+                                'rencana_kegiatan_guru' => $data['rencana_kegiatan_guru'] ?? ($namaKegiatanLain ? "Mendampingi & mengawasi siswa dalam pelaksanaan {$namaKegiatanLain}" : null),
+                                'kegiatan_siswa' => $data['kegiatan_siswa'] ?? ($namaKegiatanLain ? "Siswa mengikuti dan melaksanakan kegiatan {$namaKegiatanLain} dengan tertib" : null),
+                                'refleksi_guru' => $data['refleksi_guru'] ?? null,
                                 'tindak_lanjut' => $data['tindak_lanjut'] ?? null,
-                                'rppm_id' => $data['rppm_id'] ?? null,
-                                'tp_ids' => $data['tp_ids'] ?? [],
+                                'rppm_id' => $isKegiatanLain ? null : ($data['rppm_id'] ?? null),
+                                'tp_ids' => $isKegiatanLain ? [] : ($data['tp_ids'] ?? []),
                                 'kegiatan_rutin' => $data['kegiatan_rutin'] ?? [],
                                 'catatan_karakter' => $catatanKarakter,
                             ];

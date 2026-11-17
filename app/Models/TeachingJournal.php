@@ -15,6 +15,7 @@ class TeachingJournal extends Model
         'catatan_karakter' => 'array',
         'tp_ids' => 'array',
         'is_late' => 'boolean',
+        'is_kegiatan_lain' => 'boolean',
         'waka_approved_at' => 'datetime',
         'kepsek_approved_at' => 'datetime',
     ];
@@ -125,6 +126,19 @@ class TeachingJournal extends Model
                 $journal->tp_ids = array_values(array_unique(array_map('intval', $journal->tp_ids)));
             }
 
+            // Otomatis lengkapi data jika jam mengajar bertepatan dengan kegiatan siswa / kegiatan sekolah lain (contoh: Apel OSIS, Upacara, dll)
+            if ($journal->is_kegiatan_lain && !empty($journal->nama_kegiatan_lain)) {
+                if (empty($journal->materi) || $journal->materi === '-') {
+                    $journal->materi = "[Kegiatan Siswa] {$journal->nama_kegiatan_lain}";
+                }
+                if (empty($journal->rencana_kegiatan_guru)) {
+                    $journal->rencana_kegiatan_guru = "Mendampingi & mengawasi siswa dalam pelaksanaan {$journal->nama_kegiatan_lain}";
+                }
+                if (empty($journal->kegiatan_siswa)) {
+                    $journal->kegiatan_siswa = "Siswa mengikuti dan melaksanakan kegiatan {$journal->nama_kegiatan_lain} dengan tertib dan khidmat";
+                }
+            }
+
             if (empty($journal->materi)) {
                 if (!empty($journal->rppm_id)) {
                     $journal->materi = Rppm::where('id', $journal->rppm_id)->value('topik');
@@ -188,7 +202,9 @@ class TeachingJournal extends Model
             $statusToSet = $isDinasLuar ? 'dinas_luar' : 'masuk';
             $keteranganToSet = $isDinasLuar
                 ? 'Dinas Luar: ' . ($leaveRecord?->alasan ?? ($existing?->keterangan ?? 'Tugas Dinas Luar')) . ' (Jurnal mengajar telah diisi guru bersangkutan)'
-                : ($leaveAttendance ? 'Masuk mengajar sebagai Guru Pengganti (Inval)' : ($existing?->keterangan ?? 'Masuk mengajar sesuai Jurnal Mengajar'));
+                : ($journal->is_kegiatan_lain && !empty($journal->nama_kegiatan_lain)
+                    ? 'Masuk mengajar (Pendampingan Kegiatan Siswa: ' . $journal->nama_kegiatan_lain . ')'
+                    : ($leaveAttendance ? 'Masuk mengajar sebagai Guru Pengganti (Inval)' : ($existing?->keterangan ?? 'Masuk mengajar sesuai Jurnal Mengajar')));
 
             $payload = [
                 'institution_id' => $journal->schedule?->institution_id ?? $journal->classroom?->institution_id ?? $journal->teacher?->institution_id,

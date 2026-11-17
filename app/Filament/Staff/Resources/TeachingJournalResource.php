@@ -623,14 +623,125 @@ class TeachingJournalResource extends Resource
                             ->placeholder('Otomatis dari jadwal terpilih...'),
                     ])->columns(3),
 
-                Forms\Components\Section::make(fn (Forms\Get $get) => static::isQuranContext($get) ? '📖 Lingkup Materi Pembelajaran Al-Qur\'an' : '🎯 Lingkup Materi & Penarikan TP dari RPPM & Perangkat Pembelajaran')
-                    ->description(fn (Forms\Get $get) => static::isQuranContext($get)
-                        ? 'Inputkan materi pokok atau capaian pembelajaran Al-Qur\'an (Surat/Ayat/Jilid/Halaman) yang diajarkan pada jam ini tanpa perlu input CP/TP/ATP.'
-                        : 'Tarik otomatis Tujuan Pembelajaran (TP) yang sudah di-inputkan di RPPM atau pilih langsung dari Tujuan Pembelajaran mapel terkait.')
+                Forms\Components\Section::make('🎪 Status Pelaksanaan Jam Pelajaran & Kegiatan Siswa')
+                    ->description('Jika jam mengajar ini bertepatan dengan kegiatan siswa / sekolah (seperti Apel Pelantikan OSIS, Upacara, PHBI, Class Meeting, dll), aktifkan pilihan di bawah ini. Guru TETAP DIANGGAP HADIR MASUK MENGAJAR dan alokasi JP tetap dihitung.')
+                    ->schema([
+                        Forms\Components\Toggle::make('is_kegiatan_lain')
+                            ->label('Ada Kegiatan Siswa / Kegiatan Sekolah Lain pada Jam Mengajar Ini')
+                            ->helperText('Aktifkan jika jam pelajaran ini bertepatan dengan kegiatan bersama siswa (misal: Apel Pelantikan OSIS, Upacara, PHBI, Class Meeting, dll). Status guru tetap HADIR MASUK MENGAJAR.')
+                            ->default(false)
+                            ->live()
+                            ->afterStateUpdated(function ($state, Forms\Set $set, Forms\Get $get) {
+                                if ($state) {
+                                    $defaultKegiatan = $get('nama_kegiatan_lain') ?: 'Apel Pelantikan OSIS';
+                                    $set('nama_kegiatan_lain', $defaultKegiatan);
+                                    $set('materi', "[Kegiatan Siswa] {$defaultKegiatan}");
+                                    $set('rencana_kegiatan_guru', "Mendampingi & mengawasi siswa dalam pelaksanaan {$defaultKegiatan}");
+                                    $set('kegiatan_siswa', "Siswa mengikuti dan melaksanakan kegiatan {$defaultKegiatan} dengan tertib dan khidmat");
+                                    $set('rppm_id', null);
+                                    $set('tp_ids', []);
+
+                                    // Seluruh siswa otomatis hadir
+                                    $classroomId = $get('classroom_id');
+                                    if ($classroomId) {
+                                        $students = \App\Models\Student::where('classroom_id', $classroomId)->get();
+                                        $att = [];
+                                        foreach ($students as $st) {
+                                            $att[$st->id] = 'hadir';
+                                        }
+                                        $set('student_attendances', $att);
+                                    }
+                                } else {
+                                    $set('nama_kegiatan_lain', null);
+                                    if (str_starts_with($get('materi') ?? '', '[Kegiatan Siswa]')) {
+                                        $set('materi', null);
+                                    }
+                                }
+                            }),
+
+                        Forms\Components\Placeholder::make('kegiatan_info_banner')
+                            ->label('')
+                            ->visible(fn (Forms\Get $get) => (bool) $get('is_kegiatan_lain'))
+                            ->content(function (Forms\Get $get) {
+                                $kegiatan = $get('nama_kegiatan_lain') ?: 'Kegiatan Siswa';
+                                return new \Illuminate\Support\HtmlString("
+                                    <div class='p-3.5 rounded-xl border border-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-900 dark:text-emerald-200'>
+                                        <div class='flex items-center gap-2 font-bold text-sm'>
+                                            <span class='text-lg'>🎖️</span>
+                                            <span>Guru Tetap Dianggap Masuk Mengajar (Presensi Hadir Terpenuhi)</span>
+                                        </div>
+                                        <p class='text-xs text-emerald-700 dark:text-emerald-300 mt-1 leading-relaxed'>
+                                            Jam pelajaran ini bertepatan dengan <strong>{$kegiatan}</strong>. Kehadiran guru otomatis tercatat <strong>HADIR</strong> (100% masuk mengajar). Rincian materi, kegiatan guru, dan kegiatan siswa di bawah otomatis disesuaikan.
+                                        </p>
+                                    </div>
+                                ");
+                            })
+                            ->columnSpanFull(),
+
+                        Forms\Components\Select::make('preset_kegiatan')
+                            ->label('Pilihan Cepat Kegiatan Siswa')
+                            ->placeholder('-- Pilih Kegiatan Populer Sekolah --')
+                            ->options([
+                                'Apel Pelantikan OSIS'                      => '🎖️ Apel Pelantikan OSIS',
+                                'Upacara Bendera / Peringatan Hari Besar'    => '🇮🇩 Upacara Bendera / Hari Besar',
+                                'Peringatan Hari Besar Islam (PHBI)'        => '🕌 Peringatan Hari Besar Islam (PHBI)',
+                                'Class Meeting / Porseni Siswa'             => '🏆 Class Meeting / Porseni Siswa',
+                                'Sosialisasi / Seminar / Workshop Siswa'    => '📢 Sosialisasi / Workshop Siswa',
+                                'Pramuka / Outbound / Kemah Siswa'          => '🏕️ Pramuka / Outbound Siswa',
+                                'Kegiatan Penilaian / Asesmen Bersama'      => '📝 Asesmen / Ujian Bersama',
+                            ])
+                            ->visible(fn (Forms\Get $get) => (bool) $get('is_kegiatan_lain'))
+                            ->dehydrated(false)
+                            ->live()
+                            ->afterStateUpdated(function ($state, Forms\Set $set, Forms\Get $get) {
+                                if ($state) {
+                                    $set('nama_kegiatan_lain', $state);
+                                    $set('materi', "[Kegiatan Siswa] {$state}");
+                                    $set('rencana_kegiatan_guru', "Mendampingi & mengawasi siswa dalam pelaksanaan {$state}");
+                                    $set('kegiatan_siswa', "Siswa mengikuti dan melaksanakan kegiatan {$state} dengan tertib dan khidmat");
+                                }
+                            }),
+
+                        Forms\Components\TextInput::make('nama_kegiatan_lain')
+                            ->label('Keterangan / Nama Kegiatan Siswa')
+                            ->placeholder('Contoh: Apel Pelantikan OSIS / Upacara Bendera')
+                            ->required(fn (Forms\Get $get) => (bool) $get('is_kegiatan_lain'))
+                            ->visible(fn (Forms\Get $get) => (bool) $get('is_kegiatan_lain'))
+                            ->helperText('Tuliskan atau sesuaikan nama kegiatan siswa yang berlangsung pada jam pelajaran ini.')
+                            ->live(onBlur: true)
+                            ->afterStateUpdated(function ($state, Forms\Set $set, Forms\Get $get) {
+                                if ($get('is_kegiatan_lain') && filled($state)) {
+                                    $set('materi', "[Kegiatan Siswa] {$state}");
+                                    if (empty($get('rencana_kegiatan_guru')) || str_starts_with($get('rencana_kegiatan_guru'), 'Mendampingi & mengawasi')) {
+                                        $set('rencana_kegiatan_guru', "Mendampingi & mengawasi siswa dalam pelaksanaan {$state}");
+                                    }
+                                    if (empty($get('kegiatan_siswa')) || str_starts_with($get('kegiatan_siswa'), 'Siswa mengikuti')) {
+                                        $set('kegiatan_siswa', "Siswa mengikuti dan melaksanakan kegiatan {$state} dengan tertib dan khidmat");
+                                    }
+                                }
+                            }),
+                    ])->columns(2),
+
+                Forms\Components\Section::make(function (Forms\Get $get) {
+                    if ((bool) $get('is_kegiatan_lain')) {
+                        return '🎪 Materi / Keterangan Pelaksanaan Kegiatan Siswa';
+                    }
+                    return static::isQuranContext($get)
+                        ? '📖 Lingkup Materi Pembelajaran Al-Qur\'an'
+                        : '🎯 Lingkup Materi & Penarikan TP dari RPPM & Perangkat Pembelajaran';
+                })
+                    ->description(function (Forms\Get $get) {
+                        if ((bool) $get('is_kegiatan_lain')) {
+                            return 'Jam mengajar bertepatan dengan kegiatan siswa/sekolah. Materi pokok otomatis terhubung dengan kegiatan siswa yang dilaksanakan.';
+                        }
+                        return static::isQuranContext($get)
+                            ? 'Inputkan materi pokok atau capaian pembelajaran Al-Qur\'an (Surat/Ayat/Jilid/Halaman) yang diajarkan pada jam ini tanpa perlu input CP/TP/ATP.'
+                            : 'Tarik otomatis Tujuan Pembelajaran (TP) yang sudah di-inputkan di RPPM atau pilih langsung dari Tujuan Pembelajaran mapel terkait.';
+                    })
                     ->schema([
                         Forms\Components\Select::make('rppm_id')
                             ->label('Tarik Dokumen RPPM Guru (Opsional)')
-                            ->hidden(fn (Forms\Get $get) => static::isQuranContext($get))
+                            ->hidden(fn (Forms\Get $get) => static::isQuranContext($get) || (bool) $get('is_kegiatan_lain'))
                             ->options(function (Forms\Get $get) {
                                 $subjectId = $get('subject_id');
                                 $teacherId = $get('teacher_id') ?: Auth::id();
@@ -684,16 +795,31 @@ class TeachingJournalResource extends Resource
                             ->helperText('Pilih RPPM untuk otomatis mengisi Materi Pokok dan mencentang Tujuan Pembelajaran (TP) yang diajarkan.'),
 
                         Forms\Components\TextInput::make('materi')
-                            ->label(fn (Forms\Get $get) => static::isQuranContext($get) ? 'Materi Pokok / Capaian Surat & Ayat' : 'Topik / Materi Pokok Pembelajaran')
-                            ->placeholder(fn (Forms\Get $get) => static::isQuranContext($get) ? 'Contoh: QS. Al-Baqarah ayat 1-15 / Yanbu\'a Jilid 3 Hal. 10-15 / Makharijul Huruf' : 'Contoh: Operasi Aljabar / Teks Deskripsi / Mengenal Perangkat Komputer')
+                            ->label(function (Forms\Get $get) {
+                                if ((bool) $get('is_kegiatan_lain')) {
+                                    return 'Topik / Nama Kegiatan Siswa';
+                                }
+                                return static::isQuranContext($get) ? 'Materi Pokok / Capaian Surat & Ayat' : 'Topik / Materi Pokok Pembelajaran';
+                            })
+                            ->placeholder(function (Forms\Get $get) {
+                                if ((bool) $get('is_kegiatan_lain')) {
+                                    return 'Contoh: [Kegiatan Siswa] Apel Pelantikan OSIS';
+                                }
+                                return static::isQuranContext($get) ? 'Contoh: QS. Al-Baqarah ayat 1-15 / Yanbu\'a Jilid 3 Hal. 10-15 / Makharijul Huruf' : 'Contoh: Operasi Aljabar / Teks Deskripsi / Mengenal Perangkat Komputer';
+                            })
                             ->required()
-                            ->helperText(fn (Forms\Get $get) => static::isQuranContext($get) ? 'Lingkup materi atau capaian Al-Qur\'an yang disampaikan pada jam mengajar ini.' : 'Lingkup materi pokok yang disampaikan pada jam mengajar ini.'),
+                            ->helperText(function (Forms\Get $get) {
+                                if ((bool) $get('is_kegiatan_lain')) {
+                                    return 'Nama atau topik kegiatan yang dilaksanakan pada jam pelajaran ini.';
+                                }
+                                return static::isQuranContext($get) ? 'Lingkup materi atau capaian Al-Qur\'an yang disampaikan pada jam mengajar ini.' : 'Lingkup materi pokok yang disampaikan pada jam mengajar ini.';
+                            }),
 
                         Forms\Components\Select::make('tp_ids')
                             ->label('Tujuan Pembelajaran (TP) yang Diajarkan')
                             ->placeholder('Pilih Tujuan Pembelajaran (TP)...')
-                            ->hidden(fn (Forms\Get $get) => static::isQuranContext($get))
-                            ->dehydrated(fn (Forms\Get $get) => !static::isQuranContext($get))
+                            ->hidden(fn (Forms\Get $get) => static::isQuranContext($get) || (bool) $get('is_kegiatan_lain'))
+                            ->dehydrated(fn (Forms\Get $get) => !static::isQuranContext($get) && !(bool) $get('is_kegiatan_lain'))
                             ->multiple()
                             ->getOptionLabelUsing(function ($value): ?string {
                                 if (!$value) return null;
@@ -829,11 +955,11 @@ class TeachingJournalResource extends Resource
                     ->schema([
                         Forms\Components\TextInput::make('rencana_kegiatan_guru')
                             ->label('Kegiatan Guru')
-                            ->placeholder('Contoh: Guru menyampaikan Ceramah')
+                            ->placeholder(fn (Forms\Get $get) => (bool) $get('is_kegiatan_lain') ? 'Contoh: Mendampingi & mengawasi siswa dalam pelaksanaan Apel Pelantikan OSIS' : 'Contoh: Guru menyampaikan Ceramah / Diskusi Terarah')
                             ->required(),
                         Forms\Components\TextInput::make('kegiatan_siswa')
                             ->label('Kegiatan Siswa')
-                            ->placeholder('Contoh: Siswa Melakukan Presentasi')
+                            ->placeholder(fn (Forms\Get $get) => (bool) $get('is_kegiatan_lain') ? 'Contoh: Siswa mengikuti dan melaksanakan Apel Pelantikan OSIS dengan tertib' : 'Contoh: Siswa Melakukan Presentasi / Diskusi Kelompok')
                             ->required(),
                         Forms\Components\Textarea::make('refleksi_guru')
                             ->label('Refleksi Guru')
@@ -900,6 +1026,8 @@ class TeachingJournalResource extends Resource
                             'isDinasLuar' => (bool) ($leave?->isDinasLuar()),
                             'invalTeacherName' => $invalTeacherName,
                             'invalFilled' => $invalFilled,
+                            'isKegiatanLain' => (bool) $get('is_kegiatan_lain'),
+                            'namaKegiatanLain' => $get('nama_kegiatan_lain'),
                         ];
                     })
                     ->dehydrated()
@@ -992,6 +1120,9 @@ class TeachingJournalResource extends Resource
                     ->limit(35)
                     ->tooltip(fn ($state) => $state)
                     ->description(function (TeachingJournal $record) {
+                        if ($record->is_kegiatan_lain) {
+                            return "🎪 Kegiatan: " . ($record->nama_kegiatan_lain ?: 'Kegiatan Siswa');
+                        }
                         $count = is_array($record->tp_ids) ? count($record->tp_ids) : 0;
                         if ($count > 0) {
                             return "🎯 {$count} Tujuan Pembelajaran (TP)";
@@ -1004,7 +1135,7 @@ class TeachingJournalResource extends Resource
                     ->searchable(),
                 Tables\Columns\TextColumn::make('presensi_status')
                     ->label('Presensi Guru')
-                    ->state(fn () => 'Hadir (Dari Jurnal)')
+                    ->state(fn (TeachingJournal $record) => $record->is_kegiatan_lain ? 'Hadir (Kegiatan Siswa)' : 'Hadir (Dari Jurnal)')
                     ->badge()
                     ->color('success')
                     ->icon('heroicon-m-check-circle'),
