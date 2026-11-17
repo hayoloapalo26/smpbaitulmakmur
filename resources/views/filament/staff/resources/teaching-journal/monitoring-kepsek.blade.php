@@ -405,7 +405,7 @@
                                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
                                         <div class="space-y-2">
                                             <div>
-                                                <span class="font-semibold text-gray-500 uppercase text-[10px] tracking-wider block">Rencana Kegiatan Guru</span>
+                                                <span class="font-semibold text-gray-500 uppercase text-[10px] tracking-wider block">Kegiatan Guru</span>
                                                 <div class="text-gray-800 dark:text-gray-200 font-medium mt-0.5 bg-white dark:bg-gray-800 p-2.5 rounded-lg border border-gray-100 dark:border-gray-700">
                                                     {{ $j->rencana_kegiatan_guru ?: '-' }}
                                                 </div>

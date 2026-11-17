@@ -828,7 +828,7 @@ class TeachingJournalResource extends Resource
                 Forms\Components\Section::make('Jurnal Pembelajaran')
                     ->schema([
                         Forms\Components\TextInput::make('rencana_kegiatan_guru')
-                            ->label('Rencana Kegiatan Guru')
+                            ->label('Kegiatan Guru')
                             ->placeholder('Contoh: Guru menyampaikan Ceramah')
                             ->required(),
                         Forms\Components\TextInput::make('kegiatan_siswa')

@@ -199,7 +199,7 @@
     <table class="table-grid">
         <tr>
             <td style="width: 50%;">
-                <strong>Rencana & Kegiatan Guru:</strong><br>
+                <strong>Kegiatan Guru:</strong><br>
                 <div style="margin-top: 3px; color: #334155;">{{ $journal->rencana_kegiatan_guru ?? 'Menjelaskan konsep materi, memberikan contoh soal, dan membimbing latihan terarah.' }}</div>
             </td>
             <td style="width: 50%;">
