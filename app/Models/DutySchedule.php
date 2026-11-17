@@ -126,4 +126,122 @@ class DutySchedule extends Model
             }
         });
     }
+
+    /**
+     * Dapatkan daftar guru piket yang bertugas pada tanggal tertentu (memperhitungkan hari rutin, tanggal khusus, dan tukar piket).
+     *
+     * @param string|\Carbon\Carbon|null $date
+     * @param int|null $institutionId
+     * @return \Illuminate\Support\Collection<int, \App\Models\User>
+     */
+    public static function getDutyTeachersForDate($date = null, ?int $institutionId = null): \Illuminate\Support\Collection
+    {
+        $carbon = $date ? Carbon::parse($date) : Carbon::today();
+        $targetDate = $carbon->toDateString();
+        $dayName = Schedule::getIndonesianDayName($carbon);
+
+        // 1. Prioritas 1: Ambil jadwal khusus berdasarkan tanggal yang cocok
+        $specificQuery = static::withoutGlobalScopes()
+            ->with('teacher')
+            ->whereDate('tanggal', $targetDate);
+
+        if ($institutionId && $institutionId != 1 && Schema::hasColumn('duty_schedules', 'institution_id')) {
+            $specificQuery->where(function ($q) use ($institutionId) {
+                $q->where('institution_id', $institutionId)->orWhereNull('institution_id');
+            });
+        }
+
+        $records = $specificQuery->orderBy('id')->get();
+
+        // 2. Prioritas 2: Jika tidak ada jadwal tanggal khusus, ambil jadwal mingguan rutin berdasarkan hari
+        if ($records->isEmpty()) {
+            $routineQuery = static::withoutGlobalScopes()
+                ->with('teacher')
+                ->where('hari', $dayName)
+                ->whereNull('tanggal');
+
+            if ($institutionId && $institutionId != 1 && Schema::hasColumn('duty_schedules', 'institution_id')) {
+                $routineQuery->where(function ($q) use ($institutionId) {
+                    $q->where('institution_id', $institutionId)->orWhereNull('institution_id');
+                });
+            }
+
+            $records = $routineQuery->orderBy('id')->get();
+
+            // Jika masih kosong, cari berdasarkan hari tanpa batasan whereNull('tanggal')
+            if ($records->isEmpty()) {
+                $fallbackRoutine = static::withoutGlobalScopes()
+                    ->with('teacher')
+                    ->where('hari', $dayName);
+
+                if ($institutionId && $institutionId != 1 && Schema::hasColumn('duty_schedules', 'institution_id')) {
+                    $fallbackRoutine->where(function ($q) use ($institutionId) {
+                        $q->where('institution_id', $institutionId)->orWhereNull('institution_id');
+                    });
+                }
+
+                $records = $fallbackRoutine->orderBy('id')->get();
+            }
+        }
+
+        $teacherMap = collect();
+        foreach ($records as $rec) {
+            if ($rec->teacher && $rec->teacher->is_active) {
+                $teacherMap->put($rec->teacher->id, $rec->teacher);
+            }
+        }
+
+        // 3. Terapkan Permohonan Tukar Piket yang Disetujui (Approved Duty Swap)
+        if (class_exists(DutySwapRequest::class)) {
+            // a. Jika jadwal piket guru di targetDate sudah disetujui ditukar ke pengganti
+            $swapsOut = DutySwapRequest::with('substituteTeacher')
+                ->where('status', 'disetujui')
+                ->whereDate('original_date', $targetDate)
+                ->get();
+
+            foreach ($swapsOut as $swap) {
+                $teacherMap->forget($swap->requester_id);
+                if ($swap->substituteTeacher && $swap->substituteTeacher->is_active) {
+                    $teacherMap->put($swap->substituteTeacher->id, $swap->substituteTeacher);
+                }
+            }
+
+            // b. Jika ada guru pemohon yang mengambil shift pengganti pada targetDate (new_date)
+            $swapsIn = DutySwapRequest::with('requester')
+                ->where('status', 'disetujui')
+                ->whereDate('new_date', $targetDate)
+                ->get();
+
+            foreach ($swapsIn as $swap) {
+                $teacherMap->forget($swap->substitute_teacher_id);
+                if ($swap->requester && $swap->requester->is_active) {
+                    $teacherMap->put($swap->requester->id, $swap->requester);
+                }
+            }
+        }
+
+        // 4. Fallback aman jika pada hari tersebut jadwal di DutySchedule belum diatur sama sekali
+        if ($teacherMap->isEmpty()) {
+            $piketCandidates = User::withoutGlobalScopes()
+                ->where('is_active', true)
+                ->where('name', '!=', 'Guru Piket')
+                ->where('username', '!=', 'gurupiket')
+                ->where(function ($q) {
+                    $q->whereHas('roles', fn ($r) => $r->where('name', 'guru_piket'));
+                });
+
+            if ($institutionId && $institutionId != 1) {
+                $piketCandidates->where(function ($q) use ($institutionId) {
+                    $q->where('institution_id', $institutionId)->orWhereNull('institution_id');
+                });
+            }
+
+            $teachers = $piketCandidates->limit(2)->get();
+            foreach ($teachers as $t) {
+                $teacherMap->put($t->id, $t);
+            }
+        }
+
+        return $teacherMap->values();
+    }
 }

@@ -219,6 +219,17 @@
             <td><strong>Aturan Jam Resmi</strong></td>
             <td>: Masuk (s.d 06:45) &bull; Dhuhur (s.d 12:15) &bull; Ashar (s.d 15:15)</td>
         </tr>
+        @if(!empty($guruPiket1) || !empty($guruPiket2))
+        <tr>
+            <td><strong>Guru Piket Bertugas</strong></td>
+            <td colspan="3">: 
+                1. {{ $guruPiket1?->name ?? '-' }}
+                @if(!empty($guruPiket2))
+                    &nbsp;&bull;&nbsp; 2. {{ $guruPiket2->name }}
+                @endif
+            </td>
+        </tr>
+        @endif
     </table>
 
     <!-- RINGKASAN STATISTIK -->
@@ -504,27 +515,58 @@
     <!-- TANDA TANGAN / PENGESAHAN -->
     <table class="sign-table">
         <tr>
-            <td>
-                Mengetahui,<br>
-                <strong>Guru Piket Harian</strong>
-                <div class="sign-space"></div>
-                <strong>{{ $guruPiket->name ?? '....................................' }}</strong><br>
-                <span>NIP / ID: {{ $guruPiket->nip ?? '-' }}</span>
-            </td>
-            <td>
-                Mengetahui / Memeriksa,<br>
-                <strong>Waka Kesiswaan</strong>
-                <div class="sign-space"></div>
-                <strong>{{ $wakaKesiswaan->name ?? '....................................' }}</strong><br>
-                <span>NIP / ID: {{ $wakaKesiswaan->nip ?? '-' }}</span>
-            </td>
-            <td>
-                Malang, {{ $tanggalFormatted }}<br>
-                <strong>Kepala SMP Islam Baitul Makmur</strong>
-                <div class="sign-space"></div>
-                <strong>{{ $kepalaSekolah->name ?? '....................................' }}</strong><br>
-                <span>NIP / ID: {{ $kepalaSekolah->nip ?? '-' }}</span>
-            </td>
+            @if(!empty($guruPiket2))
+                <td style="width: 25%;">
+                    Mengetahui,<br>
+                    <strong>Guru Piket I</strong>
+                    <div class="sign-space"></div>
+                    <strong>{{ $guruPiket1->name ?? '....................................' }}</strong><br>
+                    <span>NIP / ID: {{ $guruPiket1->nip ?? '-' }}</span>
+                </td>
+                <td style="width: 25%;">
+                    Mengetahui,<br>
+                    <strong>Guru Piket II</strong>
+                    <div class="sign-space"></div>
+                    <strong>{{ $guruPiket2->name ?? '....................................' }}</strong><br>
+                    <span>NIP / ID: {{ $guruPiket2->nip ?? '-' }}</span>
+                </td>
+                <td style="width: 25%;">
+                    Mengetahui / Memeriksa,<br>
+                    <strong>Waka Kesiswaan</strong>
+                    <div class="sign-space"></div>
+                    <strong>{{ $wakaKesiswaan->name ?? '....................................' }}</strong><br>
+                    <span>NIP / ID: {{ $wakaKesiswaan->nip ?? '-' }}</span>
+                </td>
+                <td style="width: 25%;">
+                    Malang, {{ $tanggalTtd ?? $tanggalFormatted }}<br>
+                    <strong>Kepala SMP Islam Baitul Makmur</strong>
+                    <div class="sign-space"></div>
+                    <strong>{{ $kepalaSekolah->name ?? '....................................' }}</strong><br>
+                    <span>NIP / ID: {{ $kepalaSekolah->nip ?? '-' }}</span>
+                </td>
+            @else
+                <td style="width: 33.33%;">
+                    Mengetahui,<br>
+                    <strong>Guru Piket Harian</strong>
+                    <div class="sign-space"></div>
+                    <strong>{{ $guruPiket1->name ?? $guruPiket->name ?? '....................................' }}</strong><br>
+                    <span>NIP / ID: {{ $guruPiket1->nip ?? $guruPiket->nip ?? '-' }}</span>
+                </td>
+                <td style="width: 33.33%;">
+                    Mengetahui / Memeriksa,<br>
+                    <strong>Waka Kesiswaan</strong>
+                    <div class="sign-space"></div>
+                    <strong>{{ $wakaKesiswaan->name ?? '....................................' }}</strong><br>
+                    <span>NIP / ID: {{ $wakaKesiswaan->nip ?? '-' }}</span>
+                </td>
+                <td style="width: 33.33%;">
+                    Malang, {{ $tanggalTtd ?? $tanggalFormatted }}<br>
+                    <strong>Kepala SMP Islam Baitul Makmur</strong>
+                    <div class="sign-space"></div>
+                    <strong>{{ $kepalaSekolah->name ?? '....................................' }}</strong><br>
+                    <span>NIP / ID: {{ $kepalaSekolah->nip ?? '-' }}</span>
+                </td>
+            @endif
         </tr>
     </table>
 

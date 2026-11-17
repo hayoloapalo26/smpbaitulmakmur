@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\AlurTujuanPembelajaran;
 use App\Models\CapaianPembelajaran;
 use App\Models\Classroom;
+use App\Models\DutySchedule;
 use App\Models\MeetingMinute;
 use App\Models\Rppm;
 use App\Models\Student;
@@ -467,14 +468,25 @@ class AcademicPrintController extends Controller
         }
 
         $classroom = $classroomId ? Classroom::find($classroomId) : null;
-        $guruPiket = User::role('guru_piket')->first() ?? $user;
-        $wakaKesiswaan = User::role('waka_kesiswaan')->first();
-        $kepalaSekolah = User::role('kepala_sekolah')->first();
+        $wakaKesiswaan = User::withoutGlobalScopes()
+            ->where(fn ($q) => $q->whereHas('roles', fn ($r) => $r->where('name', 'waka_kesiswaan')))
+            ->when($user?->institution_id && $user->institution_id != 1, fn ($q) => $q->where(fn ($sq) => $sq->where('institution_id', $user->institution_id)->orWhereNull('institution_id')))
+            ->first() ?? User::role('waka_kesiswaan')->first();
+
+        $kepalaSekolah = User::withoutGlobalScopes()
+            ->where(fn ($q) => $q->whereHas('roles', fn ($r) => $r->where('name', 'kepala_sekolah')))
+            ->when($user?->institution_id && $user->institution_id != 1, fn ($q) => $q->where(fn ($sq) => $sq->where('institution_id', $user->institution_id)->orWhereNull('institution_id')))
+            ->first() ?? User::role('kepala_sekolah')->first();
 
         // 1. MODE RENTANG TANGGAL
         if ($mode === 'rentang') {
             $tanggalMulai = $request->query('tanggal_mulai', Carbon::today()->startOfMonth()->toDateString());
             $tanggalSelesai = $request->query('tanggal_selesai', Carbon::today()->toDateString());
+
+            $dutyTeachers = DutySchedule::getDutyTeachersForDate($tanggalSelesai, $user?->institution_id);
+            $guruPiket1 = $dutyTeachers->get(0);
+            $guruPiket2 = $dutyTeachers->get(1);
+            $guruPiket = $guruPiket1 ?? (User::role('guru_piket')->first() ?? $user);
 
             $studentQuery->with([
                 'classroom',
@@ -531,6 +543,7 @@ class AcademicPrintController extends Controller
             ];
 
             $tanggalFormatted = Carbon::parse($tanggalMulai)->translatedFormat('d M Y') . ' s.d ' . Carbon::parse($tanggalSelesai)->translatedFormat('d M Y');
+            $tanggalTtd = Carbon::parse($tanggalSelesai)->translatedFormat('d F Y');
             $filename = 'rekap-presensi-rentang-' . $tanggalMulai . '-sd-' . $tanggalSelesai . ($classroom ? '-' . Str::slug($classroom->name) : '') . '.pdf';
 
             return $this->generatePdf('pdf.daily_attendance_report', compact(
@@ -539,9 +552,13 @@ class AcademicPrintController extends Controller
                 'tanggalMulai',
                 'tanggalSelesai',
                 'tanggalFormatted',
+                'tanggalTtd',
                 'classroom',
                 'stats',
                 'guruPiket',
+                'guruPiket1',
+                'guruPiket2',
+                'dutyTeachers',
                 'wakaKesiswaan',
                 'kepalaSekolah'
             ), 'a4', 'landscape', $filename);
@@ -549,6 +566,11 @@ class AcademicPrintController extends Controller
 
         // 2. MODE HARIAN (DEFAULT)
         $tanggal = $request->query('tanggal', Carbon::today()->toDateString());
+        $dutyTeachers = DutySchedule::getDutyTeachersForDate($tanggal, $user?->institution_id);
+        $guruPiket1 = $dutyTeachers->get(0);
+        $guruPiket2 = $dutyTeachers->get(1);
+        $guruPiket = $guruPiket1 ?? (User::role('guru_piket')->first() ?? $user);
+
         $studentQuery->with([
             'classroom',
             'dailyAttendances' => fn ($q) => $q->withoutGlobalScopes()->whereDate('tanggal', $tanggal),
@@ -557,6 +579,7 @@ class AcademicPrintController extends Controller
         $students = $studentQuery->get();
         $tanggalCarbon = Carbon::parse($tanggal);
         $tanggalFormatted = $tanggalCarbon->translatedFormat('l, d F Y');
+        $tanggalTtd = $tanggalCarbon->translatedFormat('d F Y');
 
         $totalSiswa = $students->count();
         $masukHadir = 0;
@@ -626,9 +649,13 @@ class AcademicPrintController extends Controller
             'students',
             'tanggal',
             'tanggalFormatted',
+            'tanggalTtd',
             'classroom',
             'stats',
             'guruPiket',
+            'guruPiket1',
+            'guruPiket2',
+            'dutyTeachers',
             'wakaKesiswaan',
             'kepalaSekolah'
         ), 'a4', 'landscape', $filename);
