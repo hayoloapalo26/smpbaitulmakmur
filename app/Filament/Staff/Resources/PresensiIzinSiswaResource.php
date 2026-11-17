@@ -298,7 +298,7 @@ class PresensiIzinSiswaResource extends Resource
                         // 2. Jika Hadir Scan / Input Manual
                         if ($att && $att->status === 'hadir') {
                             $jam = $att->waktu_kedatangan ? Carbon::parse($att->waktu_kedatangan)->format('H:i') : '-';
-                            $isLate = $att->is_late || ($att->waktu_kedatangan && Carbon::parse($att->waktu_kedatangan)->format('H:i') > '06:50');
+                            $isLate = $att->is_late || ($att->waktu_kedatangan && Carbon::parse($att->waktu_kedatangan)->format('H:i') > '06:45');
 
                             if ($isLate) {
                                 return '<div class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200 dark:bg-rose-950/40 dark:text-rose-400 dark:border-rose-800">
@@ -891,7 +891,7 @@ class PresensiIzinSiswaResource extends Resource
 
                         Forms\Components\Toggle::make('is_late')
                             ->label('Tandai Terlambat')
-                            ->helperText('Otomatis: Masuk > 06:50, Dhuhur > 12:15, Ashar > 15:15')
+                            ->helperText('Otomatis: Masuk > 06:45, Dhuhur > 12:15, Ashar > 15:15')
                             ->default(false),
 
                         Forms\Components\TextInput::make('keterangan')
@@ -906,7 +906,7 @@ class PresensiIzinSiswaResource extends Resource
 
                         $isLate = (bool) $data['is_late'];
                         if (!$isLate && $jam) {
-                            if ($sesi === 'masuk' && $jam > '06:50') $isLate = true;
+                            if ($sesi === 'masuk' && $jam > '06:45') $isLate = true;
                             if ($sesi === 'sholat_dhuhur' && $jam > '12:15') $isLate = true;
                             if ($sesi === 'sholat_ashar' && $jam > '15:15') $isLate = true;
                         }

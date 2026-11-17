@@ -195,7 +195,7 @@
         <div class="flex flex-wrap items-center justify-between gap-2 text-[11px] text-gray-500 dark:text-gray-400 pt-1 border-t border-gray-100 dark:border-gray-800">
             <div>
                 <strong>Jadwal Resmi:</strong>
-                Masuk <code>06.00–06.50</code> &bull;
+                Masuk <code>06.00–06.45</code> &bull;
                 Sholat Dhuhur <code>12.00–12.15</code> &bull;
                 Ashar &amp; Pulang <code>15.00–15.15</code>
                 (Lewat batas = Terlambat &bull; Kunci 1x scan per sesi)

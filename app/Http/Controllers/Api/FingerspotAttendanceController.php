@@ -20,7 +20,7 @@ use Illuminate\Support\Facades\Schema;
  * Controller Integrasi Mesin Absensi Fingerspot Revo W230N
  *
  * Jadwal & Aturan Keterlambatan Resmi:
- * - Masuk Pagi           : 06.00 - 06.50 (> 06.50 = Terlambat) [Rentang mesin: 00:00 - 11:29]
+ * - Masuk Pagi           : 06.00 - 06.45 (> 06.45 = Terlambat) [Rentang mesin: 00:00 - 11:29]
  * - Sholat Dhuhur        : 12.00 - 12.15 (> 12.15 = Terlambat) [Rentang mesin: 11:30 - 14:29]
  * - Sholat Ashar & Pulang: 15.00 - 15.15 (> 15.15 = Terlambat) [Rentang mesin: 14:30 - 23:59]
  *
@@ -62,8 +62,8 @@ class FingerspotAttendanceController extends Controller
     private const SCHEDULE_RULES = [
         'masuk' => [
             'limit_hour'   => 6,
-            'limit_minute' => 50,
-            'limit_str'    => '06:50',
+            'limit_minute' => 45,
+            'limit_str'    => '06:45',
             'label'        => 'Masuk Pagi',
             'check_tipes'  => ['masuk'],
             'lock_group'   => 'masuk',
@@ -588,7 +588,7 @@ class FingerspotAttendanceController extends Controller
             'latest_db_records'              => $latestDbRecords,
             'webhook_hits_from_cloud_count'  => $cloudWebhookHitsCount,
             'schedule_rules'                 => [
-                'masuk'         => '06:00 - 06:50 (> 06:50 Terlambat, batas scan pagi 11:29)',
+                'masuk'         => '06:00 - 06:45 (> 06:45 Terlambat, batas scan pagi 11:29)',
                 'sholat_dhuhur' => '12:00 - 12:15 (> 12:15 Terlambat, aktif 11:30 - 14:29)',
                 'sholat_ashar'  => '15:00 - 15:15 (> 15:15 Terlambat, aktif 14:30 - 23:59, Ashar & Pulang)',
                 'anti_dobel'    => 'Siswa hanya bisa absen 1 kali per waktu (scan pertama dikunci)',
@@ -1114,7 +1114,7 @@ class FingerspotAttendanceController extends Controller
                 }
             }
 
-            // Evaluasi ketepatan waktu sesuai jadwal resmi (06:50, 12:15, 15:15)
+            // Evaluasi ketepatan waktu sesuai jadwal resmi (06:45, 12:15, 15:15)
             $timing = $this->evaluateAttendanceTiming($tipe, $now, $metode);
 
             // Jika Lana (Trial User), tambahkan badge trial pada keterangan
@@ -1164,7 +1164,7 @@ class FingerspotAttendanceController extends Controller
 
     /**
      * Evaluasi keterlambatan & buat catatan keterangan otomatis untuk semua sesi:
-     * - Masuk: batas 06:50
+     * - Masuk: batas 06:45
      * - Sholat Dhuhur: batas 12:15
      * - Sholat Ashar & Pulang: batas 15:15
      */
@@ -1191,7 +1191,7 @@ class FingerspotAttendanceController extends Controller
 
     /**
      * Deteksi Sesi / Tipe Absen berdasarkan waktu scan WIB:
-     * - 00:00 - 11:29 : Masuk Pagi (Normal: 06.00 - 06.50, > 06.50 = Terlambat)
+     * - 00:00 - 11:29 : Masuk Pagi (Normal: 06.00 - 06.45, > 06.45 = Terlambat)
      * - 11:30 - 14:29 : Sholat Dhuhur (Normal: 12.00 - 12.15, > 12.15 = Terlambat)
      * - 14:30 - 23:59 : Sholat Ashar & Pulang (Normal: 15.00 - 15.15, > 15.15 = Terlambat)
      */

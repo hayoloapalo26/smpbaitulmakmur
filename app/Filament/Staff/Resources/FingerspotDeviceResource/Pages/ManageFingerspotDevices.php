@@ -170,7 +170,7 @@ class ManageFingerspotDevices extends ManageRecords
                 ->icon('heroicon-o-finger-print')
                 ->color('success')
                 ->modalHeading('⚡ Simulasi & Tes Integrasi Mesin Fingerspot Revo W230N')
-                ->modalDescription('Uji ketepatan waktu (Masuk 06.00-06.50, Dhuhur 12.00-12.15, Ashar & Pulang 15.00-15.15) dan penguncian 1x scan langsung ke tabel log presensi.')
+                ->modalDescription('Uji ketepatan waktu (Masuk 06.00-06.45, Dhuhur 12.00-12.15, Ashar & Pulang 15.00-15.15) dan penguncian 1x scan langsung ke tabel log presensi.')
                 ->modalSubmitActionLabel('Kirim Log Presensi')
                 ->form([
                     Forms\Components\Select::make('student_id')
@@ -189,7 +189,7 @@ class ManageFingerspotDevices extends ManageRecords
                         ->label('Sesi / Kategori Simulasi')
                         ->options([
                             'auto'          => '⏱️ Otomatis Sesuai Jam Scan',
-                            'masuk'         => '🌅 Masuk Pagi (Batas 06:50)',
+                            'masuk'         => '🌅 Masuk Pagi (Batas 06:45)',
                             'sholat_dhuhur' => '🕌 Sholat Dhuhur (Batas 12:15)',
                             'sholat_ashar'  => '🏠 Sholat Ashar & Pulang (Batas 15:15)',
                         ])

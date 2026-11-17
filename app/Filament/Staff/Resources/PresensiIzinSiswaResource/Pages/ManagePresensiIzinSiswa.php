@@ -126,7 +126,7 @@ class ManagePresensiIzinSiswa extends ManageRecords
                           ->where('status', 'hadir')
                           ->where(function ($sub) {
                               $sub->where('is_late', true)
-                                  ->orWhere('waktu_kedatangan', '>', '06:50:00');
+                                  ->orWhere('waktu_kedatangan', '>', '06:45:00');
                           });
                     });
                 }),
