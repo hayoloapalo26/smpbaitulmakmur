@@ -245,7 +245,7 @@ class QuranAchievementResource extends Resource
                             ->searchable()
                             ->preload()
                             ->live()
-                            ->afterStateUpdated(function ($state, Forms\Set $set) {
+                            ->afterStateUpdated(function ($state, Forms\Set $set, Forms\Get $get) {
                                 if ($state) {
                                     $student = Student::withoutGlobalScopes()->with(['classroom', 'guruQuran'])->find($state);
                                     if ($student?->kelas_quran) {
@@ -255,15 +255,20 @@ class QuranAchievementResource extends Resource
                                         $set('classroom_id', $student->classroom_id);
                                     }
 
-                                    // Otomatisasi kelanjutan dari setoran terakhir
-                                    $last = QuranAchievement::withoutGlobalScopes()
-                                        ->where('student_id', $state)
-                                        ->orderBy('tanggal', 'desc')
-                                        ->orderBy('id', 'desc')
-                                        ->first();
+                                    // Otomatisasi kelanjutan dari setoran riil terakhir (mengabaikan tidak menyetor)
+                                    $last = QuranAchievement::getLatestActualAchievement($state, 'ziyadah');
+                                    $lastMurajaah = QuranAchievement::getLatestActualAchievement($state, 'murajaah');
+
+                                    if ($last && $lastMurajaah && (empty($last->surah_murajaah) || $last->surah_murajaah === 'tidak_menyetor' || $last->surah_murajaah === 'Tidak Menyetor')) {
+                                        $last->juz_murajaah = $lastMurajaah->juz_murajaah;
+                                        $last->surah_murajaah = $lastMurajaah->surah_murajaah;
+                                        $last->ayah_murajaah = $lastMurajaah->ayah_murajaah;
+                                    } elseif (!$last && $lastMurajaah) {
+                                        $last = $lastMurajaah;
+                                    }
 
                                     $programToUse = $student?->kelas_quran ?? $get('program');
-                                    $next = QuranAchievement::calculateNextProgress($last, $programToUse);
+                                    $next = QuranAchievement::calculateNextProgress($last, $programToUse, $state);
                                     if ($next['has_previous']) {
                                         $set('juz', $next['juz']);
                                         $set('surah', $next['surah']);
@@ -299,22 +304,42 @@ class QuranAchievementResource extends Resource
                                 return 1;
                             })
                             ->searchable()
-                            ->visible(fn (Forms\Get $get) => ($get('program') ?? Auth::user()?->getQuranSpecializationKey()) !== 'tahsin')
-                            ->required(fn (Forms\Get $get) => ($get('program') ?? Auth::user()?->getQuranSpecializationKey()) !== 'tahsin')
+                            ->visible(fn (Forms\Get $get) => ($get('program') ?? Auth::user()?->getQuranSpecializationKey()) !== 'tahsin' && $get('surah') !== 'tidak_menyetor')
+                            ->required(fn (Forms\Get $get) => ($get('program') ?? Auth::user()?->getQuranSpecializationKey()) !== 'tahsin' && $get('surah') !== 'tidak_menyetor')
                             ->nullable(),
 
                         Forms\Components\Select::make('surah')
                             ->label(fn (Forms\Get $get) => ($get('program') ?? Auth::user()?->getQuranSpecializationKey()) === 'tahsin' ? 'Jilid (Jilid Berapa)' : 'Surat Ziyadah')
-                            ->options(fn (Forms\Get $get) => ($get('program') ?? Auth::user()?->getQuranSpecializationKey()) === 'tahsin' ? QuranAchievement::getJilidOptions() : $surahs)
+                            ->options(function (Forms\Get $get) use ($surahs) {
+                                $isTahsin = ($get('program') ?? Auth::user()?->getQuranSpecializationKey()) === 'tahsin';
+                                if ($isTahsin) {
+                                    return ['tidak_menyetor' => '❌ Tidak Menyetor Hari Ini'] + QuranAchievement::getJilidOptions();
+                                }
+                                return ['tidak_menyetor' => '❌ Tidak Menyetor Hari Ini'] + $surahs;
+                            })
                             ->searchable()
                             ->default(fn (Forms\Get $get) => ($get('program') ?? Auth::user()?->getQuranSpecializationKey()) === 'tahsin' ? 'Jilid 1' : '78')
+                            ->live()
+                            ->afterStateUpdated(function ($state, Forms\Set $set, Forms\Get $get) {
+                                if ($state === 'tidak_menyetor') {
+                                    $set('ayah', '-');
+                                    $set('juz', null);
+                                } else {
+                                    if ($get('ayah') === '-' || empty($get('ayah'))) {
+                                        $isTahsin = ($get('program') ?? Auth::user()?->getQuranSpecializationKey()) === 'tahsin';
+                                        $set('ayah', $isTahsin ? 'Hal. 1-5' : '1-10');
+                                    }
+                                }
+                            })
                             ->required(),
 
                         Forms\Components\TextInput::make('ayah')
                             ->label(fn (Forms\Get $get) => ($get('program') ?? Auth::user()?->getQuranSpecializationKey()) === 'tahsin' ? 'Halaman (Halaman Berapa)' : 'Ayat Ziyadah')
                             ->placeholder(fn (Forms\Get $get) => ($get('program') ?? Auth::user()?->getQuranSpecializationKey()) === 'tahsin' ? 'Contoh: Hal. 1-5' : 'Contoh: 1-15 / 1-Akhir')
                             ->default(fn (Forms\Get $get) => ($get('program') ?? Auth::user()?->getQuranSpecializationKey()) === 'tahsin' ? 'Hal. 1-5' : '1-10')
-                            ->required(),
+                            ->required(fn (Forms\Get $get) => $get('surah') !== 'tidak_menyetor')
+                            ->disabled(fn (Forms\Get $get) => $get('surah') === 'tidak_menyetor')
+                            ->helperText(fn (Forms\Get $get) => $get('surah') === 'tidak_menyetor' ? 'Santri tidak menyetorkan Ziyadah pada tanggal ini.' : null),
 
                         Forms\Components\TextInput::make('jilid_halaman')
                             ->label(fn (Forms\Get $get) => match ($get('program') ?? Auth::user()?->getQuranSpecializationKey()) {
@@ -338,19 +363,37 @@ class QuranAchievementResource extends Resource
                             ->placeholder('-- Pilih Juz (Opsional) --')
                             ->options(array_combine(range(1, 30), range(1, 30)))
                             ->searchable()
-                            ->visible(fn (Forms\Get $get) => ($get('program') ?? Auth::user()?->getQuranSpecializationKey()) !== 'tahsin')
+                            ->visible(fn (Forms\Get $get) => ($get('program') ?? Auth::user()?->getQuranSpecializationKey()) !== 'tahsin' && !in_array($get('surah_murajaah'), ['', null, 'tidak_menyetor']))
                             ->nullable(),
 
                         Forms\Components\Select::make('surah_murajaah')
                             ->label(fn (Forms\Get $get) => ($get('program') ?? Auth::user()?->getQuranSpecializationKey()) === 'tahsin' ? 'Jilid Muraja\'ah' : 'Surat Muraja\'ah')
                             ->placeholder(fn (Forms\Get $get) => ($get('program') ?? Auth::user()?->getQuranSpecializationKey()) === 'tahsin' ? '-- Pilih Jilid (Opsional) --' : '-- Pilih Surat (Opsional) --')
-                            ->options(fn (Forms\Get $get) => ($get('program') ?? Auth::user()?->getQuranSpecializationKey()) === 'tahsin' ? QuranAchievement::getJilidOptions() : $surahs)
+                            ->options(function (Forms\Get $get) use ($surahs) {
+                                $isTahsin = ($get('program') ?? Auth::user()?->getQuranSpecializationKey()) === 'tahsin';
+                                if ($isTahsin) {
+                                    return ['tidak_menyetor' => '❌ Tidak Menyetor Hari Ini'] + QuranAchievement::getJilidOptions();
+                                }
+                                return ['tidak_menyetor' => '❌ Tidak Menyetor Hari Ini'] + $surahs;
+                            })
                             ->searchable()
+                            ->live()
+                            ->afterStateUpdated(function ($state, Forms\Set $set) {
+                                if ($state === 'tidak_menyetor') {
+                                    $set('ayah_murajaah', '-');
+                                    $set('juz_murajaah', null);
+                                } elseif (empty($state)) {
+                                    $set('ayah_murajaah', null);
+                                    $set('juz_murajaah', null);
+                                }
+                            })
                             ->nullable(),
 
                         Forms\Components\TextInput::make('ayah_murajaah')
                             ->label(fn (Forms\Get $get) => ($get('program') ?? Auth::user()?->getQuranSpecializationKey()) === 'tahsin' ? 'Halaman Muraja\'ah' : 'Ayat Muraja\'ah')
                             ->placeholder(fn (Forms\Get $get) => ($get('program') ?? Auth::user()?->getQuranSpecializationKey()) === 'tahsin' ? 'Contoh: Hal. 1-5' : 'Contoh: 1-Akhir / 1-25')
+                            ->disabled(fn (Forms\Get $get) => in_array($get('surah_murajaah'), ['', null, 'tidak_menyetor']))
+                            ->helperText(fn (Forms\Get $get) => $get('surah_murajaah') === 'tidak_menyetor' ? 'Santri tidak menyetorkan Muraja\'ah pada tanggal ini.' : null)
                             ->nullable(),
                     ])->columns(3),
 
@@ -484,7 +527,7 @@ class QuranAchievementResource extends Resource
                     ->label('📖 Capaian Ziyadah / Jilid')
                     ->getStateUsing(fn (QuranAchievement $record) => $record->ziyadah_formatted)
                     ->weight('bold')
-                    ->color('emerald')
+                    ->color(fn (QuranAchievement $record) => ($record->surah === 'tidak_menyetor' || $record->surah === 'Tidak Menyetor') ? 'danger' : 'emerald')
                     ->searchable(query: function (Builder $query, string $search) {
                         return $query->where('ayah', 'like', "%{$search}%")
                             ->orWhere('juz', 'like', "%{$search}%")
@@ -495,7 +538,7 @@ class QuranAchievementResource extends Resource
                 Tables\Columns\TextColumn::make('murajaah')
                     ->label('🔁 Capaian Muraja\'ah')
                     ->getStateUsing(fn (QuranAchievement $record) => $record->murajaah_formatted)
-                    ->color(fn ($state) => $state === '-' ? 'gray' : 'info')
+                    ->color(fn (QuranAchievement $record) => ($record->surah_murajaah === 'tidak_menyetor' || $record->surah_murajaah === 'Tidak Menyetor') ? 'danger' : (empty($record->surah_murajaah) ? 'gray' : 'info'))
                     ->placeholder('-')
                     ->searchable(query: function (Builder $query, string $search) {
                         return $query->where('ayah_murajaah', 'like', "%{$search}%")

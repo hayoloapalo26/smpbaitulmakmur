@@ -377,15 +377,28 @@
                                             $types = is_array($row->type) ? $row->type : [$row->type];
                                         @endphp
                                         @foreach($types as $t)
-                                            <span class="px-2 py-0.5 text-xs rounded font-medium {{ $t === 'ziyadah' ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800' }}">
-                                                {{ ucfirst($t) }}
-                                            </span>
+                                            @if($t === 'tidak_menyetor')
+                                                <span class="px-2 py-0.5 text-xs rounded font-medium bg-rose-100 text-rose-800">
+                                                    Tidak Menyetor
+                                                </span>
+                                            @else
+                                                <span class="px-2 py-0.5 text-xs rounded font-medium {{ $t === 'ziyadah' ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800' }}">
+                                                    {{ ucfirst($t) }}
+                                                </span>
+                                            @endif
                                         @endforeach
                                     </td>
                                     <td class="px-4 py-3">
-                                        <span class="font-semibold text-gray-900 dark:text-white">Juz {{ $row->juz }}</span>,
-                                        <span>{{ $surahs[$row->surah] ?? $row->surah }}</span>
-                                        <span class="text-xs text-gray-500">Ayat {{ $row->ayah }}</span>
+                                        @if($row->surah === 'tidak_menyetor' || $row->surah === 'Tidak Menyetor')
+                                            <span class="text-xs font-bold text-rose-600">❌ Tidak Menyetor Hari Ini</span>
+                                        @else
+                                            <span class="font-semibold text-gray-900 dark:text-white">{{ $row->ziyadah_formatted }}</span>
+                                        @endif
+                                        @if(!empty($row->surah_murajaah) && $row->surah_murajaah !== 'tidak_menyetor')
+                                            <div class="text-[11px] text-blue-600 dark:text-blue-400 mt-0.5">
+                                                Muraja'ah: {{ $row->murajaah_formatted }}
+                                            </div>
+                                        @endif
                                     </td>
                                     <td class="px-4 py-3 text-xs italic text-gray-500 max-w-xs truncate">
                                         {{ $row->catatan ?: '-' }}

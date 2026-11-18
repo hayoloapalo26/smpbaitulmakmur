@@ -25,34 +25,53 @@ class QuranAchievement extends Model
 
         static::saving(function (QuranAchievement $record) {
             $isTahsin = ($record->program === 'tahsin' || str_contains(strtolower((string)$record->program), 'tahsin'));
+            $isZiyadahTidakMenyetor = ($record->surah === 'tidak_menyetor' || $record->surah === 'Tidak Menyetor');
+            $isMurajaahTidakMenyetor = ($record->surah_murajaah === 'tidak_menyetor' || $record->surah_murajaah === 'Tidak Menyetor');
+
             if ($isTahsin) {
                 $record->juz = null;
-                if (empty($record->jilid_halaman) && (!empty($record->surah) || !empty($record->ayah))) {
+                if ($isZiyadahTidakMenyetor) {
+                    $record->jilid_halaman = 'Tidak Menyetor Hari Ini';
+                    $record->ayah = $record->ayah ?: '-';
+                } elseif (empty($record->jilid_halaman) && (!empty($record->surah) || !empty($record->ayah))) {
                     $record->jilid_halaman = trim("{$record->surah} {$record->ayah}");
+                }
+            } else {
+                if ($isZiyadahTidakMenyetor) {
+                    $record->juz = null;
+                    $record->ayah = $record->ayah ?: '-';
                 }
             }
 
-            $types = is_array($record->type) ? $record->type : ($record->type ? [$record->type] : []);
-            if (!empty($record->juz) || !empty($record->surah)) {
-                if (!in_array('ziyadah', $types)) {
-                    $types[] = 'ziyadah';
-                }
+            if ($isMurajaahTidakMenyetor) {
+                $record->juz_murajaah = null;
+                $record->ayah_murajaah = $record->ayah_murajaah ?: '-';
             }
-            if (!empty($record->juz_murajaah) || !empty($record->surah_murajaah)) {
-                if (!in_array('murajaah', $types)) {
-                    $types[] = 'murajaah';
-                }
+
+            $isZiyadahValid = !empty($record->surah) && !$isZiyadahTidakMenyetor;
+            $isMurajaahValid = !empty($record->surah_murajaah) && !$isMurajaahTidakMenyetor;
+
+            $types = [];
+            if ($isZiyadahValid) {
+                $types[] = 'ziyadah';
+            }
+            if ($isMurajaahValid) {
+                $types[] = 'murajaah';
             }
             if (empty($types)) {
-                $types = ['ziyadah'];
+                $types = ['tidak_menyetor'];
             }
             $record->type = array_values(array_unique($types));
         });
 
         static::saved(function (QuranAchievement $record) {
             // Sinkronisasi otomatis ke reading_quality_scores agar satu pintu penilaian
-            // langsung terintegrasi dengan rapor, Madin, dan profil kelulusan
-            if ($record->scale_score !== null) {
+            // langsung terintegrasi dengan rapor, Madin, dan profil kelulusan.
+            // Jika hari ini siswa tidak menyetor sama sekali (tidak ziyadah dan tidak muraja'ah),
+            // lewati pembuatan reading_quality_scores agar tidak mengotori rata-rata nilai rapor.
+            $isTidakMenyetorSemua = in_array('tidak_menyetor', (array)$record->type);
+
+            if ($record->scale_score !== null && !$isTidakMenyetorSemua) {
                 \App\Models\ReadingQualityScore::updateOrCreate(
                     [
                         'student_id' => $record->student_id,
@@ -125,6 +144,10 @@ class QuranAchievement extends Model
 
     public function getZiyadahFormattedAttribute(): string
     {
+        if ($this->surah === 'tidak_menyetor' || $this->surah === 'Tidak Menyetor' || empty($this->surah)) {
+            return '❌ Tidak Menyetor Hari Ini';
+        }
+
         $isTahsin = ($this->program === 'tahsin' || str_contains(strtolower((string)$this->program), 'tahsin') || str_contains(strtolower((string)$this->surah), 'jilid'));
 
         if ($isTahsin) {
@@ -132,7 +155,7 @@ class QuranAchievement extends Model
             if (!empty($this->surah)) {
                 $parts[] = str_starts_with((string)$this->surah, 'Jilid') ? $this->surah : "Jilid {$this->surah}";
             }
-            if (!empty($this->ayah)) {
+            if (!empty($this->ayah) && $this->ayah !== '-') {
                 $parts[] = (str_starts_with((string)$this->ayah, 'Hal') || str_starts_with((string)$this->ayah, 'hal')) ? $this->ayah : "Hal. {$this->ayah}";
             }
             if (empty($parts) && !empty($this->jilid_halaman)) {
@@ -148,7 +171,7 @@ class QuranAchievement extends Model
         if ($this->surah_name) {
             $parts[] = "Surat {$this->surah_name}";
         }
-        if ($this->ayah) {
+        if ($this->ayah && $this->ayah !== '-') {
             $parts[] = "Ayat {$this->ayah}";
         }
         if (!empty($this->jilid_halaman)) {
@@ -159,6 +182,14 @@ class QuranAchievement extends Model
 
     public function getMurajaahFormattedAttribute(): string
     {
+        if ($this->surah_murajaah === 'tidak_menyetor' || $this->surah_murajaah === 'Tidak Menyetor') {
+            return '❌ Tidak Menyetor Hari Ini';
+        }
+
+        if (empty($this->surah_murajaah)) {
+            return '-';
+        }
+
         $isTahsin = ($this->program === 'tahsin' || str_contains(strtolower((string)$this->program), 'tahsin') || str_contains(strtolower((string)$this->surah_murajaah), 'jilid'));
 
         if ($isTahsin) {
@@ -166,7 +197,7 @@ class QuranAchievement extends Model
             if (!empty($this->surah_murajaah)) {
                 $parts[] = str_starts_with((string)$this->surah_murajaah, 'Jilid') ? $this->surah_murajaah : "Jilid {$this->surah_murajaah}";
             }
-            if (!empty($this->ayah_murajaah)) {
+            if (!empty($this->ayah_murajaah) && $this->ayah_murajaah !== '-') {
                 $parts[] = (str_starts_with((string)$this->ayah_murajaah, 'Hal') || str_starts_with((string)$this->ayah_murajaah, 'hal')) ? $this->ayah_murajaah : "Hal. {$this->ayah_murajaah}";
             }
             return !empty($parts) ? implode(', ', $parts) : '-';
@@ -179,7 +210,7 @@ class QuranAchievement extends Model
         if ($this->surah_murajaah_name) {
             $parts[] = "Surat {$this->surah_murajaah_name}";
         }
-        if ($this->ayah_murajaah) {
+        if ($this->ayah_murajaah && $this->ayah_murajaah !== '-') {
             $parts[] = "Ayat {$this->ayah_murajaah}";
         }
         return !empty($parts) ? implode(', ', $parts) : '-';
@@ -188,9 +219,9 @@ class QuranAchievement extends Model
     /**
      * Pilihan Jilid resmi untuk kelas Tahsin (dan Yanbu'a)
      */
-    public static function getJilidOptions(): array
+    public static function getJilidOptions(bool $includeTidakMenyetor = false): array
     {
-        return [
+        $options = [
             'Jilid 1'             => '📖 Jilid 1',
             'Jilid 2'             => '📖 Jilid 2',
             'Jilid 3'             => '📖 Jilid 3',
@@ -200,6 +231,38 @@ class QuranAchievement extends Model
             'Al-Qur\'an / Gharib' => '📖 Al-Qur\'an / Gharib',
             'Tajwid'              => '📖 Tajwid',
         ];
+
+        if ($includeTidakMenyetor) {
+            return ['tidak_menyetor' => '❌ Tidak Menyetor Hari Ini'] + $options;
+        }
+
+        return $options;
+    }
+
+    /**
+     * Ambil capaian hafalan/bacaan riil terakhir santri (mengabaikan record 'tidak menyetor').
+     */
+    public static function getLatestActualAchievement(int $studentId, ?string $type = null): ?self
+    {
+        $query = self::withoutGlobalScopes()
+            ->where('student_id', $studentId);
+
+        if ($type === 'murajaah') {
+            $query->whereNotNull('surah_murajaah')
+                ->where('surah_murajaah', '!=', '')
+                ->where('surah_murajaah', '!=', 'tidak_menyetor')
+                ->where('surah_murajaah', '!=', 'Tidak Menyetor');
+        } else {
+            // Default: Ziyadah / materi utama
+            $query->whereNotNull('surah')
+                ->where('surah', '!=', '')
+                ->where('surah', '!=', 'tidak_menyetor')
+                ->where('surah', '!=', 'Tidak Menyetor');
+        }
+
+        return $query->orderBy('tanggal', 'desc')
+            ->orderBy('id', 'desc')
+            ->first();
     }
 
     /**
@@ -276,12 +339,36 @@ class QuranAchievement extends Model
     /**
      * Hitung kelanjutan otomatis (next progress) berdasarkan setoran terakhir santri
      */
-    public static function calculateNextProgress(?self $last, ?string $program = null): array
+    public static function calculateNextProgress(?self $last, ?string $program = null, ?int $studentId = null): array
     {
+        $studentIdToFind = $studentId ?? $last?->student_id;
+
+        // Jika $last bernilai null atau record terakhir yang diteruskan berstatus 'tidak_menyetor',
+        // otomatis ambil setoran riil terakhir yang pernah disetor santri (agar hafalan tidak ter-reset).
+        if ($studentIdToFind && (!$last || $last->surah === 'tidak_menyetor' || $last->surah === 'Tidak Menyetor')) {
+            $actualLast = self::getLatestActualAchievement($studentIdToFind, 'ziyadah');
+            if ($actualLast) {
+                $last = $actualLast;
+            }
+        }
+
+        // Cek juga kelanjutan muraja'ah riil terakhir santri jika $last tidak memiliki muraja'ah
+        $lastMurajaahSurahExplicit = null;
+        $lastMurajaahAyahExplicit = null;
+        $lastMurajaahJuzExplicit = null;
+        if ($studentIdToFind && (!$last || empty($last->surah_murajaah) || $last->surah_murajaah === 'tidak_menyetor' || $last->surah_murajaah === 'Tidak Menyetor')) {
+            $actualLastMurajaah = self::getLatestActualAchievement($studentIdToFind, 'murajaah');
+            if ($actualLastMurajaah) {
+                $lastMurajaahSurahExplicit = $actualLastMurajaah->surah_murajaah;
+                $lastMurajaahAyahExplicit = $actualLastMurajaah->ayah_murajaah;
+                $lastMurajaahJuzExplicit = $actualLastMurajaah->juz_murajaah;
+            }
+        }
+
         $prog = $last?->program ?: $program;
         $isTahsin = ($prog === 'tahsin' || str_contains(strtolower((string)$prog), 'tahsin'));
 
-        if (!$last) {
+        if (!$last || $last->surah === 'tidak_menyetor' || $last->surah === 'Tidak Menyetor') {
             if ($isTahsin) {
                 return [
                     'has_previous'         => false,
@@ -290,8 +377,8 @@ class QuranAchievement extends Model
                     'surah'                => 'Jilid 1',
                     'ayah'                 => 'Hal. 1-5',
                     'juz_murajaah'         => null,
-                    'surah_murajaah'       => '',
-                    'ayah_murajaah'        => '',
+                    'surah_murajaah'       => $lastMurajaahSurahExplicit ?: '',
+                    'ayah_murajaah'        => $lastMurajaahAyahExplicit ?: '',
                     'scale_score'          => 85,
                     'predikat'             => 'Jayyid Jiddan',
                     'catatan'              => '',
@@ -304,9 +391,9 @@ class QuranAchievement extends Model
                 'juz'                  => 30,
                 'surah'                => '78',
                 'ayah'                 => '1-10',
-                'juz_murajaah'         => '',
-                'surah_murajaah'       => '',
-                'ayah_murajaah'        => '',
+                'juz_murajaah'         => $lastMurajaahJuzExplicit ?: '',
+                'surah_murajaah'       => $lastMurajaahSurahExplicit ?: '',
+                'ayah_murajaah'        => $lastMurajaahAyahExplicit ?: '',
                 'scale_score'          => 85,
                 'predikat'             => 'Jayyid Jiddan',
                 'catatan'              => '',
@@ -370,8 +457,8 @@ class QuranAchievement extends Model
             $lastLabel = "{$jilidClean}: {$lastAyahStr}{$lastStatusNote}" . ($dateStr ? " ({$dateStr})" : '');
 
             // Muraja'ah Tahsin
-            $nextSurahMurajaah = $last->surah_murajaah ?: $lastSurahStr;
-            $nextAyahMurajaah = $last->ayah_murajaah ?: $lastAyahStr;
+            $nextSurahMurajaah = $lastMurajaahSurahExplicit ?: ($last->surah_murajaah && $last->surah_murajaah !== 'tidak_menyetor' ? $last->surah_murajaah : $lastSurahStr);
+            $nextAyahMurajaah = $lastMurajaahAyahExplicit ?: ($last->ayah_murajaah && $last->ayah_murajaah !== 'tidak_menyetor' ? $last->ayah_murajaah : $lastAyahStr);
 
             return [
                 'has_previous'         => true,
@@ -450,7 +537,11 @@ class QuranAchievement extends Model
         // Muraja'ah:
         // Jika sebelumnya ada muraja'ah, lanjutkan muraja'ah
         // Jika tidak, gunakan ziyadah kemarin sebagai bahan muraja'ah hari ini
-        if (!empty($last->surah_murajaah)) {
+        if ($lastMurajaahSurahExplicit) {
+            $nextJuzMurajaah = $lastMurajaahJuzExplicit ?: $lastJuz;
+            $nextSurahMurajaah = (string)$lastMurajaahSurahExplicit;
+            $nextAyahMurajaah = $lastMurajaahAyahExplicit ?: '1-Akhir';
+        } elseif (!empty($last->surah_murajaah) && $last->surah_murajaah !== 'tidak_menyetor' && $last->surah_murajaah !== 'Tidak Menyetor') {
             $lastMurajaahSurah = (int)$last->surah_murajaah;
             $lastMurajaahAyah = trim((string)$last->ayah_murajaah);
             $nextJuzMurajaah = $last->juz_murajaah ?: $lastJuz;

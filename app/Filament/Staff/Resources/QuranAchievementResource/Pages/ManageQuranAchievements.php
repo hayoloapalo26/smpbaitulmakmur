@@ -152,9 +152,28 @@ class ManageQuranAchievements extends ManageRecords
                                     // Ambil riwayat capaian setoran terakhir per santri untuk otomatisasi kelanjutan surat & ayat
                                     $studentIds = $students->pluck('id')->filter()->toArray();
                                     $latestAchievements = collect();
+                                    $latestMurajaahs = collect();
                                     if (!empty($studentIds)) {
+                                        // 1. Ambil setoran Ziyadah riil terakhir (mengabaikan record 'tidak_menyetor')
                                         $latestAchievements = QuranAchievement::withoutGlobalScopes()
                                             ->whereIn('student_id', $studentIds)
+                                            ->whereNotNull('surah')
+                                            ->where('surah', '!=', '')
+                                            ->where('surah', '!=', 'tidak_menyetor')
+                                            ->where('surah', '!=', 'Tidak Menyetor')
+                                            ->orderBy('tanggal', 'desc')
+                                            ->orderBy('id', 'desc')
+                                            ->get()
+                                            ->groupBy('student_id')
+                                            ->map(fn ($group) => $group->first());
+
+                                        // 2. Ambil setoran Muraja'ah riil terakhir (mengabaikan record 'tidak_menyetor')
+                                        $latestMurajaahs = QuranAchievement::withoutGlobalScopes()
+                                            ->whereIn('student_id', $studentIds)
+                                            ->whereNotNull('surah_murajaah')
+                                            ->where('surah_murajaah', '!=', '')
+                                            ->where('surah_murajaah', '!=', 'tidak_menyetor')
+                                            ->where('surah_murajaah', '!=', 'Tidak Menyetor')
                                             ->orderBy('tanggal', 'desc')
                                             ->orderBy('id', 'desc')
                                             ->get()
@@ -164,7 +183,17 @@ class ManageQuranAchievements extends ManageRecords
 
                                     foreach ($students as $student) {
                                         $last = $latestAchievements->get($student->id);
-                                        $student->progress_data = QuranAchievement::calculateNextProgress($last, $program);
+                                        $lastMurajaah = $latestMurajaahs->get($student->id);
+
+                                        if ($last && $lastMurajaah && (empty($last->surah_murajaah) || $last->surah_murajaah === 'tidak_menyetor' || $last->surah_murajaah === 'Tidak Menyetor')) {
+                                            $last->juz_murajaah = $lastMurajaah->juz_murajaah;
+                                            $last->surah_murajaah = $lastMurajaah->surah_murajaah;
+                                            $last->ayah_murajaah = $lastMurajaah->ayah_murajaah;
+                                        } elseif (!$last && $lastMurajaah) {
+                                            $last = $lastMurajaah;
+                                        }
+
+                                        $student->progress_data = QuranAchievement::calculateNextProgress($last, $program, $student->id);
                                     }
 
                                     $isTahsin = ($program === 'tahsin' || str_contains(strtolower((string)$program), 'tahsin'));
@@ -244,13 +273,37 @@ class ManageQuranAchievements extends ManageRecords
                             $studentProgram = $student->kelas_quran ?: $program;
                             $isTahsinRow = ($studentProgram === 'tahsin' || str_contains(strtolower((string)$studentProgram), 'tahsin'));
 
-                            $juz = !empty($row['juz']) ? (int)$row['juz'] : ($isTahsinRow ? null : (int)$defaultJuz);
-                            $surah = !empty($row['surah']) ? (string)$row['surah'] : ($isTahsinRow ? 'Jilid 1' : (string)$defaultSurah);
-                            $ayah = !empty($row['ayah']) ? (string)$row['ayah'] : ($isTahsinRow ? 'Hal. 1-5' : (string)$defaultAyah);
+                            // 1. Ziyadah: Cek apakah hari ini tidak menyetorkan
+                            $rawSurah = $row['surah'] ?? null;
+                            $isZiyadahTidakMenyetor = ($rawSurah === 'tidak_menyetor' || $rawSurah === 'Tidak Menyetor');
 
-                            $juzMurajaah = !empty($row['juz_murajaah']) ? (int)$row['juz_murajaah'] : ($isTahsinRow ? null : $defaultJuzMurajaah);
-                            $surahMurajaah = !empty($row['surah_murajaah']) ? (string)$row['surah_murajaah'] : $defaultSurahMurajaah;
-                            $ayahMurajaah = !empty($row['ayah_murajaah']) ? (string)$row['ayah_murajaah'] : $defaultAyahMurajaah;
+                            if ($isZiyadahTidakMenyetor) {
+                                $juz = null;
+                                $surah = 'tidak_menyetor';
+                                $ayah = '-';
+                            } else {
+                                $juz = !empty($row['juz']) ? (int)$row['juz'] : ($isTahsinRow ? null : (int)$defaultJuz);
+                                $surah = !empty($row['surah']) ? (string)$row['surah'] : ($isTahsinRow ? 'Jilid 1' : (string)$defaultSurah);
+                                $ayah = !empty($row['ayah']) ? (string)$row['ayah'] : ($isTahsinRow ? 'Hal. 1-5' : (string)$defaultAyah);
+                            }
+
+                            // 2. Muraja'ah: Cek apakah hari ini tidak menyetorkan
+                            $rawSurahMurajaah = $row['surah_murajaah'] ?? null;
+                            $isMurajaahTidakMenyetor = ($rawSurahMurajaah === 'tidak_menyetor' || $rawSurahMurajaah === 'Tidak Menyetor');
+
+                            if ($isMurajaahTidakMenyetor) {
+                                $juzMurajaah = null;
+                                $surahMurajaah = 'tidak_menyetor';
+                                $ayahMurajaah = '-';
+                            } elseif (!empty($rawSurahMurajaah)) {
+                                $juzMurajaah = !empty($row['juz_murajaah']) ? (int)$row['juz_murajaah'] : ($isTahsinRow ? null : $defaultJuzMurajaah);
+                                $surahMurajaah = (string)$rawSurahMurajaah;
+                                $ayahMurajaah = !empty($row['ayah_murajaah']) ? (string)$row['ayah_murajaah'] : $defaultAyahMurajaah;
+                            } else {
+                                $juzMurajaah = null;
+                                $surahMurajaah = null;
+                                $ayahMurajaah = null;
+                            }
 
                             $scaleScore = isset($row['scale_score']) && $row['scale_score'] !== '' ? (int)$row['scale_score'] : $defaultScaleScore;
                             
@@ -263,11 +316,27 @@ class ManageQuranAchievements extends ManageRecords
                             }
 
                             $catatan = $row['catatan'] ?? null;
-                            $jilid = $row['jilid_halaman'] ?? ($isTahsinRow ? "{$surah} {$ayah}" : null);
+                            if (empty($catatan)) {
+                                if ($isZiyadahTidakMenyetor && $isMurajaahTidakMenyetor) {
+                                    $catatan = 'Tidak ada setoran Al-Qur\'an hari ini.';
+                                } elseif ($isZiyadahTidakMenyetor) {
+                                    $catatan = 'Tidak ada setoran Ziyadah hari ini.';
+                                } elseif ($isMurajaahTidakMenyetor) {
+                                    $catatan = 'Tidak ada setoran Muraja\'ah hari ini.';
+                                }
+                            }
 
-                            $types = ['ziyadah'];
-                            if (!empty($juzMurajaah) || !empty($surahMurajaah)) {
+                            $jilid = $row['jilid_halaman'] ?? ($isTahsinRow ? ($isZiyadahTidakMenyetor ? 'Tidak Menyetor Hari Ini' : "{$surah} {$ayah}") : null);
+
+                            $types = [];
+                            if (!$isZiyadahTidakMenyetor) {
+                                $types[] = 'ziyadah';
+                            }
+                            if (!$isMurajaahTidakMenyetor && !empty($surahMurajaah)) {
                                 $types[] = 'murajaah';
+                            }
+                            if (empty($types)) {
+                                $types = ['tidak_menyetor'];
                             }
 
                             QuranAchievement::create([
