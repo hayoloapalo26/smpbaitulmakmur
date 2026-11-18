@@ -285,9 +285,22 @@ class ManageQuranAchievements extends ManageRecords
                                 $ayah = !empty($row['ayah']) ? (string)$row['ayah'] : ($isTahsinRow ? 'Hal. 1-5' : (string)$defaultAyah);
                             }
 
-                            // 2. Muraja'ah: Cek apakah hari ini tidak menyetorkan
+                            // 2. Muraja'ah: Cek apakah hari ini tidak menyetorkan atau multiple choice
                             $rawSurahMurajaah = $row['surah_murajaah'] ?? null;
-                            $isMurajaahTidakMenyetor = in_array($rawSurahMurajaah, ['tidak_menyetor', 'Tidak Menyetor', '-']);
+                            $isMurajaahTidakMenyetor = false;
+
+                            if (is_array($rawSurahMurajaah)) {
+                                $cleanMurajaahArr = array_values(array_filter($rawSurahMurajaah, fn($v) => !empty($v)));
+                                if (in_array('tidak_menyetor', $cleanMurajaahArr) || in_array('-', $cleanMurajaahArr)) {
+                                    $isMurajaahTidakMenyetor = true;
+                                } elseif (empty($cleanMurajaahArr)) {
+                                    $rawSurahMurajaah = null;
+                                } else {
+                                    $rawSurahMurajaah = implode(', ', $cleanMurajaahArr);
+                                }
+                            } else {
+                                $isMurajaahTidakMenyetor = in_array($rawSurahMurajaah, ['tidak_menyetor', 'Tidak Menyetor', '-']);
+                            }
 
                             if ($isMurajaahTidakMenyetor) {
                                 $juzMurajaah = null;
@@ -296,7 +309,7 @@ class ManageQuranAchievements extends ManageRecords
                             } elseif (!empty($rawSurahMurajaah)) {
                                 $juzMurajaah = !empty($row['juz_murajaah']) && $row['juz_murajaah'] !== '-' ? (int)$row['juz_murajaah'] : ($isTahsinRow ? null : $defaultJuzMurajaah);
                                 $surahMurajaah = (string)$rawSurahMurajaah;
-                                $ayahMurajaah = !empty($row['ayah_murajaah']) ? (string)$row['ayah_murajaah'] : $defaultAyahMurajaah;
+                                $ayahMurajaah = !empty($row['ayah_murajaah']) ? (string)$row['ayah_murajaah'] : ($defaultAyahMurajaah ?: '1-Akhir');
                             } else {
                                 $juzMurajaah = null;
                                 $surahMurajaah = null;

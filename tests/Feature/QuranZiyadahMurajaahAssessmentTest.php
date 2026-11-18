@@ -207,4 +207,73 @@ class QuranZiyadahMurajaahAssessmentTest extends TestCase
         $this->assertEquals('78', $next['surah']);
         $this->assertEquals('11-20', $next['ayah']);
     }
+
+    /**
+     * Test: Multiple choice muraja'ah dapat menyimpan beberapa surat sekaligus (misal 3 Qul),
+     * menguraikannya menjadi array, dan memformat nama-nama suratnya dengan tepat.
+     */
+    public function test_multiple_choice_murajaah_stores_multiple_surahs_and_formats_properly(): void
+    {
+        $this->actingAs($this->guruQuran);
+
+        // 1. Simpan muraja'ah pilihan ganda (array: Al-Ikhlas, Al-Falaq, An-Nas)
+        $achievement = QuranAchievement::create([
+            'institution_id'    => 2,
+            'student_id'        => $this->santri->id,
+            'teacher_id'        => $this->guruQuran->id,
+            'program'           => 'tahfidz_dasar',
+            'juz'               => 30,
+            'surah'             => '78',
+            'ayah'              => '1-10',
+            'juz_murajaah'      => 30,
+            'surah_murajaah'    => ['112', '113', '114'], // 3 Qul
+            'ayah_murajaah'     => '1-Akhir',
+            'scale_score'       => 92,
+            'predikat'          => 'Mumtaz',
+            'tanggal'           => '2026-11-03',
+        ]);
+
+        $fresh = $achievement->fresh();
+
+        // Database menyimpan sebagai string terpisah koma
+        $this->assertEquals('112, 113, 114', $fresh->surah_murajaah);
+
+        // Accessor list menguraikan menjadi array 3 surat
+        $this->assertEquals(['112', '113', '114'], $fresh->surah_murajaah_list);
+
+        // Accessor nama memetakan setiap nomor surat ke namanya
+        $this->assertEquals('Al-Ikhlas, Al-Falaq, An-Nas', $fresh->surah_murajaah_name);
+
+        // Format tampilan lengkap mencakup nama surat dan ayat
+        $this->assertStringContainsString('Al-Ikhlas, Al-Falaq, An-Nas', $fresh->murajaah_formatted);
+        $this->assertStringContainsString('Juz 30', $fresh->murajaah_formatted);
+        $this->assertStringContainsString('Ayat 1-Akhir', $fresh->murajaah_formatted);
+        $this->assertContains('murajaah', $fresh->type);
+    }
+
+    /**
+     * Test: Multiple choice muraja'ah untuk program Tahsin mendukung banyak jilid.
+     */
+    public function test_multiple_choice_murajaah_tahsin_formats_multiple_jilids(): void
+    {
+        $this->actingAs($this->guruQuran);
+
+        $achievement = QuranAchievement::create([
+            'institution_id'    => 2,
+            'student_id'        => $this->santri->id,
+            'teacher_id'        => $this->guruQuran->id,
+            'program'           => 'tahsin',
+            'surah'             => 'Jilid 3',
+            'ayah'              => 'Hal. 1-10',
+            'surah_murajaah'    => ['Jilid 1', 'Jilid 2'],
+            'ayah_murajaah'     => 'Hal. 1-5',
+            'scale_score'       => 88,
+            'predikat'          => 'Jayyid Jiddan',
+            'tanggal'           => '2026-11-03',
+        ]);
+
+        $fresh = $achievement->fresh();
+        $this->assertEquals(['Jilid 1', 'Jilid 2'], $fresh->surah_murajaah_list);
+        $this->assertEquals('Jilid 1, Jilid 2, Hal. 1-5', $fresh->murajaah_formatted);
+    }
 }

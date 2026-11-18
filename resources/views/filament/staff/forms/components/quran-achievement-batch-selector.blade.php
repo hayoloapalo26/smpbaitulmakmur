@@ -30,6 +30,9 @@
                 defaultAyahMurajaah: '{{ $defaultAyahMurajaah ?? '' }}',
                 quickPredikat: 'Jayyid Jiddan',
                 quickCatatan: 'Hafalan lancar dan makharijul huruf tepat.',
+                activeStudentForMurajaah: null,
+                searchSurahMurajaah: '',
+                quickMurajaahPreset: '3_qul',
                 presetCatatans: [
                     'Mutqin lancar sekali tanpa salah, tajwid sempurna.',
                     'Lancar baik, 1-2 kali peringatan/teguran.',
@@ -162,6 +165,132 @@
                         }
                     }
                 },
+                openMurajaahModal(id) {
+                    this.activeStudentForMurajaah = id;
+                    this.searchSurahMurajaah = '';
+                },
+                getActiveStudent() {
+                    if (!this.activeStudentForMurajaah) return null;
+                    return this.students.find(s => s.id === this.activeStudentForMurajaah);
+                },
+                parseSurahArray(val) {
+                    if (!val) return [];
+                    if (Array.isArray(val)) return val.map(String).filter(v => v !== '' && v !== 'tidak_menyetor' && v !== '-');
+                    if (typeof val === 'string') {
+                        if (val === 'tidak_menyetor' || val === '-') return [];
+                        try {
+                            let parsed = JSON.parse(val);
+                            if (Array.isArray(parsed)) return parsed.map(String).filter(v => v !== '' && v !== 'tidak_menyetor' && v !== '-');
+                        } catch(e) {}
+                        if (val.includes(',')) {
+                            return val.split(',').map(s => s.trim()).filter(s => s !== '' && s !== 'tidak_menyetor' && s !== '-');
+                        }
+                        return [val.trim()];
+                    }
+                    return [String(val)];
+                },
+                getSelectedMurajaahArray(id) {
+                    let cur = this.getItem(id);
+                    return this.parseSurahArray(cur.surah_murajaah);
+                },
+                isMurajaahSelected(id, key) {
+                    let arr = this.getSelectedMurajaahArray(id);
+                    return arr.includes(String(key));
+                },
+                toggleMurajaahChoice(id, key) {
+                    let strKey = String(key);
+                    let arr = this.getSelectedMurajaahArray(id);
+                    let idx = arr.indexOf(strKey);
+                    if (idx > -1) {
+                        arr.splice(idx, 1);
+                    } else {
+                        arr.push(strKey);
+                    }
+                    this.setMurajaahChoices(id, arr);
+                },
+                setMurajaahChoices(id, arr) {
+                    if (!arr || arr.length === 0) {
+                        this.updateItem(id, 'surah_murajaah', '');
+                        if (!this.isTahsin) {
+                            this.updateItem(id, 'juz_murajaah', '');
+                        }
+                        this.updateItem(id, 'ayah_murajaah', '');
+                        return;
+                    }
+                    this.updateItem(id, 'surah_murajaah', arr.join(', '));
+                    let curAyah = this.getItem(id).ayah_murajaah;
+                    if (!curAyah || curAyah === '-') {
+                        this.updateItem(id, 'ayah_murajaah', this.isTahsin ? 'Hal. 1-5' : '1-Akhir');
+                    }
+                    if (!this.isTahsin) {
+                        let firstNum = parseInt(arr[0]);
+                        let targetJuz = (firstNum >= 78) ? 30 : ((firstNum >= 67) ? 29 : ((firstNum >= 58) ? 28 : 30));
+                        this.updateItem(id, 'juz_murajaah', targetJuz);
+                    }
+                },
+                applyPresetMurajaah(id, preset) {
+                    let choices = [];
+                    if (this.isTahsin) {
+                        if (preset === 'jilid_1') choices = ['Jilid 1'];
+                        else if (preset === 'jilid_2') choices = ['Jilid 2'];
+                        else if (preset === 'jilid_3') choices = ['Jilid 3'];
+                        else if (preset === 'jilid_1_2') choices = ['Jilid 1', 'Jilid 2'];
+                        else choices = ['Jilid 1'];
+                    } else {
+                        if (preset === '3_qul') choices = ['112', '113', '114'];
+                        else if (preset === 'an_nas_kafirun') choices = ['109', '110', '111', '112', '113', '114'];
+                        else if (preset === 'an_nas_fil') choices = ['105', '106', '107', '108', '109', '110', '111', '112', '113', '114'];
+                        else if (preset === 'an_nas_duha') {
+                            choices = [];
+                            for (let i = 93; i <= 114; i++) choices.push(String(i));
+                        } else if (preset === 'lail_naba') {
+                            choices = [];
+                            for (let i = 78; i <= 92; i++) choices.push(String(i));
+                        } else if (preset === 'juz_30_full') {
+                            choices = [];
+                            for (let i = 78; i <= 114; i++) choices.push(String(i));
+                        }
+                    }
+                    this.setMurajaahChoices(id, choices);
+                },
+                applyQuickMurajaahToRombel(preset) {
+                    this.students.forEach(s => {
+                        if (this.getItem(s.id).active) {
+                            if (preset === 'tidak_menyetor') {
+                                this.updateItem(s.id, 'surah_murajaah', 'tidak_menyetor');
+                                this.updateItem(s.id, 'ayah_murajaah', '-');
+                                if (!this.isTahsin) this.updateItem(s.id, 'juz_murajaah', '-');
+                            } else {
+                                this.applyPresetMurajaah(s.id, preset);
+                            }
+                        }
+                    });
+                },
+                getMurajaahLabel(key) {
+                    if (this.isTahsin) {
+                        return this.jilidOptions[key] || key;
+                    }
+                    return this.surahs[key] ? (key + '. ' + this.surahs[key]) : ('Surat ' + key);
+                },
+                getFilteredMurajaahOptions() {
+                    let q = (this.searchSurahMurajaah || '').toLowerCase().trim();
+                    let result = [];
+                    if (this.isTahsin) {
+                        for (let [k, label] of Object.entries(this.jilidOptions)) {
+                            if (!q || label.toLowerCase().includes(q) || k.toLowerCase().includes(q)) {
+                                result.push({ key: k, label: label });
+                            }
+                        }
+                    } else {
+                        for (let [num, name] of Object.entries(this.surahs)) {
+                            let full = num + '. ' + name;
+                            if (!q || full.toLowerCase().includes(q) || name.toLowerCase().includes(q) || String(num) === q) {
+                                result.push({ key: String(num), label: full, name: name, num: num });
+                            }
+                        }
+                    }
+                    return result;
+                },
                 updateMurajaahSurah(id, val) {
                     this.updateItem(id, 'surah_murajaah', val);
                     let s = this.students.find(st => st.id === id);
@@ -193,10 +322,11 @@
                     let cur = this.getItem(id);
                     if (cur.surah_murajaah === 'tidak_menyetor' || cur.surah_murajaah === '-') {
                         let s = this.students.find(st => st.id === id);
-                        this.updateItem(id, 'surah_murajaah', s ? s.next_surah_murajaah : '');
-                        this.updateItem(id, 'ayah_murajaah', s ? s.next_ayah_murajaah : '');
+                        let defaultNext = s ? s.next_surah_murajaah : '';
+                        this.updateItem(id, 'surah_murajaah', defaultNext);
+                        this.updateItem(id, 'ayah_murajaah', s ? s.next_ayah_murajaah : (defaultNext ? '1-Akhir' : ''));
                         if (!this.isTahsin) {
-                            this.updateItem(id, 'juz_murajaah', s ? s.next_juz_murajaah : '');
+                            this.updateItem(id, 'juz_murajaah', s ? s.next_juz_murajaah : (defaultNext ? 30 : ''));
                         }
                     } else {
                         this.updateItem(id, 'surah_murajaah', 'tidak_menyetor');
@@ -327,7 +457,41 @@
                 </div>
 
                 {{-- Baris 2: Alat Bantu Pengisian Cepat (Quick Fill) --}}
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 pt-1">
+                    {{-- Quick Fill Muraja'ah Multiple Choice Rombel --}}
+                    <div class="flex flex-wrap items-center gap-2 p-2.5 rounded-xl bg-blue-50/80 dark:bg-blue-950/40 border border-blue-200/80 dark:border-blue-800/60">
+                        <span class="text-xs font-bold text-blue-900 dark:text-blue-200 flex items-center gap-1">
+                            <span>🔁</span> Muraja'ah Rombel:
+                        </span>
+                        <select
+                            x-model="quickMurajaahPreset"
+                            class="flex-1 min-w-[150px] px-2.5 py-1 text-xs font-semibold rounded-lg border border-blue-300 dark:border-blue-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                        >
+                            @if(!empty($isTahsin))
+                                <option value="jilid_1">📖 Jilid 1</option>
+                                <option value="jilid_2">📖 Jilid 2</option>
+                                <option value="jilid_3">📖 Jilid 3</option>
+                                <option value="jilid_1_2">📖 Jilid 1 & 2 (Multiple Choice)</option>
+                            @else
+                                <option value="3_qul">⚡ 3 Qul (Al-Ikhlas, Al-Falaq, An-Nas)</option>
+                                <option value="an_nas_kafirun">⚡ Al-Kafirun s.d. An-Nas (6 Surat)</option>
+                                <option value="an_nas_fil">⚡ Al-Fil s.d. An-Nas (10 Surat)</option>
+                                <option value="an_nas_duha">⚡ Ad-Duha s.d. An-Nas (22 Surat)</option>
+                                <option value="lail_naba">⚡ Al-Lail s.d. An-Naba (15 Surat)</option>
+                                <option value="juz_30_full">⚡ Juz 30 Lengkap (78 - 114)</option>
+                            @endif
+                            <option value="tidak_menyetor">❌ Hari Ini Tidak Muraja'ah</option>
+                        </select>
+                        <button
+                            type="button"
+                            @click="applyQuickMurajaahToRombel(quickMurajaahPreset)"
+                            class="px-2.5 py-1 text-[11px] font-bold rounded-lg bg-blue-600 hover:bg-blue-500 text-white shadow-xs transition"
+                            title="Terapkan paket muraja'ah pilihan ganda ini ke seluruh santri yang aktif"
+                        >
+                            Terapkan
+                        </button>
+                    </div>
+
                     {{-- Quick Fill Predikat --}}
                     <div class="flex flex-wrap items-center gap-2 p-2.5 rounded-xl bg-gray-50 dark:bg-gray-800/60 border border-gray-200/70 dark:border-gray-700/60">
                         <span class="text-xs font-bold text-gray-700 dark:text-gray-200 flex items-center gap-1">
@@ -403,14 +567,14 @@
                                         📖 Capaian Tahsin (Materi Jilid & Halaman Baru)
                                     </th>
                                     <th colspan="2" class="px-3 py-2 text-center bg-blue-50/80 dark:bg-blue-950/60 text-blue-900 dark:text-blue-200 border-r border-gray-200 dark:border-gray-700">
-                                        🔁 Capaian Muraja'ah (Pengulangan Jilid & Halaman)
+                                        🔁 Capaian Muraja'ah (Pilihan Ganda / Multiple Choice)
                                     </th>
                                 @else
                                     <th colspan="3" class="px-3 py-2 text-center bg-emerald-50/80 dark:bg-emerald-950/60 text-emerald-900 dark:text-emerald-200 border-r border-gray-200 dark:border-gray-700">
                                         📖 Capaian Ziyadah (Hafalan Baru)
                                     </th>
                                     <th colspan="3" class="px-3 py-2 text-center bg-blue-50/80 dark:bg-blue-950/60 text-blue-900 dark:text-blue-200 border-r border-gray-200 dark:border-gray-700">
-                                        🔁 Capaian Muraja'ah (Pengulangan)
+                                        🔁 Capaian Muraja'ah (Pilihan Ganda / Multiple Choice)
                                     </th>
                                 @endif
 
@@ -432,7 +596,7 @@
                                     <th class="px-2 py-2 w-28 text-center bg-emerald-50/40 dark:bg-emerald-950/30 border-r border-gray-200 dark:border-gray-700">Halaman Berapa</th>
 
                                     {{-- Sub-kolom Muraja'ah Tahsin --}}
-                                    <th class="px-2 py-2 min-w-[140px] bg-blue-50/40 dark:bg-blue-950/30">Jilid Berapa</th>
+                                    <th class="px-2 py-2 min-w-[180px] bg-blue-50/40 dark:bg-blue-950/30">Jilid (Multiple Choice)</th>
                                     <th class="px-2 py-2 w-28 text-center bg-blue-50/40 dark:bg-blue-950/30 border-r border-gray-200 dark:border-gray-700">Halaman Berapa</th>
                                 @else
                                     {{-- Sub-kolom Ziyadah Tahfidz --}}
@@ -442,7 +606,7 @@
 
                                     {{-- Sub-kolom Muraja'ah Tahfidz --}}
                                     <th class="px-2 py-2 w-20 text-center bg-blue-50/40 dark:bg-blue-950/30">Juz</th>
-                                    <th class="px-2 py-2 min-w-[140px] bg-blue-50/40 dark:bg-blue-950/30">Surat</th>
+                                    <th class="px-2 py-2 min-w-[190px] bg-blue-50/40 dark:bg-blue-950/30">Surat (Multiple Choice)</th>
                                     <th class="px-2 py-2 w-24 text-center bg-blue-50/40 dark:bg-blue-950/30 border-r border-gray-200 dark:border-gray-700">Ayat</th>
                                 @endif
 
@@ -552,31 +716,67 @@
                                             </template>
                                         </td>
 
-                                        {{-- 2. Muraja'ah Tahsin: Dropdown Jilid Berapa --}}
+                                        {{-- 2. Muraja'ah Tahsin: Multiple Choice Jilid --}}
                                         <td class="px-2 py-3 bg-blue-50/20 dark:bg-blue-950/10">
-                                            <div class="space-y-1">
-                                                <select
-                                                    :disabled="!getItem(student.id).active"
-                                                    :value="getItem(student.id).surah_murajaah"
-                                                    @change="updateMurajaahSurah(student.id, $event.target.value)"
-                                                    class="w-full text-xs font-semibold px-2 py-1.5 rounded-lg border border-blue-300 dark:border-blue-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 disabled:bg-gray-100 dark:disabled:bg-gray-800/40"
-                                                    :class="(getItem(student.id).surah_murajaah === 'tidak_menyetor' || getItem(student.id).surah_murajaah === '-') ? 'text-center font-bold text-gray-600 dark:text-gray-300 border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-800/60' : ''"
-                                                >
-                                                    <option value="">-- Tanpa Muraja'ah --</option>
-                                                    <option value="tidak_menyetor" class="font-bold text-gray-700 dark:text-gray-300">- (Tidak Setor)</option>
-                                                    <template x-for="(label, key) in jilidOptions" :key="'m-jilid-' + key">
-                                                        <option :value="key" x-text="label" :selected="String(key) === String(getItem(student.id).surah_murajaah)"></option>
-                                                    </template>
-                                                </select>
-                                                <button
-                                                    type="button"
-                                                    x-show="getItem(student.id).active"
-                                                    @click="toggleTidakMenyetorMurajaah(student.id)"
-                                                    class="text-[9px] font-medium transition block text-center w-full"
-                                                    :class="(getItem(student.id).surah_murajaah === 'tidak_menyetor' || getItem(student.id).surah_murajaah === '-') ? 'text-blue-600 hover:text-blue-700 font-bold' : 'text-gray-400 hover:text-rose-600'"
-                                                    x-text="(getItem(student.id).surah_murajaah === 'tidak_menyetor' || getItem(student.id).surah_murajaah === '-') ? '🔄 Pulihkan Setoran' : '❌ Tidak Setor'"
-                                                ></button>
-                                            </div>
+                                            <template x-if="getItem(student.id).surah_murajaah === 'tidak_menyetor' || getItem(student.id).surah_murajaah === '-'">
+                                                <div class="space-y-1 text-center">
+                                                    <span class="inline-flex items-center justify-center px-2 py-1 text-xs font-bold text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 rounded-lg border border-rose-200 dark:border-rose-800">
+                                                        ❌ Tidak Setor
+                                                    </span>
+                                                    <button
+                                                        type="button"
+                                                        x-show="getItem(student.id).active"
+                                                        @click="toggleTidakMenyetorMurajaah(student.id)"
+                                                        class="text-[9px] font-medium text-blue-600 hover:text-blue-700 block text-center w-full"
+                                                    >
+                                                        🔄 Pulihkan Setoran
+                                                    </button>
+                                                </div>
+                                            </template>
+                                            <template x-if="getItem(student.id).surah_murajaah !== 'tidak_menyetor' && getItem(student.id).surah_murajaah !== '-'">
+                                                <div class="space-y-1.5 min-w-[170px]">
+                                                    {{-- Daftar Chip Jilid Terpilih --}}
+                                                    <div class="flex flex-wrap items-center gap-1" x-show="getSelectedMurajaahArray(student.id).length > 0">
+                                                        <template x-for="sKey in getSelectedMurajaahArray(student.id)" :key="'t-chip-' + student.id + '-' + sKey">
+                                                            <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-200 border border-blue-200 dark:border-blue-800">
+                                                                <span x-text="getMurajaahLabel(sKey)"></span>
+                                                                <button
+                                                                    type="button"
+                                                                    :disabled="!getItem(student.id).active"
+                                                                    @click.stop="toggleMurajaahChoice(student.id, sKey)"
+                                                                    class="text-blue-500 hover:text-rose-600 font-extrabold ml-0.5"
+                                                                    title="Hapus jilid ini"
+                                                                >×</button>
+                                                            </span>
+                                                        </template>
+                                                    </div>
+
+                                                    {{-- Tombol Buka Modal Multiple Choice --}}
+                                                    <button
+                                                        type="button"
+                                                        :disabled="!getItem(student.id).active"
+                                                        @click="openMurajaahModal(student.id)"
+                                                        class="w-full text-left px-2 py-1.5 rounded-lg border text-xs font-semibold transition flex items-center justify-between"
+                                                        :class="getSelectedMurajaahArray(student.id).length > 0 
+                                                            ? 'border-blue-300 dark:border-blue-700 bg-white dark:bg-gray-800 text-blue-700 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-950/30' 
+                                                            : 'border-dashed border-blue-300 dark:border-blue-700 hover:border-blue-500 bg-blue-50/40 dark:bg-blue-950/20 text-blue-700 dark:text-blue-300'"
+                                                    >
+                                                        <span class="truncate" x-text="getSelectedMurajaahArray(student.id).length > 0 
+                                                            ? '+ Ubah (' + getSelectedMurajaahArray(student.id).length + ' Jilid)' 
+                                                            : '+ Multiple Choice Jilid...'"></span>
+                                                        <span class="text-xs text-blue-500 shrink-0 ml-1">▾</span>
+                                                    </button>
+
+                                                    <button
+                                                        type="button"
+                                                        x-show="getItem(student.id).active"
+                                                        @click="toggleTidakMenyetorMurajaah(student.id)"
+                                                        class="text-[9px] font-medium text-gray-400 hover:text-rose-600 transition block text-center w-full"
+                                                    >
+                                                        ❌ Tidak Setor
+                                                    </button>
+                                                </div>
+                                            </template>
                                         </td>
 
                                         {{-- 2. Muraja'ah Tahsin: Kolom Ketik Halaman Berapa --}}
@@ -678,31 +878,67 @@
                                             </template>
                                         </td>
 
-                                        {{-- 2. Muraja'ah: Dropdown Surat --}}
+                                        {{-- 2. Muraja'ah Tahfidz: Multiple Choice Surat --}}
                                         <td class="px-2 py-3 bg-blue-50/20 dark:bg-blue-950/10">
-                                            <div class="space-y-1">
-                                                <select
-                                                    :disabled="!getItem(student.id).active"
-                                                    :value="getItem(student.id).surah_murajaah"
-                                                    @change="updateMurajaahSurah(student.id, $event.target.value)"
-                                                    class="w-full text-xs font-semibold px-2 py-1.5 rounded-lg border border-blue-300 dark:border-blue-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 disabled:bg-gray-100 dark:disabled:bg-gray-800/40"
-                                                    :class="(getItem(student.id).surah_murajaah === 'tidak_menyetor' || getItem(student.id).surah_murajaah === '-') ? 'text-center font-bold text-gray-600 dark:text-gray-300 border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-800/60' : ''"
-                                                >
-                                                    <option value="">-- Tanpa Muraja'ah --</option>
-                                                    <option value="tidak_menyetor" class="font-bold text-gray-700 dark:text-gray-300">- (Tidak Setor)</option>
-                                                    <template x-for="(name, num) in surahs" :key="'m-surah-' + num">
-                                                        <option :value="num" x-text="num + '. ' + name" :selected="String(num) === String(getItem(student.id).surah_murajaah)"></option>
-                                                    </template>
-                                                </select>
-                                                <button
-                                                    type="button"
-                                                    x-show="getItem(student.id).active"
-                                                    @click="toggleTidakMenyetorMurajaah(student.id)"
-                                                    class="text-[9px] font-medium transition block text-center w-full"
-                                                    :class="(getItem(student.id).surah_murajaah === 'tidak_menyetor' || getItem(student.id).surah_murajaah === '-') ? 'text-blue-600 hover:text-blue-700 font-bold' : 'text-gray-400 hover:text-rose-600'"
-                                                    x-text="(getItem(student.id).surah_murajaah === 'tidak_menyetor' || getItem(student.id).surah_murajaah === '-') ? '🔄 Pulihkan Setoran' : '❌ Tidak Setor'"
-                                                ></button>
-                                            </div>
+                                            <template x-if="getItem(student.id).surah_murajaah === 'tidak_menyetor' || getItem(student.id).surah_murajaah === '-'">
+                                                <div class="space-y-1 text-center">
+                                                    <span class="inline-flex items-center justify-center px-2 py-1 text-xs font-bold text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 rounded-lg border border-rose-200 dark:border-rose-800">
+                                                        ❌ Tidak Setor
+                                                    </span>
+                                                    <button
+                                                        type="button"
+                                                        x-show="getItem(student.id).active"
+                                                        @click="toggleTidakMenyetorMurajaah(student.id)"
+                                                        class="text-[9px] font-medium text-blue-600 hover:text-blue-700 block text-center w-full"
+                                                    >
+                                                        🔄 Pulihkan Setoran
+                                                    </button>
+                                                </div>
+                                            </template>
+                                            <template x-if="getItem(student.id).surah_murajaah !== 'tidak_menyetor' && getItem(student.id).surah_murajaah !== '-'">
+                                                <div class="space-y-1.5 min-w-[190px]">
+                                                    {{-- Daftar Chip Surat Terpilih --}}
+                                                    <div class="flex flex-wrap items-center gap-1" x-show="getSelectedMurajaahArray(student.id).length > 0">
+                                                        <template x-for="sKey in getSelectedMurajaahArray(student.id)" :key="'m-chip-' + student.id + '-' + sKey">
+                                                            <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-200 border border-blue-200 dark:border-blue-800">
+                                                                <span x-text="getMurajaahLabel(sKey)"></span>
+                                                                <button
+                                                                    type="button"
+                                                                    :disabled="!getItem(student.id).active"
+                                                                    @click.stop="toggleMurajaahChoice(student.id, sKey)"
+                                                                    class="text-blue-500 hover:text-rose-600 font-extrabold ml-0.5"
+                                                                    title="Hapus surat ini"
+                                                                >×</button>
+                                                            </span>
+                                                        </template>
+                                                    </div>
+
+                                                    {{-- Tombol Buka Modal Multiple Choice --}}
+                                                    <button
+                                                        type="button"
+                                                        :disabled="!getItem(student.id).active"
+                                                        @click="openMurajaahModal(student.id)"
+                                                        class="w-full text-left px-2 py-1.5 rounded-lg border text-xs font-semibold transition flex items-center justify-between"
+                                                        :class="getSelectedMurajaahArray(student.id).length > 0 
+                                                            ? 'border-blue-300 dark:border-blue-700 bg-white dark:bg-gray-800 text-blue-700 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-950/30' 
+                                                            : 'border-dashed border-blue-300 dark:border-blue-700 hover:border-blue-500 bg-blue-50/40 dark:bg-blue-950/20 text-blue-700 dark:text-blue-300'"
+                                                    >
+                                                        <span class="truncate" x-text="getSelectedMurajaahArray(student.id).length > 0 
+                                                            ? '+ Ubah (' + getSelectedMurajaahArray(student.id).length + ' Surat)' 
+                                                            : '+ Multiple Choice Surat...'"></span>
+                                                        <span class="text-xs text-blue-500 shrink-0 ml-1">▾</span>
+                                                    </button>
+
+                                                    <button
+                                                        type="button"
+                                                        x-show="getItem(student.id).active"
+                                                        @click="toggleTidakMenyetorMurajaah(student.id)"
+                                                        class="text-[9px] font-medium text-gray-400 hover:text-rose-600 transition block text-center w-full"
+                                                    >
+                                                        ❌ Tidak Setor
+                                                    </button>
+                                                </div>
+                                            </template>
                                         </td>
 
                                         {{-- 2. Muraja'ah: Kolom Ketik Ayat --}}
@@ -807,6 +1043,118 @@
                             </template>
                         </tbody>
                     </table>
+                </div>
+            </div>
+
+            {{-- MODAL DIALOG MULTIPLE CHOICE MURAJA'AH --}}
+            <div
+                x-show="activeStudentForMurajaah !== null"
+                x-cloak
+                class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-xs"
+                @keydown.escape.window="activeStudentForMurajaah = null"
+            >
+                <div
+                    class="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 max-w-2xl w-full p-5 space-y-4 max-h-[90vh] flex flex-col"
+                    @click.outside="activeStudentForMurajaah = null"
+                >
+                    {{-- Header Modal --}}
+                    <div class="flex items-center justify-between pb-3 border-b border-gray-200 dark:border-gray-800">
+                        <div>
+                            <h4 class="text-sm font-bold text-gray-900 dark:text-white flex items-center gap-1.5">
+                                <span>🔁</span> Pilihan Ganda (Multiple Choice) Capaian Muraja'ah
+                            </h4>
+                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                                Santri: <strong class="text-blue-600 dark:text-blue-400" x-text="getActiveStudent()?.name"></strong> • Centang satu atau beberapa surat/jilid yang dimuraja'ahkan hari ini.
+                            </p>
+                        </div>
+                        <button
+                            type="button"
+                            @click="activeStudentForMurajaah = null"
+                            class="w-7 h-7 rounded-lg flex items-center justify-center text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 bg-gray-100 dark:bg-gray-800 transition"
+                        >
+                            ✕
+                        </button>
+                    </div>
+
+                    {{-- Paket Pilihan Cepat (Quick Presets) --}}
+                    <div class="space-y-1.5">
+                        <span class="text-[11px] font-bold text-gray-700 dark:text-gray-300 flex items-center gap-1">
+                            <span>⚡</span> Pilihan Cepat (Sekali Klik):
+                        </span>
+                        <div class="flex flex-wrap items-center gap-1.5 text-xs">
+                            @if(!empty($isTahsin))
+                                <button type="button" @click="applyPresetMurajaah(activeStudentForMurajaah, 'jilid_1')" class="px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 font-bold border border-blue-200 dark:border-blue-800 transition">Jilid 1</button>
+                                <button type="button" @click="applyPresetMurajaah(activeStudentForMurajaah, 'jilid_2')" class="px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 font-bold border border-blue-200 dark:border-blue-800 transition">Jilid 2</button>
+                                <button type="button" @click="applyPresetMurajaah(activeStudentForMurajaah, 'jilid_3')" class="px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 font-bold border border-blue-200 dark:border-blue-800 transition">Jilid 3</button>
+                                <button type="button" @click="applyPresetMurajaah(activeStudentForMurajaah, 'jilid_1_2')" class="px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 font-bold border border-blue-200 dark:border-blue-800 transition">Jilid 1 & 2</button>
+                            @else
+                                <button type="button" @click="applyPresetMurajaah(activeStudentForMurajaah, '3_qul')" class="px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 font-bold border border-blue-200 dark:border-blue-800 transition">
+                                    ⚡ 3 Qul (Ikhlas, Falaq, Nas)
+                                </button>
+                                <button type="button" @click="applyPresetMurajaah(activeStudentForMurajaah, 'an_nas_kafirun')" class="px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 font-bold border border-blue-200 dark:border-blue-800 transition">
+                                    ⚡ Kafirun s.d. Nas (6 Surat)
+                                </button>
+                                <button type="button" @click="applyPresetMurajaah(activeStudentForMurajaah, 'an_nas_fil')" class="px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 font-bold border border-blue-200 dark:border-blue-800 transition">
+                                    ⚡ Al-Fil s.d. Nas (10 Surat)
+                                </button>
+                                <button type="button" @click="applyPresetMurajaah(activeStudentForMurajaah, 'an_nas_duha')" class="px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 font-bold border border-blue-200 dark:border-blue-800 transition">
+                                    ⚡ Ad-Duha s.d. Nas
+                                </button>
+                                <button type="button" @click="applyPresetMurajaah(activeStudentForMurajaah, 'juz_30_full')" class="px-2.5 py-1 rounded-lg bg-purple-50 hover:bg-purple-100 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 font-bold border border-purple-200 dark:border-purple-800 transition">
+                                    ⚡ Juz 30 Lengkap
+                                </button>
+                            @endif
+                            <button type="button" @click="setMurajaahChoices(activeStudentForMurajaah, [])" class="px-2.5 py-1 rounded-lg bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 text-gray-700 dark:text-gray-300 font-semibold border border-gray-300 dark:border-gray-600 transition">
+                                🗑️ Kosongkan
+                            </button>
+                        </div>
+                    </div>
+
+                    {{-- Pencarian Surat --}}
+                    <div>
+                        <input
+                            type="text"
+                            x-model="searchSurahMurajaah"
+                            placeholder="🔍 Ketik nama surat atau nomor... (misal: ikhlas, falaq, nas, yasin)"
+                            class="w-full text-xs px-3 py-2 rounded-xl border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 transition"
+                        />
+                    </div>
+
+                    {{-- Grid Checklist Checkboxes (Multiple Choice) --}}
+                    <div class="flex-1 overflow-y-auto p-1 max-h-[360px] border border-gray-200 dark:border-gray-700 rounded-xl bg-gray-50/50 dark:bg-gray-900/50">
+                        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-1.5 p-2">
+                            <template x-for="item in getFilteredMurajaahOptions()" :key="'chk-' + item.key">
+                                <label
+                                    class="flex items-center gap-2.5 px-2.5 py-2 rounded-xl border cursor-pointer text-xs font-semibold transition select-none"
+                                    :class="isMurajaahSelected(activeStudentForMurajaah, item.key)
+                                        ? 'bg-blue-100/80 dark:bg-blue-950/80 border-blue-400 text-blue-900 dark:text-blue-100'
+                                        : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-blue-50/50'"
+                                >
+                                    <input
+                                        type="checkbox"
+                                        :checked="isMurajaahSelected(activeStudentForMurajaah, item.key)"
+                                        @change="toggleMurajaahChoice(activeStudentForMurajaah, item.key)"
+                                        class="rounded text-blue-600 focus:ring-blue-500 w-4 h-4 border-gray-300 cursor-pointer"
+                                    />
+                                    <span class="truncate" x-text="item.label"></span>
+                                </label>
+                            </template>
+                        </div>
+                    </div>
+
+                    {{-- Footer Modal --}}
+                    <div class="flex items-center justify-between pt-2 border-t border-gray-200 dark:border-gray-800">
+                        <div class="text-xs font-bold text-gray-600 dark:text-gray-400">
+                            Terpilih: <strong class="text-blue-600 dark:text-blue-400" x-text="getSelectedMurajaahArray(activeStudentForMurajaah).length"></strong> Pilihan
+                        </div>
+                        <button
+                            type="button"
+                            @click="activeStudentForMurajaah = null"
+                            class="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold shadow-xs transition cursor-pointer"
+                        >
+                            ✓ Selesai & Simpan Pilihan
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
