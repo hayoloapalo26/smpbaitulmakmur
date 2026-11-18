@@ -189,7 +189,7 @@ class ManageFingerspotDevices extends ManageRecords
                         ->label('Sesi / Kategori Simulasi')
                         ->options([
                             'auto'          => '⏱️ Otomatis Sesuai Jam Scan',
-                            'masuk'         => '🌅 Masuk Pagi (Batas 06:45)',
+                            'masuk'         => '🌅 Masuk Pagi (Batas 06:45, mulai 06:46 terlambat)',
                             'sholat_dhuhur' => '🕌 Sholat Dhuhur (Batas 12:15)',
                             'sholat_ashar'  => '🏠 Sholat Ashar & Pulang (Batas 15:15)',
                         ])

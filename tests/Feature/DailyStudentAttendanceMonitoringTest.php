@@ -493,4 +493,60 @@ class DailyStudentAttendanceMonitoringTest extends TestCase
         $this->assertEquals('izin', $attAsharTomorrow->status);
         $this->assertEquals('Izin acara keluarga', $attAsharTomorrow->keterangan);
     }
+
+    /**
+     * 8. Test Keterlambatan masuk dimulai pukul 06.46 dan pukul 06.45 dihitung tidak terlambat (tepat waktu).
+     */
+    public function test_late_threshold_starts_at_06_46_and_06_45_is_on_time(): void
+    {
+        $date = Carbon::today()->toDateString();
+
+        // 1. Scan pada pukul 06:45:00 -> TEPAT WAKTU (is_late = false)
+        $att45_00 = DailyAttendance::create([
+            'student_id'       => $this->studentMale->id,
+            'tanggal'          => $date,
+            'tipe_absen'       => 'masuk',
+            'waktu_kedatangan' => '06:45:00',
+            'status'           => 'hadir',
+            'metode_absen'     => 'fingerprint',
+        ]);
+        $this->assertFalse((bool) $att45_00->is_late);
+        $this->assertNull($att45_00->late_approval_status);
+
+        // 2. Scan pada pukul 06:45:50 (menit 06:45) -> TEPAT WAKTU (is_late = false)
+        $att45_50 = DailyAttendance::create([
+            'student_id'       => $this->studentFemale->id,
+            'tanggal'          => $date,
+            'tipe_absen'       => 'masuk',
+            'waktu_kedatangan' => '06:45:50',
+            'status'           => 'hadir',
+            'metode_absen'     => 'fingerprint',
+        ]);
+        $this->assertFalse((bool) $att45_50->is_late);
+        $this->assertNull($att45_50->late_approval_status);
+
+        // 3. Scan pada pukul 06:46:00 -> TERLAMBAT (is_late = true, status = pending, poin = 5)
+        $studentLate = Student::create([
+            'name'           => 'Santri Terlambat',
+            'nis'            => '7009',
+            'fingerspot_pin' => '7009',
+            'classroom_id'   => $this->classroom->id,
+            'jenis_kelamin'  => 'L',
+            'tanggal_lahir'  => '2012-01-01',
+            'institution_id' => $this->institution->id,
+            'status_siswa'   => 'aktif',
+        ]);
+
+        $att46_00 = DailyAttendance::create([
+            'student_id'       => $studentLate->id,
+            'tanggal'          => $date,
+            'tipe_absen'       => 'masuk',
+            'waktu_kedatangan' => '06:46:00',
+            'status'           => 'hadir',
+            'metode_absen'     => 'fingerprint',
+        ]);
+        $this->assertTrue((bool) $att46_00->is_late);
+        $this->assertEquals('pending', $att46_00->late_approval_status);
+        $this->assertEquals(5, $att46_00->late_penalty_points);
+    }
 }

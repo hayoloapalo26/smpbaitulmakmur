@@ -43,11 +43,11 @@ class DailyAttendance extends Model
                 $attendance->tipe_absen = 'masuk';
             }
 
-            // Otomatisasi Keterlambatan Masuk Sekolah (> 06.45 WIB):
+            // Otomatisasi Keterlambatan Masuk Sekolah (Dimulai 06.46 WIB, pukul 06.45 tepat waktu/tidak terlambat):
             // Default disiapkan poin 5 dan status 'pending' (menunggu ACC Waka Kesiswaan sebelum poin difixkan).
             if ($attendance->tipe_absen === 'masuk' && $attendance->status === 'hadir') {
                 $waktu = $attendance->waktu_kedatangan ? Carbon::parse($attendance->waktu_kedatangan)->format('H:i:s') : null;
-                $isLate = (bool) $attendance->is_late || ($waktu && $waktu > '06:45:00');
+                $isLate = $waktu ? ($waktu >= '06:46:00') : (bool) $attendance->is_late;
 
                 if ($isLate) {
                     $attendance->is_late = true;
@@ -58,6 +58,8 @@ class DailyAttendance extends Model
                         $attendance->late_approval_status = 'pending';
                     }
                 } else {
+                    $attendance->is_late = false;
+                    $attendance->late_penalty_points = null;
                     $attendance->late_approval_status = null;
                 }
             }
@@ -331,7 +333,7 @@ class DailyAttendance extends Model
                 'classroom_id'           => $student?->classroom_id,
                 'tanggal'                => $this->tanggal,
                 'jam'                    => $jam,
-                'bentuk_pelanggaran'     => 'Keterlambatan Masuk Sekolah (> 06.45 WIB)',
+                'bentuk_pelanggaran'     => 'Keterlambatan Masuk Sekolah (Mulai 06.46 WIB)',
                 'poin'                   => $points,
                 'teacher_id'             => $approvedById,
                 'tindak_lanjut_langsung' => "Poin keterlambatan (+{$points} Poin) disetujui (ACC) oleh Waka Kesiswaan ({$approverName}).",

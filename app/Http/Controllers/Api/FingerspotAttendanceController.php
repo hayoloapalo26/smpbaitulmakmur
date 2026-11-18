@@ -588,7 +588,7 @@ class FingerspotAttendanceController extends Controller
             'latest_db_records'              => $latestDbRecords,
             'webhook_hits_from_cloud_count'  => $cloudWebhookHitsCount,
             'schedule_rules'                 => [
-                'masuk'         => '06:00 - 06:45 (> 06:45 Terlambat, batas scan pagi 11:29)',
+                'masuk'         => '06:00 - 06:45 (Mulai 06:46 Terlambat, 06:45 Tepat Waktu, batas scan pagi 11:29)',
                 'sholat_dhuhur' => '12:00 - 12:15 (> 12:15 Terlambat, aktif 11:30 - 14:29)',
                 'sholat_ashar'  => '15:00 - 15:15 (> 15:15 Terlambat, aktif 14:30 - 23:59, Ashar & Pulang)',
                 'anti_dobel'    => 'Siswa hanya bisa absen 1 kali per waktu (scan pertama dikunci)',

@@ -298,7 +298,7 @@ class PresensiIzinSiswaResource extends Resource
                         // 2. Jika Hadir Scan / Input Manual
                         if ($att && $att->status === 'hadir') {
                             $jam = $att->waktu_kedatangan ? Carbon::parse($att->waktu_kedatangan)->format('H:i') : '-';
-                            $isLate = $att->is_late || ($att->waktu_kedatangan && Carbon::parse($att->waktu_kedatangan)->format('H:i') > '06:45');
+                            $isLate = $att->waktu_kedatangan ? (Carbon::parse($att->waktu_kedatangan)->format('H:i') >= '06:46') : (bool) $att->is_late;
 
                             if ($isLate) {
                                 $accStatus = $att->late_approval_status ?? 'pending';
@@ -898,7 +898,7 @@ class PresensiIzinSiswaResource extends Resource
 
                         Forms\Components\Toggle::make('is_late')
                             ->label('Tandai Terlambat')
-                            ->helperText('Otomatis: Masuk > 06:45, Dhuhur > 12:15, Ashar > 15:15')
+                            ->helperText('Otomatis: Masuk >= 06:46 (06:45 tepat waktu), Dhuhur > 12:15, Ashar > 15:15')
                             ->default(false),
 
                         Forms\Components\TextInput::make('keterangan')
@@ -913,7 +913,7 @@ class PresensiIzinSiswaResource extends Resource
 
                         $isLate = (bool) $data['is_late'];
                         if (!$isLate && $jam) {
-                            if ($sesi === 'masuk' && $jam > '06:45') $isLate = true;
+                            if ($sesi === 'masuk' && $jam >= '06:46') $isLate = true;
                             if ($sesi === 'sholat_dhuhur' && $jam > '12:15') $isLate = true;
                             if ($sesi === 'sholat_ashar' && $jam > '15:15') $isLate = true;
                         }
@@ -1018,7 +1018,7 @@ class PresensiIzinSiswaResource extends Resource
                         if (!$att) {
                             return false;
                         }
-                        $isLate = (bool) $att->is_late || ($att->waktu_kedatangan && Carbon::parse($att->waktu_kedatangan)->format('H:i') > '06:45');
+                        $isLate = $att->waktu_kedatangan ? (Carbon::parse($att->waktu_kedatangan)->format('H:i') >= '06:46') : (bool) $att->is_late;
                         return $isLate && $att->late_approval_status !== 'approved';
                     })
                     ->requiresConfirmation()
@@ -1055,7 +1055,7 @@ class PresensiIzinSiswaResource extends Resource
                         if (!$att) {
                             return false;
                         }
-                        $isLate = (bool) $att->is_late || ($att->waktu_kedatangan && Carbon::parse($att->waktu_kedatangan)->format('H:i') > '06:45');
+                        $isLate = $att->waktu_kedatangan ? (Carbon::parse($att->waktu_kedatangan)->format('H:i') >= '06:46') : (bool) $att->is_late;
                         return $isLate && $att->late_approval_status !== 'rejected';
                     })
                     ->modalHeading(fn (Student $record) => "Beri Dispensasi Keterlambatan: {$record->name}")
@@ -1098,7 +1098,8 @@ class PresensiIzinSiswaResource extends Resource
                             $count = 0;
                             foreach ($records as $record) {
                                 $att = $record->getAttendanceOnDate($tanggal, 'masuk');
-                                if ($att && ($att->is_late || ($att->waktu_kedatangan && Carbon::parse($att->waktu_kedatangan)->format('H:i') > '06:45')) && $att->late_approval_status !== 'approved') {
+                                $isLate = $att && ($att->waktu_kedatangan ? (Carbon::parse($att->waktu_kedatangan)->format('H:i') >= '06:46') : $att->is_late);
+                                if ($isLate && $att->late_approval_status !== 'approved') {
                                     $att->approveLatePenalty(Auth::id());
                                     $count++;
                                 }
@@ -1130,7 +1131,8 @@ class PresensiIzinSiswaResource extends Resource
                             $count = 0;
                             foreach ($records as $record) {
                                 $att = $record->getAttendanceOnDate($tanggal, 'masuk');
-                                if ($att && ($att->is_late || ($att->waktu_kedatangan && Carbon::parse($att->waktu_kedatangan)->format('H:i') > '06:45'))) {
+                                $isLate = $att && ($att->waktu_kedatangan ? (Carbon::parse($att->waktu_kedatangan)->format('H:i') >= '06:46') : $att->is_late);
+                                if ($isLate) {
                                     $att->rejectLatePenalty($data['alasan_dispensasi'], Auth::id());
                                     $count++;
                                 }

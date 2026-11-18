@@ -643,7 +643,9 @@ class AcademicPrintController extends Controller
 
             if ($attMasuk && $attMasuk->status === 'hadir') {
                 $masukHadir++;
-                if ($attMasuk->is_late || ($attMasuk->waktu_kedatangan && Carbon::parse($attMasuk->waktu_kedatangan)->format('H:i') > '06:45')) {
+                $jamMasuk = $attMasuk->waktu_kedatangan ? Carbon::parse($attMasuk->waktu_kedatangan)->format('H:i') : null;
+                $isLate = $jamMasuk ? ($jamMasuk >= '06:46') : (bool) $attMasuk->is_late;
+                if ($isLate) {
                     $masukTerlambat++;
                 } else {
                     $masukTepat++;

@@ -216,7 +216,7 @@
             <td><strong>Waktu Cetak</strong></td>
             <td>: {{ now()->translatedFormat('d F Y, H:i') }} WIB (Oleh: {{ auth()->user()->name ?? 'Petugas' }})</td>
             <td><strong>Aturan Jam Resmi</strong></td>
-            <td>: Masuk (s.d 06:45) &bull; Dhuhur (s.d 12:15) &bull; Ashar (s.d 15:15)</td>
+            <td>: Masuk (s.d 06:45, terlambat mulai 06:46) &bull; Dhuhur (s.d 12:15) &bull; Ashar (s.d 15:15)</td>
         </tr>
         @if(!empty($guruPiket1) || !empty($guruPiket2))
         <tr>
@@ -399,7 +399,8 @@
                         $badgeMasuk = 'badge-gray';
                         if ($attMasuk && $attMasuk->status === 'hadir') {
                             $jamMasuk = $attMasuk->waktu_kedatangan ? \Carbon\Carbon::parse($attMasuk->waktu_kedatangan)->format('H:i') : 'Hadir';
-                            $isLate = $attMasuk->is_late || ($attMasuk->waktu_kedatangan && \Carbon\Carbon::parse($attMasuk->waktu_kedatangan)->format('H:i') > '06:45');
+                            $jamMasukStr = $attMasuk->waktu_kedatangan ? \Carbon\Carbon::parse($attMasuk->waktu_kedatangan)->format('H:i') : null;
+                            $isLate = $jamMasukStr ? ($jamMasukStr >= '06:46') : (bool) $attMasuk->is_late;
                             $ketMasuk = $isLate ? 'Terlambat' : 'Tepat Waktu';
                             $badgeMasuk = $isLate ? 'badge-rose' : 'badge-green';
                         } elseif ($excused || ($attMasuk && in_array($attMasuk->status, ['sakit', 'izin', 'alpa']))) {

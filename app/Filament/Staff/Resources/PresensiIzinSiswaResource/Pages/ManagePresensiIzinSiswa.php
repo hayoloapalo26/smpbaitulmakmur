@@ -119,8 +119,14 @@ class ManagePresensiIzinSiswa extends ManageRecords
                         ->where('tipe_absen', 'masuk')
                         ->where('status', 'hadir')
                         ->where(function ($sub) {
-                            $sub->where('is_late', true)
-                                ->orWhere('waktu_kedatangan', '>', '06:45:00');
+                            $sub->where('waktu_kedatangan', '>=', '06:46:00')
+                                ->orWhere(function ($sq) {
+                                    $sq->where('is_late', true)
+                                       ->where(function ($ssq) {
+                                           $ssq->where('waktu_kedatangan', '>=', '06:46:00')
+                                               ->orWhereNull('waktu_kedatangan');
+                                       });
+                                });
                         });
                     if ($isRentang) {
                         $q->whereBetween('tanggal', [$startDate, $endDate]);
@@ -148,8 +154,14 @@ class ManagePresensiIzinSiswa extends ManageRecords
                         $q->where('tipe_absen', 'masuk')
                           ->where('status', 'hadir')
                           ->where(function ($sub) {
-                              $sub->where('is_late', true)
-                                  ->orWhere('waktu_kedatangan', '>', '06:45:00');
+                              $sub->where('waktu_kedatangan', '>=', '06:46:00')
+                                  ->orWhere(function ($sq) {
+                                      $sq->where('is_late', true)
+                                         ->where(function ($ssq) {
+                                             $ssq->where('waktu_kedatangan', '>=', '06:46:00')
+                                                 ->orWhereNull('waktu_kedatangan');
+                                         });
+                                  });
                           });
                     });
                 }),

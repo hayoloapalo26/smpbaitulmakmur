@@ -48,8 +48,14 @@ class ManageStudentCases extends ManageRecords
                         ->where('tipe_absen', 'masuk')
                         ->where('status', 'hadir')
                         ->where(function ($sub) {
-                            $sub->where('is_late', true)
-                                ->orWhere('waktu_kedatangan', '>', '06:45:00');
+                            $sub->where('waktu_kedatangan', '>=', '06:46:00')
+                                ->orWhere(function ($sq) {
+                                    $sq->where('is_late', true)
+                                       ->where(function ($ssq) {
+                                           $ssq->where('waktu_kedatangan', '>=', '06:46:00')
+                                               ->orWhereNull('waktu_kedatangan');
+                                       });
+                                });
                         })
                         ->where(function ($q) {
                             $q->where('late_approval_status', 'pending')
