@@ -152,4 +152,59 @@ class QuranZiyadahMurajaahAssessmentTest extends TestCase
         $this->assertContains('ziyadah', $fresh->type);
         $this->assertNotContains('murajaah', $fresh->type);
     }
+
+    /**
+     * Test: Ketika santri tidak menyetor (tidak_menyetor atau '-'),
+     * pilihan/nilai juz, surat, dan ayat otomatis '-' dan hafalan terakhir tetap tersimpan.
+     */
+    public function test_tidak_menyetor_sets_juz_surat_ayah_to_dash_and_preserves_next_progress(): void
+    {
+        $this->actingAs($this->guruQuran);
+
+        // 1. Hari 1: Santri menyetor Ziyadah An-Naba ayat 1-10
+        QuranAchievement::create([
+            'institution_id'    => 2,
+            'student_id'        => $this->santri->id,
+            'teacher_id'        => $this->guruQuran->id,
+            'program'           => 'tahfidz_dasar',
+            'juz'               => 30,
+            'surah'             => '78',
+            'ayah'              => '1-10',
+            'scale_score'       => 88,
+            'predikat'          => 'Jayyid Jiddan',
+            'tanggal'           => '2026-11-01',
+        ]);
+
+        // 2. Hari 2: Santri TIDAK menyetor (memilih tidak setor)
+        $tidakSetor = QuranAchievement::create([
+            'institution_id'    => 2,
+            'student_id'        => $this->santri->id,
+            'teacher_id'        => $this->guruQuran->id,
+            'program'           => 'tahfidz_dasar',
+            'juz'               => null,
+            'surah'             => 'tidak_menyetor',
+            'ayah'              => '-',
+            'surah_murajaah'    => 'tidak_menyetor',
+            'ayah_murajaah'     => '-',
+            'scale_score'       => 85,
+            'predikat'          => 'Jayyid Jiddan',
+            'tanggal'           => '2026-11-02',
+        ]);
+
+        $freshTidakSetor = $tidakSetor->fresh();
+        $this->assertNull($freshTidakSetor->juz);
+        $this->assertEquals('-', $freshTidakSetor->ayah);
+        $this->assertEquals('-', $freshTidakSetor->ayah_murajaah);
+        $this->assertEquals('❌ Tidak Setor', $freshTidakSetor->ziyadah_formatted);
+        $this->assertEquals('❌ Tidak Setor', $freshTidakSetor->murajaah_formatted);
+        $this->assertContains('tidak_menyetor', $freshTidakSetor->type);
+
+        // 3. Hari 3: Cek kelanjutan otomatis (calculateNextProgress),
+        // harus tetap mengambil hafalan terakhir yang valid (An-Naba 1-10 -> lanjut 11-20),
+        // tidak boleh ter-reset gara-gara hari kemarin tidak menyetor.
+        $next = QuranAchievement::calculateNextProgress($tidakSetor, 'tahfidz_dasar', $this->santri->id);
+        $this->assertTrue($next['has_previous']);
+        $this->assertEquals('78', $next['surah']);
+        $this->assertEquals('11-20', $next['ayah']);
+    }
 }

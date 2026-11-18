@@ -126,10 +126,11 @@
                 updateZiyadahSurah(id, val) {
                     this.updateItem(id, 'surah', val);
                     let s = this.students.find(st => st.id === id);
-                    if (val === 'tidak_menyetor') {
+                    if (val === 'tidak_menyetor' || val === '-') {
+                        this.updateItem(id, 'surah', 'tidak_menyetor');
                         this.updateItem(id, 'ayah', '-');
                         if (!this.isTahsin) {
-                            this.updateItem(id, 'juz', null);
+                            this.updateItem(id, 'juz', '-');
                         }
                     } else {
                         let curAyah = this.getItem(id).ayah;
@@ -138,7 +139,7 @@
                         }
                         if (!this.isTahsin) {
                             let curJuz = this.getItem(id).juz;
-                            if (!curJuz) {
+                            if (!curJuz || curJuz === '-') {
                                 this.updateItem(id, 'juz', s ? s.next_juz : 30);
                             }
                         }
@@ -146,7 +147,7 @@
                 },
                 toggleTidakMenyetorZiyadah(id) {
                     let cur = this.getItem(id);
-                    if (cur.surah === 'tidak_menyetor') {
+                    if (cur.surah === 'tidak_menyetor' || cur.surah === '-') {
                         let s = this.students.find(st => st.id === id);
                         this.updateItem(id, 'surah', s ? s.next_surah : (this.isTahsin ? 'Jilid 1' : '78'));
                         this.updateItem(id, 'ayah', s ? s.next_ayah : (this.isTahsin ? 'Hal. 1-5' : '1-10'));
@@ -157,17 +158,18 @@
                         this.updateItem(id, 'surah', 'tidak_menyetor');
                         this.updateItem(id, 'ayah', '-');
                         if (!this.isTahsin) {
-                            this.updateItem(id, 'juz', null);
+                            this.updateItem(id, 'juz', '-');
                         }
                     }
                 },
                 updateMurajaahSurah(id, val) {
                     this.updateItem(id, 'surah_murajaah', val);
                     let s = this.students.find(st => st.id === id);
-                    if (val === 'tidak_menyetor') {
+                    if (val === 'tidak_menyetor' || val === '-') {
+                        this.updateItem(id, 'surah_murajaah', 'tidak_menyetor');
                         this.updateItem(id, 'ayah_murajaah', '-');
                         if (!this.isTahsin) {
-                            this.updateItem(id, 'juz_murajaah', null);
+                            this.updateItem(id, 'juz_murajaah', '-');
                         }
                     } else if (!val) {
                         this.updateItem(id, 'ayah_murajaah', '');
@@ -181,7 +183,7 @@
                         }
                         if (!this.isTahsin) {
                             let curJuz = this.getItem(id).juz_murajaah;
-                            if (!curJuz) {
+                            if (!curJuz || curJuz === '-') {
                                 this.updateItem(id, 'juz_murajaah', s ? s.next_juz_murajaah : 30);
                             }
                         }
@@ -189,7 +191,7 @@
                 },
                 toggleTidakMenyetorMurajaah(id) {
                     let cur = this.getItem(id);
-                    if (cur.surah_murajaah === 'tidak_menyetor') {
+                    if (cur.surah_murajaah === 'tidak_menyetor' || cur.surah_murajaah === '-') {
                         let s = this.students.find(st => st.id === id);
                         this.updateItem(id, 'surah_murajaah', s ? s.next_surah_murajaah : '');
                         this.updateItem(id, 'ayah_murajaah', s ? s.next_ayah_murajaah : '');
@@ -200,7 +202,7 @@
                         this.updateItem(id, 'surah_murajaah', 'tidak_menyetor');
                         this.updateItem(id, 'ayah_murajaah', '-');
                         if (!this.isTahsin) {
-                            this.updateItem(id, 'juz_murajaah', null);
+                            this.updateItem(id, 'juz_murajaah', '-');
                         }
                     }
                 },
@@ -492,14 +494,14 @@
                                                         (Belum ada riwayat)
                                                     </div>
                                                 </template>
-                                                <template x-if="getItem(student.id).surah === 'tidak_menyetor'">
+                                                <template x-if="getItem(student.id).surah === 'tidak_menyetor' || getItem(student.id).surah === '-'">
                                                     <div class="mt-1 inline-flex items-center gap-1 text-[9px] font-bold text-rose-700 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/60 px-1.5 py-0.5 rounded-md border border-rose-200 dark:border-rose-800">
-                                                        <span>❌ Ziyadah: Tidak Menyetor</span>
+                                                        <span>❌ Ziyadah: Tidak Setor</span>
                                                     </div>
                                                 </template>
-                                                <template x-if="getItem(student.id).surah_murajaah === 'tidak_menyetor'">
+                                                <template x-if="getItem(student.id).surah_murajaah === 'tidak_menyetor' || getItem(student.id).surah_murajaah === '-'">
                                                     <div class="mt-1 inline-flex items-center gap-1 text-[9px] font-bold text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/60 px-1.5 py-0.5 rounded-md border border-amber-200 dark:border-amber-800">
-                                                        <span>❌ Muraja'ah: Tidak Menyetor</span>
+                                                        <span>❌ Muraja'ah: Tidak Setor</span>
                                                     </div>
                                                 </template>
                                             </div>
@@ -515,9 +517,9 @@
                                                     :value="getItem(student.id).surah"
                                                     @change="updateZiyadahSurah(student.id, $event.target.value)"
                                                     class="w-full text-xs font-semibold px-2 py-1.5 rounded-lg border border-emerald-300 dark:border-emerald-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 disabled:bg-gray-100 dark:disabled:bg-gray-800/40"
-                                                    :class="getItem(student.id).surah === 'tidak_menyetor' ? 'text-rose-600 dark:text-rose-400 font-bold border-rose-400 bg-rose-50/50 dark:bg-rose-950/30' : ''"
+                                                    :class="(getItem(student.id).surah === 'tidak_menyetor' || getItem(student.id).surah === '-') ? 'text-center font-bold text-gray-600 dark:text-gray-300 border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-800/60' : ''"
                                                 >
-                                                    <option value="tidak_menyetor" class="text-rose-600 font-bold">❌ Tidak Menyetor Hari Ini</option>
+                                                    <option value="tidak_menyetor" class="font-bold text-gray-700 dark:text-gray-300">- (Tidak Setor)</option>
                                                     <template x-for="(label, key) in jilidOptions" :key="'z-jilid-' + key">
                                                         <option :value="key" x-text="label" :selected="String(key) === String(getItem(student.id).surah)"></option>
                                                     </template>
@@ -526,21 +528,19 @@
                                                     type="button"
                                                     x-show="getItem(student.id).active"
                                                     @click="toggleTidakMenyetorZiyadah(student.id)"
-                                                    class="text-[9px] font-medium transition block"
-                                                    :class="getItem(student.id).surah === 'tidak_menyetor' ? 'text-emerald-600 hover:text-emerald-700 font-bold' : 'text-gray-400 hover:text-rose-600'"
-                                                    x-text="getItem(student.id).surah === 'tidak_menyetor' ? '🔄 Pulihkan Setoran' : '❌ Tidak Menyetor'"
+                                                    class="text-[9px] font-medium transition block text-center w-full"
+                                                    :class="(getItem(student.id).surah === 'tidak_menyetor' || getItem(student.id).surah === '-') ? 'text-emerald-600 hover:text-emerald-700 font-bold' : 'text-gray-400 hover:text-rose-600'"
+                                                    x-text="(getItem(student.id).surah === 'tidak_menyetor' || getItem(student.id).surah === '-') ? '🔄 Pulihkan Setoran' : '❌ Tidak Setor'"
                                                 ></button>
                                             </div>
                                         </td>
 
                                         {{-- 1. Tahsin: Kolom Ketik Halaman Berapa --}}
                                         <td class="px-2 py-3 text-center bg-emerald-50/20 dark:bg-emerald-950/10 border-r border-gray-100 dark:border-gray-800">
-                                            <template x-if="getItem(student.id).surah === 'tidak_menyetor'">
-                                                <div class="inline-flex items-center justify-center w-24 py-1.5 text-[10px] font-bold text-rose-600 dark:text-rose-400 bg-rose-100/60 dark:bg-rose-950/60 rounded-lg border border-rose-200 dark:border-rose-800">
-                                                    ❌ Tidak Ada
-                                                </div>
+                                            <template x-if="getItem(student.id).surah === 'tidak_menyetor' || getItem(student.id).surah === '-'">
+                                                <span class="inline-flex items-center justify-center w-full py-1.5 text-xs font-bold text-gray-500 dark:text-gray-400">-</span>
                                             </template>
-                                            <template x-if="getItem(student.id).surah !== 'tidak_menyetor'">
+                                            <template x-if="getItem(student.id).surah !== 'tidak_menyetor' && getItem(student.id).surah !== '-'">
                                                 <input
                                                     type="text"
                                                     placeholder="Hal. 1-5"
@@ -560,10 +560,10 @@
                                                     :value="getItem(student.id).surah_murajaah"
                                                     @change="updateMurajaahSurah(student.id, $event.target.value)"
                                                     class="w-full text-xs font-semibold px-2 py-1.5 rounded-lg border border-blue-300 dark:border-blue-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 disabled:bg-gray-100 dark:disabled:bg-gray-800/40"
-                                                    :class="getItem(student.id).surah_murajaah === 'tidak_menyetor' ? 'text-rose-600 dark:text-rose-400 font-bold border-rose-400 bg-rose-50/50 dark:bg-rose-950/30' : ''"
+                                                    :class="(getItem(student.id).surah_murajaah === 'tidak_menyetor' || getItem(student.id).surah_murajaah === '-') ? 'text-center font-bold text-gray-600 dark:text-gray-300 border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-800/60' : ''"
                                                 >
                                                     <option value="">-- Tanpa Muraja'ah --</option>
-                                                    <option value="tidak_menyetor" class="text-rose-600 font-bold">❌ Tidak Menyetor Hari Ini</option>
+                                                    <option value="tidak_menyetor" class="font-bold text-gray-700 dark:text-gray-300">- (Tidak Setor)</option>
                                                     <template x-for="(label, key) in jilidOptions" :key="'m-jilid-' + key">
                                                         <option :value="key" x-text="label" :selected="String(key) === String(getItem(student.id).surah_murajaah)"></option>
                                                     </template>
@@ -572,21 +572,19 @@
                                                     type="button"
                                                     x-show="getItem(student.id).active"
                                                     @click="toggleTidakMenyetorMurajaah(student.id)"
-                                                    class="text-[9px] font-medium transition block"
-                                                    :class="getItem(student.id).surah_murajaah === 'tidak_menyetor' ? 'text-blue-600 hover:text-blue-700 font-bold' : 'text-gray-400 hover:text-rose-600'"
-                                                    x-text="getItem(student.id).surah_murajaah === 'tidak_menyetor' ? '🔄 Pulihkan Setoran' : '❌ Tidak Menyetor'"
+                                                    class="text-[9px] font-medium transition block text-center w-full"
+                                                    :class="(getItem(student.id).surah_murajaah === 'tidak_menyetor' || getItem(student.id).surah_murajaah === '-') ? 'text-blue-600 hover:text-blue-700 font-bold' : 'text-gray-400 hover:text-rose-600'"
+                                                    x-text="(getItem(student.id).surah_murajaah === 'tidak_menyetor' || getItem(student.id).surah_murajaah === '-') ? '🔄 Pulihkan Setoran' : '❌ Tidak Setor'"
                                                 ></button>
                                             </div>
                                         </td>
 
                                         {{-- 2. Muraja'ah Tahsin: Kolom Ketik Halaman Berapa --}}
                                         <td class="px-2 py-3 text-center bg-blue-50/20 dark:bg-blue-950/10 border-r border-gray-100 dark:border-gray-800">
-                                            <template x-if="getItem(student.id).surah_murajaah === 'tidak_menyetor'">
-                                                <div class="inline-flex items-center justify-center w-24 py-1.5 text-[10px] font-bold text-rose-600 dark:text-rose-400 bg-rose-100/60 dark:bg-rose-950/60 rounded-lg border border-rose-200 dark:border-rose-800">
-                                                    ❌ Tidak Ada
-                                                </div>
+                                            <template x-if="getItem(student.id).surah_murajaah === 'tidak_menyetor' || getItem(student.id).surah_murajaah === '-'">
+                                                <span class="inline-flex items-center justify-center w-full py-1.5 text-xs font-bold text-gray-500 dark:text-gray-400">-</span>
                                             </template>
-                                            <template x-if="getItem(student.id).surah_murajaah !== 'tidak_menyetor'">
+                                            <template x-if="getItem(student.id).surah_murajaah !== 'tidak_menyetor' && getItem(student.id).surah_murajaah !== '-'">
                                                 <input
                                                     type="text"
                                                     placeholder="Hal. 1-5"
@@ -600,10 +598,10 @@
                                     @else
                                         {{-- 1. Ziyadah: Dropdown Juz --}}
                                         <td class="px-2 py-3 text-center bg-emerald-50/20 dark:bg-emerald-950/10">
-                                            <template x-if="getItem(student.id).surah === 'tidak_menyetor'">
-                                                <span class="text-xs text-gray-400 font-bold">-</span>
+                                            <template x-if="getItem(student.id).surah === 'tidak_menyetor' || getItem(student.id).surah === '-'">
+                                                <span class="inline-flex items-center justify-center w-full py-1.5 text-xs font-bold text-gray-500 dark:text-gray-400">-</span>
                                             </template>
-                                            <template x-if="getItem(student.id).surah !== 'tidak_menyetor'">
+                                            <template x-if="getItem(student.id).surah !== 'tidak_menyetor' && getItem(student.id).surah !== '-'">
                                                 <select
                                                     :disabled="!getItem(student.id).active"
                                                     :value="getItem(student.id).juz"
@@ -625,9 +623,9 @@
                                                     :value="getItem(student.id).surah"
                                                     @change="updateZiyadahSurah(student.id, $event.target.value)"
                                                     class="w-full text-xs font-semibold px-2 py-1.5 rounded-lg border border-emerald-300 dark:border-emerald-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 disabled:bg-gray-100 dark:disabled:bg-gray-800/40"
-                                                    :class="getItem(student.id).surah === 'tidak_menyetor' ? 'text-rose-600 dark:text-rose-400 font-bold border-rose-400 bg-rose-50/50 dark:bg-rose-950/30' : ''"
+                                                    :class="(getItem(student.id).surah === 'tidak_menyetor' || getItem(student.id).surah === '-') ? 'text-center font-bold text-gray-600 dark:text-gray-300 border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-800/60' : ''"
                                                 >
-                                                    <option value="tidak_menyetor" class="text-rose-600 font-bold">❌ Tidak Menyetor Hari Ini</option>
+                                                    <option value="tidak_menyetor" class="font-bold text-gray-700 dark:text-gray-300">- (Tidak Setor)</option>
                                                     <template x-for="(name, num) in surahs" :key="'z-surah-' + num">
                                                         <option :value="num" x-text="num + '. ' + name" :selected="String(num) === String(getItem(student.id).surah)"></option>
                                                     </template>
@@ -636,21 +634,19 @@
                                                     type="button"
                                                     x-show="getItem(student.id).active"
                                                     @click="toggleTidakMenyetorZiyadah(student.id)"
-                                                    class="text-[9px] font-medium transition block"
-                                                    :class="getItem(student.id).surah === 'tidak_menyetor' ? 'text-emerald-600 hover:text-emerald-700 font-bold' : 'text-gray-400 hover:text-rose-600'"
-                                                    x-text="getItem(student.id).surah === 'tidak_menyetor' ? '🔄 Pulihkan Setoran' : '❌ Tidak Menyetor'"
+                                                    class="text-[9px] font-medium transition block text-center w-full"
+                                                    :class="(getItem(student.id).surah === 'tidak_menyetor' || getItem(student.id).surah === '-') ? 'text-emerald-600 hover:text-emerald-700 font-bold' : 'text-gray-400 hover:text-rose-600'"
+                                                    x-text="(getItem(student.id).surah === 'tidak_menyetor' || getItem(student.id).surah === '-') ? '🔄 Pulihkan Setoran' : '❌ Tidak Setor'"
                                                 ></button>
                                             </div>
                                         </td>
 
                                         {{-- 1. Ziyadah: Kolom Ketik Ayat --}}
                                         <td class="px-2 py-3 text-center bg-emerald-50/20 dark:bg-emerald-950/10 border-r border-gray-100 dark:border-gray-800">
-                                            <template x-if="getItem(student.id).surah === 'tidak_menyetor'">
-                                                <div class="inline-flex items-center justify-center w-20 py-1.5 text-[10px] font-bold text-rose-600 dark:text-rose-400 bg-rose-100/60 dark:bg-rose-950/60 rounded-lg border border-rose-200 dark:border-rose-800">
-                                                    ❌ Tidak Ada
-                                                </div>
+                                            <template x-if="getItem(student.id).surah === 'tidak_menyetor' || getItem(student.id).surah === '-'">
+                                                <span class="inline-flex items-center justify-center w-full py-1.5 text-xs font-bold text-gray-500 dark:text-gray-400">-</span>
                                             </template>
-                                            <template x-if="getItem(student.id).surah !== 'tidak_menyetor'">
+                                            <template x-if="getItem(student.id).surah !== 'tidak_menyetor' && getItem(student.id).surah !== '-'">
                                                 <input
                                                     type="text"
                                                     placeholder="1-10"
@@ -664,10 +660,10 @@
 
                                         {{-- 2. Muraja'ah: Dropdown Juz --}}
                                         <td class="px-2 py-3 text-center bg-blue-50/20 dark:bg-blue-950/10">
-                                            <template x-if="getItem(student.id).surah_murajaah === 'tidak_menyetor' || !getItem(student.id).surah_murajaah">
-                                                <span class="text-xs text-gray-400 font-bold">-</span>
+                                            <template x-if="getItem(student.id).surah_murajaah === 'tidak_menyetor' || getItem(student.id).surah_murajaah === '-' || !getItem(student.id).surah_murajaah">
+                                                <span class="inline-flex items-center justify-center w-full py-1.5 text-xs font-bold text-gray-500 dark:text-gray-400">-</span>
                                             </template>
-                                            <template x-if="getItem(student.id).surah_murajaah !== 'tidak_menyetor' && getItem(student.id).surah_murajaah">
+                                            <template x-if="getItem(student.id).surah_murajaah !== 'tidak_menyetor' && getItem(student.id).surah_murajaah !== '-' && getItem(student.id).surah_murajaah">
                                                 <select
                                                     :disabled="!getItem(student.id).active"
                                                     :value="getItem(student.id).juz_murajaah"
@@ -690,10 +686,10 @@
                                                     :value="getItem(student.id).surah_murajaah"
                                                     @change="updateMurajaahSurah(student.id, $event.target.value)"
                                                     class="w-full text-xs font-semibold px-2 py-1.5 rounded-lg border border-blue-300 dark:border-blue-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 disabled:bg-gray-100 dark:disabled:bg-gray-800/40"
-                                                    :class="getItem(student.id).surah_murajaah === 'tidak_menyetor' ? 'text-rose-600 dark:text-rose-400 font-bold border-rose-400 bg-rose-50/50 dark:bg-rose-950/30' : ''"
+                                                    :class="(getItem(student.id).surah_murajaah === 'tidak_menyetor' || getItem(student.id).surah_murajaah === '-') ? 'text-center font-bold text-gray-600 dark:text-gray-300 border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-800/60' : ''"
                                                 >
                                                     <option value="">-- Tanpa Muraja'ah --</option>
-                                                    <option value="tidak_menyetor" class="text-rose-600 font-bold">❌ Tidak Menyetor Hari Ini</option>
+                                                    <option value="tidak_menyetor" class="font-bold text-gray-700 dark:text-gray-300">- (Tidak Setor)</option>
                                                     <template x-for="(name, num) in surahs" :key="'m-surah-' + num">
                                                         <option :value="num" x-text="num + '. ' + name" :selected="String(num) === String(getItem(student.id).surah_murajaah)"></option>
                                                     </template>
@@ -702,21 +698,19 @@
                                                     type="button"
                                                     x-show="getItem(student.id).active"
                                                     @click="toggleTidakMenyetorMurajaah(student.id)"
-                                                    class="text-[9px] font-medium transition block"
-                                                    :class="getItem(student.id).surah_murajaah === 'tidak_menyetor' ? 'text-blue-600 hover:text-blue-700 font-bold' : 'text-gray-400 hover:text-rose-600'"
-                                                    x-text="getItem(student.id).surah_murajaah === 'tidak_menyetor' ? '🔄 Pulihkan Setoran' : '❌ Tidak Menyetor'"
+                                                    class="text-[9px] font-medium transition block text-center w-full"
+                                                    :class="(getItem(student.id).surah_murajaah === 'tidak_menyetor' || getItem(student.id).surah_murajaah === '-') ? 'text-blue-600 hover:text-blue-700 font-bold' : 'text-gray-400 hover:text-rose-600'"
+                                                    x-text="(getItem(student.id).surah_murajaah === 'tidak_menyetor' || getItem(student.id).surah_murajaah === '-') ? '🔄 Pulihkan Setoran' : '❌ Tidak Setor'"
                                                 ></button>
                                             </div>
                                         </td>
 
                                         {{-- 2. Muraja'ah: Kolom Ketik Ayat --}}
                                         <td class="px-2 py-3 text-center bg-blue-50/20 dark:bg-blue-950/10 border-r border-gray-100 dark:border-gray-800">
-                                            <template x-if="getItem(student.id).surah_murajaah === 'tidak_menyetor'">
-                                                <div class="inline-flex items-center justify-center w-20 py-1.5 text-[10px] font-bold text-rose-600 dark:text-rose-400 bg-rose-100/60 dark:bg-rose-950/60 rounded-lg border border-rose-200 dark:border-rose-800">
-                                                    ❌ Tidak Ada
-                                                </div>
+                                            <template x-if="getItem(student.id).surah_murajaah === 'tidak_menyetor' || getItem(student.id).surah_murajaah === '-'">
+                                                <span class="inline-flex items-center justify-center w-full py-1.5 text-xs font-bold text-gray-500 dark:text-gray-400">-</span>
                                             </template>
-                                            <template x-if="getItem(student.id).surah_murajaah !== 'tidak_menyetor'">
+                                            <template x-if="getItem(student.id).surah_murajaah !== 'tidak_menyetor' && getItem(student.id).surah_murajaah !== '-'">
                                                 <input
                                                     type="text"
                                                     placeholder="1-Akhir"
