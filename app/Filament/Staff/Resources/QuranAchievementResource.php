@@ -30,6 +30,11 @@ class QuranAchievementResource extends Resource
         return auth()->user()->hasAnyRole(array_merge(\App\Models\User::QURAN_TEACHER_ROLES, ['koordinator_madin', 'waka_kurikulum', 'kepala_sekolah', 'superadmin']));
     }
 
+    public static function canCreate(): bool
+    {
+        return false;
+    }
+
     protected static ?string $model = QuranAchievement::class;
     protected static ?string $navigationIcon = 'heroicon-o-book-open';
     protected static ?string $navigationGroup = 'Kesiswaan & Karakter';

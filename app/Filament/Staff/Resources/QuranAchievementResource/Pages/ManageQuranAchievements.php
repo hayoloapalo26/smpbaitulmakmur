@@ -381,10 +381,6 @@ class ManageQuranAchievements extends ManageRecords
                 ->icon('heroicon-o-trophy')
                 ->color('info')
                 ->url(fn () => \App\Filament\Staff\Pages\TahfidzRanking::getUrl()),
-
-            Actions\CreateAction::make()
-                ->label('Input Penilaian Satuan')
-                ->icon('heroicon-o-plus-circle'),
         ];
     }
 }
