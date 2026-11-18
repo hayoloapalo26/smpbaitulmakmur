@@ -486,7 +486,25 @@ class AcademicPrintController extends Controller
             $dutyTeachers = DutySchedule::getDutyTeachersForDate($tanggalSelesai, $user?->institution_id);
             $guruPiket1 = $dutyTeachers->get(0);
             $guruPiket2 = $dutyTeachers->get(1);
-            $guruPiket = $guruPiket1 ?? (User::role('guru_piket')->first() ?? $user);
+
+            if (!$guruPiket1 || !$guruPiket2) {
+                $fallbackTeachers = DutySchedule::getDutyTeachersForDate($tanggalSelesai, null);
+                if (!$guruPiket1) {
+                    $guruPiket1 = $fallbackTeachers->get(0);
+                }
+                if (!$guruPiket2) {
+                    $guruPiket2 = $fallbackTeachers->first(fn ($t) => $guruPiket1 && $t->id !== $guruPiket1->id) ?? $fallbackTeachers->get(1);
+                }
+            }
+
+            if (!$guruPiket1) {
+                $guruPiket1 = User::withoutGlobalScopes()->where('is_active', true)->whereHas('roles', fn ($r) => $r->where('name', 'guru_piket'))->first() ?? $user;
+            }
+            if (!$guruPiket2 && $guruPiket1) {
+                $guruPiket2 = User::withoutGlobalScopes()->where('is_active', true)->where('id', '!=', $guruPiket1->id)->whereHas('roles', fn ($r) => $r->where('name', 'guru_piket'))->first();
+            }
+
+            $guruPiket = $guruPiket1;
 
             $studentQuery->with([
                 'classroom',
@@ -569,7 +587,25 @@ class AcademicPrintController extends Controller
         $dutyTeachers = DutySchedule::getDutyTeachersForDate($tanggal, $user?->institution_id);
         $guruPiket1 = $dutyTeachers->get(0);
         $guruPiket2 = $dutyTeachers->get(1);
-        $guruPiket = $guruPiket1 ?? (User::role('guru_piket')->first() ?? $user);
+
+        if (!$guruPiket1 || !$guruPiket2) {
+            $fallbackTeachers = DutySchedule::getDutyTeachersForDate($tanggal, null);
+            if (!$guruPiket1) {
+                $guruPiket1 = $fallbackTeachers->get(0);
+            }
+            if (!$guruPiket2) {
+                $guruPiket2 = $fallbackTeachers->first(fn ($t) => $guruPiket1 && $t->id !== $guruPiket1->id) ?? $fallbackTeachers->get(1);
+            }
+        }
+
+        if (!$guruPiket1) {
+            $guruPiket1 = User::withoutGlobalScopes()->where('is_active', true)->whereHas('roles', fn ($r) => $r->where('name', 'guru_piket'))->first() ?? $user;
+        }
+        if (!$guruPiket2 && $guruPiket1) {
+            $guruPiket2 = User::withoutGlobalScopes()->where('is_active', true)->where('id', '!=', $guruPiket1->id)->whereHas('roles', fn ($r) => $r->where('name', 'guru_piket'))->first();
+        }
+
+        $guruPiket = $guruPiket1;
 
         $studentQuery->with([
             'classroom',

@@ -169,7 +169,6 @@
         .sign-table td {
             text-align: center;
             vertical-align: top;
-            width: 33.33%;
             font-size: 8.5px;
         }
         .sign-space {
@@ -512,16 +511,16 @@
         </table>
     @endif
 
-    <!-- TANDA TANGAN / PENGESAHAN -->
+    <!-- TANDA TANGAN / PENGESAHAN (4 KOLOM STANDAR: GURU PIKET I & II, WAKA KESISWAAN, KEPALA SEKOLAH) -->
     <table class="sign-table">
         <tr>
-            @if(!empty($guruPiket2))
+            @if(!empty($guruPiket2) || !empty($guruPiket1))
                 <td style="width: 25%;">
                     Mengetahui,<br>
                     <strong>Guru Piket I</strong>
                     <div class="sign-space"></div>
-                    <strong>{{ $guruPiket1->name ?? '....................................' }}</strong><br>
-                    <span>NIP / ID: {{ $guruPiket1->nip ?? '-' }}</span>
+                    <strong>{{ $guruPiket1->name ?? $guruPiket->name ?? '....................................' }}</strong><br>
+                    <span>NIP / ID: {{ $guruPiket1->nip ?? $guruPiket->nip ?? '-' }}</span>
                 </td>
                 <td style="width: 25%;">
                     Mengetahui,<br>

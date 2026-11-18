@@ -300,6 +300,64 @@ class DailyStudentAttendanceMonitoringTest extends TestCase
     }
 
     /**
+     * 4c. Test PDF Presensi Harian memuat kedua guru piket yang disetting oleh Waka Kesiswaan.
+     */
+    public function test_daily_attendance_pdf_integrates_two_duty_teachers_from_schedule(): void
+    {
+        $today = Carbon::today();
+        $todayIndo = Schedule::getIndonesianDayName($today);
+
+        // Guru Piket 1 & 2
+        $guruPiket1 = User::create([
+            'name'           => 'Nadila Choirunnisa Intsani, M.Pd',
+            'email'          => 'nadila@smpi.test',
+            'password'       => bcrypt('password123'),
+            'institution_id' => $this->institution->id,
+            'is_active'      => true,
+        ]);
+        $guruPiket1->assignRole('guru_mapel');
+
+        $guruPiket2 = User::create([
+            'name'           => 'Indah Wahyuningtyas, M.Pd',
+            'email'          => 'indah@smpi.test',
+            'password'       => bcrypt('password123'),
+            'institution_id' => $this->institution->id,
+            'is_active'      => true,
+        ]);
+        $guruPiket2->assignRole('guru_mapel');
+
+        // Daftarkan ke DutySchedule untuk hari ini
+        DutySchedule::create([
+            'teacher_id'     => $guruPiket1->id,
+            'institution_id' => $this->institution->id,
+            'hari'           => $todayIndo,
+            'semester'       => ($today->month >= 7 && $today->month <= 12) ? 'Ganjil' : 'Genap',
+        ]);
+        DutySchedule::create([
+            'teacher_id'     => $guruPiket2->id,
+            'institution_id' => $this->institution->id,
+            'hari'           => $todayIndo,
+            'semester'       => ($today->month >= 7 && $today->month <= 12) ? 'Ganjil' : 'Genap',
+        ]);
+
+        // Verifikasi getDutyTeachersForDate mengembalikan 2 guru piket yang diset
+        $dutyTeachers = DutySchedule::getDutyTeachersForDate($today->toDateString(), $this->institution->id);
+        $this->assertGreaterThanOrEqual(2, $dutyTeachers->count());
+        $this->assertTrue($dutyTeachers->contains('name', 'Nadila Choirunnisa Intsani, M.Pd'));
+        $this->assertTrue($dutyTeachers->contains('name', 'Indah Wahyuningtyas, M.Pd'));
+
+        // Akses endpoint PDF presensi harian
+        $this->actingAs($guruPiket2);
+        $response = $this->get(route('daily-attendance.rekap.pdf', [
+            'mode'    => 'harian',
+            'tanggal' => $today->toDateString(),
+        ]));
+
+        $response->assertStatus(200);
+        $response->assertHeader('content-type', 'application/pdf');
+    }
+
+    /**
      * 5. Test Livewire Page ManagePresensiIzinSiswa mounts successfully and handles tabs & modes without error.
      */
     public function test_manage_presensi_izin_siswa_page_mounts_and_handles_tabs(): void

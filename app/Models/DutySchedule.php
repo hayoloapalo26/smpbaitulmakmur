@@ -128,7 +128,9 @@ class DutySchedule extends Model
     }
 
     /**
-     * Dapatkan daftar guru piket yang bertugas pada tanggal tertentu (memperhitungkan hari rutin, tanggal khusus, dan tukar piket).
+     * Dapatkan daftar guru piket yang bertugas pada tanggal tertentu.
+     * Mengintegrasikan jadwal khusus tanggal dan formasi rutin mingguan yang diatur Waka Kesiswaan,
+     * serta memperhitungkan permohonan tukar piket yang telah disetujui.
      *
      * @param string|\Carbon\Carbon|null $date
      * @param int|null $institutionId
@@ -139,59 +141,74 @@ class DutySchedule extends Model
         $carbon = $date ? Carbon::parse($date) : Carbon::today();
         $targetDate = $carbon->toDateString();
         $dayName = Schedule::getIndonesianDayName($carbon);
+        $month = $carbon->month;
+        $targetSemester = ($month >= 7 && $month <= 12) ? 'Ganjil' : 'Genap';
 
-        // 1. Prioritas 1: Ambil jadwal khusus berdasarkan tanggal yang cocok
-        $specificQuery = static::withoutGlobalScopes()
-            ->with('teacher')
-            ->whereDate('tanggal', $targetDate);
+        // 1. Ambil jadwal: Prioritaskan tanggal khusus, lalu hari rutin mingguan di semester aktif
+        $buildQuery = function (?int $instFilter) use ($targetDate, $dayName, $targetSemester) {
+            $query = static::withoutGlobalScopes()
+                ->with(['teacher' => fn ($q) => $q->withoutGlobalScopes()])
+                ->where(function ($q) use ($targetDate, $dayName, $targetSemester) {
+                    $q->whereDate('tanggal', $targetDate)
+                      ->orWhere(function ($sq) use ($dayName, $targetSemester) {
+                          $sq->where('hari', $dayName)
+                             ->where(function ($ssq) use ($targetSemester) {
+                                 $ssq->where('semester', $targetSemester)
+                                     ->orWhereNull('semester');
+                             });
+                      });
+                });
 
-        if ($institutionId && $institutionId != 1 && Schema::hasColumn('duty_schedules', 'institution_id')) {
-            $specificQuery->where(function ($q) use ($institutionId) {
-                $q->where('institution_id', $institutionId)->orWhereNull('institution_id');
-            });
-        }
-
-        $records = $specificQuery->orderBy('id')->get();
-
-        // 2. Prioritas 2: Jika tidak ada jadwal tanggal khusus, ambil jadwal mingguan rutin berdasarkan hari
-        if ($records->isEmpty()) {
-            $routineQuery = static::withoutGlobalScopes()
-                ->with('teacher')
-                ->where('hari', $dayName)
-                ->whereNull('tanggal');
-
-            if ($institutionId && $institutionId != 1 && Schema::hasColumn('duty_schedules', 'institution_id')) {
-                $routineQuery->where(function ($q) use ($institutionId) {
-                    $q->where('institution_id', $institutionId)->orWhereNull('institution_id');
+            if ($instFilter && $instFilter != 1 && Schema::hasColumn('duty_schedules', 'institution_id')) {
+                $query->where(function ($q) use ($instFilter) {
+                    $q->where('institution_id', $instFilter)
+                      ->orWhereNull('institution_id');
                 });
             }
 
-            $records = $routineQuery->orderBy('id')->get();
+            return $query->orderByRaw("CASE WHEN DATE(tanggal) = ? THEN 0 WHEN semester = ? THEN 1 ELSE 2 END", [$targetDate, $targetSemester])
+                ->orderBy('id')
+                ->get();
+        };
 
-            // Jika masih kosong, cari berdasarkan hari tanpa batasan whereNull('tanggal')
-            if ($records->isEmpty()) {
-                $fallbackRoutine = static::withoutGlobalScopes()
-                    ->with('teacher')
-                    ->where('hari', $dayName);
+        // Query dengan instFilter
+        $records = $buildQuery($institutionId);
 
-                if ($institutionId && $institutionId != 1 && Schema::hasColumn('duty_schedules', 'institution_id')) {
-                    $fallbackRoutine->where(function ($q) use ($institutionId) {
-                        $q->where('institution_id', $institutionId)->orWhereNull('institution_id');
-                    });
-                }
+        // Jika dengan filter institusi menghasilkan kurang dari 2 guru, cari secara global (tanpa filter institusi)
+        // agar formasi yang diatur Waka Kesiswaan selalu ditemukan lengkap
+        $uniqueTeachersCount = $records->pluck('teacher_id')->filter()->unique()->count();
+        if ($uniqueTeachersCount < 2 && $institutionId) {
+            $globalRecords = $buildQuery(null);
+            if ($globalRecords->count() > $records->count()) {
+                $records = $globalRecords;
+            }
+        }
 
-                $records = $fallbackRoutine->orderBy('id')->get();
+        // Jika masih kosong, coba query tanpa filter semester
+        if ($records->isEmpty()) {
+            $fallbackQuery = static::withoutGlobalScopes()
+                ->with(['teacher' => fn ($q) => $q->withoutGlobalScopes()])
+                ->where(function ($q) use ($targetDate, $dayName) {
+                    $q->whereDate('tanggal', $targetDate)
+                      ->orWhere('hari', $dayName);
+                })
+                ->orderBy('id')
+                ->get();
+
+            if ($fallbackQuery->isNotEmpty()) {
+                $records = $fallbackQuery;
             }
         }
 
         $teacherMap = collect();
         foreach ($records as $rec) {
-            if ($rec->teacher && $rec->teacher->is_active) {
-                $teacherMap->put($rec->teacher->id, $rec->teacher);
+            $teacher = $rec->teacher;
+            if ($teacher && ($teacher->is_active ?? true)) {
+                $teacherMap->put($teacher->id, $teacher);
             }
         }
 
-        // 3. Terapkan Permohonan Tukar Piket yang Disetujui (Approved Duty Swap)
+        // 2. Terapkan Permohonan Tukar Piket yang Disetujui (Approved Duty Swap)
         if (class_exists(DutySwapRequest::class)) {
             // a. Jika jadwal piket guru di targetDate sudah disetujui ditukar ke pengganti
             $swapsOut = DutySwapRequest::with('substituteTeacher')
@@ -201,7 +218,7 @@ class DutySchedule extends Model
 
             foreach ($swapsOut as $swap) {
                 $teacherMap->forget($swap->requester_id);
-                if ($swap->substituteTeacher && $swap->substituteTeacher->is_active) {
+                if ($swap->substituteTeacher && ($swap->substituteTeacher->is_active ?? true)) {
                     $teacherMap->put($swap->substituteTeacher->id, $swap->substituteTeacher);
                 }
             }
@@ -214,31 +231,44 @@ class DutySchedule extends Model
 
             foreach ($swapsIn as $swap) {
                 $teacherMap->forget($swap->substitute_teacher_id);
-                if ($swap->requester && $swap->requester->is_active) {
+                if ($swap->requester && ($swap->requester->is_active ?? true)) {
                     $teacherMap->put($swap->requester->id, $swap->requester);
                 }
             }
         }
 
-        // 4. Fallback aman jika pada hari tersebut jadwal di DutySchedule belum diatur sama sekali
-        if ($teacherMap->isEmpty()) {
+        // 3. Fallback jika masih kurang dari 2 guru:
+        // Coba cari guru yang memiliki role guru_piket atau guru eligible lainnya yang belum ada di map
+        if ($teacherMap->count() < 2) {
+            $existingIds = $teacherMap->keys()->toArray();
+            $needed = 2 - $teacherMap->count();
+
             $piketCandidates = User::withoutGlobalScopes()
                 ->where('is_active', true)
+                ->whereNotIn('id', $existingIds)
                 ->where('name', '!=', 'Guru Piket')
                 ->where('username', '!=', 'gurupiket')
                 ->where(function ($q) {
                     $q->whereHas('roles', fn ($r) => $r->where('name', 'guru_piket'));
-                });
+                })
+                ->limit($needed)
+                ->get();
 
-            if ($institutionId && $institutionId != 1) {
-                $piketCandidates->where(function ($q) use ($institutionId) {
-                    $q->where('institution_id', $institutionId)->orWhereNull('institution_id');
-                });
+            foreach ($piketCandidates as $t) {
+                $teacherMap->put($t->id, $t);
             }
 
-            $teachers = $piketCandidates->limit(2)->get();
-            foreach ($teachers as $t) {
-                $teacherMap->put($t->id, $t);
+            // Jika masih kurang dari 2, ambil guru eligible dari DutyScheduleGeneratorService
+            if ($teacherMap->count() < 2 && class_exists(DutyScheduleGeneratorService::class)) {
+                $needed = 2 - $teacherMap->count();
+                $existingIds = $teacherMap->keys()->toArray();
+                $eligible = DutyScheduleGeneratorService::getEligibleTeachers($institutionId)
+                    ->whereNotIn('id', $existingIds)
+                    ->take($needed);
+
+                foreach ($eligible as $t) {
+                    $teacherMap->put($t->id, $t);
+                }
             }
         }
 
