@@ -1052,25 +1052,29 @@ class FingerspotAttendanceController extends Controller
                     $incomingTime = $now->format('H:i:s');
                     $existingTime = $existingSession->waktu_kedatangan;
 
-                    // Jika scan masuk memiliki jam LEBIH AWAL daripada data yang sudah ada (misal keterlambatan transmisi cloud),
+                    // Jika data yang sudah ada belum memiliki waktu_kedatangan (misal dibuat otomatis dari Jurnal Mengajar atau presensi manual tanpa jam scan)
+                    // ATAU scan masuk memiliki jam LEBIH AWAL daripada data yang sudah ada (misal keterlambatan transmisi cloud / scan ulang setelah scan awal tertunda),
                     // maka perbarui data ke scan pertama yang sebenarnya!
-                    if ($existingTime && $incomingTime < $existingTime) {
+                    if (empty($existingTime) || $incomingTime < $existingTime) {
                         $timing = $this->evaluateAttendanceTiming($tipe, $now, $metode);
                         $existingSession->update([
                             'waktu_kedatangan' => $incomingTime,
+                            'status'           => 'hadir',
                             'is_late'          => $timing['is_late'],
+                            'late_penalty_points' => $timing['is_late'] ? 5 : 0,
+                            'late_approval_status' => $timing['is_late'] ? 'pending' : null,
                             'keterangan'       => $timing['keterangan'],
                             'metode_absen'     => $metode,
                         ]);
 
                         return [
                             'status'     => 'success',
-                            'action'     => 'updated_to_earlier_first_scan',
+                            'action'     => empty($existingTime) ? 'filled_missing_finger_scan' : 'updated_to_earlier_first_scan',
                             'student'    => $student->name,
                             'tipe'       => $tipe,
                             'jam'        => $now->format('H:i'),
                             'is_late'    => $timing['is_late'],
-                            'message'    => "Presensi {$student->name} diperbarui ke jam scan pertama yang lebih awal: {$incomingTime}",
+                            'message'    => "Presensi {$student->name} diperbarui ke jam scan: {$incomingTime}",
                         ];
                     }
 
@@ -1099,6 +1103,8 @@ class FingerspotAttendanceController extends Controller
                         'waktu_kedatangan' => $now->format('H:i:s'),
                         'status'           => 'halangan',
                         'is_late'          => false,
+                        'late_penalty_points' => 0,
+                        'late_approval_status' => null,
                         'keterangan'       => "Siswi halangan (Udzur Syar'i) - scan {$now->format('H:i')} via Fingerspot Revo W230N",
                     ]);
 
@@ -1133,6 +1139,8 @@ class FingerspotAttendanceController extends Controller
                 'waktu_kedatangan' => $now->format('H:i:s'),
                 'status'           => 'hadir',
                 'is_late'          => $timing['is_late'],
+                'late_penalty_points' => $timing['is_late'] ? 5 : 0,
+                'late_approval_status' => $timing['is_late'] ? 'pending' : null,
                 'keterangan'       => $keteranganSimpan,
             ]);
 

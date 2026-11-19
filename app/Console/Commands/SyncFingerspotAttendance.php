@@ -24,12 +24,13 @@ class SyncFingerspotAttendance extends Command
     {
         $controller = new FingerspotAttendanceController();
         $config = $controller->getCloudConfig();
-        $cloudId = $this->option('cloud-id') ?: ($config['cloud_id'] ?? null);
+        $cloudId = $this->option('cloud-id') ?: ($config['cloud_id'] ?? 'C260B8851F1C1030');
 
         if (empty($cloudId)) {
-            $this->warn('Cloud ID Fingerspot belum dikonfigurasi. Dilewati.');
-            return self::SUCCESS;
+            $cloudId = 'C260B8851F1C1030';
         }
+
+        $this->info("Menghubungi Cloud Fingerspot (Cloud ID: {$cloudId})...");
 
         $result = $controller->pullFromCloudApi(
             $cloudId,
