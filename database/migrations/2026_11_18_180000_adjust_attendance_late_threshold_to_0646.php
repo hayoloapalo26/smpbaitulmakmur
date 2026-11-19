@@ -15,7 +15,7 @@ return new class extends Migration {
             ->where('is_late', true)
             ->update([
                 'is_late' => false,
-                'late_penalty_points' => null,
+                'late_penalty_points' => 0,
                 'late_approval_status' => null,
             ]);
     }

@@ -45,23 +45,34 @@ class DailyAttendance extends Model
 
             // Otomatisasi Keterlambatan Masuk Sekolah (Dimulai 06.46 WIB, pukul 06.45 tepat waktu/tidak terlambat):
             // Default disiapkan poin 5 dan status 'pending' (menunggu ACC Waka Kesiswaan sebelum poin difixkan).
-            if ($attendance->tipe_absen === 'masuk' && $attendance->status === 'hadir') {
-                $waktu = $attendance->waktu_kedatangan ? Carbon::parse($attendance->waktu_kedatangan)->format('H:i:s') : null;
-                $isLate = $waktu ? ($waktu >= '06:46:00') : (bool) $attendance->is_late;
+            if ($attendance->tipe_absen === 'masuk') {
+                if ($attendance->status === 'hadir') {
+                    $waktu = $attendance->waktu_kedatangan ? Carbon::parse($attendance->waktu_kedatangan)->format('H:i:s') : null;
+                    $isLate = $waktu ? ($waktu >= '06:46:00') : (bool) $attendance->is_late;
 
-                if ($isLate) {
-                    $attendance->is_late = true;
-                    if (empty($attendance->late_penalty_points)) {
-                        $attendance->late_penalty_points = 5;
-                    }
-                    if (empty($attendance->late_approval_status)) {
-                        $attendance->late_approval_status = 'pending';
+                    if ($isLate) {
+                        $attendance->is_late = true;
+                        if (empty($attendance->late_penalty_points)) {
+                            $attendance->late_penalty_points = 5;
+                        }
+                        if (empty($attendance->late_approval_status)) {
+                            $attendance->late_approval_status = 'pending';
+                        }
+                    } else {
+                        $attendance->is_late = false;
+                        $attendance->late_penalty_points = 0;
+                        $attendance->late_approval_status = null;
                     }
                 } else {
                     $attendance->is_late = false;
-                    $attendance->late_penalty_points = null;
+                    $attendance->late_penalty_points = 0;
                     $attendance->late_approval_status = null;
                 }
+            }
+
+            // Pastikan kolom late_penalty_points tidak pernah bernilai null (hindari constraint violation 1048 pada DB)
+            if (is_null($attendance->late_penalty_points)) {
+                $attendance->late_penalty_points = 0;
             }
         });
 

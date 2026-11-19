@@ -1081,10 +1081,15 @@ class TeachingJournalResource extends Resource
                                     'metode_absen' => 'jurnal_mengajar',
                                     'status' => $status,
                                     'is_late' => false,
+                                    'late_penalty_points' => 0,
                                     'keterangan' => 'Tercatat dari Jurnal Mengajar (' . ($record->subject->name ?? 'Mapel') . ')',
                                 ]);
                             } elseif ($morning->metode_absen === 'jurnal_mengajar') {
-                                $morning->update(['status' => $status]);
+                                $morning->update([
+                                    'status' => $status,
+                                    'is_late' => false,
+                                    'late_penalty_points' => 0,
+                                ]);
                             }
                         }
                     })
