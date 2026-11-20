@@ -20,8 +20,10 @@ use Illuminate\Support\Facades\Schema;
  * Controller Integrasi Mesin Absensi Fingerspot Revo W230N
  *
  * Jadwal & Aturan Keterlambatan Resmi:
- * - Masuk Pagi           : 06.00 - 06.45 (> 06.45 = Terlambat) [Rentang mesin: 00:00 - 11:29]
- * - Sholat Dhuhur        : 12.00 - 12.15 (> 12.15 = Terlambat) [Rentang mesin: 11:30 - 14:29]
+ * - Masuk Pagi           : 06.00 - 06.45 (Batas 06:45 Tepat Waktu, >= 06:46 Terlambat)
+ * - Sholat Dhuhur        : Hari biasa 12.00 - 12.15 (> 12.15 = Terlambat) [Aktif 11:30 - 14:29]
+ * - Sholat Jum'at (Putra): Khusus Jumat santri putra 11.00 - 12.15 (> 12.15 = Terlambat) [Aktif mulai 11:00 - 14:29]
+ * - Keputrian (Putri)    : Khusus Jumat siswi putri 12.30 - 13.00 (> 12.30 = Terlambat) [Aktif 11:30 - 14:29]
  * - Sholat Ashar & Pulang: 15.00 - 15.15 (> 15.15 = Terlambat) [Rentang mesin: 14:30 - 23:59]
  *
  * Penguncian Anti-Dobel:
@@ -1188,6 +1190,13 @@ class FingerspotAttendanceController extends Controller
     private function evaluateAttendanceTiming(string $tipe, Carbon $waktu, string $metode): array
     {
         $rule = self::SCHEDULE_RULES[$tipe] ?? self::SCHEDULE_RULES['masuk'];
+        $label = $rule['label'];
+
+        // Khusus hari Jumat untuk Sholat Dhuhur santri putra: gunakan nama resmi "Sholat Jum'at"
+        if ($tipe === 'sholat_dhuhur' && $waktu->isFriday()) {
+            $label = "Sholat Jum'at";
+        }
+
         $scanMinutes = ($waktu->hour * 60) + $waktu->minute;
         $limitMinutes = ($rule['limit_hour'] * 60) + $rule['limit_minute'];
         $isLate = $scanMinutes > $limitMinutes;
@@ -1195,9 +1204,9 @@ class FingerspotAttendanceController extends Controller
 
         if ($isLate) {
             $lateBy = $scanMinutes - $limitMinutes;
-            $keterangan = "Terlambat {$rule['label']} (+{$lateBy} menit, scan {$jamScan}, batas {$rule['limit_str']}) via Fingerspot ({$metode})";
+            $keterangan = "Terlambat {$label} (+{$lateBy} menit, scan {$jamScan}, batas {$rule['limit_str']}) via Fingerspot ({$metode})";
         } else {
-            $keterangan = "{$rule['label']} - Tepat Waktu ({$jamScan}) via Fingerspot ({$metode})";
+            $keterangan = "{$label} - Tepat Waktu ({$jamScan}) via Fingerspot ({$metode})";
         }
 
         return [
@@ -1208,25 +1217,34 @@ class FingerspotAttendanceController extends Controller
 
     /**
      * Deteksi Sesi / Tipe Absen berdasarkan waktu scan WIB:
-     * - 00:00 - 11:29 : Masuk Pagi (Normal: 06.00 - 06.45, > 06.45 = Terlambat mulai 06.46)
-     * - 11:30 - 14:29 : Siang:
-     *                   * Khusus Jumat Siswi Putri : Kegiatan Keputrian (Dimulai 12.30 - 13.00, > 12.30 = Terlambat)
-     *                   * Santri Putra / Hari Lain : Sholat Dhuhur (Normal: 12.00 - 12.15, > 12.15 = Terlambat)
-     * - 14:30 - 23:59 : Sholat Ashar & Pulang (Normal: 15.00 - 15.15, > 15.15 = Terlambat)
+     * - Masuk Pagi   : Sebelum batas siang (Hari biasa < 11:30, Jumat Putri < 11:30, Jumat Putra < 11:00)
+     * - Sesi Siang   : Batas Siang s/d 14:29 WIB
+     *                  * Khusus Jumat Santri Putra : Sholat Jum'at (Aktif mulai pukul 11.00 WIB, > 12.15 = Terlambat)
+     *                  * Khusus Jumat Siswi Putri  : Kegiatan Keputrian (12.30 - 13.00 WIB, aktif mulai 11:30, > 12.30 = Terlambat)
+     *                  * Hari Biasa (Senin - Kamis, Sabtu, Ahad) : Sholat Dhuhur (12.00 - 12.15, aktif mulai 11:30, > 12.15 = Terlambat)
+     * - Sholat Ashar : 14:30 s/d 23:59 WIB (Normal: 15.00 - 15.15, > 15.15 = Terlambat)
      */
     private function deteksiTipe(Carbon $waktu, $statusScan = null, ?Student $student = null): string
     {
         $totalMinutes = ($waktu->hour * 60) + $waktu->minute;
+        $isJumat = $waktu->isFriday();
+        $isPutra = $student && $student->jenis_kelamin === 'L';
+        $isPutri = $student && $student->jenis_kelamin === 'P';
 
-        // Sebelum 11:30 WIB -> Sesi Masuk Pagi
-        if ($totalMinutes < (11 * 60 + 30)) {
+        // Batas awal sesi siang:
+        // - Khusus hari Jum'at untuk santri putra (atau tanpa gender khusus): Sesi Sholat Jum'at dimulai pukul 11:00 WIB (660 menit)
+        // - Hari Jum'at untuk siswi putri (Kegiatan Keputrian) & hari biasa: dimulai pukul 11:30 WIB (690 menit)
+        $startSiangMinutes = ($isJumat && ($isPutra || !$student)) ? (11 * 60) : (11 * 60 + 30);
+
+        // Sebelum batas siang -> Sesi Masuk Pagi
+        if ($totalMinutes < $startSiangMinutes) {
             return 'masuk';
         }
 
-        // 11:30 s/d 14:29 WIB -> Sesi Siang (Sholat Dhuhur / Kegiatan Keputrian)
+        // Sesi Siang (s.d 14:29 WIB)
         if ($totalMinutes < (14 * 60 + 30)) {
             // Khusus hari Jumat teruntuk siswi putri saja: Kegiatan Keputrian (dimulai 12.30 - 13.00 WIB)
-            if ($waktu->isFriday() && $student && $student->jenis_kelamin === 'P') {
+            if ($isJumat && $isPutri) {
                 return 'keputrian';
             }
 

@@ -251,7 +251,7 @@
                 <span class="stats-value" style="color: #be123c;">{{ $stats['masuk_terlambat'] }}</span>
             </td>
             <td>
-                Sholat Dhuhur
+                {{ \Carbon\Carbon::parse($tanggal ?? now())->isFriday() ? 'Sholat Jum\'at & Keputrian' : 'Sholat Dhuhur' }}
                 <span class="stats-value" style="color: #0284c7;">{{ $stats['dhuhur_hadir'] }}</span>
             </td>
             <td>
@@ -371,7 +371,7 @@
                     <th style="width: 25px;" rowspan="2">L/P</th>
                     <th style="width: 50px;" rowspan="2">Kelas</th>
                     <th colspan="2" class="th-primary">1. Kedatangan di Sekolah (Finger)</th>
-                    <th colspan="2" class="th-emerald">{{ \Carbon\Carbon::parse($tanggal)->isFriday() ? '2. Dhuhur (Putra) / Keputrian (Putri)' : '2. Sholat Dhuhur (Finger)' }}</th>
+                    <th colspan="2" class="th-emerald">{{ \Carbon\Carbon::parse($tanggal)->isFriday() ? '2. Sholat Jum\'at (Putra) / Keputrian (Putri)' : '2. Sholat Dhuhur (Finger)' }}</th>
                     <th colspan="2" class="th-amber">3. Sholat Ashar (Finger)</th>
                     <th style="width: 85px;" rowspan="2">Status & Keterangan</th>
                 </tr>
@@ -410,11 +410,11 @@
                             $badgeMasuk = $stObj->status === 'sakit' ? 'badge-amber' : ($stObj->status === 'izin' ? 'badge-blue' : 'badge-rose');
                         }
 
-                        // 2. Dhuhur / Keputrian
+                        // 2. Dhuhur / Keputrian / Sholat Jum'at
                         $isFriday = \Carbon\Carbon::parse($tanggal)->isFriday();
                         $isKeputrian = $isFriday && $student->jenis_kelamin === 'P';
                         $jamDhuhur = '-';
-                        $ketDhuhur = $isKeputrian ? 'Belum Scan Keputrian' : 'Belum Scan';
+                        $ketDhuhur = $isKeputrian ? 'Belum Scan Keputrian' : ($isFriday ? 'Belum Sholat Jum\'at' : 'Belum Scan');
                         $badgeDhuhur = 'badge-gray';
                         if ($isHalangan && (!$attDhuhur || $attDhuhur->status !== 'hadir')) {
                             $jamDhuhur = 'Udzur';
@@ -431,7 +431,7 @@
                             if ($isKeputrian) {
                                 $ketDhuhur = $isLate ? 'Terlambat Keputrian' : 'Tepat Waktu (Keputrian)';
                             } else {
-                                $ketDhuhur = $isLate ? 'Terlambat' : 'Tepat Waktu';
+                                $ketDhuhur = $isLate ? ($isFriday ? 'Terlambat Jum\'at' : 'Terlambat') : ($isFriday ? 'Tepat Waktu (Sholat Jum\'at)' : 'Tepat Waktu');
                             }
                             $badgeDhuhur = $isLate ? 'badge-rose' : 'badge-green';
                         } elseif ($excused) {

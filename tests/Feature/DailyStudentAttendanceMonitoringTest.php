@@ -620,5 +620,27 @@ class DailyStudentAttendanceMonitoringTest extends TestCase
         $this->assertEquals('success', $resFemaleThursday['status']);
         $this->assertEquals('sholat_dhuhur', $resFemaleThursday['tipe']);
         $this->assertFalse((bool) $resFemaleThursday['is_late']);
+
+        // 5. Khusus Hari Jumat Santri Putra scan jam 11:05 -> Sholat Jum'at Tepat Waktu (dimulai 11.00)
+        $anotherMale = Student::create([
+            'name'           => 'Fulan bin Fulan',
+            'nis'            => '7012',
+            'fingerspot_pin' => '7012',
+            'classroom_id'   => $this->classroom->id,
+            'jenis_kelamin'  => 'L',
+            'tanggal_lahir'  => '2012-03-03',
+            'institution_id' => $this->institution->id,
+            'status_siswa'   => 'aktif',
+        ]);
+        $resMaleFridayJumat = $controller->processAttendanceRecord(
+            $anotherMale->fingerspot_pin,
+            "{$fridayDate} 11:05:00",
+            1,
+            0
+        );
+        $this->assertEquals('success', $resMaleFridayJumat['status']);
+        $this->assertEquals('sholat_dhuhur', $resMaleFridayJumat['tipe']);
+        $this->assertFalse((bool) $resMaleFridayJumat['is_late']);
+        $this->assertStringContainsString("Sholat Jum'at", $resMaleFridayJumat['keterangan']);
     }
 }

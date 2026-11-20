@@ -262,9 +262,17 @@ class HikvisionAttendanceController extends Controller
     private function deteksiTipe(Carbon $waktu, ?Student $student = null): string
     {
         $jam = $waktu->hour * 60 + $waktu->minute;
-        if ($jam < 12 * 60) return 'masuk';
-        if ($jam < 14 * 60) {
-            if ($waktu->isFriday() && $student && $student->jenis_kelamin === 'P') {
+        $isJumat = $waktu->isFriday();
+        $isPutra = $student && $student->jenis_kelamin === 'L';
+        $isPutri = $student && $student->jenis_kelamin === 'P';
+
+        // Khusus hari Jumat untuk santri putra: Sesi Sholat Jum'at dimulai pukul 11:00 WIB (660 menit)
+        // Untuk siswi putri (Keputrian) dan hari biasa: dimulai pukul 11:30 WIB (690 menit)
+        $startSiangMinutes = ($isJumat && ($isPutra || !$student)) ? (11 * 60) : (11 * 60 + 30);
+
+        if ($jam < $startSiangMinutes) return 'masuk';
+        if ($jam < (14 * 60 + 30)) {
+            if ($isJumat && $isPutri) {
                 return 'keputrian';
             }
             return 'sholat_dhuhur';

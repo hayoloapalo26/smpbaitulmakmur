@@ -330,9 +330,9 @@ class PresensiIzinSiswaResource extends Resource
                         </span>';
                     }),
 
-                // 2. Sholat Dhuhur / Kegiatan Keputrian (Finger)
+                // 2. Sholat Dhuhur / Jum'at / Kegiatan Keputrian (Finger)
                 Tables\Columns\TextColumn::make('dhuhur_finger')
-                    ->label(fn ($livewire) => (static::getActiveMode($livewire) === 'harian' && Carbon::parse(static::getActiveDate($livewire))->isFriday()) ? '2. Dhuhur (Putra) / Keputrian (Putri)' : '2. Sholat Dhuhur (Finger)')
+                    ->label(fn ($livewire) => (static::getActiveMode($livewire) === 'harian' && Carbon::parse(static::getActiveDate($livewire))->isFriday()) ? '2. Sholat Jum\'at (Putra) / Keputrian (Putri)' : '2. Sholat Dhuhur (Finger)')
                     ->html()
                     ->state(function (Student $record, $livewire): string {
                         $mode = static::getActiveMode($livewire);
@@ -423,7 +423,7 @@ class PresensiIzinSiswaResource extends Resource
                             $isLate = $att->is_late || ($att->waktu_kedatangan && Carbon::parse($att->waktu_kedatangan)->format('H:i') > $cutoff);
 
                             if ($isLate) {
-                                $lateLabel = $isKeputrian ? 'Terlambat Keputrian' : 'Terlambat';
+                                $lateLabel = $isKeputrian ? 'Terlambat Keputrian' : ($isFriday ? 'Terlambat Jum\'at' : 'Terlambat');
                                 return '<div class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200 dark:bg-rose-950/40 dark:text-rose-400 dark:border-rose-800">
                                     <svg class="w-3.5 h-3.5 text-rose-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
                                     <span>' . $jam . ' WIB</span>
@@ -431,7 +431,7 @@ class PresensiIzinSiswaResource extends Resource
                                 </div>';
                             }
 
-                            $onTimeLabel = $isKeputrian ? 'Keputrian Tepat' : 'Tepat Waktu';
+                            $onTimeLabel = $isKeputrian ? 'Keputrian Tepat' : ($isFriday ? 'Jum\'at Tepat' : 'Tepat Waktu');
                             return '<div class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800">
                                 <svg class="w-3.5 h-3.5 text-emerald-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
                                 <span>' . $jam . ' WIB</span>
@@ -440,7 +440,7 @@ class PresensiIzinSiswaResource extends Resource
                         }
 
                         // 4. Belum Scan
-                        $belumLabel = $isKeputrian ? 'Belum Scan Keputrian' : 'Belum Scan';
+                        $belumLabel = $isKeputrian ? 'Belum Scan Keputrian' : ($isFriday ? 'Belum Sholat Jum\'at' : 'Belum Scan');
                         return '<span class="inline-flex items-center gap-1 text-xs text-slate-400 dark:text-slate-500 font-medium">
                             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/></svg>
                             ' . $belumLabel . '
@@ -899,7 +899,7 @@ class PresensiIzinSiswaResource extends Resource
                                 $isFriday = Carbon::parse(static::getActiveDate($livewire))->isFriday();
                                 $dhuhurLabel = ($isFriday && $record->jenis_kelamin === 'P')
                                     ? '🌸 Kegiatan Keputrian (Jumat Putri)'
-                                    : '🕌 Sholat Dhuhur';
+                                    : ($isFriday ? '🕌 Sholat Jum\'at (Jumat Putra)' : '🕌 Sholat Dhuhur');
 
                                 return [
                                     'masuk'         => '🏫 Kedatangan Sekolah (Masuk Pagi)',
@@ -917,7 +917,7 @@ class PresensiIzinSiswaResource extends Resource
 
                         Forms\Components\Toggle::make('is_late')
                             ->label('Tandai Terlambat')
-                            ->helperText('Otomatis: Masuk >= 06:46 (06:45 tepat waktu), Dhuhur > 12:15, Keputrian > 12:30, Ashar > 15:15')
+                            ->helperText('Otomatis: Masuk >= 06:46 (06:45 tepat waktu), Jum\'at/Dhuhur > 12:15 (Putra mulai 11:00), Keputrian > 12:30, Ashar > 15:15')
                             ->default(false),
 
                         Forms\Components\TextInput::make('keterangan')
@@ -958,7 +958,7 @@ class PresensiIzinSiswaResource extends Resource
                                 'waktu_kedatangan' => $jam,
                                 'is_late'          => $isLate,
                                 'late_penalty_points' => 0,
-                                'keterangan'       => $data['keterangan'] ?? ($isKeputrian ? 'Kegiatan Keputrian (diinput petugas)' : 'Diinput manual oleh petugas piket'),
+                                'keterangan'       => $data['keterangan'] ?? ($isKeputrian ? 'Kegiatan Keputrian (diinput petugas)' : ($isFriday ? 'Sholat Jum\'at (diinput petugas)' : 'Diinput manual oleh petugas piket')),
                             ]
                         );
 

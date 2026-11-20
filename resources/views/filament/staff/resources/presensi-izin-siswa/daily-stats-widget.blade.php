@@ -158,7 +158,7 @@
         @endphp
         <div class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl p-3.5 shadow-sm hover:shadow transition-shadow border-l-4 border-l-blue-500">
             <div class="flex items-center justify-between text-gray-500 dark:text-gray-400 text-xs font-semibold mb-1">
-                <span>{{ $mode === 'rentang' ? 'Total Sholat Dhuhur' : ($isJumat ? 'Dhuhur & Keputrian' : 'Sholat Dhuhur') }}</span>
+                <span>{{ $mode === 'rentang' ? 'Total Sholat Dhuhur & Jum\'at' : ($isJumat ? 'Sholat Jum\'at & Keputrian' : 'Sholat Dhuhur') }}</span>
                 <span class="text-base">{{ $isJumat ? '🕌 / 🌸' : '🕌' }}</span>
             </div>
             <div class="text-2xl font-black text-blue-600 dark:text-blue-400">

@@ -182,7 +182,7 @@ class ManagePresensiIzinSiswa extends ManageRecords
                     });
                 });
 
-            $tabDhuhurLabel = Carbon::parse($date)->isFriday() ? 'Belum Dhuhur / Keputrian' : 'Belum Sholat Dhuhur';
+            $tabDhuhurLabel = Carbon::parse($date)->isFriday() ? 'Belum Jum\'at / Keputrian' : 'Belum Sholat Dhuhur';
             $tabs['belum_dhuhur'] = Tab::make($tabDhuhurLabel)
                 ->modifyQueryUsing(function (Builder $query) use ($date) {
                     $query->whereDoesntHave('dailyAttendances', function ($q) use ($date) {
@@ -293,12 +293,16 @@ class ManagePresensiIzinSiswa extends ManageRecords
 
                     Forms\Components\Select::make('tipe_absen')
                         ->label('Sesi Presensi')
-                        ->options([
-                            'masuk'         => '🏫 Kedatangan Sekolah (Masuk)',
-                            'sholat_dhuhur' => '🕌 Sholat Dhuhur',
-                            'sholat_ashar'  => '🕌 Sholat Ashar',
-                            'semua'         => '✨ Seluruh Sesi (Masuk, Dhuhur, Ashar)',
-                        ])
+                        ->options(function (Forms\Get $get) {
+                            $tgl = $get('tanggal') ?: ($this->filterTanggal ?: Carbon::today()->toDateString());
+                            $isFriday = Carbon::parse($tgl)->isFriday();
+                            return [
+                                'masuk'         => '🏫 Kedatangan Sekolah (Masuk)',
+                                'sholat_dhuhur' => $isFriday ? '🕌 Sholat Jum\'at (Putra) / 🌸 Keputrian (Putri)' : '🕌 Sholat Dhuhur',
+                                'sholat_ashar'  => '🕌 Sholat Ashar',
+                                'semua'         => $isFriday ? '✨ Seluruh Sesi (Masuk, Jum\'at/Keputrian, Ashar)' : '✨ Seluruh Sesi (Masuk, Dhuhur, Ashar)',
+                            ];
+                        })
                         ->default('masuk')
                         ->required(),
 

@@ -135,14 +135,17 @@ class FingerspotDeviceResource extends Resource
                 Tables\Columns\TextColumn::make('tipe_absen')
                     ->label('Sesi Mesin')
                     ->badge()
-                    ->formatStateUsing(fn (?string $state): string => match ($state) {
-                        'masuk'         => '🏫 Masuk Pagi',
-                        'sholat_dhuha'  => '🕌 Sholat Dhuha',
-                        'sholat_dhuhur' => '🕌 Sholat Dhuhur',
-                        'keputrian'     => '🌸 Kegiatan Keputrian',
-                        'sholat_ashar'  => '🕌 Sholat Ashar & Pulang',
-                        'pulang'        => '🏠 Pulang',
-                        default         => ucfirst((string) $state),
+                    ->formatStateUsing(function (?string $state, DailyAttendance $record): string {
+                        $isFriday = Carbon::parse($record->tanggal)->isFriday();
+                        return match ($state) {
+                            'masuk'         => '🏫 Masuk Pagi',
+                            'sholat_dhuha'  => '🕌 Sholat Dhuha',
+                            'sholat_dhuhur' => $isFriday ? '🕌 Sholat Jum\'at' : '🕌 Sholat Dhuhur',
+                            'keputrian'     => '🌸 Kegiatan Keputrian',
+                            'sholat_ashar'  => '🕌 Sholat Ashar & Pulang',
+                            'pulang'        => '🏠 Pulang',
+                            default         => ucfirst((string) $state),
+                        };
                     })
                     ->color(fn (?string $state): string => str_starts_with((string) $state, 'sholat_') ? 'warning' : 'primary'),
 
