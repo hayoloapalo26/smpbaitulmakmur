@@ -100,7 +100,7 @@ class ManagePresensiIzinSiswa extends ManageRecords
                             $q->whereHas('dailyAttendances', function ($sub) use ($date) {
                                 $sub->withoutGlobalScopes()
                                     ->whereDate('tanggal', $date)
-                                    ->where('tipe_absen', 'sholat_dhuhur')
+                                    ->whereIn('tipe_absen', ['sholat_dhuhur', 'keputrian'])
                                     ->where('status', 'hadir');
                             })->orWhere(function ($sub) use ($date) {
                                 $sub->where('jenis_kelamin', 'P')
@@ -182,13 +182,14 @@ class ManagePresensiIzinSiswa extends ManageRecords
                     });
                 });
 
-            $tabs['belum_dhuhur'] = Tab::make('Belum Sholat Dhuhur')
+            $tabDhuhurLabel = Carbon::parse($date)->isFriday() ? 'Belum Dhuhur / Keputrian' : 'Belum Sholat Dhuhur';
+            $tabs['belum_dhuhur'] = Tab::make($tabDhuhurLabel)
                 ->modifyQueryUsing(function (Builder $query) use ($date) {
                     $query->whereDoesntHave('dailyAttendances', function ($q) use ($date) {
                         $q->withoutGlobalScopes()
                           ->whereDate('tanggal', $date)
                           ->where(function ($sub) {
-                              $sub->where('tipe_absen', 'sholat_dhuhur')
+                              $sub->whereIn('tipe_absen', ['sholat_dhuhur', 'keputrian'])
                                   ->orWhereIn('status', ['sakit', 'izin', 'alpa', 'halangan']);
                           });
                     });
@@ -329,14 +330,18 @@ class ManagePresensiIzinSiswa extends ManageRecords
                         ? ['masuk', 'sholat_dhuhur', 'sholat_ashar']
                         : [$data['tipe_absen']];
 
+                    $isFriday = Carbon::parse($data['tanggal'])->isFriday();
                     $count = 0;
                     foreach ($students as $student) {
                         foreach ($sesiList as $sesi) {
+                            $targetSesi = ($isFriday && $student->jenis_kelamin === 'P' && $sesi === 'sholat_dhuhur')
+                                ? 'keputrian'
+                                : $sesi;
                             DailyAttendance::withoutGlobalScopes()->updateOrCreate(
                                 [
                                     'student_id' => $student->id,
                                     'tanggal'    => $data['tanggal'],
-                                    'tipe_absen' => $sesi,
+                                    'tipe_absen' => $targetSesi,
                                 ],
                                 [
                                     'institution_id'   => $student->institution_id ?: 2,

@@ -64,6 +64,7 @@ class FingerspotDeviceResource extends Resource
                         'masuk'         => '🏫 Kehadiran Harian (Masuk)',
                         'sholat_dhuha'  => '🕌 Sholat Dhuha',
                         'sholat_dhuhur' => '🕌 Sholat Dhuhur',
+                        'keputrian'     => '🌸 Kegiatan Keputrian (Jumat Putri)',
                         'sholat_ashar'  => '🕌 Sholat Ashar & Pulang',
                         'pulang'        => '🏠 Absen Pulang',
                     ])
@@ -138,6 +139,7 @@ class FingerspotDeviceResource extends Resource
                         'masuk'         => '🏫 Masuk Pagi',
                         'sholat_dhuha'  => '🕌 Sholat Dhuha',
                         'sholat_dhuhur' => '🕌 Sholat Dhuhur',
+                        'keputrian'     => '🌸 Kegiatan Keputrian',
                         'sholat_ashar'  => '🕌 Sholat Ashar & Pulang',
                         'pulang'        => '🏠 Pulang',
                         default         => ucfirst((string) $state),
@@ -184,6 +186,7 @@ class FingerspotDeviceResource extends Resource
                     ->options([
                         'masuk'         => 'Masuk Pagi',
                         'sholat_dhuhur' => 'Sholat Dhuhur',
+                        'keputrian'     => 'Kegiatan Keputrian',
                         'sholat_ashar'  => 'Sholat Ashar & Pulang',
                     ]),
                 Tables\Filters\SelectFilter::make('status')

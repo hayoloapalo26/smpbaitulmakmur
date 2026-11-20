@@ -121,7 +121,7 @@ class HikvisionAttendanceController extends Controller
             $today = $now->toDateString();
 
             // Tentukan tipe absen berdasarkan jam
-            $tipe = $this->deteksiTipe($now);
+            $tipe = $this->deteksiTipe($now, $student);
 
             // Cek halangan siswi
             if ($student->jenis_kelamin === 'P' && in_array($tipe, ['sholat_dhuhur', 'sholat_ashar'])) {
@@ -174,13 +174,17 @@ class HikvisionAttendanceController extends Controller
                 return response()->json(['status' => 'duplicate', 'student' => $student->name, 'tipe' => $tipe]);
             }
 
-            // Keterlambatan (hanya untuk absen masuk)
+            // Keterlambatan
             $isLate = false;
             $catatan = ucfirst(str_replace('_', ' ', $tipe)) . " via {$metode}";
             if ($tipe === 'masuk') {
-                $batas = $now->copy()->setHour(7)->setMinute(15)->setSecond(0);
+                $batas = $now->copy()->setHour(6)->setMinute(45)->setSecond(0);
                 $isLate = $now->greaterThan($batas);
                 $catatan = $isLate ? "Terlambat ({$now->format('H:i')}) via {$metode}" : "Tepat Waktu via {$metode}";
+            } elseif ($tipe === 'keputrian') {
+                $batas = $now->copy()->setHour(12)->setMinute(30)->setSecond(0);
+                $isLate = $now->greaterThan($batas);
+                $catatan = $isLate ? "Terlambat Kegiatan Keputrian ({$now->format('H:i')}) via {$metode}" : "Kegiatan Keputrian - Tepat Waktu via {$metode}";
             }
 
             // Simpan kehadiran
@@ -191,10 +195,11 @@ class HikvisionAttendanceController extends Controller
                 'tanggal'         => $today,
                 'tipe_absen'      => $tipe,
                 'metode_absen'    => $metode,
-                'waktu_kedatangan' => in_array($tipe, ['masuk', 'sholat_dhuhur', 'sholat_ashar']) ? $now->format('H:i:s') : null,
+                'waktu_kedatangan' => in_array($tipe, ['masuk', 'sholat_dhuhur', 'keputrian', 'sholat_ashar']) ? $now->format('H:i:s') : null,
                 'waktu_kepulangan' => $tipe === 'pulang' ? $now->format('H:i:s') : null,
                 'status'          => 'hadir',
                 'is_late'         => $isLate,
+                'late_penalty_points' => 0,
                 'catatan'         => $catatan,
             ]);
 
@@ -254,11 +259,16 @@ class HikvisionAttendanceController extends Controller
     /**
      * Deteksi tipe absen dari jam
      */
-    private function deteksiTipe(Carbon $waktu): string
+    private function deteksiTipe(Carbon $waktu, ?Student $student = null): string
     {
         $jam = $waktu->hour * 60 + $waktu->minute;
         if ($jam < 12 * 60) return 'masuk';
-        if ($jam < 14 * 60) return 'sholat_dhuhur';
+        if ($jam < 14 * 60) {
+            if ($waktu->isFriday() && $student && $student->jenis_kelamin === 'P') {
+                return 'keputrian';
+            }
+            return 'sholat_dhuhur';
+        }
         if ($jam < 16 * 60) return 'sholat_ashar';
         return 'pulang';
     }

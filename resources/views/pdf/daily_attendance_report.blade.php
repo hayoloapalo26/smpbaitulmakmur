@@ -216,7 +216,7 @@
             <td><strong>Waktu Cetak</strong></td>
             <td>: {{ now()->translatedFormat('d F Y, H:i') }} WIB (Oleh: {{ auth()->user()->name ?? 'Petugas' }})</td>
             <td><strong>Aturan Jam Resmi</strong></td>
-            <td>: Masuk (s.d 06:45, terlambat mulai 06:46) &bull; Dhuhur (s.d 12:15) &bull; Ashar (s.d 15:15)</td>
+            <td>: Masuk (s.d 06:45, terlambat mulai 06:46) &bull; Dhuhur (s.d 12:15, Keputrian Putri s.d 12:30) &bull; Ashar (s.d 15:15)</td>
         </tr>
         @if(!empty($guruPiket1) || !empty($guruPiket2))
         <tr>
@@ -371,7 +371,7 @@
                     <th style="width: 25px;" rowspan="2">L/P</th>
                     <th style="width: 50px;" rowspan="2">Kelas</th>
                     <th colspan="2" class="th-primary">1. Kedatangan di Sekolah (Finger)</th>
-                    <th colspan="2" class="th-emerald">2. Sholat Dhuhur (Finger)</th>
+                    <th colspan="2" class="th-emerald">{{ \Carbon\Carbon::parse($tanggal)->isFriday() ? '2. Dhuhur (Putra) / Keputrian (Putri)' : '2. Sholat Dhuhur (Finger)' }}</th>
                     <th colspan="2" class="th-amber">3. Sholat Ashar (Finger)</th>
                     <th style="width: 85px;" rowspan="2">Status & Keterangan</th>
                 </tr>
@@ -410,11 +410,13 @@
                             $badgeMasuk = $stObj->status === 'sakit' ? 'badge-amber' : ($stObj->status === 'izin' ? 'badge-blue' : 'badge-rose');
                         }
 
-                        // 2. Dhuhur
+                        // 2. Dhuhur / Keputrian
+                        $isFriday = \Carbon\Carbon::parse($tanggal)->isFriday();
+                        $isKeputrian = $isFriday && $student->jenis_kelamin === 'P';
                         $jamDhuhur = '-';
-                        $ketDhuhur = 'Belum Scan';
+                        $ketDhuhur = $isKeputrian ? 'Belum Scan Keputrian' : 'Belum Scan';
                         $badgeDhuhur = 'badge-gray';
-                        if ($isHalangan || ($attDhuhur && $attDhuhur->status === 'halangan')) {
+                        if ($isHalangan && (!$attDhuhur || $attDhuhur->status !== 'hadir')) {
                             $jamDhuhur = 'Udzur';
                             $ketDhuhur = ($attDhuhur && $attDhuhur->keterangan) ? $attDhuhur->keterangan : 'Sedang Halangan';
                             $badgeDhuhur = 'badge-purple';
@@ -424,8 +426,13 @@
                             $badgeDhuhur = $attDhuhur->status === 'sakit' ? 'badge-amber' : ($attDhuhur->status === 'izin' ? 'badge-blue' : 'badge-rose');
                         } elseif ($attDhuhur && $attDhuhur->status === 'hadir') {
                             $jamDhuhur = $attDhuhur->waktu_kedatangan ? \Carbon\Carbon::parse($attDhuhur->waktu_kedatangan)->format('H:i') : 'Hadir';
-                            $isLate = $attDhuhur->is_late || ($attDhuhur->waktu_kedatangan && \Carbon\Carbon::parse($attDhuhur->waktu_kedatangan)->format('H:i') > '12:15');
-                            $ketDhuhur = $isLate ? 'Terlambat' : 'Tepat Waktu';
+                            $cutoff = $isKeputrian ? '12:30' : '12:15';
+                            $isLate = $attDhuhur->is_late || ($attDhuhur->waktu_kedatangan && \Carbon\Carbon::parse($attDhuhur->waktu_kedatangan)->format('H:i') > $cutoff);
+                            if ($isKeputrian) {
+                                $ketDhuhur = $isLate ? 'Terlambat Keputrian' : 'Tepat Waktu (Keputrian)';
+                            } else {
+                                $ketDhuhur = $isLate ? 'Terlambat' : 'Tepat Waktu';
+                            }
                             $badgeDhuhur = $isLate ? 'badge-rose' : 'badge-green';
                         } elseif ($excused) {
                             $jamDhuhur = strtoupper($excused->status);

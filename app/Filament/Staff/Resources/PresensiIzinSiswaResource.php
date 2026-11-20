@@ -158,6 +158,7 @@ class PresensiIzinSiswaResource extends Resource
                     ->options([
                         'masuk'         => '🏫 Kehadiran di Sekolah (Masuk Pagi)',
                         'sholat_dhuhur' => '🕌 Sholat Dhuhur',
+                        'keputrian'     => '🌸 Kegiatan Keputrian (Jumat Putri)',
                         'sholat_ashar'  => '🕌 Sholat Ashar & Pulang',
                         'pulang'        => '🏠 Jam Pulang',
                     ])
@@ -329,9 +330,9 @@ class PresensiIzinSiswaResource extends Resource
                         </span>';
                     }),
 
-                // 2. Sholat Dhuhur (Finger)
+                // 2. Sholat Dhuhur / Kegiatan Keputrian (Finger)
                 Tables\Columns\TextColumn::make('dhuhur_finger')
-                    ->label('2. Sholat Dhuhur (Finger)')
+                    ->label(fn ($livewire) => (static::getActiveMode($livewire) === 'harian' && Carbon::parse(static::getActiveDate($livewire))->isFriday()) ? '2. Dhuhur (Putra) / Keputrian (Putri)' : '2. Sholat Dhuhur (Finger)')
                     ->html()
                     ->state(function (Student $record, $livewire): string {
                         $mode = static::getActiveMode($livewire);
@@ -340,7 +341,7 @@ class PresensiIzinSiswaResource extends Resource
                             [$start, $end] = static::getActiveDateRange($livewire);
                             $atts = $record->dailyAttendances->filter(function ($a) use ($start, $end) {
                                 $d = Carbon::parse($a->tanggal)->toDateString();
-                                return $d >= $start && $d <= $end && $a->tipe_absen === 'sholat_dhuhur';
+                                return $d >= $start && $d <= $end && in_array($a->tipe_absen, ['sholat_dhuhur', 'keputrian']);
                             })->sortBy(fn ($a) => ($a->waktu_kedatangan ?: '99:99:99') . '_' . $a->id)
                               ->unique(fn ($a) => Carbon::parse($a->tanggal)->toDateString());
 
@@ -374,12 +375,15 @@ class PresensiIzinSiswaResource extends Resource
 
                         // Mode Harian
                         $tanggal = static::getActiveDate($livewire);
-                        $att = $record->getAttendanceOnDate($tanggal, 'sholat_dhuhur');
+                        $isFriday = Carbon::parse($tanggal)->isFriday();
+                        $isKeputrian = $isFriday && $record->jenis_kelamin === 'P';
+                        $targetTipe = $isKeputrian ? ['keputrian', 'sholat_dhuhur'] : ['sholat_dhuhur', 'keputrian'];
+                        $att = $record->getAttendanceOnDate($tanggal, $targetTipe);
                         $isHalangan = $record->jenis_kelamin === 'P' && (StudentHalangan::isHalangan($record->id, $tanggal) || ($att && $att->status === 'halangan'));
                         $excused = $record->getGeneralExcusedOnDate($tanggal);
 
-                        // 1. Siswi Putri Halangan / Udzur Syar'i
-                        if ($isHalangan) {
+                        // 1. Siswi Putri Halangan / Udzur Syar'i (jika bukan hadir keputrian)
+                        if ($isHalangan && (!$att || $att->status !== 'hadir')) {
                             $ket = ($att && $att->keterangan) ? $att->keterangan : "Sedang halangan / udzur syar'i";
                             return '<div class="flex flex-col gap-0.5">
                                 <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-purple-50 text-purple-700 border border-purple-200 dark:bg-purple-950/40 dark:text-purple-300 dark:border-purple-800">
@@ -415,27 +419,31 @@ class PresensiIzinSiswaResource extends Resource
                         // 3. Hadir Scan
                         if ($att && $att->status === 'hadir') {
                             $jam = $att->waktu_kedatangan ? Carbon::parse($att->waktu_kedatangan)->format('H:i') : '-';
-                            $isLate = $att->is_late || ($att->waktu_kedatangan && Carbon::parse($att->waktu_kedatangan)->format('H:i') > '12:15');
+                            $cutoff = $isKeputrian ? '12:30' : '12:15';
+                            $isLate = $att->is_late || ($att->waktu_kedatangan && Carbon::parse($att->waktu_kedatangan)->format('H:i') > $cutoff);
 
                             if ($isLate) {
+                                $lateLabel = $isKeputrian ? 'Terlambat Keputrian' : 'Terlambat';
                                 return '<div class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200 dark:bg-rose-950/40 dark:text-rose-400 dark:border-rose-800">
                                     <svg class="w-3.5 h-3.5 text-rose-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
                                     <span>' . $jam . ' WIB</span>
-                                    <span class="text-[10px] bg-rose-200 text-rose-800 dark:bg-rose-900 dark:text-rose-200 px-1.5 py-0.5 rounded font-bold">Terlambat</span>
+                                    <span class="text-[10px] bg-rose-200 text-rose-800 dark:bg-rose-900 dark:text-rose-200 px-1.5 py-0.5 rounded font-bold">' . $lateLabel . '</span>
                                 </div>';
                             }
 
+                            $onTimeLabel = $isKeputrian ? 'Keputrian Tepat' : 'Tepat Waktu';
                             return '<div class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800">
                                 <svg class="w-3.5 h-3.5 text-emerald-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
                                 <span>' . $jam . ' WIB</span>
-                                <span class="text-[10px] bg-emerald-200 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200 px-1.5 py-0.5 rounded font-bold">Tepat Waktu</span>
+                                <span class="text-[10px] bg-emerald-200 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200 px-1.5 py-0.5 rounded font-bold">' . $onTimeLabel . '</span>
                             </div>';
                         }
 
                         // 4. Belum Scan
+                        $belumLabel = $isKeputrian ? 'Belum Scan Keputrian' : 'Belum Scan';
                         return '<span class="inline-flex items-center gap-1 text-xs text-slate-400 dark:text-slate-500 font-medium">
                             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/></svg>
-                            Belum Scan
+                            ' . $belumLabel . '
                         </span>';
                     }),
 
@@ -610,7 +618,9 @@ class PresensiIzinSiswaResource extends Resource
                                 return '✅ Lengkap (3/3)';
                             }
                             if ($dhuhurOk) {
-                                return '🔹 Masuk & Dhuhur (2/3)';
+                                return (Carbon::parse($tanggal)->isFriday() && $record->jenis_kelamin === 'P')
+                                    ? '🔹 Masuk & Keputrian (2/3)'
+                                    : '🔹 Masuk & Dhuhur (2/3)';
                             }
                             return '🔸 Masuk Saja (1/3)';
                         }
@@ -684,7 +694,9 @@ class PresensiIzinSiswaResource extends Resource
                     ])
                     ->action(function (Student $record, array $data, $livewire): void {
                         $tanggal = $data['tanggal'];
-                        $sesiList = ['masuk', 'sholat_dhuhur', 'sholat_ashar'];
+                        $isFriday = Carbon::parse($tanggal)->isFriday();
+                        $sesiSiang = ($isFriday && $record->jenis_kelamin === 'P') ? 'keputrian' : 'sholat_dhuhur';
+                        $sesiList = ['masuk', $sesiSiang, 'sholat_ashar'];
 
                         foreach ($sesiList as $sesi) {
                             DailyAttendance::withoutGlobalScopes()->updateOrCreate(
@@ -883,11 +895,18 @@ class PresensiIzinSiswaResource extends Resource
 
                         Forms\Components\Select::make('tipe_absen')
                             ->label('Sesi Presensi')
-                            ->options([
-                                'masuk'         => '🏫 Kedatangan Sekolah (Masuk Pagi)',
-                                'sholat_dhuhur' => '🕌 Sholat Dhuhur',
-                                'sholat_ashar'  => '🕌 Sholat Ashar',
-                            ])
+                            ->options(function (Student $record, $livewire) {
+                                $isFriday = Carbon::parse(static::getActiveDate($livewire))->isFriday();
+                                $dhuhurLabel = ($isFriday && $record->jenis_kelamin === 'P')
+                                    ? '🌸 Kegiatan Keputrian (Jumat Putri)'
+                                    : '🕌 Sholat Dhuhur';
+
+                                return [
+                                    'masuk'         => '🏫 Kedatangan Sekolah (Masuk Pagi)',
+                                    'sholat_dhuhur' => $dhuhurLabel,
+                                    'sholat_ashar'  => '🕌 Sholat Ashar',
+                                ];
+                            })
                             ->default('masuk')
                             ->required(),
 
@@ -898,7 +917,7 @@ class PresensiIzinSiswaResource extends Resource
 
                         Forms\Components\Toggle::make('is_late')
                             ->label('Tandai Terlambat')
-                            ->helperText('Otomatis: Masuk >= 06:46 (06:45 tepat waktu), Dhuhur > 12:15, Ashar > 15:15')
+                            ->helperText('Otomatis: Masuk >= 06:46 (06:45 tepat waktu), Dhuhur > 12:15, Keputrian > 12:30, Ashar > 15:15')
                             ->default(false),
 
                         Forms\Components\TextInput::make('keterangan')
@@ -911,9 +930,16 @@ class PresensiIzinSiswaResource extends Resource
                         $sesi = $data['tipe_absen'];
                         $jam = $data['waktu_kedatangan'];
 
+                        $isFriday = Carbon::parse($tanggal)->isFriday();
+                        $isKeputrian = $isFriday && $record->jenis_kelamin === 'P' && in_array($sesi, ['sholat_dhuhur', 'keputrian']);
+                        if ($isKeputrian) {
+                            $sesi = 'keputrian';
+                        }
+
                         $isLate = (bool) $data['is_late'];
                         if (!$isLate && $jam) {
                             if ($sesi === 'masuk' && $jam >= '06:46') $isLate = true;
+                            if ($sesi === 'keputrian' && $jam > '12:30') $isLate = true;
                             if ($sesi === 'sholat_dhuhur' && $jam > '12:15') $isLate = true;
                             if ($sesi === 'sholat_ashar' && $jam > '15:15') $isLate = true;
                         }
@@ -931,6 +957,9 @@ class PresensiIzinSiswaResource extends Resource
                                 'metode_absen'     => 'manual',
                                 'waktu_kedatangan' => $jam,
                                 'is_late'          => $isLate,
+                                'late_penalty_points' => 0,
+                                'keterangan'       => $data['keterangan'] ?? ($isKeputrian ? 'Kegiatan Keputrian (diinput petugas)' : 'Diinput manual oleh petugas piket'),
+                            ]
                                 'keterangan'       => $data['keterangan'] ?? 'Diinput manual oleh petugas piket',
                             ]
                         );
@@ -1244,10 +1273,12 @@ class PresensiIzinSiswaResource extends Resource
                         ])
                         ->action(function (\Illuminate\Database\Eloquent\Collection $records, array $data, $livewire): void {
                             $tanggal = $data['tanggal'];
-                            $sesiList = ['masuk', 'sholat_dhuhur', 'sholat_ashar'];
+                            $isFriday = Carbon::parse($tanggal)->isFriday();
                             $count = 0;
 
                             foreach ($records as $record) {
+                                $sesiSiang = ($isFriday && $record->jenis_kelamin === 'P') ? 'keputrian' : 'sholat_dhuhur';
+                                $sesiList = ['masuk', $sesiSiang, 'sholat_ashar'];
                                 foreach ($sesiList as $sesi) {
                                     DailyAttendance::withoutGlobalScopes()->updateOrCreate(
                                         [

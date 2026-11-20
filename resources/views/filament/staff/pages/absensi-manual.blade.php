@@ -37,7 +37,7 @@
                 <select wire:model.live="tipeAbsen"
                     class="w-full rounded-xl border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-base sm:text-sm shadow-sm focus:ring-primary-500 focus:border-primary-500 py-2 px-3">
                     <option value="masuk">🏫 Absen Masuk (Pagi)</option>
-                    <option value="sholat_dhuhur">🕌 Sholat Dhuhur</option>
+                    <option value="sholat_dhuhur">{{ \Carbon\Carbon::parse($selectedDate)->isFriday() ? '🕌 Sholat Dhuhur (Putra) / 🌸 Keputrian (Putri)' : '🕌 Sholat Dhuhur' }}</option>
                     <option value="sholat_ashar">🌅 Sholat Ashar</option>
                     <option value="pulang">🏠 Absen Pulang</option>
                 </select>

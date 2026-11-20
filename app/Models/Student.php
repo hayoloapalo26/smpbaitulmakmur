@@ -116,6 +116,12 @@ class Student extends Model
     public function getAttendanceOnDate(string $date, string|array $tipe): ?DailyAttendance
     {
         $tipes = is_array($tipe) ? $tipe : [$tipe];
+
+        // Jika mencari 'sholat_dhuhur', otomatis sertakan 'keputrian' (kegiatan khusus siswi putri di hari Jumat)
+        if (in_array('sholat_dhuhur', $tipes) && !in_array('keputrian', $tipes)) {
+            $tipes[] = 'keputrian';
+        }
+
         $isLana = $this->name && stripos($this->name, 'Lana') !== false;
 
         if ($this->relationLoaded('dailyAttendances')) {

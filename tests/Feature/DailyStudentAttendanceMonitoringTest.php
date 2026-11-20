@@ -549,4 +549,76 @@ class DailyStudentAttendanceMonitoringTest extends TestCase
         $this->assertEquals('pending', $att46_00->late_approval_status);
         $this->assertEquals(5, $att46_00->late_penalty_points);
     }
+
+    public function test_friday_keputrian_attendance_for_female_students(): void
+    {
+        $controller = new \App\Http\Controllers\Api\FingerspotAttendanceController();
+
+        // Hari Jumat: 2026-11-20
+        $fridayDate = '2026-11-20';
+        $this->assertTrue(\Carbon\Carbon::parse($fridayDate)->isFriday());
+
+        // 1. Siswi Perempuan scan jam 12:28 pada hari Jumat -> Keputrian Tepat Waktu (batas 12:30)
+        $resFemaleOnTime = $controller->processAttendanceRecord(
+            $this->studentFemale->fingerspot_pin,
+            "{$fridayDate} 12:28:00",
+            1,
+            0
+        );
+        $this->assertEquals('success', $resFemaleOnTime['status']);
+        $this->assertEquals('keputrian', $resFemaleOnTime['tipe']);
+        $this->assertFalse((bool) $resFemaleOnTime['is_late']);
+        $this->assertStringContainsString('Kegiatan Keputrian', $resFemaleOnTime['keterangan']);
+
+        // Pastikan getAttendanceOnDate('sholat_dhuhur') tetap bisa menemukan record keputrian ini (kompatibilitas query)
+        $att = $this->studentFemale->getAttendanceOnDate($fridayDate, 'sholat_dhuhur');
+        $this->assertNotNull($att);
+        $this->assertEquals('keputrian', $att->tipe_absen);
+        $this->assertEquals('12:28:00', $att->waktu_kedatangan);
+
+        // 2. Santri Laki-laki scan jam 12:20 pada hari Jumat -> Sholat Dhuhur Terlambat (batas 12:15)
+        $resMale = $controller->processAttendanceRecord(
+            $this->studentMale->fingerspot_pin,
+            "{$fridayDate} 12:20:00",
+            1,
+            0
+        );
+        $this->assertEquals('success', $resMale['status']);
+        $this->assertEquals('sholat_dhuhur', $resMale['tipe']);
+        $this->assertTrue((bool) $resMale['is_late']);
+
+        // 3. Siswi Perempuan lain scan jam 12:35 pada hari Jumat -> Keputrian Terlambat (> 12:30)
+        $anotherFemale = Student::create([
+            'name'           => 'Aisyah Putri',
+            'nis'            => '7011',
+            'fingerspot_pin' => '7011',
+            'classroom_id'   => $this->classroom->id,
+            'jenis_kelamin'  => 'P',
+            'tanggal_lahir'  => '2012-05-05',
+            'institution_id' => $this->institution->id,
+            'status_siswa'   => 'aktif',
+        ]);
+        $resFemaleLate = $controller->processAttendanceRecord(
+            $anotherFemale->fingerspot_pin,
+            "{$fridayDate} 12:35:00",
+            1,
+            0
+        );
+        $this->assertEquals('success', $resFemaleLate['status']);
+        $this->assertEquals('keputrian', $resFemaleLate['tipe']);
+        $this->assertTrue((bool) $resFemaleLate['is_late']);
+        $this->assertStringContainsString('Terlambat Kegiatan Keputrian', $resFemaleLate['keterangan']);
+
+        // 4. Siswi Perempuan scan pada hari Kamis (bukan Jumat) jam 12:10 -> Sholat Dhuhur Tepat Waktu (batas 12:15)
+        $thursdayDate = '2026-11-19';
+        $resFemaleThursday = $controller->processAttendanceRecord(
+            $this->studentFemale->fingerspot_pin,
+            "{$thursdayDate} 12:10:00",
+            1,
+            0
+        );
+        $this->assertEquals('success', $resFemaleThursday['status']);
+        $this->assertEquals('sholat_dhuhur', $resFemaleThursday['tipe']);
+        $this->assertFalse((bool) $resFemaleThursday['is_late']);
+    }
 }

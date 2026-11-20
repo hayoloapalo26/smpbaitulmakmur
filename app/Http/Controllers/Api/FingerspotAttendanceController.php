@@ -81,8 +81,16 @@ class FingerspotAttendanceController extends Controller
             'limit_minute' => 15,
             'limit_str'    => '12:15',
             'label'        => 'Sholat Dhuhur',
-            'check_tipes'  => ['sholat_dhuhur'],
-            'lock_group'   => 'dhuhur',
+            'check_tipes'  => ['sholat_dhuhur', 'keputrian'],
+            'lock_group'   => 'dhuhur_keputrian',
+        ],
+        'keputrian' => [
+            'limit_hour'   => 12,
+            'limit_minute' => 30,
+            'limit_str'    => '12:30',
+            'label'        => 'Kegiatan Keputrian',
+            'check_tipes'  => ['keputrian', 'sholat_dhuhur'],
+            'lock_group'   => 'dhuhur_keputrian',
         ],
         'sholat_ashar' => [
             'limit_hour'   => 15,
@@ -590,6 +598,7 @@ class FingerspotAttendanceController extends Controller
             'schedule_rules'                 => [
                 'masuk'         => '06:00 - 06:45 (Mulai 06:46 Terlambat, 06:45 Tepat Waktu, batas scan pagi 11:29)',
                 'sholat_dhuhur' => '12:00 - 12:15 (> 12:15 Terlambat, aktif 11:30 - 14:29)',
+                'keputrian'     => 'Khusus Jumat Putri: Kegiatan Keputrian 12:30 - 13:00 (> 12:30 Terlambat, aktif 11:30 - 14:29)',
                 'sholat_ashar'  => '15:00 - 15:15 (> 15:15 Terlambat, aktif 14:30 - 23:59, Ashar & Pulang)',
                 'anti_dobel'    => 'Siswa hanya bisa absen 1 kali per waktu (scan pertama dikunci)',
             ],
@@ -966,7 +975,7 @@ class FingerspotAttendanceController extends Controller
         $now = $this->parseScanTimestamp($scanDate);
         $today = $now->toDateString();
         $metode = $this->mapVerifyMode($verifyMode);
-        $tipe = $forcedTipe ?: $this->deteksiTipe($now, $statusScan);
+        $tipe = $forcedTipe ?: $this->deteksiTipe($now, $statusScan, $student);
         $rule = self::SCHEDULE_RULES[$tipe] ?? self::SCHEDULE_RULES['masuk'];
 
         $institutionId = $student->institution_id ?: ($student->classroom?->institution_id ?: 2);
@@ -1199,11 +1208,13 @@ class FingerspotAttendanceController extends Controller
 
     /**
      * Deteksi Sesi / Tipe Absen berdasarkan waktu scan WIB:
-     * - 00:00 - 11:29 : Masuk Pagi (Normal: 06.00 - 06.45, > 06.45 = Terlambat)
-     * - 11:30 - 14:29 : Sholat Dhuhur (Normal: 12.00 - 12.15, > 12.15 = Terlambat)
+     * - 00:00 - 11:29 : Masuk Pagi (Normal: 06.00 - 06.45, > 06.45 = Terlambat mulai 06.46)
+     * - 11:30 - 14:29 : Siang:
+     *                   * Khusus Jumat Siswi Putri : Kegiatan Keputrian (Dimulai 12.30 - 13.00, > 12.30 = Terlambat)
+     *                   * Santri Putra / Hari Lain : Sholat Dhuhur (Normal: 12.00 - 12.15, > 12.15 = Terlambat)
      * - 14:30 - 23:59 : Sholat Ashar & Pulang (Normal: 15.00 - 15.15, > 15.15 = Terlambat)
      */
-    private function deteksiTipe(Carbon $waktu, $statusScan = null): string
+    private function deteksiTipe(Carbon $waktu, $statusScan = null, ?Student $student = null): string
     {
         $totalMinutes = ($waktu->hour * 60) + $waktu->minute;
 
@@ -1212,8 +1223,13 @@ class FingerspotAttendanceController extends Controller
             return 'masuk';
         }
 
-        // 11:30 s/d 14:29 WIB -> Sesi Sholat Dhuhur
+        // 11:30 s/d 14:29 WIB -> Sesi Siang (Sholat Dhuhur / Kegiatan Keputrian)
         if ($totalMinutes < (14 * 60 + 30)) {
+            // Khusus hari Jumat teruntuk siswi putri saja: Kegiatan Keputrian (dimulai 12.30 - 13.00 WIB)
+            if ($waktu->isFriday() && $student && $student->jenis_kelamin === 'P') {
+                return 'keputrian';
+            }
+
             return 'sholat_dhuhur';
         }
 

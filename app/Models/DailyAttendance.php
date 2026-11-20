@@ -137,7 +137,14 @@ class DailyAttendance extends Model
                             PrayerAttendance::$isSyncing = false;
                         }
 
-                        $tipeSholatKey = 'sholat_' . strtolower($prayerName);
+                        $isFriday = Carbon::parse($tanggalStr)->isFriday();
+                        $student = $attendance->student ?: Student::withoutGlobalScopes()->find($attendance->student_id);
+                        $isPutri = $student && $student->jenis_kelamin === 'P';
+
+                        $tipeSholatKey = ($isFriday && $isPutri && $prayerName === 'Dhuhur')
+                            ? 'keputrian'
+                            : ('sholat_' . strtolower($prayerName));
+
                         DailyAttendance::$isSyncing = true;
                         try {
                             DailyAttendance::withoutGlobalScopes()->updateOrCreate(
@@ -187,7 +194,14 @@ class DailyAttendance extends Model
                             PrayerAttendance::$isSyncing = false;
                         }
 
-                        $tipeSholatKey = 'sholat_' . strtolower($prayerName);
+                        $isFriday = Carbon::parse($tanggalStr)->isFriday();
+                        $student = $attendance->student ?: Student::withoutGlobalScopes()->find($attendance->student_id);
+                        $isPutri = $student && $student->jenis_kelamin === 'P';
+
+                        $tipeSholatKey = ($isFriday && $isPutri && $prayerName === 'Dhuhur')
+                            ? 'keputrian'
+                            : ('sholat_' . strtolower($prayerName));
+
                         DailyAttendance::$isSyncing = true;
                         try {
                             DailyAttendance::withoutGlobalScopes()->updateOrCreate(

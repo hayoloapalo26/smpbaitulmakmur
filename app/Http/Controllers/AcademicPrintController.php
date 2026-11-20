@@ -532,7 +532,7 @@ class AcademicPrintController extends Controller
                 $masukTepat += $masukAtts->where('status', 'hadir')->where('is_late', false)->count();
                 $masukTerlambat += $masukAtts->where('status', 'hadir')->where('is_late', true)->count();
 
-                $dhuhurAtts = $atts->where('tipe_absen', 'sholat_dhuhur');
+                $dhuhurAtts = $atts->filter(fn ($a) => in_array($a->tipe_absen, ['sholat_dhuhur', 'keputrian']));
                 $dhuhurHadir += $dhuhurAtts->where('status', 'hadir')->count();
                 $dhuhurHalangan += $dhuhurAtts->where('status', 'halangan')->count();
 

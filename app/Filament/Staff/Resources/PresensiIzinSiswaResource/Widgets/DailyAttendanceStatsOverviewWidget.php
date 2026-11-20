@@ -163,8 +163,8 @@ class DailyAttendanceStatsOverviewWidget extends Widget
             ? '-'
             : max(0, $totalSiswa - $masukHadir - $attendances->whereIn('status', ['sakit', 'izin', 'alpa'])->unique('student_id')->count());
 
-        // 2. Sholat Dhuhur
-        $dhuhurAtts = $attendances->where('tipe_absen', 'sholat_dhuhur');
+        // 2. Sholat Dhuhur & Keputrian
+        $dhuhurAtts = $attendances->filter(fn ($a) => in_array($a->tipe_absen, ['sholat_dhuhur', 'keputrian']));
         $dhuhurHadir = $dhuhurAtts->where('status', 'hadir')->count();
         $dhuhurTepat = $dhuhurAtts->where('status', 'hadir')->where('is_late', false)->count();
         $dhuhurTerlambat = $dhuhurAtts->where('status', 'hadir')->where('is_late', true)->count();

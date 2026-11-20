@@ -151,11 +151,14 @@
             </div>
         </div>
 
-        {{-- Sholat Dhuhur --}}
+        {{-- Sholat Dhuhur / Keputrian --}}
+        @php
+            $isJumat = $mode === 'harian' && \Carbon\Carbon::parse($tanggal ?? now())->isFriday();
+        @endphp
         <div class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl p-3.5 shadow-sm hover:shadow transition-shadow border-l-4 border-l-blue-500">
             <div class="flex items-center justify-between text-gray-500 dark:text-gray-400 text-xs font-semibold mb-1">
-                <span>{{ $mode === 'rentang' ? 'Total Sholat Dhuhur' : 'Sholat Dhuhur' }}</span>
-                <span class="text-base">🕌</span>
+                <span>{{ $mode === 'rentang' ? 'Total Sholat Dhuhur' : ($isJumat ? 'Dhuhur & Keputrian' : 'Sholat Dhuhur') }}</span>
+                <span class="text-base">{{ $isJumat ? '🕌 / 🌸' : '🕌' }}</span>
             </div>
             <div class="text-2xl font-black text-blue-600 dark:text-blue-400">
                 {{ $stats['dhuhur_hadir'] ?? 0 }} <span class="text-xs font-semibold text-gray-500 dark:text-gray-400">{{ $mode === 'rentang' ? 'Scan' : 'Santri' }}</span>

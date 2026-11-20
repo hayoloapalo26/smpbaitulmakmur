@@ -89,8 +89,9 @@ class AbsensiManual extends Page
             ->orderBy('name')
             ->get();
 
+        $targetTipes = $this->tipeAbsen === 'sholat_dhuhur' ? ['sholat_dhuhur', 'keputrian'] : [$this->tipeAbsen];
         $existingRecords = DailyAttendance::where('tanggal', $this->selectedDate)
-            ->where('tipe_absen', $this->tipeAbsen)
+            ->whereIn('tipe_absen', $targetTipes)
             ->whereIn('student_id', $students->pluck('id'))
             ->get()
             ->keyBy('student_id');
@@ -166,9 +167,14 @@ class AbsensiManual extends Page
                 ?? $student?->institution_id 
                 ?? ($currentUser?->institution_id ?? 1);
 
+            $isFriday = Carbon::parse($this->selectedDate)->isFriday();
+            $effectiveTipe = ($this->tipeAbsen === 'sholat_dhuhur' && $isFriday && $student?->jenis_kelamin === 'P')
+                ? 'keputrian'
+                : $this->tipeAbsen;
+
             $existing = DailyAttendance::where('student_id', $studentId)
                 ->where('tanggal', $this->selectedDate)
-                ->where('tipe_absen', $this->tipeAbsen)
+                ->whereIn('tipe_absen', array_unique([$effectiveTipe, $this->tipeAbsen]))
                 ->first();
 
             // Jika siswa sudah terdata lewat mesin fingerprint dan statusnya tetap hadir,
@@ -190,10 +196,11 @@ class AbsensiManual extends Page
                 'institution_id' => $institutionId,
                 'teacher_id'     => $currentUser?->id ?? 1,
                 'tanggal'        => $this->selectedDate,
-                'tipe_absen'     => $this->tipeAbsen,
+                'tipe_absen'     => $effectiveTipe,
                 'metode_absen'   => $metode,
                 'status'         => $status,
                 'is_late'        => ($existing?->is_late ?? ($this->tipeAbsen === 'masuk' && $status === 'hadir' && $now > '07:15:00')),
+                'late_penalty_points' => 0,
                 'keterangan'     => $keterangan,
             ];
 
