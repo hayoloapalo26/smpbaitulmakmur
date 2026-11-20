@@ -153,7 +153,8 @@
 
         {{-- Sholat Dhuhur / Keputrian --}}
         @php
-            $isJumat = $mode === 'harian' && \Carbon\Carbon::parse($tanggal ?? now())->isFriday();
+            $safeTanggal = !empty($tanggal) ? $tanggal : now();
+            $isJumat = $mode === 'harian' && \Carbon\Carbon::parse($safeTanggal)->isFriday();
         @endphp
         <div class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl p-3.5 shadow-sm hover:shadow transition-shadow border-l-4 border-l-blue-500">
             <div class="flex items-center justify-between text-gray-500 dark:text-gray-400 text-xs font-semibold mb-1">
