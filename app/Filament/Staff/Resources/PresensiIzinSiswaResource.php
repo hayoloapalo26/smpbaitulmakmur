@@ -960,8 +960,6 @@ class PresensiIzinSiswaResource extends Resource
                                 'late_penalty_points' => 0,
                                 'keterangan'       => $data['keterangan'] ?? ($isKeputrian ? 'Kegiatan Keputrian (diinput petugas)' : 'Diinput manual oleh petugas piket'),
                             ]
-                                'keterangan'       => $data['keterangan'] ?? 'Diinput manual oleh petugas piket',
-                            ]
                         );
 
                         Notification::make()
