@@ -325,4 +325,58 @@ class TeachingJournalRppmAndTpTest extends TestCase
         $results = $query->get();
         $this->assertTrue($results->contains('id', $specialTp->id), 'TP dari RPPM harus selalu dimuat meskipun kelas_tingkat null');
     }
+
+    public function test_cp_and_tp_support_multiple_fases_and_classroom_recommendations(): void
+    {
+        // 1. CP dapat menaungi multiple fase (contoh Fase A dan B)
+        $multiFaseCp = CapaianPembelajaran::create([
+            'institution_id' => $this->institution->id,
+            'guru_id' => $this->guru->id,
+            'subject_id' => $this->subject->id,
+            'fases' => ['A', 'B'],
+            'tingkat' => '7',
+            'elemen' => 'Bilangan Dasar',
+            'deskripsi_cp' => 'Capaian Pembelajaran lintas fase A dan B.',
+        ]);
+
+        $this->assertEquals(['A', 'B'], $multiFaseCp->fases);
+        $this->assertStringContainsString('Fase A', $multiFaseCp->fase);
+        $this->assertStringContainsString('Fase B', $multiFaseCp->fase);
+
+        // 2. TP diturunkan dari CP dan dapat digunakan pada multiple fase serta direkomendasikan ke kelas tertentu
+        $tpMulti = TujuanPembelajaran::create([
+            'institution_id' => $this->institution->id,
+            'capaian_pembelajaran_id' => $multiFaseCp->id,
+            'subject_id' => $this->subject->id,
+            'guru_id' => $this->guru->id,
+            'kode_tp' => 'TP.AB.1',
+            'deskripsi_tp' => 'Memahami konsep dasar bilangan',
+            'materi' => 'Bilangan',
+            'fases' => ['A', 'B'],
+            'rekomendasi_kelas' => [$this->classroom->id],
+            'rekomendasi_tingkat' => ['7', '8'],
+        ]);
+
+        $this->assertEquals(['A', 'B'], $tpMulti->fases);
+        $this->assertEquals([$this->classroom->id], $tpMulti->rekomendasi_kelas);
+        $this->assertStringContainsString('[Fase A&B]', $tpMulti->display_title);
+
+        // 3. Jurnal mengajar menyimpan fase dan link drive rppm
+        $journal = TeachingJournal::create([
+            'teacher_id' => $this->guru->id,
+            'schedule_id' => $this->schedule->id,
+            'classroom_id' => $this->classroom->id,
+            'subject_id' => $this->subject->id,
+            'jam_ke' => '1',
+            'tanggal' => now()->toDateString(),
+            'fase' => 'D',
+            'link_drive_rppm' => 'https://drive.google.com/file/d/123456789/view',
+            'materi' => 'Aljabar dan Bilangan',
+            'tp_ids' => [$this->tp1->id],
+        ]);
+
+        $this->assertEquals('D', $journal->fase);
+        $this->assertEquals('https://drive.google.com/file/d/123456789/view', $journal->link_drive_rppm);
+        $this->assertEquals([$this->tp1->id], $journal->tp_ids);
+    }
 }

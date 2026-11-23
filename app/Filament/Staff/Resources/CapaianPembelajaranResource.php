@@ -159,10 +159,29 @@ class CapaianPembelajaranResource extends Resource
                                 }
                             }),
 
-                        Forms\Components\TextInput::make('fase')
-                            ->label('Fase Kurikulum')
-                            ->default('Fase D (SMP)')
-                            ->required(),
+                        Forms\Components\CheckboxList::make('fases')
+                            ->label('Pilihan Fase Kurikulum (Multiple Choice)')
+                            ->options(CapaianPembelajaran::FASE_OPTIONS)
+                            ->columns(3)
+                            ->default(['D'])
+                            ->required()
+                            ->helperText('Pilih satu atau lebih fase untuk CP ini (bisa 1 CP untuk 2 fase atau lebih, misal: Fase A & B, atau khusus Fase D).')
+                            ->afterStateHydrated(function ($component, ?CapaianPembelajaran $record) {
+                                if ($record) {
+                                    if (!empty($record->fases)) {
+                                        $component->state($record->fases);
+                                    } elseif (!empty($record->fase)) {
+                                        $detected = [];
+                                        foreach (['A', 'B', 'C', 'D', 'E', 'F'] as $f) {
+                                            if (stripos($record->fase, "fase {$f}") !== false || stripos($record->fase, "fase-{$f}") !== false || $record->fase === $f) {
+                                                $detected[] = $f;
+                                            }
+                                        }
+                                        $component->state(!empty($detected) ? $detected : ['D']);
+                                    }
+                                }
+                            })
+                            ->columnSpanFull(),
 
                         Forms\Components\TextInput::make('tahun_ajaran')
                             ->label('Tahun Ajaran')
@@ -225,6 +244,17 @@ class CapaianPembelajaranResource extends Resource
                     ->searchable()
                     ->sortable(),
 
+                Tables\Columns\TextColumn::make('fases')
+                    ->label('Fase')
+                    ->badge()
+                    ->color('warning')
+                    ->formatStateUsing(function ($state, CapaianPembelajaran $record) {
+                        if (is_array($state) && !empty($state)) {
+                            return collect($state)->map(fn ($f) => "Fase {$f}")->implode(', ');
+                        }
+                        return $record->fase ?: 'Fase D';
+                    }),
+
                 Tables\Columns\TextColumn::make('tingkat')
                     ->label('Kelas')
                     ->formatStateUsing(fn ($state) => 'Kelas ' . $state)
@@ -260,6 +290,26 @@ class CapaianPembelajaranResource extends Resource
                 Tables\Filters\SelectFilter::make('subject_id')
                     ->relationship('subject', 'name')
                     ->label('Filter Mapel'),
+
+                Tables\Filters\SelectFilter::make('fases')
+                    ->label('Filter Fase')
+                    ->options([
+                        'A' => 'Fase A',
+                        'B' => 'Fase B',
+                        'C' => 'Fase C',
+                        'D' => 'Fase D',
+                        'E' => 'Fase E',
+                        'F' => 'Fase F',
+                    ])
+                    ->query(function (Builder $query, array $data) {
+                        if (!empty($data['value'])) {
+                            $val = $data['value'];
+                            $query->where(function ($q) use ($val) {
+                                $q->whereJsonContains('fases', $val)
+                                  ->orWhere('fase', 'like', "%{$val}%");
+                            });
+                        }
+                    }),
 
                 Tables\Filters\SelectFilter::make('tingkat')
                     ->options([

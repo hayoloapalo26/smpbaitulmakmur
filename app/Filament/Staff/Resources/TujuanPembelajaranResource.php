@@ -154,6 +154,9 @@ class TujuanPembelajaranResource extends Resource
                                     if ($cp) {
                                         $set('kelas_tingkat', $cp->tingkat);
                                         $set('materi', $cp->elemen);
+                                        if (!empty($cp->fases)) {
+                                            $set('fases', $cp->fases);
+                                        }
 
                                         $cpKode = $cp->kode_cp ?: '1';
                                         $existingCount = TujuanPembelajaran::where('capaian_pembelajaran_id', $cp->id)->count();
@@ -162,6 +165,40 @@ class TujuanPembelajaranResource extends Resource
                                     }
                                 }
                             }),
+
+                        Forms\Components\CheckboxList::make('fases')
+                            ->label('Fase Penggunaan TP (Multiple Choice)')
+                            ->options(CapaianPembelajaran::FASE_OPTIONS)
+                            ->columns(3)
+                            ->default(['D'])
+                            ->required()
+                            ->helperText('Pilih satu atau lebih fase yang dapat menggunakan TP ini (Multiple Choice).')
+                            ->afterStateHydrated(function ($component, ?TujuanPembelajaran $record) {
+                                if ($record) {
+                                    if (!empty($record->fases)) {
+                                        $component->state($record->fases);
+                                    } elseif ($record->capaianPembelajaran && !empty($record->capaianPembelajaran->fases)) {
+                                        $component->state($record->capaianPembelajaran->fases);
+                                    } else {
+                                        $component->state(['D']);
+                                    }
+                                }
+                            })
+                            ->columnSpanFull(),
+
+                        Forms\Components\Select::make('rekomendasi_kelas')
+                            ->label('Rekomendasi Kelas Sasaran (Multiple Choice)')
+                            ->options(fn () => \App\Models\Classroom::orderBy('name')->pluck('name', 'id'))
+                            ->multiple()
+                            ->searchable()
+                            ->preload()
+                            ->helperText('Guru dapat merekomendasikan TP ini ke kelas mana saja (Multiple Choice).')
+                            ->afterStateHydrated(function ($component, ?TujuanPembelajaran $record) {
+                                if ($record && !empty($record->rekomendasi_kelas)) {
+                                    $component->state($record->rekomendasi_kelas);
+                                }
+                            })
+                            ->columnSpanFull(),
 
                         Forms\Components\Select::make('kelas_tingkat')
                             ->label('Tingkat Kelas')
@@ -225,6 +262,27 @@ class TujuanPembelajaranResource extends Resource
                     ->sortable()
                     ->searchable(),
 
+                Tables\Columns\TextColumn::make('fases')
+                    ->label('Fase')
+                    ->badge()
+                    ->color('warning')
+                    ->formatStateUsing(function ($state) {
+                        if (is_array($state) && !empty($state)) {
+                            return collect($state)->map(fn ($f) => "Fase {$f}")->implode(', ');
+                        }
+                        return 'Fase D';
+                    }),
+
+                Tables\Columns\TextColumn::make('rekomendasi_kelas')
+                    ->label('Rekomendasi Kelas')
+                    ->badge()
+                    ->color('info')
+                    ->formatStateUsing(function ($state) {
+                        if (empty($state) || !is_array($state)) return '-';
+                        return \App\Models\Classroom::whereIn('id', $state)->pluck('name')->implode(', ') ?: '-';
+                    })
+                    ->toggleable(),
+
                 Tables\Columns\TextColumn::make('kelas_tingkat')
                     ->label('Kelas')
                     ->formatStateUsing(fn ($state) => 'Kelas ' . $state)
@@ -255,6 +313,29 @@ class TujuanPembelajaranResource extends Resource
                 Tables\Filters\SelectFilter::make('subject_id')
                     ->relationship('subject', 'name')
                     ->label('Filter Mapel'),
+
+                Tables\Filters\SelectFilter::make('fases')
+                    ->label('Filter Fase')
+                    ->options([
+                        'A' => 'Fase A',
+                        'B' => 'Fase B',
+                        'C' => 'Fase C',
+                        'D' => 'Fase D',
+                        'E' => 'Fase E',
+                        'F' => 'Fase F',
+                    ])
+                    ->query(function (Builder $query, array $data) {
+                        if (!empty($data['value'])) {
+                            $val = $data['value'];
+                            $query->where(function ($q) use ($val) {
+                                $q->whereJsonContains('fases', $val)
+                                  ->orWhereHas('capaianPembelajaran', function ($cpQ) use ($val) {
+                                      $cpQ->whereJsonContains('fases', $val)
+                                          ->orWhere('fase', 'like', "%{$val}%");
+                                  });
+                            });
+                        }
+                    }),
 
                 Tables\Filters\SelectFilter::make('kelas_tingkat')
                     ->options([

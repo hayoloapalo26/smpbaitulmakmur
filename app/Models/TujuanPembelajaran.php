@@ -14,8 +14,32 @@ class TujuanPembelajaran extends Model
 
     protected $guarded = ['id'];
 
+    protected $casts = [
+        'fases' => 'array',
+        'rekomendasi_kelas' => 'array',
+        'rekomendasi_tingkat' => 'array',
+    ];
+
     protected static function booted()
     {
+        static::saving(function ($tp) {
+            $cp = $tp->capaianPembelajaran ?? ($tp->capaian_pembelajaran_id ? CapaianPembelajaran::find($tp->capaian_pembelajaran_id) : null);
+
+            if (!empty($tp->fases) && is_array($tp->fases)) {
+                $tp->fases = array_values(array_unique(array_filter($tp->fases)));
+            } elseif (empty($tp->fases)) {
+                $tp->fases = !empty($cp?->fases) ? $cp->fases : ['D'];
+            }
+
+            if (!empty($tp->rekomendasi_kelas) && is_array($tp->rekomendasi_kelas)) {
+                $tp->rekomendasi_kelas = array_values(array_unique(array_filter(array_map('intval', $tp->rekomendasi_kelas))));
+            }
+
+            if (!empty($tp->rekomendasi_tingkat) && is_array($tp->rekomendasi_tingkat)) {
+                $tp->rekomendasi_tingkat = array_values(array_unique(array_filter(array_map('strval', $tp->rekomendasi_tingkat))));
+            }
+        });
+
         static::creating(function ($tp) {
             $cp = $tp->capaianPembelajaran ?? CapaianPembelajaran::find($tp->capaian_pembelajaran_id);
             $cpKode = $cp?->kode_cp ?: '1';
@@ -76,9 +100,18 @@ class TujuanPembelajaran extends Model
         return $this->hasMany(Grade::class, 'tp_pengayaan_id');
     }
 
+    public function getRecommendedClassroomsAttribute()
+    {
+        if (empty($this->rekomendasi_kelas)) {
+            return collect();
+        }
+        return Classroom::whereIn('id', (array) $this->rekomendasi_kelas)->get();
+    }
+
     public function getDisplayTitleAttribute(): string
     {
+        $faseStr = !empty($this->fases) ? '[Fase ' . implode('&', (array) $this->fases) . '] ' : '';
         $prefix = $this->materi ? "[{$this->materi}] " : '';
-        return "[{$this->kode_tp}] {$prefix}" . $this->deskripsi_tp;
+        return "{$faseStr}[{$this->kode_tp}] {$prefix}" . $this->deskripsi_tp;
     }
 }

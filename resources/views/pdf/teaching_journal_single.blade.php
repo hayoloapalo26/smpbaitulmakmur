@@ -170,7 +170,14 @@
                 @endif
             </td>
         </tr>
-        @if($journal->rppm)
+        @if($journal->link_drive_rppm)
+            <tr>
+                <td style="font-weight: bold; background-color: #f8fafc;">Link Dokumen RPPM / Modul</td>
+                <td>
+                    <a href="{{ $journal->link_drive_rppm }}" target="_blank" style="color: #2563eb; text-decoration: underline;">{{ $journal->link_drive_rppm }}</a>
+                </td>
+            </tr>
+        @elseif($journal->rppm)
             <tr>
                 <td style="font-weight: bold; background-color: #f8fafc;">Rujukan Dokumen RPPM</td>
                 <td>

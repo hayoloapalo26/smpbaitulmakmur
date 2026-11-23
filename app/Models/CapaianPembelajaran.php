@@ -14,8 +14,31 @@ class CapaianPembelajaran extends Model
 
     protected $guarded = ['id'];
 
+    public const FASE_OPTIONS = [
+        'A' => 'Fase A (Kelas 1 - 2 SD/MI)',
+        'B' => 'Fase B (Kelas 3 - 4 SD/MI)',
+        'C' => 'Fase C (Kelas 5 - 6 SD/MI)',
+        'D' => 'Fase D (Kelas 7 - 9 SMP/MTs)',
+        'E' => 'Fase E (Kelas 10 SMA/MA/SMK)',
+        'F' => 'Fase F (Kelas 11 - 12 SMA/MA/SMK)',
+    ];
+
+    protected $casts = [
+        'fases' => 'array',
+    ];
+
     protected static function booted()
     {
+        static::saving(function ($cp) {
+            if (!empty($cp->fases) && is_array($cp->fases)) {
+                $cp->fases = array_values(array_unique(array_filter($cp->fases)));
+                $faseNames = array_map(fn ($f) => "Fase {$f}", $cp->fases);
+                $cp->fase = implode(', ', $faseNames);
+            } elseif (empty($cp->fases) && !empty($cp->fase)) {
+                $cp->fases = ['D'];
+            }
+        });
+
         static::creating(function ($cp) {
             if (empty($cp->kode_cp)) {
                 $query = static::where('guru_id', $cp->guru_id)
@@ -54,6 +77,8 @@ class CapaianPembelajaran extends Model
     public function getDisplayTitleAttribute(): string
     {
         $kode = $this->kode_cp ? "[CP {$this->kode_cp}] " : '';
-        return "{$kode}[Kelas {$this->tingkat} - {$this->elemen}] " . \Illuminate\Support\Str::limit($this->deskripsi_cp, 60);
+        $faseStr = !empty($this->fases) ? 'Fase ' . implode('&', (array) $this->fases) : ($this->fase ?: 'Fase D');
+        $tingkatStr = $this->tingkat ? "Kelas {$this->tingkat} - " : '';
+        return "{$kode}[{$faseStr} | {$tingkatStr}{$this->elemen}] " . \Illuminate\Support\Str::limit($this->deskripsi_cp, 60);
     }
 }
