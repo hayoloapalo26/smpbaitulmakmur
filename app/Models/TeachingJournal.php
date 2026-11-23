@@ -87,6 +87,9 @@ class TeachingJournal extends Model
 
             if (empty($journal->status_acc_kepsek)) {
                 $journal->status_acc_kepsek = self::ACC_KEPSEK_PENDING;
+            } elseif ($journal->status_acc_kepsek === self::ACC_KEPSEK_APPROVED && empty($journal->kepsek_approved_by) && auth()->check()) {
+                $journal->kepsek_approved_by = auth()->id();
+                $journal->kepsek_approved_at = now();
             }
             if ($journal->schedule_id) {
                 $schedule = Schedule::withoutGlobalScopes()->find($journal->schedule_id);

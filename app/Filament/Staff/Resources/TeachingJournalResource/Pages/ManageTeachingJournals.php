@@ -22,6 +22,10 @@ class ManageTeachingJournals extends ManageRecords
     public string $statusFilter = 'all'; // 'all', 'sudah', 'belum'
     public ?int $selectedTeacherId = null;
     public bool $showDetailModal = false;
+    public bool $showFeedbackModal = false;
+    public ?int $feedbackJournalId = null;
+    public string $feedbackNotes = '';
+    public string $feedbackStatus = 'approved';
 
     public function mount(): void
     {
@@ -438,6 +442,89 @@ class ManageTeachingJournals extends ManageRecords
             'entries' => $journalDetails,
             'total' => $journals->count(),
         ];
+    }
+
+    public function getFeedbackJournalProperty(): ?TeachingJournal
+    {
+        if (! $this->feedbackJournalId) {
+            return null;
+        }
+
+        return TeachingJournal::with(['teacher', 'subject', 'classroom'])->find($this->feedbackJournalId);
+    }
+
+    public function openFeedbackModal(int $journalId): void
+    {
+        $journal = TeachingJournal::find($journalId);
+        if (! $journal) {
+            return;
+        }
+
+        $this->feedbackJournalId = $journalId;
+        $this->feedbackNotes = (string) ($journal->catatan_kepala_sekolah ?? '');
+        $this->feedbackStatus = $journal->status_acc_kepsek ?: TeachingJournal::ACC_KEPSEK_APPROVED;
+        $this->showFeedbackModal = true;
+    }
+
+    public function closeFeedbackModal(): void
+    {
+        $this->showFeedbackModal = false;
+        $this->feedbackJournalId = null;
+        $this->feedbackNotes = '';
+        $this->feedbackStatus = 'approved';
+    }
+
+    public function saveFeedbackByKepsek(): void
+    {
+        $user = auth()->user();
+        if (! $user || ! $user->hasAnyRole(['kepala_sekolah', 'superadmin', 'waka_kurikulum'])) {
+            return;
+        }
+
+        if (! $this->feedbackJournalId) {
+            return;
+        }
+
+        $journal = TeachingJournal::find($this->feedbackJournalId);
+        if (! $journal) {
+            return;
+        }
+
+        $catatan = trim($this->feedbackNotes);
+        $status = in_array($this->feedbackStatus, [TeachingJournal::ACC_KEPSEK_APPROVED, TeachingJournal::ACC_KEPSEK_NEED_REVISION, TeachingJournal::ACC_KEPSEK_PENDING])
+            ? $this->feedbackStatus
+            : TeachingJournal::ACC_KEPSEK_APPROVED;
+
+        $journal->update([
+            'status_acc_kepsek'       => $status,
+            'catatan_kepala_sekolah'  => !empty($catatan) ? $catatan : ($status === TeachingJournal::ACC_KEPSEK_APPROVED ? 'Pembelajaran telah terlaksana dengan baik.' : null),
+            'kepsek_approved_by'      => $user->id,
+            'kepsek_approved_at'      => now(),
+        ]);
+
+        if ($journal->teacher) {
+            $statusLabel = match ($status) {
+                TeachingJournal::ACC_KEPSEK_APPROVED => 'Disahkan & Di-ACC',
+                TeachingJournal::ACC_KEPSEK_NEED_REVISION => 'Perlu Revisi',
+                default => 'Catatan Evaluasi',
+            };
+
+            \Filament\Notifications\Notification::make()
+                ->title("Umpan Balik Jurnal Mengajar ({$statusLabel})")
+                ->body("Kepala Sekolah ({$user->name}) telah memberikan umpan balik pada jurnal Anda (" . Carbon::parse($journal->tanggal)->translatedFormat('d M Y') . "): \"" . ($catatan ?: 'Telah ditinjau.') . "\"")
+                ->icon('heroicon-o-chat-bubble-bottom-center-text')
+                ->warning($status === TeachingJournal::ACC_KEPSEK_NEED_REVISION)
+                ->success($status === TeachingJournal::ACC_KEPSEK_APPROVED)
+                ->sendToDatabase($journal->teacher);
+        }
+
+        \Filament\Notifications\Notification::make()
+            ->title('Umpan Balik Berhasil Disimpan')
+            ->body("Catatan evaluasi untuk {$journal->teacher?->name} telah tersimpan dan status diperbarui.")
+            ->success()
+            ->send();
+
+        $this->closeFeedbackModal();
     }
 
     public function accJournalByKepsek(int $journalId, ?string $catatan = null): void

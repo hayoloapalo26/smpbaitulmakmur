@@ -250,4 +250,58 @@ class TeachingJournalAttendanceAndDeadlineTest extends TestCase
         $this->assertArrayHasKey('rows', $monitoringData);
         $this->assertArrayHasKey('total_guru', $monitoringData);
     }
+
+    public function test_kepala_sekolah_can_provide_feedback_notes_and_set_revision_or_approval(): void
+    {
+        $kepsek = User::factory()->create([
+            'institution_id' => $this->institution->id,
+            'name' => 'Kepala Sekolah SMP Islam Baitul Makmur',
+        ]);
+        Role::firstOrCreate(['name' => 'kepala_sekolah', 'guard_name' => 'web']);
+        $kepsek->assignRole('kepala_sekolah');
+
+        \Filament\Facades\Filament::setCurrentPanel(\Filament\Facades\Filament::getPanel('staff'));
+        $this->actingAs($kepsek);
+
+        $journal = TeachingJournal::create([
+            'teacher_id' => $this->teacher->id,
+            'schedule_id' => $this->schedule->id,
+            'classroom_id' => $this->classroom->id,
+            'subject_id' => $this->subject->id,
+            'jam_ke' => 1,
+            'tanggal' => now()->toDateString(),
+            'materi' => 'Aljabar Lanjutan',
+            'is_late' => false,
+        ]);
+
+        $component = \Livewire\Livewire::test(ManageTeachingJournals::class);
+
+        // Buka modal feedback untuk journal ini
+        $component->call('openFeedbackModal', $journal->id)
+            ->assertSet('showFeedbackModal', true)
+            ->assertSet('feedbackJournalId', $journal->id);
+
+        // Simpan feedback dengan status need_revision dan catatan khusus
+        $component->set('feedbackStatus', TeachingJournal::ACC_KEPSEK_NEED_REVISION)
+            ->set('feedbackNotes', 'Mohon lengkapi catatan siswa yang belum tuntas')
+            ->call('saveFeedbackByKepsek')
+            ->assertSet('showFeedbackModal', false);
+
+        $journal->refresh();
+        $this->assertEquals(TeachingJournal::ACC_KEPSEK_NEED_REVISION, $journal->status_acc_kepsek);
+        $this->assertEquals('Mohon lengkapi catatan siswa yang belum tuntas', $journal->catatan_kepala_sekolah);
+        $this->assertEquals($kepsek->id, $journal->kepsek_approved_by);
+        $this->assertNotNull($journal->kepsek_approved_at);
+
+        // Buka lagi untuk mengubah menjadi approved dengan catatan apresiasi
+        $component->call('openFeedbackModal', $journal->id)
+            ->assertSet('showFeedbackModal', true)
+            ->set('feedbackStatus', TeachingJournal::ACC_KEPSEK_APPROVED)
+            ->set('feedbackNotes', 'Revisi telah diterima, pembelajaran sangat baik.')
+            ->call('saveFeedbackByKepsek');
+
+        $journal->refresh();
+        $this->assertEquals(TeachingJournal::ACC_KEPSEK_APPROVED, $journal->status_acc_kepsek);
+        $this->assertEquals('Revisi telah diterima, pembelajaran sangat baik.', $journal->catatan_kepala_sekolah);
+    }
 }

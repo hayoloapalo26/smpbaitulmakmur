@@ -1094,6 +1094,40 @@ class TeachingJournalResource extends Resource
                         }
                     })
                     ->columnSpanFull(),
+
+                Forms\Components\Section::make('Umpan Balik & Catatan Kepala Sekolah')
+                    ->description('Evaluasi, catatan pembinaan, atau apresiasi dari Kepala Sekolah')
+                    ->icon('heroicon-o-chat-bubble-bottom-center-text')
+                    ->collapsible()
+                    ->schema([
+                        Forms\Components\Grid::make(2)
+                            ->schema([
+                                Forms\Components\Select::make('status_acc_kepsek')
+                                    ->label('Status ACC / Verifikasi KS')
+                                    ->options([
+                                        TeachingJournal::ACC_KEPSEK_PENDING => 'Menunggu ACC',
+                                        TeachingJournal::ACC_KEPSEK_APPROVED => 'Disahkan & Di-ACC',
+                                        TeachingJournal::ACC_KEPSEK_NEED_REVISION => 'Perlu Revisi',
+                                    ])
+                                    ->default(TeachingJournal::ACC_KEPSEK_PENDING)
+                                    ->disabled(fn () => !auth()->user()?->hasAnyRole(['kepala_sekolah', 'superadmin', 'waka_kurikulum'])),
+
+                                Forms\Components\Placeholder::make('kepsek_info')
+                                    ->label('Diverifikasi Oleh')
+                                    ->content(fn (?TeachingJournal $record) => $record?->kepsekApprover 
+                                        ? "{$record->kepsekApprover->name} (" . ($record->kepsek_approved_at ? Carbon::parse($record->kepsek_approved_at)->translatedFormat('d M Y H:i') : '-') . ")"
+                                        : 'Belum diverifikasi'
+                                    ),
+                            ]),
+
+                        Forms\Components\Textarea::make('catatan_kepala_sekolah')
+                            ->label('Catatan Evaluasi / Umpan Balik')
+                            ->placeholder('Belum ada catatan umpan balik dari Kepala Sekolah...')
+                            ->rows(3)
+                            ->disabled(fn () => !auth()->user()?->hasAnyRole(['kepala_sekolah', 'superadmin', 'waka_kurikulum'])),
+                    ])
+                    ->visible(fn (?TeachingJournal $record) => $record !== null)
+                    ->columnSpanFull(),
             ]);
     }
 
@@ -1222,13 +1256,27 @@ class TeachingJournalResource extends Resource
                     })
                     ->description(function (TeachingJournal $record) {
                         if ($record->status_acc_kepsek === TeachingJournal::ACC_KEPSEK_APPROVED) {
-                            return $record->kepsekApprover ? "Oleh: {$record->kepsekApprover->name}" : 'Disahkan KS';
+                            $approver = $record->kepsekApprover ? "Oleh: {$record->kepsekApprover->name}" : 'Disahkan KS';
+                            return $record->catatan_kepala_sekolah ? "{$approver} • \"{$record->catatan_kepala_sekolah}\"" : $approver;
+                        }
+                        if ($record->status_acc_kepsek === TeachingJournal::ACC_KEPSEK_NEED_REVISION) {
+                            return $record->catatan_kepala_sekolah ? "Catatan KS: \"{$record->catatan_kepala_sekolah}\"" : 'Memerlukan revisi dari guru';
                         }
                         if ($record->is_late && $record->late_status === TeachingJournal::LATE_STATUS_PENDING_WAKA) {
                             return 'Menunggu Persetujuan Waka';
                         }
                         return null;
-                    }),
+                    })
+                    ->tooltip(fn (TeachingJournal $record) => $record->catatan_kepala_sekolah ? "Catatan KS: {$record->catatan_kepala_sekolah}" : null)
+                    ->wrap(),
+
+                Tables\Columns\TextColumn::make('catatan_kepala_sekolah')
+                    ->label('Catatan KS')
+                    ->placeholder('-')
+                    ->limit(40)
+                    ->tooltip(fn (TeachingJournal $record) => $record->catatan_kepala_sekolah)
+                    ->toggleable(isToggledHiddenByDefault: true)
+                    ->searchable(),
             ])
             ->defaultSort('tanggal', 'desc')
             ->actions([
@@ -1285,7 +1333,7 @@ class TeachingJournalResource extends Resource
                     ->visible(fn (TeachingJournal $record) => auth()->user()?->hasAnyRole(['kepala_sekolah', 'superadmin', 'waka_kurikulum']) && $record->isReadyForKepsek() && $record->status_acc_kepsek !== TeachingJournal::ACC_KEPSEK_APPROVED)
                     ->modalHeading('ACC & Pengesahan Jurnal Mengajar (Kepala Sekolah)')
                     ->modalDescription('Sahkan keterlaksanaan pembelajaran guru di kelas ini. Anda dapat menyertakan catatan evaluasi atau apresiasi tertulis.')
-                    ->modalSubmitActionLabel('Sahkan & ACC Jurnal')
+                    ->modalSubmitActionLabel('Simpan & Sahkan')
                     ->modalIcon('heroicon-o-check-circle')
                     ->modalWidth('xl')
                     ->form([
@@ -1302,6 +1350,14 @@ class TeachingJournalResource extends Resource
                                     </div>
                                 ");
                             }),
+                        Forms\Components\Radio::make('status_acc_kepsek')
+                            ->label('Status Pengesahan')
+                            ->options([
+                                TeachingJournal::ACC_KEPSEK_APPROVED => 'ACC / Disetujui (Pembelajaran sah)',
+                                TeachingJournal::ACC_KEPSEK_NEED_REVISION => 'Perlu Revisi (Guru perlu melengkapi/memperbaiki)',
+                            ])
+                            ->default(TeachingJournal::ACC_KEPSEK_APPROVED)
+                            ->required(),
                         Forms\Components\Textarea::make('catatan_kepala_sekolah')
                             ->label('Catatan Apresiasi / Evaluasi Kepala Sekolah')
                             ->placeholder('Contoh: Pembelajaran berjalan tertib sesuai kurikulum, lanjutkan pemantauan karakter murid.')
@@ -1309,16 +1365,85 @@ class TeachingJournalResource extends Resource
                             ->rows(3),
                     ])
                     ->action(function (TeachingJournal $record, array $data) {
+                        $status = $data['status_acc_kepsek'] ?? TeachingJournal::ACC_KEPSEK_APPROVED;
+                        $catatan = trim($data['catatan_kepala_sekolah'] ?? '');
+
                         $record->update([
-                            'status_acc_kepsek' => TeachingJournal::ACC_KEPSEK_APPROVED,
+                            'status_acc_kepsek' => $status,
                             'kepsek_approved_by' => auth()->id(),
                             'kepsek_approved_at' => now(),
-                            'catatan_kepala_sekolah' => $data['catatan_kepala_sekolah'] ?? null,
+                            'catatan_kepala_sekolah' => !empty($catatan) ? $catatan : ($status === TeachingJournal::ACC_KEPSEK_APPROVED ? 'Pembelajaran telah terlaksana dengan baik.' : null),
                         ]);
 
+                        if ($record->teacher) {
+                            $statusLabel = $status === TeachingJournal::ACC_KEPSEK_APPROVED ? 'Disahkan & Di-ACC' : 'Perlu Revisi';
+                            \Filament\Notifications\Notification::make()
+                                ->title("Umpan Balik Jurnal Mengajar ({$statusLabel})")
+                                ->body("Kepala Sekolah (" . auth()->user()->name . ") telah memberikan umpan balik pada jurnal Anda (" . \Carbon\Carbon::parse($record->tanggal)->translatedFormat('d M Y') . "): \"" . ($catatan ?: 'Telah ditinjau.') . "\"")
+                                ->icon('heroicon-o-chat-bubble-bottom-center-text')
+                                ->warning($status === TeachingJournal::ACC_KEPSEK_NEED_REVISION)
+                                ->success($status === TeachingJournal::ACC_KEPSEK_APPROVED)
+                                ->sendToDatabase($record->teacher);
+                        }
+
                         \Filament\Notifications\Notification::make()
-                            ->title('Jurnal Mengajar Telah Di-ACC')
-                            ->body("Jurnal mengajar milik {$record->teacher?->name} telah berhasil disahkan.")
+                            ->title('Umpan Balik & Status Berhasil Disimpan')
+                            ->body("Jurnal mengajar milik {$record->teacher?->name} telah diperbarui status dan catatannya.")
+                            ->success()
+                            ->send();
+                    }),
+
+                // 3. Ubah Catatan / Umpan Balik KS (untuk yang sudah di-ACC)
+                Tables\Actions\Action::make('umpan_balik_kepsek')
+                    ->label('Umpan Balik KS')
+                    ->icon('heroicon-o-chat-bubble-bottom-center-text')
+                    ->color('info')
+                    ->visible(fn (TeachingJournal $record) => auth()->user()?->hasAnyRole(['kepala_sekolah', 'superadmin', 'waka_kurikulum']) && $record->isReadyForKepsek() && $record->status_acc_kepsek === TeachingJournal::ACC_KEPSEK_APPROVED)
+                    ->modalHeading('Ubah Catatan & Umpan Balik Kepala Sekolah')
+                    ->modalDescription('Perbarui catatan evaluasi, apresiasi, atau status pengesahan untuk jurnal mengajar ini.')
+                    ->modalSubmitActionLabel('Perbarui Catatan')
+                    ->modalIcon('heroicon-o-chat-bubble-bottom-center-text')
+                    ->modalWidth('xl')
+                    ->form([
+                        Forms\Components\Radio::make('status_acc_kepsek')
+                            ->label('Status Pengesahan')
+                            ->options([
+                                TeachingJournal::ACC_KEPSEK_APPROVED => 'ACC / Disetujui (Pembelajaran sah)',
+                                TeachingJournal::ACC_KEPSEK_NEED_REVISION => 'Perlu Revisi (Guru perlu melengkapi/memperbaiki)',
+                            ])
+                            ->default(fn (TeachingJournal $record) => $record->status_acc_kepsek ?: TeachingJournal::ACC_KEPSEK_APPROVED)
+                            ->required(),
+                        Forms\Components\Textarea::make('catatan_kepala_sekolah')
+                            ->label('Catatan Apresiasi / Evaluasi Kepala Sekolah')
+                            ->default(fn (TeachingJournal $record) => $record->catatan_kepala_sekolah)
+                            ->placeholder('Tuliskan catatan evaluasi atau masukan pembelajaran...')
+                            ->rows(3),
+                    ])
+                    ->action(function (TeachingJournal $record, array $data) {
+                        $status = $data['status_acc_kepsek'] ?? TeachingJournal::ACC_KEPSEK_APPROVED;
+                        $catatan = trim($data['catatan_kepala_sekolah'] ?? '');
+
+                        $record->update([
+                            'status_acc_kepsek' => $status,
+                            'kepsek_approved_by' => auth()->id(),
+                            'kepsek_approved_at' => now(),
+                            'catatan_kepala_sekolah' => !empty($catatan) ? $catatan : ($status === TeachingJournal::ACC_KEPSEK_APPROVED ? 'Pembelajaran telah terlaksana dengan baik.' : null),
+                        ]);
+
+                        if ($record->teacher) {
+                            $statusLabel = $status === TeachingJournal::ACC_KEPSEK_APPROVED ? 'Disahkan & Di-ACC' : 'Perlu Revisi';
+                            \Filament\Notifications\Notification::make()
+                                ->title("Catatan Jurnal Diperbarui ({$statusLabel})")
+                                ->body("Kepala Sekolah (" . auth()->user()->name . ") memperbarui catatan evaluasi pada jurnal Anda (" . \Carbon\Carbon::parse($record->tanggal)->translatedFormat('d M Y') . "): \"" . ($catatan ?: 'Telah ditinjau.') . "\"")
+                                ->icon('heroicon-o-chat-bubble-bottom-center-text')
+                                ->warning($status === TeachingJournal::ACC_KEPSEK_NEED_REVISION)
+                                ->success($status === TeachingJournal::ACC_KEPSEK_APPROVED)
+                                ->sendToDatabase($record->teacher);
+                        }
+
+                        \Filament\Notifications\Notification::make()
+                            ->title('Catatan Kepala Sekolah Diperbarui')
+                            ->body("Umpan balik untuk {$record->teacher?->name} berhasil diperbarui.")
                             ->success()
                             ->send();
                     }),

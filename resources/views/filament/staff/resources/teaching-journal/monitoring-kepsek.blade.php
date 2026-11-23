@@ -352,6 +352,11 @@
                                                     <x-heroicon-m-check-badge class="w-3.5 h-3.5 text-emerald-600" />
                                                     Disahkan KS
                                                 </span>
+                                            @elseif($j->status_acc_kepsek === 'need_revision')
+                                                <span class="inline-flex items-center gap-1 text-[11px] font-bold text-rose-700 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/40 px-2.5 py-0.5 rounded-full border border-rose-300 dark:border-rose-700">
+                                                    <x-heroicon-m-exclamation-triangle class="w-3.5 h-3.5 text-rose-600" />
+                                                    Perlu Revisi
+                                                </span>
                                             @else
                                                 <span class="inline-flex items-center gap-1 text-[11px] font-bold text-orange-700 dark:text-orange-300 bg-orange-50 dark:bg-orange-950/40 px-2.5 py-0.5 rounded-full border border-orange-300 dark:border-orange-700">
                                                     <x-heroicon-m-exclamation-circle class="w-3.5 h-3.5 text-orange-600" />
@@ -484,7 +489,7 @@
                                     <!-- Bagian ACC & Pengesahan Kepala Sekolah -->
                                     <div class="mt-4 pt-3 border-t border-gray-200 dark:border-gray-700">
                                         @if($j->status_acc_kepsek === 'approved')
-                                            <div class="p-3 rounded-xl bg-emerald-50/90 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                                            <div class="p-3.5 rounded-xl bg-emerald-50/90 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
                                                 <div>
                                                     <div class="flex items-center gap-1.5 font-bold text-emerald-900 dark:text-emerald-100">
                                                         <x-heroicon-m-check-badge class="w-4 h-4 text-emerald-600" />
@@ -497,24 +502,63 @@
                                                         </div>
                                                     @endif
                                                 </div>
-                                                <span class="px-2.5 py-1 rounded-md bg-emerald-600 text-white font-bold text-[10px] uppercase tracking-wider self-start sm:self-auto shrink-0">
-                                                    Status: Sah (ACC)
-                                                </span>
+                                                <div class="flex items-center gap-2 self-start sm:self-auto shrink-0">
+                                                    <button 
+                                                        type="button"
+                                                        wire:click="openFeedbackModal({{ $j->id }})"
+                                                        class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-sm hover:shadow transition-all">
+                                                        <x-heroicon-m-chat-bubble-bottom-center-text class="w-3.5 h-3.5" />
+                                                        <span>Ubah Catatan / Umpan Balik</span>
+                                                    </button>
+                                                    <span class="px-2.5 py-1 rounded-md bg-emerald-600 text-white font-bold text-[10px] uppercase tracking-wider">
+                                                        ACC
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        @elseif($j->status_acc_kepsek === 'need_revision')
+                                            <div class="p-3.5 rounded-xl bg-rose-50/90 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                                                <div>
+                                                    <div class="flex items-center gap-1.5 font-bold text-rose-900 dark:text-rose-200">
+                                                        <x-heroicon-m-exclamation-triangle class="w-4 h-4 text-rose-600 shrink-0" />
+                                                        <span>Status: Perlu Revisi / Perbaikan Guru</span>
+                                                    </div>
+                                                    @if($j->catatan_kepala_sekolah)
+                                                        <div class="text-[11px] text-rose-800 dark:text-rose-300 mt-1 italic pl-5">
+                                                            Catatan KS: "{{ $j->catatan_kepala_sekolah }}"
+                                                        </div>
+                                                    @endif
+                                                </div>
+                                                <button 
+                                                    type="button"
+                                                    wire:click="openFeedbackModal({{ $j->id }})"
+                                                    class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs shadow-sm hover:shadow transition-all shrink-0">
+                                                    <x-heroicon-m-chat-bubble-bottom-center-text class="w-4 h-4" />
+                                                    <span>Ubah Umpan Balik</span>
+                                                </button>
                                             </div>
                                         @else
-                                            <div class="p-3 rounded-xl bg-amber-50/70 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                                            <div class="p-3.5 rounded-xl bg-amber-50/70 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
                                                 <div class="flex items-center gap-1.5 text-amber-900 dark:text-amber-200">
                                                     <x-heroicon-m-clock class="w-4 h-4 text-amber-600 shrink-0" />
                                                     <span>Jurnal ini siap diverifikasi dan disahkan (ACC) oleh Kepala Sekolah.</span>
                                                 </div>
-                                                <button 
-                                                    type="button"
-                                                    wire:click="accJournalByKepsek({{ $j->id }})" 
-                                                    wire:loading.attr="disabled"
-                                                    class="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-sm hover:shadow transition-all shrink-0">
-                                                    <x-heroicon-m-check-badge class="w-4 h-4" />
-                                                    <span>ACC Jurnal Ini</span>
-                                                </button>
+                                                <div class="flex items-center gap-2 shrink-0">
+                                                    <button 
+                                                        type="button"
+                                                        wire:click="openFeedbackModal({{ $j->id }})"
+                                                        class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-sm hover:shadow transition-all">
+                                                        <x-heroicon-m-chat-bubble-bottom-center-text class="w-4 h-4" />
+                                                        <span>Beri Catatan / Umpan Balik</span>
+                                                    </button>
+                                                    <button 
+                                                        type="button"
+                                                        wire:click="accJournalByKepsek({{ $j->id }})" 
+                                                        wire:loading.attr="disabled"
+                                                        class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-sm hover:shadow transition-all">
+                                                        <x-heroicon-m-check-badge class="w-4 h-4" />
+                                                        <span>ACC Cepat</span>
+                                                    </button>
+                                                </div>
                                             </div>
                                         @endif
                                     </div>
@@ -536,6 +580,101 @@
                         wire:click="closeDetail" 
                         class="px-5 py-2 rounded-xl bg-gray-200 hover:bg-gray-300 dark:bg-gray-600 dark:hover:bg-gray-500 text-gray-800 dark:text-gray-100 font-bold text-xs transition-all">
                         Tutup
+                    </button>
+                </div>
+            </div>
+        </div>
+    @endif
+
+    {{-- Modal Umpan Balik & Catatan Kepala Sekolah --}}
+    @if($showFeedbackModal && $this->feedbackJournal)
+        <div class="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm">
+            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden border border-gray-200 dark:border-gray-700">
+                <!-- Header -->
+                <div class="p-5 bg-gradient-to-r from-blue-700 to-indigo-700 text-white flex items-center justify-between">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-xl bg-white/20 backdrop-blur flex items-center justify-center shrink-0">
+                            <x-heroicon-o-chat-bubble-bottom-center-text class="w-6 h-6 text-white" />
+                        </div>
+                        <div>
+                            <h3 class="font-bold text-base leading-tight">Umpan Balik & Catatan KS</h3>
+                            <p class="text-xs text-blue-100 truncate max-w-xs">
+                                {{ $this->feedbackJournal->teacher?->name }} • {{ $this->feedbackJournal->subject?->name ?? 'Mapel' }} ({{ $this->feedbackJournal->classroom?->name ?? 'Kelas' }})
+                            </p>
+                        </div>
+                    </div>
+                    <button wire:click="closeFeedbackModal" class="p-1 rounded-lg text-white/80 hover:text-white hover:bg-white/10 transition">
+                        <x-heroicon-m-x-mark class="w-5 h-5" />
+                    </button>
+                </div>
+
+                <!-- Body -->
+                <div class="p-6 space-y-4">
+                    <div class="p-3 bg-gray-50 dark:bg-gray-900/50 rounded-xl border border-gray-200 dark:border-gray-700 text-xs text-gray-600 dark:text-gray-300 space-y-1">
+                        <div class="flex justify-between">
+                            <span class="font-medium text-gray-500">Tanggal & Jam:</span>
+                            <span class="font-bold text-gray-800 dark:text-gray-100">{{ \Carbon\Carbon::parse($this->feedbackJournal->tanggal)->translatedFormat('l, d F Y') }} (Jam Ke-{{ $this->feedbackJournal->jam_ke }})</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="font-medium text-gray-500">Materi:</span>
+                            <span class="font-semibold text-gray-800 dark:text-gray-200 truncate max-w-[220px]">{{ $this->feedbackJournal->materi }}</span>
+                        </div>
+                    </div>
+
+                    <!-- Pilihan Status -->
+                    <div>
+                        <label class="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-2">
+                            Status Pengesahan / Evaluasi:
+                        </label>
+                        <div class="grid grid-cols-2 gap-3">
+                            <label class="flex items-center gap-2.5 p-3 rounded-xl border cursor-pointer transition-all {{ $feedbackStatus === 'approved' ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-500 ring-2 ring-emerald-500/20 text-emerald-900 dark:text-emerald-100' : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50' }}">
+                                <input type="radio" wire:model.live="feedbackStatus" value="approved" class="text-emerald-600 focus:ring-emerald-500">
+                                <div>
+                                    <div class="text-xs font-bold">ACC / Disahkan</div>
+                                    <div class="text-[10px] text-gray-500 dark:text-gray-400">Jurnal sah & tuntas</div>
+                                </div>
+                            </label>
+                            <label class="flex items-center gap-2.5 p-3 rounded-xl border cursor-pointer transition-all {{ $feedbackStatus === 'need_revision' ? 'bg-rose-50 dark:bg-rose-950/40 border-rose-500 ring-2 ring-rose-500/20 text-rose-900 dark:text-rose-100' : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50' }}">
+                                <input type="radio" wire:model.live="feedbackStatus" value="need_revision" class="text-rose-600 focus:ring-rose-500">
+                                <div>
+                                    <div class="text-xs font-bold text-rose-700 dark:text-rose-300">Perlu Revisi</div>
+                                    <div class="text-[10px] text-gray-500 dark:text-gray-400">Guru harus revisi</div>
+                                </div>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Input Catatan -->
+                    <div>
+                        <label class="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">
+                            Catatan Umpan Balik / Evaluasi:
+                        </label>
+                        <textarea 
+                            wire:model="feedbackNotes"
+                            rows="4"
+                            placeholder="Contoh: Pembelajaran berjalan sangat tertib dan interaktif. / Mohon lengkapi catatan perkembangan siswa atau rincian materi tindak lanjut..."
+                            class="w-full text-xs rounded-xl border-gray-300 dark:border-gray-700 dark:bg-gray-900 focus:border-indigo-500 focus:ring-indigo-500 dark:text-gray-100 shadow-sm transition p-3"></textarea>
+                        <p class="text-[11px] text-gray-500 dark:text-gray-400 mt-1">
+                            Catatan ini akan langsung diterima guru via notifikasi dan tercantum pada rekap jurnal.
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Footer -->
+                <div class="p-4 bg-gray-50 dark:bg-gray-700/50 border-t border-gray-200 dark:border-gray-700 flex items-center justify-end gap-2.5">
+                    <button 
+                        type="button"
+                        wire:click="closeFeedbackModal" 
+                        class="px-4 py-2 rounded-xl bg-gray-200 hover:bg-gray-300 dark:bg-gray-600 dark:hover:bg-gray-500 text-gray-800 dark:text-gray-100 font-bold text-xs transition">
+                        Batal
+                    </button>
+                    <button 
+                        type="button"
+                        wire:click="saveFeedbackByKepsek"
+                        wire:loading.attr="disabled"
+                        class="inline-flex items-center gap-1.5 px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-md hover:shadow-lg transition">
+                        <x-heroicon-m-check class="w-4 h-4" />
+                        <span>Simpan Umpan Balik</span>
                     </button>
                 </div>
             </div>
