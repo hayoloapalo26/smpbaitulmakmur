@@ -346,4 +346,78 @@ class AttendanceFingerprintAndManualIntegrationTest extends TestCase
             'status' => 'halangan',
         ]);
     }
+
+    /**
+     * 8. Test izin pulang siang mengubah sesi sholat dhuhur & ashar menjadi sakit/izin tanpa merusak kehadiran pagi.
+     */
+    public function test_midday_departure_preserves_morning_arrival_and_updates_afternoon_sessions(): void
+    {
+        $this->actingAs($this->guruPiket);
+        $date = '2026-11-20'; // Hari Jumat
+
+        // 1. Catat kedatangan pagi: Siswa Hadir tepat waktu jam 06:40
+        DailyAttendance::create([
+            'student_id' => $this->student1->id,
+            'institution_id' => $this->institution->id,
+            'tanggal' => $date,
+            'tipe_absen' => 'masuk',
+            'status' => 'hadir',
+            'waktu_kedatangan' => '06:40:00',
+            'is_late' => false,
+            'late_penalty_points' => 0,
+        ]);
+
+        // 2. Guru Piket mencatat Izin Pulang Siang karena Sakit
+        $component = Livewire::test(\App\Filament\Staff\Resources\PresensiIzinSiswaResource\Pages\ManagePresensiIzinSiswa::class)
+            ->callTableAction('izin_pulang_siang', $this->student1, data: [
+                'tanggal' => $date,
+                'status' => 'sakit',
+                'jam_pulang' => '11:15',
+                'penjemput' => 'Ibu Kandung',
+                'keterangan' => 'Demam tinggi dan muntah saat istirahat pertama',
+                'sesi_yang_diubah' => ['dhuhur', 'ashar'],
+            ]);
+
+        $component->assertHasNoTableActionErrors();
+
+        // 3. Verifikasi: Kedatangan pagi TETAP Hadir 06:40:00 dan tidak berubah jadi sakit!
+        $this->assertDatabaseHas('daily_attendances', [
+            'student_id' => $this->student1->id,
+            'tanggal' => $date,
+            'tipe_absen' => 'masuk',
+            'status' => 'hadir',
+            'waktu_kedatangan' => '06:40:00',
+            'is_late' => 0,
+        ]);
+
+        // 4. Verifikasi: Sesi Sholat Dhuhur & Ashar otomatis tercatat Sakit dengan alasan lengkap
+        $this->assertDatabaseHas('daily_attendances', [
+            'student_id' => $this->student1->id,
+            'tanggal' => $date,
+            'tipe_absen' => 'sholat_dhuhur',
+            'status' => 'sakit',
+        ]);
+
+        $this->assertDatabaseHas('daily_attendances', [
+            'student_id' => $this->student1->id,
+            'tanggal' => $date,
+            'tipe_absen' => 'sholat_ashar',
+            'status' => 'sakit',
+        ]);
+
+        // 5. Verifikasi: PrayerAttendance tersinkron otomatis ke Sakit
+        $this->assertDatabaseHas('prayer_attendances', [
+            'student_id' => $this->student1->id,
+            'tanggal' => $date,
+            'jenis_sholat' => 'Dhuhur',
+            'status' => 'sakit',
+        ]);
+
+        $this->assertDatabaseHas('prayer_attendances', [
+            'student_id' => $this->student1->id,
+            'tanggal' => $date,
+            'jenis_sholat' => 'Ashar',
+            'status' => 'sakit',
+        ]);
+    }
 }

@@ -387,8 +387,10 @@
             <tbody>
                 @forelse($students as $idx => $student)
                     @php
+                        $isFriday = \Carbon\Carbon::parse($tanggal)->isFriday();
+                        $targetSiang = ($isFriday && $student->jenis_kelamin === 'P') ? ['keputrian', 'sholat_dhuhur'] : ['sholat_dhuhur', 'keputrian'];
                         $attMasuk = $student->getAttendanceOnDate($tanggal, 'masuk');
-                        $attDhuhur = $student->getAttendanceOnDate($tanggal, 'sholat_dhuhur');
+                        $attDhuhur = $student->getAttendanceOnDate($tanggal, $targetSiang);
                         $attAshar = $student->getAttendanceOnDate($tanggal, ['sholat_ashar', 'pulang']);
                         $excused = $student->getGeneralExcusedOnDate($tanggal);
                         $isHalangan = $student->jenis_kelamin === 'P' && \App\Models\StudentHalangan::isHalangan($student->id, $tanggal);
@@ -402,16 +404,21 @@
                             $jamMasukStr = $attMasuk->waktu_kedatangan ? \Carbon\Carbon::parse($attMasuk->waktu_kedatangan)->format('H:i') : null;
                             $isLate = $jamMasukStr ? ($jamMasukStr >= '06:46') : (bool) $attMasuk->is_late;
                             $ketMasuk = $isLate ? 'Terlambat' : 'Tepat Waktu';
+                            if ($attDhuhur && in_array($attDhuhur->status, ['sakit', 'izin'])) {
+                                $ketMasuk .= ' (Pulang ' . ucfirst($attDhuhur->status) . ')';
+                            }
                             $badgeMasuk = $isLate ? 'badge-rose' : 'badge-green';
-                        } elseif ($excused || ($attMasuk && in_array($attMasuk->status, ['sakit', 'izin', 'alpa']))) {
-                            $stObj = $attMasuk && in_array($attMasuk->status, ['sakit', 'izin', 'alpa']) ? $attMasuk : $excused;
-                            $jamMasuk = strtoupper($stObj->status);
-                            $ketMasuk = $stObj->keterangan ?: ucfirst($stObj->status);
-                            $badgeMasuk = $stObj->status === 'sakit' ? 'badge-amber' : ($stObj->status === 'izin' ? 'badge-blue' : 'badge-rose');
+                        } elseif ($attMasuk && in_array($attMasuk->status, ['sakit', 'izin', 'alpa'])) {
+                            $jamMasuk = strtoupper($attMasuk->status);
+                            $ketMasuk = $attMasuk->keterangan ?: ucfirst($attMasuk->status);
+                            $badgeMasuk = $attMasuk->status === 'sakit' ? 'badge-amber' : ($attMasuk->status === 'izin' ? 'badge-blue' : 'badge-rose');
+                        } elseif ($excused) {
+                            $jamMasuk = strtoupper($excused->status);
+                            $ketMasuk = $excused->keterangan ?: ucfirst($excused->status);
+                            $badgeMasuk = $excused->status === 'sakit' ? 'badge-amber' : ($excused->status === 'izin' ? 'badge-blue' : 'badge-rose');
                         }
 
                         // 2. Dhuhur / Keputrian / Sholat Jum'at
-                        $isFriday = \Carbon\Carbon::parse($tanggal)->isFriday();
                         $isKeputrian = $isFriday && $student->jenis_kelamin === 'P';
                         $jamDhuhur = '-';
                         $ketDhuhur = $isKeputrian ? 'Belum Scan Keputrian' : ($isFriday ? 'Belum Sholat Jum\'at' : 'Belum Scan');
@@ -466,19 +473,29 @@
                         // Status Akhir
                         $statusRingkas = 'Belum Lengkap';
                         $badgeRingkas = 'badge-gray';
-                        if ($excused || ($attMasuk && in_array($attMasuk->status, ['sakit', 'izin', 'alpa']))) {
-                            $stObj = $attMasuk && in_array($attMasuk->status, ['sakit', 'izin', 'alpa']) ? $attMasuk : $excused;
-                            $statusRingkas = ucfirst($stObj->status);
-                            $badgeRingkas = $stObj->status === 'sakit' ? 'badge-amber' : ($stObj->status === 'izin' ? 'badge-blue' : 'badge-rose');
+                        if ($attMasuk && $attMasuk->status === 'hadir') {
+                            if ($attDhuhur && in_array($attDhuhur->status, ['sakit', 'izin'])) {
+                                $statusRingkas = 'Pulang ' . ucfirst($attDhuhur->status);
+                                $badgeRingkas = $attDhuhur->status === 'sakit' ? 'badge-amber' : 'badge-blue';
+                            } elseif ($isHalangan) {
+                                $statusRingkas = 'Hadir (Halangan)';
+                                $badgeRingkas = 'badge-purple';
+                            } elseif (($attDhuhur && $attDhuhur->status === 'hadir') && ($attAshar && $attAshar->status === 'hadir')) {
+                                $statusRingkas = 'Lengkap (3/3)';
+                                $badgeRingkas = 'badge-green';
+                            } else {
+                                $statusRingkas = 'Masuk';
+                                $badgeRingkas = 'badge-blue';
+                            }
+                        } elseif ($attMasuk && in_array($attMasuk->status, ['sakit', 'izin', 'alpa'])) {
+                            $statusRingkas = ucfirst($attMasuk->status);
+                            $badgeRingkas = $attMasuk->status === 'sakit' ? 'badge-amber' : ($attMasuk->status === 'izin' ? 'badge-blue' : 'badge-rose');
+                        } elseif ($excused) {
+                            $statusRingkas = ucfirst($excused->status);
+                            $badgeRingkas = $excused->status === 'sakit' ? 'badge-amber' : ($excused->status === 'izin' ? 'badge-blue' : 'badge-rose');
                         } elseif ($isHalangan) {
-                            $statusRingkas = ($attMasuk && $attMasuk->status === 'hadir') ? 'Hadir (Halangan)' : 'Sedang Halangan';
+                            $statusRingkas = 'Sedang Halangan';
                             $badgeRingkas = 'badge-purple';
-                        } elseif ($attMasuk && $attMasuk->status === 'hadir' && ($attDhuhur && $attDhuhur->status === 'hadir') && ($attAshar && $attAshar->status === 'hadir')) {
-                            $statusRingkas = 'Lengkap (3/3)';
-                            $badgeRingkas = 'badge-green';
-                        } elseif ($attMasuk && $attMasuk->status === 'hadir') {
-                            $statusRingkas = 'Masuk';
-                            $badgeRingkas = 'badge-blue';
                         }
                     @endphp
                     <tr>

@@ -271,22 +271,20 @@ class PresensiIzinSiswaResource extends Resource
                         // Mode Harian
                         $tanggal = static::getActiveDate($livewire);
                         $att = $record->getAttendanceOnDate($tanggal, 'masuk');
-                        $excused = $record->getGeneralExcusedOnDate($tanggal);
 
-                        // 1. Jika Siswa Sakit, Izin, atau Alpha
-                        $statusIzin = ($att && in_array($att->status, ['sakit', 'izin', 'alpa'])) ? $att->status : ($excused ? $excused->status : null);
-                        if ($statusIzin) {
-                            $statusLabel = match ($statusIzin) {
+                        // 1. Jika Siswa Sakit, Izin, atau Alpha khusus kedatangan pagi
+                        if ($att && in_array($att->status, ['sakit', 'izin', 'alpa'])) {
+                            $statusLabel = match ($att->status) {
                                 'sakit' => '🤒 Sakit',
                                 'izin'  => '📋 Izin',
                                 default => '❌ Alpha',
                             };
-                            $badgeColor = match ($statusIzin) {
+                            $badgeColor = match ($att->status) {
                                 'sakit' => 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800',
                                 'izin'  => 'bg-sky-50 text-sky-700 border-sky-200 dark:bg-sky-950/40 dark:text-sky-300 dark:border-sky-800',
                                 default => 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800',
                             };
-                            $ket = ($att && $att->keterangan) ? $att->keterangan : ($excused ? $excused->keterangan : null);
+                            $ket = $att->keterangan;
                             $out = '<div class="flex flex-col gap-0.5">';
                             $out .= '<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold border ' . $badgeColor . '">' . $statusLabel . '</span>';
                             if (!empty($ket)) {
@@ -296,10 +294,20 @@ class PresensiIzinSiswaResource extends Resource
                             return $out;
                         }
 
-                        // 2. Jika Hadir Scan / Input Manual
+                        // 2. Jika Hadir Scan / Input Manual di Pagi Hari
                         if ($att && $att->status === 'hadir') {
                             $jam = $att->waktu_kedatangan ? Carbon::parse($att->waktu_kedatangan)->format('H:i') : '-';
                             $isLate = $att->waktu_kedatangan ? (Carbon::parse($att->waktu_kedatangan)->format('H:i') >= '06:46') : (bool) $att->is_late;
+
+                            // Cek apakah siswa izin pulang siang (sakit / izin di sesi dhuhur atau ashar)
+                            $isFriday = Carbon::parse($tanggal)->isFriday();
+                            $targetTipeSiang = ($isFriday && $record->jenis_kelamin === 'P') ? ['keputrian', 'sholat_dhuhur'] : ['sholat_dhuhur', 'keputrian'];
+                            $attSiang = $record->getAttendanceOnDate($tanggal, $targetTipeSiang);
+                            $badgePulangSiang = '';
+                            if ($attSiang && in_array($attSiang->status, ['sakit', 'izin'])) {
+                                $pulangLabel = $attSiang->status === 'sakit' ? 'Pulang Sakit' : 'Pulang Izin';
+                                $badgePulangSiang = '<span class="text-[10px] bg-amber-100 text-amber-800 dark:bg-amber-900/60 dark:text-amber-200 px-1.5 py-0.5 rounded font-bold border border-amber-300 dark:border-amber-700" title="' . e($attSiang->keterangan ?? '') . '">🚪 ' . $pulangLabel . '</span>';
+                            }
 
                             if ($isLate) {
                                 $accStatus = $att->late_approval_status ?? 'pending';
@@ -309,21 +317,46 @@ class PresensiIzinSiswaResource extends Resource
                                     default    => '<span class="text-[10px] bg-amber-200 text-amber-900 dark:bg-amber-900 dark:text-amber-200 px-1.5 py-0.5 rounded font-bold animate-pulse">Terlambat (Menunggu ACC Waka)</span>',
                                 };
 
-                                return '<div class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200 dark:bg-rose-950/40 dark:text-rose-400 dark:border-rose-800">
+                                return '<div class="inline-flex flex-wrap items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200 dark:bg-rose-950/40 dark:text-rose-400 dark:border-rose-800">
                                     <svg class="w-3.5 h-3.5 text-rose-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
                                     <span>' . $jam . ' WIB</span>
                                     ' . $badgeAcc . '
+                                    ' . $badgePulangSiang . '
                                 </div>';
                             }
 
-                            return '<div class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800">
+                            return '<div class="inline-flex flex-wrap items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800">
                                 <svg class="w-3.5 h-3.5 text-emerald-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
                                 <span>' . $jam . ' WIB</span>
                                 <span class="text-[10px] bg-emerald-200 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200 px-1.5 py-0.5 rounded font-bold">Tepat Waktu</span>
+                                ' . $badgePulangSiang . '
                             </div>';
                         }
 
-                        // 3. Belum Scan Kedatangan
+                        // 3. Jika tidak ada record 'masuk', tapi ada status izin seharian
+                        $excused = $record->getGeneralExcusedOnDate($tanggal);
+                        if ($excused) {
+                            $statusLabel = match ($excused->status) {
+                                'sakit' => '🤒 Sakit',
+                                'izin'  => '📋 Izin',
+                                default => '❌ Alpha',
+                            };
+                            $badgeColor = match ($excused->status) {
+                                'sakit' => 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800',
+                                'izin'  => 'bg-sky-50 text-sky-700 border-sky-200 dark:bg-sky-950/40 dark:text-sky-300 dark:border-sky-800',
+                                default => 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800',
+                            };
+                            $ket = $excused->keterangan;
+                            $out = '<div class="flex flex-col gap-0.5">';
+                            $out .= '<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold border ' . $badgeColor . '">' . $statusLabel . '</span>';
+                            if (!empty($ket)) {
+                                $out .= '<span class="text-[11px] text-slate-500 dark:text-slate-400 italic max-w-[170px] truncate" title="' . e($ket) . '">' . e($ket) . '</span>';
+                            }
+                            $out .= '</div>';
+                            return $out;
+                        }
+
+                        // 4. Belum Scan Kedatangan
                         return '<span class="inline-flex items-center gap-1 text-xs text-slate-400 dark:text-slate-500 font-medium">
                             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/></svg>
                             Belum Scan
@@ -655,18 +688,207 @@ class PresensiIzinSiswaResource extends Resource
                     ]),
             ])
             ->actions([
-                // 1. Catat Izin / Sakit / Alpa
-                Tables\Actions\Action::make('catat_izin')
-                    ->label('Catat Izin')
-                    ->icon('heroicon-o-document-text')
+                // 1. Izin Pulang Siang (Sakit / Izin) - Presensi Kedatangan Pagi Tetap Hadir
+                Tables\Actions\Action::make('izin_pulang_siang')
+                    ->label('Izin Pulang Siang')
+                    ->icon('heroicon-o-arrow-left-on-rectangle')
                     ->color('warning')
-                    ->modalHeading(fn (Student $record) => "Catat Izin / Sakit: {$record->name}")
-                    ->modalDescription('Catatan izin, sakit, atau alpha akan otomatis disinkronkan ke seluruh sesi: kedatangan di sekolah, sholat Dhuhur, dan sholat Ashar.')
+                    ->tooltip('Ubah status siswa saat siang menjadi Sakit atau Izin (presensi pagi tetap Hadir)')
+                    ->modalHeading(fn (Student $record) => "Izin Pulang Siang: {$record->name}")
+                    ->modalDescription('Fitur khusus guru piket untuk mencatat kepulangan siswa di siang hari karena sakit atau izin. Presensi kedatangan pagi TETAP Hadir, sedangkan sesi sholat Dhuhur/Jum\'at/Keputrian dan Ashar otomatis tercatat Sakit/Izin.')
                     ->form([
                         Forms\Components\DatePicker::make('tanggal')
                             ->label('Tanggal')
                             ->default(fn ($livewire) => static::getActiveDate($livewire))
                             ->required(),
+
+                        Forms\Components\Grid::make(2)->schema([
+                            Forms\Components\Select::make('status')
+                                ->label('Status Pulang Siang')
+                                ->options([
+                                    'sakit' => '🤒 Sakit (Pulang Siang)',
+                                    'izin'  => '📋 Izin (Pulang Siang)',
+                                ])
+                                ->default('sakit')
+                                ->required(),
+
+                            Forms\Components\TimePicker::make('jam_pulang')
+                                ->label('Jam Pulang / Dijemput')
+                                ->default(now()->format('H:i'))
+                                ->required(),
+                        ]),
+
+                        Forms\Components\TextInput::make('penjemput')
+                            ->label('Penjemput / Pendamping')
+                            ->placeholder('Contoh: Dijemput Ibu / Pulang Mandiri / Dijemput Ayah')
+                            ->required(),
+
+                        Forms\Components\Textarea::make('keterangan')
+                            ->label('Alasan / Gejala Pulang Siang')
+                            ->placeholder('Contoh: Mengalami demam / pusing di UKS / Ada keperluan keluarga mendesak')
+                            ->rows(2)
+                            ->required(),
+
+                        Forms\Components\CheckboxList::make('sesi_yang_diubah')
+                            ->label('Sesi yang Diubah Menjadi Sakit / Izin')
+                            ->options(function (Student $record, Forms\Get $get, $livewire) {
+                                $tgl = $get('tanggal') ?: static::getActiveDate($livewire);
+                                $isFriday = Carbon::parse($tgl)->isFriday();
+                                $labelSiang = ($isFriday && $record->jenis_kelamin === 'P')
+                                    ? '🌸 Kegiatan Keputrian (Jumat Putri)'
+                                    : ($isFriday ? '🕌 Sholat Jum\'at (Jumat Putra)' : '🕌 Sholat Dhuhur');
+
+                                return [
+                                    'dhuhur' => $labelSiang,
+                                    'ashar'  => '🕌 Sholat Ashar',
+                                ];
+                            })
+                            ->default(['dhuhur', 'ashar'])
+                            ->required()
+                            ->helperText('Presensi kedatangan pagi TIDAK akan diubah (tetap Hadir).'),
+
+                        Forms\Components\TextInput::make('bukti_izin')
+                            ->label('Link Google Drive Bukti Surat / Resep Dokter (Opsional)')
+                            ->placeholder('https://drive.google.com/file/d/.../view?usp=sharing')
+                            ->url()
+                            ->prefixIcon('heroicon-o-link')
+                            ->maxLength(2048),
+                    ])
+                    ->action(function (Student $record, array $data, $livewire): void {
+                        $tanggal = $data['tanggal'];
+                        $status = $data['status'];
+                        $jamPulang = $data['jam_pulang'] ?? now()->format('H:i');
+                        $penjemput = trim($data['penjemput'] ?? '-');
+                        $alasan = trim($data['keterangan'] ?? '-');
+                        $sesiUbah = (array) ($data['sesi_yang_diubah'] ?? ['dhuhur', 'ashar']);
+
+                        $isFriday = Carbon::parse($tanggal)->isFriday();
+                        $sesiSiang = ($isFriday && $record->jenis_kelamin === 'P') ? 'keputrian' : 'sholat_dhuhur';
+                        $statusLabel = match ($status) {
+                            'sakit' => 'Sakit',
+                            'izin'  => 'Izin',
+                            default => 'Alpha',
+                        };
+
+                        $keteranganLengkap = "Izin Pulang Siang ({$statusLabel}) pkl {$jamPulang} WIB. Penjemput: {$penjemput}. Alasan: {$alasan}";
+
+                        // 1. Sesi Siang (Dhuhur / Jum'at / Keputrian)
+                        if (in_array('dhuhur', $sesiUbah)) {
+                            DailyAttendance::withoutGlobalScopes()->updateOrCreate(
+                                [
+                                    'student_id' => $record->id,
+                                    'tanggal'    => $tanggal,
+                                    'tipe_absen' => $sesiSiang,
+                                ],
+                                [
+                                    'institution_id'   => $record->institution_id ?: 2,
+                                    'teacher_id'       => Auth::id() ?: 1,
+                                    'status'           => $status,
+                                    'metode_absen'     => 'manual',
+                                    'keterangan'       => $keteranganLengkap,
+                                    'bukti_izin'       => $data['bukti_izin'] ?? null,
+                                    'waktu_kedatangan' => null,
+                                    'is_late'          => false,
+                                    'late_penalty_points' => 0,
+                                ]
+                            );
+
+                            // Sinkronkan ke PrayerAttendance Dhuhur
+                            PrayerAttendance::$isSyncing = true;
+                            try {
+                                PrayerAttendance::withoutGlobalScopes()->updateOrCreate(
+                                    [
+                                        'student_id'   => $record->id,
+                                        'tanggal'      => $tanggal,
+                                        'jenis_sholat' => 'Dhuhur',
+                                    ],
+                                    [
+                                        'institution_id' => $record->institution_id ?: 2,
+                                        'teacher_id'     => Auth::id() ?: 1,
+                                        'status'         => $status,
+                                        'is_khusyu'      => true,
+                                    ]
+                                );
+                            } finally {
+                                PrayerAttendance::$isSyncing = false;
+                            }
+                        }
+
+                        // 2. Sesi Ashar
+                        if (in_array('ashar', $sesiUbah)) {
+                            DailyAttendance::withoutGlobalScopes()->updateOrCreate(
+                                [
+                                    'student_id' => $record->id,
+                                    'tanggal'    => $tanggal,
+                                    'tipe_absen' => 'sholat_ashar',
+                                ],
+                                [
+                                    'institution_id'   => $record->institution_id ?: 2,
+                                    'teacher_id'       => Auth::id() ?: 1,
+                                    'status'           => $status,
+                                    'metode_absen'     => 'manual',
+                                    'keterangan'       => $keteranganLengkap,
+                                    'bukti_izin'       => $data['bukti_izin'] ?? null,
+                                    'waktu_kedatangan' => null,
+                                    'is_late'          => false,
+                                    'late_penalty_points' => 0,
+                                ]
+                            );
+
+                            // Sinkronkan ke PrayerAttendance Ashar
+                            PrayerAttendance::$isSyncing = true;
+                            try {
+                                PrayerAttendance::withoutGlobalScopes()->updateOrCreate(
+                                    [
+                                        'student_id'   => $record->id,
+                                        'tanggal'      => $tanggal,
+                                        'jenis_sholat' => 'Ashar',
+                                    ],
+                                    [
+                                        'institution_id' => $record->institution_id ?: 2,
+                                        'teacher_id'     => Auth::id() ?: 1,
+                                        'status'         => $status,
+                                        'is_khusyu'      => true,
+                                    ]
+                                );
+                            } finally {
+                                PrayerAttendance::$isSyncing = false;
+                            }
+                        }
+
+                        Notification::make()
+                            ->title('Izin Pulang Siang Berhasil Dicatat')
+                            ->body("Status {$statusLabel} untuk {$record->name} jam {$jamPulang} WIB tersimpan. Presensi kedatangan pagi tetap Hadir.")
+                            ->success()
+                            ->send();
+
+                        $livewire->dispatch('refresh-presensi-table');
+                    }),
+
+                // 2. Catat Izin / Sakit / Alpa
+                Tables\Actions\Action::make('catat_izin')
+                    ->label('Catat Izin')
+                    ->icon('heroicon-o-document-text')
+                    ->color('warning')
+                    ->modalHeading(fn (Student $record) => "Catat Izin / Sakit: {$record->name}")
+                    ->modalDescription('Catatan izin, sakit, atau alpha dapat diterapkan ke seluruh sesi atau sesi kepulangan siang tertentu.')
+                    ->form([
+                        Forms\Components\DatePicker::make('tanggal')
+                            ->label('Tanggal')
+                            ->default(fn ($livewire) => static::getActiveDate($livewire))
+                            ->required(),
+
+                        Forms\Components\Radio::make('cakupan_sesi')
+                            ->label('Cakupan Sesi Presensi')
+                            ->options([
+                                'seharian'     => '📅 Seharian Penuh (Kedatangan, Dhuhur, Ashar)',
+                                'pulang_siang' => '⛅ Izin Pulang Siang (Dhuhur & Ashar Saja - Kedatangan Pagi Tetap Hadir)',
+                                'dhuhur_saja'  => '🕌 Sesi Siang Saja (Dhuhur / Jum\'at / Keputrian)',
+                                'ashar_saja'   => '🕌 Sesi Sore Saja (Ashar)',
+                            ])
+                            ->default('seharian')
+                            ->required()
+                            ->helperText('Pilih "Izin Pulang Siang" jika siswa sudah hadir pagi lalu izin pulang saat siang.'),
 
                         Forms\Components\Select::make('status')
                             ->label('Pilihan Status')
@@ -696,7 +918,14 @@ class PresensiIzinSiswaResource extends Resource
                         $tanggal = $data['tanggal'];
                         $isFriday = Carbon::parse($tanggal)->isFriday();
                         $sesiSiang = ($isFriday && $record->jenis_kelamin === 'P') ? 'keputrian' : 'sholat_dhuhur';
-                        $sesiList = ['masuk', $sesiSiang, 'sholat_ashar'];
+                        $cakupan = $data['cakupan_sesi'] ?? 'seharian';
+
+                        $sesiList = match ($cakupan) {
+                            'pulang_siang' => [$sesiSiang, 'sholat_ashar'],
+                            'dhuhur_saja'  => [$sesiSiang],
+                            'ashar_saja'   => ['sholat_ashar'],
+                            default        => ['masuk', $sesiSiang, 'sholat_ashar'],
+                        };
 
                         foreach ($sesiList as $sesi) {
                             DailyAttendance::withoutGlobalScopes()->updateOrCreate(
@@ -714,12 +943,17 @@ class PresensiIzinSiswaResource extends Resource
                                     'bukti_izin'       => $data['bukti_izin'] ?? null,
                                     'waktu_kedatangan' => null,
                                     'is_late'          => false,
+                                    'late_penalty_points' => 0,
                                 ]
                             );
                         }
 
-                        // Sinkronkan ke PrayerAttendance (Dhuhur & Ashar)
-                        foreach (['Dhuhur', 'Ashar'] as $prayerName) {
+                        // Sinkronkan ke PrayerAttendance (Dhuhur & Ashar jika relevan)
+                        $prayerList = [];
+                        if (in_array($sesiSiang, $sesiList)) $prayerList[] = 'Dhuhur';
+                        if (in_array('sholat_ashar', $sesiList)) $prayerList[] = 'Ashar';
+
+                        foreach ($prayerList as $prayerName) {
                             \App\Models\PrayerAttendance::$isSyncing = true;
                             try {
                                 \App\Models\PrayerAttendance::withoutGlobalScopes()->updateOrCreate(
@@ -746,9 +980,16 @@ class PresensiIzinSiswaResource extends Resource
                             default => 'Alpha',
                         };
 
+                        $cakupanText = match ($cakupan) {
+                            'pulang_siang' => 'sesi Dhuhur & Ashar (kedatangan pagi tetap Hadir)',
+                            'dhuhur_saja'  => 'sesi Dhuhur',
+                            'ashar_saja'   => 'sesi Ashar',
+                            default        => 'seluruh sesi (kedatangan, Dhuhur, Ashar)',
+                        };
+
                         Notification::make()
                             ->title('Status Berhasil Dicatat')
-                            ->body("Status {$statusLabel} untuk {$record->name} pada {$tanggal} berhasil disimpan untuk kedatangan, sholat Dhuhur, dan sholat Ashar.")
+                            ->body("Status {$statusLabel} untuk {$record->name} pada {$tanggal} berhasil disimpan untuk {$cakupanText}.")
                             ->success()
                             ->send();
 
@@ -886,7 +1127,7 @@ class PresensiIzinSiswaResource extends Resource
                     ->color('info')
                     ->visible(fn ($livewire) => static::getActiveMode($livewire) === 'harian')
                     ->modalHeading(fn (Student $record) => "Input / Koreksi Jam Scan: {$record->name}")
-                    ->modalDescription('Gunakan fitur ini jika siswa lupa scan jari pada mesin fingerspot atau saat mesin offline.')
+                    ->modalDescription('Gunakan fitur ini jika siswa lupa scan jari pada mesin fingerspot, saat mesin offline, atau ingin menyesuaikan status kehadiran sesi tertentu.')
                     ->form([
                         Forms\Components\DatePicker::make('tanggal')
                             ->label('Tanggal')
@@ -910,25 +1151,39 @@ class PresensiIzinSiswaResource extends Resource
                             ->default('masuk')
                             ->required(),
 
+                        Forms\Components\Select::make('status')
+                            ->label('Status Kehadiran')
+                            ->options([
+                                'hadir' => '✅ Hadir',
+                                'sakit' => '🤒 Sakit',
+                                'izin'  => '📋 Izin',
+                                'alpa'  => '❌ Alpha / Tanpa Keterangan',
+                            ])
+                            ->default('hadir')
+                            ->required()
+                            ->live(),
+
                         Forms\Components\TimePicker::make('waktu_kedatangan')
                             ->label('Jam Kehadiran / Sholat')
                             ->default(now()->format('H:i'))
-                            ->required(),
+                            ->visible(fn (Forms\Get $get) => ($get('status') ?? 'hadir') === 'hadir'),
 
                         Forms\Components\Toggle::make('is_late')
                             ->label('Tandai Terlambat')
                             ->helperText('Otomatis: Masuk >= 06:46 (06:45 tepat waktu), Jum\'at/Dhuhur > 12:15 (Putra mulai 11:00), Keputrian > 12:30, Ashar > 15:15')
-                            ->default(false),
+                            ->default(false)
+                            ->visible(fn (Forms\Get $get) => ($get('status') ?? 'hadir') === 'hadir'),
 
                         Forms\Components\TextInput::make('keterangan')
                             ->label('Catatan Petugas Piket')
-                            ->placeholder('Contoh: Hadir di sekolah, lupa scan jari di pintu piket')
+                            ->placeholder('Contoh: Hadir di sekolah, lupa scan jari / Izin pulang siang')
                             ->maxLength(255),
                     ])
                     ->action(function (Student $record, array $data, $livewire): void {
                         $tanggal = $data['tanggal'];
                         $sesi = $data['tipe_absen'];
-                        $jam = $data['waktu_kedatangan'];
+                        $status = $data['status'] ?? 'hadir';
+                        $jam = ($status === 'hadir') ? ($data['waktu_kedatangan'] ?? null) : null;
 
                         $isFriday = Carbon::parse($tanggal)->isFriday();
                         $isKeputrian = $isFriday && $record->jenis_kelamin === 'P' && in_array($sesi, ['sholat_dhuhur', 'keputrian']);
@@ -936,13 +1191,23 @@ class PresensiIzinSiswaResource extends Resource
                             $sesi = 'keputrian';
                         }
 
-                        $isLate = (bool) $data['is_late'];
-                        if (!$isLate && $jam) {
-                            if ($sesi === 'masuk' && $jam >= '06:46') $isLate = true;
-                            if ($sesi === 'keputrian' && $jam > '12:30') $isLate = true;
-                            if ($sesi === 'sholat_dhuhur' && $jam > '12:15') $isLate = true;
-                            if ($sesi === 'sholat_ashar' && $jam > '15:15') $isLate = true;
+                        $isLate = false;
+                        if ($status === 'hadir') {
+                            $isLate = (bool) ($data['is_late'] ?? false);
+                            if (!$isLate && $jam) {
+                                if ($sesi === 'masuk' && $jam >= '06:46') $isLate = true;
+                                if ($sesi === 'keputrian' && $jam > '12:30') $isLate = true;
+                                if ($sesi === 'sholat_dhuhur' && $jam > '12:15') $isLate = true;
+                                if ($sesi === 'sholat_ashar' && $jam > '15:15') $isLate = true;
+                            }
                         }
+
+                        $defaultKet = match ($status) {
+                            'hadir' => ($isKeputrian ? 'Kegiatan Keputrian (diinput petugas)' : ($isFriday ? 'Sholat Jum\'at (diinput petugas)' : 'Diinput manual oleh petugas piket')),
+                            'sakit' => 'Sakit (diinput manual petugas piket)',
+                            'izin'  => 'Izin (diinput manual petugas piket)',
+                            default => 'Alpha (diinput manual petugas piket)',
+                        };
 
                         DailyAttendance::withoutGlobalScopes()->updateOrCreate(
                             [
@@ -953,18 +1218,41 @@ class PresensiIzinSiswaResource extends Resource
                             [
                                 'institution_id'   => $record->institution_id ?: 2,
                                 'teacher_id'       => Auth::id(),
-                                'status'           => 'hadir',
+                                'status'           => $status,
                                 'metode_absen'     => 'manual',
                                 'waktu_kedatangan' => $jam,
                                 'is_late'          => $isLate,
                                 'late_penalty_points' => 0,
-                                'keterangan'       => $data['keterangan'] ?? ($isKeputrian ? 'Kegiatan Keputrian (diinput petugas)' : ($isFriday ? 'Sholat Jum\'at (diinput petugas)' : 'Diinput manual oleh petugas piket')),
+                                'keterangan'       => $data['keterangan'] ?? $defaultKet,
                             ]
                         );
 
+                        // Sync ke PrayerAttendance jika sesi sholat
+                        if (in_array($sesi, ['sholat_dhuhur', 'keputrian', 'sholat_ashar'])) {
+                            $prayerName = in_array($sesi, ['sholat_dhuhur', 'keputrian']) ? 'Dhuhur' : 'Ashar';
+                            PrayerAttendance::$isSyncing = true;
+                            try {
+                                PrayerAttendance::withoutGlobalScopes()->updateOrCreate(
+                                    [
+                                        'student_id'   => $record->id,
+                                        'tanggal'      => $tanggal,
+                                        'jenis_sholat' => $prayerName,
+                                    ],
+                                    [
+                                        'institution_id' => $record->institution_id ?: 2,
+                                        'teacher_id'     => Auth::id() ?: 1,
+                                        'status'         => $status,
+                                        'is_khusyu'      => true,
+                                    ]
+                                );
+                            } finally {
+                                PrayerAttendance::$isSyncing = false;
+                            }
+                        }
+
                         Notification::make()
-                            ->title('Jam Scan Berhasil Disimpan')
-                            ->body("Data sesi {$sesi} untuk {$record->name} jam {$jam} WIB tercatat.")
+                            ->title('Presensi Berhasil Disimpan')
+                            ->body("Data sesi {$sesi} ({$status}) untuk {$record->name} berhasil disimpan.")
                             ->success()
                             ->send();
 
@@ -989,8 +1277,11 @@ class PresensiIzinSiswaResource extends Resource
                         $tanggal = static::getActiveDate($livewire);
                         $tglFmt = Carbon::parse($tanggal)->translatedFormat('l, d F Y');
 
+                        $isFriday = Carbon::parse($tanggal)->isFriday();
+                        $targetTipeSiang = ($isFriday && $record->jenis_kelamin === 'P') ? ['keputrian', 'sholat_dhuhur'] : ['sholat_dhuhur', 'keputrian'];
+
                         $attMasuk = $record->getAttendanceOnDate($tanggal, 'masuk');
-                        $attDhuhur = $record->getAttendanceOnDate($tanggal, 'sholat_dhuhur');
+                        $attDhuhur = $record->getAttendanceOnDate($tanggal, $targetTipeSiang);
                         $attAshar = $record->getAttendanceOnDate($tanggal, ['sholat_ashar', 'pulang']);
                         $excused = $record->getGeneralExcusedOnDate($tanggal);
                         $isHalangan = $record->jenis_kelamin === 'P' && (
@@ -999,27 +1290,54 @@ class PresensiIzinSiswaResource extends Resource
                             || ($attAshar && $attAshar->status === 'halangan')
                         );
 
-                        $statusIzin = ($attMasuk && in_array($attMasuk->status, ['sakit', 'izin', 'alpa'])) ? $attMasuk->status : ($excused ? $excused->status : null);
-                        $ketIzin = ($attMasuk && $attMasuk->keterangan) ? $attMasuk->keterangan : ($excused ? $excused->keterangan : '');
+                        // Masuk Text
+                        if ($attMasuk && $attMasuk->status === 'hadir') {
+                            $masukText = ($attMasuk->waktu_kedatangan ? Carbon::parse($attMasuk->waktu_kedatangan)->format('H:i') . ' WIB' : 'Hadir') . ($attMasuk->is_late ? ' (Terlambat)' : ' (Tepat Waktu)');
+                            if ($attDhuhur && in_array($attDhuhur->status, ['sakit', 'izin'])) {
+                                $pulangStatus = ucfirst($attDhuhur->status);
+                                $masukText .= " [Izin Pulang Siang ({$pulangStatus})]";
+                            }
+                        } elseif ($attMasuk && in_array($attMasuk->status, ['sakit', 'izin', 'alpa'])) {
+                            $masukText = ucfirst($attMasuk->status) . ($attMasuk->keterangan ? " ({$attMasuk->keterangan})" : '');
+                        } elseif ($excused) {
+                            $masukText = ucfirst($excused->status) . ($excused->keterangan ? " ({$excused->keterangan})" : '');
+                        } else {
+                            $masukText = 'Belum Scan Masuk';
+                        }
 
-                        $masukText = $attMasuk && $attMasuk->status === 'hadir'
-                            ? ($attMasuk->waktu_kedatangan ? Carbon::parse($attMasuk->waktu_kedatangan)->format('H:i') . ' WIB' : 'Hadir') . ($attMasuk->is_late ? ' (Terlambat)' : ' (Tepat Waktu)')
-                            : ($statusIzin ? ucfirst($statusIzin) . ($ketIzin ? " ({$ketIzin})" : '') : 'Belum Scan Masuk');
+                        // Sesi Siang Text
+                        $labelSiang = ($isFriday && $record->jenis_kelamin === 'P') ? 'Kegiatan Keputrian' : ($isFriday ? 'Sholat Jum\'at' : 'Sholat Dhuhur');
+                        if ($isHalangan && (!$attDhuhur || $attDhuhur->status !== 'hadir')) {
+                            $dhuhurText = '🌸 Sedang Halangan / Udzur Syar\'i';
+                        } elseif ($attDhuhur && $attDhuhur->status === 'hadir') {
+                            $dhuhurText = ($attDhuhur->waktu_kedatangan ? Carbon::parse($attDhuhur->waktu_kedatangan)->format('H:i') . ' WIB' : 'Hadir') . ($attDhuhur->is_late ? ' (Terlambat)' : ' (Tepat Waktu)');
+                        } elseif ($attDhuhur && in_array($attDhuhur->status, ['sakit', 'izin', 'alpa'])) {
+                            $dhuhurText = ucfirst($attDhuhur->status) . ($attDhuhur->keterangan ? " ({$attDhuhur->keterangan})" : '');
+                        } elseif ($excused) {
+                            $dhuhurText = ucfirst($excused->status) . ($excused->keterangan ? " ({$excused->keterangan})" : '');
+                        } else {
+                            $dhuhurText = 'Belum Sholat / Scan';
+                        }
 
-                        $dhuhurText = $isHalangan ? '🌸 Sedang Halangan / Udzur Syar\'i' : ($attDhuhur && $attDhuhur->status === 'hadir'
-                            ? ($attDhuhur->waktu_kedatangan ? Carbon::parse($attDhuhur->waktu_kedatangan)->format('H:i') . ' WIB' : 'Hadir') . ($attDhuhur->is_late ? ' (Terlambat)' : ' (Tepat Waktu)')
-                            : ($statusIzin ? ucfirst($statusIzin) . ($ketIzin ? " ({$ketIzin})" : '') : 'Belum Sholat / Scan'));
-
-                        $asharText = $isHalangan ? '🌸 Sedang Halangan / Udzur Syar\'i' : ($attAshar && $attAshar->status === 'hadir'
-                            ? ($attAshar->waktu_kedatangan ? Carbon::parse($attAshar->waktu_kedatangan)->format('H:i') . ' WIB' : 'Hadir') . ($attAshar->is_late ? ' (Terlambat)' : ' (Tepat Waktu)')
-                            : ($statusIzin ? ucfirst($statusIzin) . ($ketIzin ? " ({$ketIzin})" : '') : 'Belum Sholat / Scan'));
+                        // Sesi Ashar Text
+                        if ($isHalangan) {
+                            $asharText = '🌸 Sedang Halangan / Udzur Syar\'i';
+                        } elseif ($attAshar && $attAshar->status === 'hadir') {
+                            $asharText = ($attAshar->waktu_kedatangan ? Carbon::parse($attAshar->waktu_kedatangan)->format('H:i') . ' WIB' : 'Hadir') . ($attAshar->is_late ? ' (Terlambat)' : ' (Tepat Waktu)');
+                        } elseif ($attAshar && in_array($attAshar->status, ['sakit', 'izin', 'alpa'])) {
+                            $asharText = ucfirst($attAshar->status) . ($attAshar->keterangan ? " ({$attAshar->keterangan})" : '');
+                        } elseif ($excused) {
+                            $asharText = ucfirst($excused->status) . ($excused->keterangan ? " ({$excused->keterangan})" : '');
+                        } else {
+                            $asharText = 'Belum Sholat / Scan';
+                        }
 
                         $kelas = $record->classroom?->name ?? '-';
                         $msg = "Assalamu'alaikum Wr. Wb.\n\n"
                             . "Yth. Bapak/Ibu Wali dari ananda *{$record->name}* (Kelas {$kelas}).\n"
                             . "Berikut ini kami sampaikan laporan kedatangan dan pelaksanaan sholat ananda pada hari *{$tglFmt}*:\n\n"
                             . "1. 🏫 *Kedatangan di Sekolah*: {$masukText}\n"
-                            . "2. 🕌 *Sholat Dhuhur*: {$dhuhurText}\n"
+                            . "2. 🕌 *{$labelSiang}*: {$dhuhurText}\n"
                             . "3. 🕌 *Sholat Ashar*: {$asharText}\n\n"
                             . "Terima kasih atas perhatian dan kerjasamanya.\nWassalamu'alaikum Wr. Wb.\n"
                             . "_Tim Kesiswaan & Guru Piket SMP Islam Baitul Makmur_";
@@ -1249,12 +1567,22 @@ class PresensiIzinSiswaResource extends Resource
                         ->icon('heroicon-o-document-text')
                         ->color('warning')
                         ->modalHeading('Catat Izin / Sakit Siswa Terpilih')
-                        ->modalDescription('Catatan izin/sakit/alpa akan otomatis disinkronkan ke seluruh sesi: kedatangan, sholat Dhuhur, dan sholat Ashar.')
+                        ->modalDescription('Catatan izin/sakit/alpa dapat diterapkan ke seluruh sesi atau kepulangan siang saja.')
                         ->form([
                             Forms\Components\DatePicker::make('tanggal')
                                 ->label('Tanggal')
                                 ->default(fn ($livewire) => static::getActiveDate($livewire))
                                 ->required(),
+
+                            Forms\Components\Radio::make('cakupan_sesi')
+                                ->label('Cakupan Sesi Presensi')
+                                ->options([
+                                    'seharian'     => '📅 Seharian Penuh (Kedatangan, Dhuhur, Ashar)',
+                                    'pulang_siang' => '⛅ Izin Pulang Siang (Dhuhur & Ashar Saja - Kedatangan Pagi Tetap Hadir)',
+                                ])
+                                ->default('seharian')
+                                ->required(),
+
                             Forms\Components\Select::make('status')
                                 ->label('Status')
                                 ->options([
@@ -1264,19 +1592,22 @@ class PresensiIzinSiswaResource extends Resource
                                 ])
                                 ->default('sakit')
                                 ->required(),
+
                             Forms\Components\TextInput::make('keterangan')
                                 ->label('Alasan / Keterangan')
-                                ->placeholder('Contoh: Mengikuti kegiatan / izin keluarga')
+                                ->placeholder('Contoh: Mengikuti kegiatan / izin keluarga / pulang siang sakit')
                                 ->required(),
                         ])
                         ->action(function (\Illuminate\Database\Eloquent\Collection $records, array $data, $livewire): void {
                             $tanggal = $data['tanggal'];
                             $isFriday = Carbon::parse($tanggal)->isFriday();
+                            $cakupan = $data['cakupan_sesi'] ?? 'seharian';
                             $count = 0;
 
                             foreach ($records as $record) {
                                 $sesiSiang = ($isFriday && $record->jenis_kelamin === 'P') ? 'keputrian' : 'sholat_dhuhur';
-                                $sesiList = ['masuk', $sesiSiang, 'sholat_ashar'];
+                                $sesiList = ($cakupan === 'pulang_siang') ? [$sesiSiang, 'sholat_ashar'] : ['masuk', $sesiSiang, 'sholat_ashar'];
+
                                 foreach ($sesiList as $sesi) {
                                     DailyAttendance::withoutGlobalScopes()->updateOrCreate(
                                         [
@@ -1292,15 +1623,41 @@ class PresensiIzinSiswaResource extends Resource
                                             'keterangan'       => $data['keterangan'] ?? null,
                                             'waktu_kedatangan' => null,
                                             'is_late'          => false,
+                                            'late_penalty_points' => 0,
                                         ]
                                     );
                                 }
+
+                                // Sync ke PrayerAttendance jika sesi sholat ikut diubah
+                                foreach (['Dhuhur', 'Ashar'] as $prayerName) {
+                                    \App\Models\PrayerAttendance::$isSyncing = true;
+                                    try {
+                                        \App\Models\PrayerAttendance::withoutGlobalScopes()->updateOrCreate(
+                                            [
+                                                'student_id'   => $record->id,
+                                                'tanggal'      => $tanggal,
+                                                'jenis_sholat' => $prayerName,
+                                            ],
+                                            [
+                                                'institution_id' => $record->institution_id ?: 2,
+                                                'teacher_id'     => Auth::id() ?: 1,
+                                                'status'         => $data['status'],
+                                                'is_khusyu'      => true,
+                                            ]
+                                        );
+                                    } finally {
+                                        \App\Models\PrayerAttendance::$isSyncing = false;
+                                    }
+                                }
+
                                 $count++;
                             }
 
+                            $cakupanNote = ($cakupan === 'pulang_siang') ? ' (Sesi Siang & Ashar, presensi pagi tetap Hadir)' : '';
+
                             Notification::make()
                                 ->title('Status Berhasil Dicatat')
-                                ->body("Berhasil mencatat status {$data['status']} untuk {$count} siswa.")
+                                ->body("Berhasil mencatat status {$data['status']} untuk {$count} siswa{$cakupanNote}.")
                                 ->success()
                                 ->send();
 

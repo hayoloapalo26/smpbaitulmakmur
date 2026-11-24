@@ -629,9 +629,12 @@ class AcademicPrintController extends Controller
         $izinCount = 0;
         $alpaCount = 0;
 
+        $isFriday = $tanggalCarbon->isFriday();
+
         foreach ($students as $st) {
             $attMasuk = $st->getAttendanceOnDate($tanggal, 'masuk');
-            $attDhuhur = $st->getAttendanceOnDate($tanggal, 'sholat_dhuhur');
+            $targetSiang = ($isFriday && $st->jenis_kelamin === 'P') ? ['keputrian', 'sholat_dhuhur'] : ['sholat_dhuhur', 'keputrian'];
+            $attDhuhur = $st->getAttendanceOnDate($tanggal, $targetSiang);
             $attAshar = $st->getAttendanceOnDate($tanggal, ['sholat_ashar', 'pulang']);
             $excused = $st->getGeneralExcusedOnDate($tanggal);
 

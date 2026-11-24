@@ -161,7 +161,7 @@ class DailyAttendanceStatsOverviewWidget extends Widget
         $masukTerlambat = $masukAtts->where('status', 'hadir')->where('is_late', true)->count();
         $masukBelum = $this->mode === 'rentang'
             ? '-'
-            : max(0, $totalSiswa - $masukHadir - $attendances->whereIn('status', ['sakit', 'izin', 'alpa'])->unique('student_id')->count());
+            : max(0, $totalSiswa - $masukAtts->whereIn('status', ['hadir', 'sakit', 'izin', 'alpa'])->count());
 
         // 2. Sholat Dhuhur & Keputrian
         $dhuhurAtts = $attendances->filter(fn ($a) => in_array($a->tipe_absen, ['sholat_dhuhur', 'keputrian']));
