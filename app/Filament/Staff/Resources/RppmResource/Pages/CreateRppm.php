@@ -14,6 +14,11 @@ class CreateRppm extends CreateRecord
 {
     protected static string $resource = RppmResource::class;
 
+    public function getTitle(): string
+    {
+        return 'Buat Perangkat Ajar Baru';
+    }
+
     public bool $isDraft = false;
 
     protected function authorizeAccess(): void

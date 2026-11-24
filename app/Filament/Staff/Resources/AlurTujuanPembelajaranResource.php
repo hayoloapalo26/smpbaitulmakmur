@@ -19,7 +19,7 @@ class AlurTujuanPembelajaranResource extends Resource
 {
     public static function shouldRegisterNavigation(): bool
     {
-        return static::canAccess();
+        return false;
     }
 
     public static function canAccess(): bool

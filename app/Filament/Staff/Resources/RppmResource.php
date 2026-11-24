@@ -67,9 +67,10 @@ class RppmResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-document-text';
     protected static ?string $navigationGroup = 'Akademik & Kurikulum';
-    protected static ?string $modelLabel = 'RPPM & Perangkat Ajar';
-    protected static ?string $pluralModelLabel = 'RPPM & Perangkat Ajar';
-    protected static ?int $navigationSort = 6;
+    protected static ?string $modelLabel = 'Perangkat Ajar';
+    protected static ?string $pluralModelLabel = 'Perangkat Ajar';
+    protected static ?string $navigationLabel = 'Perangkat Ajar';
+    protected static ?int $navigationSort = 5;
 
     /**
      * Memastikan guru yang menginput RPPM hanya bisa melihat RPPM miliknya sendiri,
@@ -113,10 +114,7 @@ class RppmResource extends Resource
 
     public static function getNavigationLabel(): string
     {
-        if (auth()->user()?->hasRole('kepala_sekolah')) {
-            return 'RPPM';
-        }
-        return 'RPPM & Perangkat Ajar';
+        return 'Perangkat Ajar';
     }
 
     public static function getNavigationSort(): ?int
@@ -207,8 +205,8 @@ class RppmResource extends Resource
                     ->collapsible()
                     ->columnSpanFull(),
 
-                Forms\Components\Section::make('📋 Dokumen RPPM & Perangkat Ajar')
-                    ->description('Input perangkat ajar Modul Ajar / RPPM ringkas dengan menyertakan tautan Google Drive.')
+                Forms\Components\Section::make('📋 Perangkat Ajar & Modul Pembelajaran')
+                    ->description('Kelola Capaian Pembelajaran (CP), Tujuan Pembelajaran (TP), Alur Tujuan Pembelajaran (ATP), dan Modul Ajar.')
                     ->schema([
                         Forms\Components\Hidden::make('guru_id')
                             ->default(fn () => auth()->id()),
@@ -1123,7 +1121,7 @@ class RppmResource extends Resource
                             ->columnSpanFull(),
 
                         Forms\Components\TextInput::make('link_drive')
-                            ->label('3. Tautan / Link Google Drive Dokumen RPPM & Perangkat Ajar')
+                            ->label('3. Tautan / Link Google Drive Dokumen Perangkat Ajar')
                             ->placeholder('Contoh: https://drive.google.com/file/d/... atau https://docs.google.com/document/d/...')
                             ->url()
                             ->prefixIcon('heroicon-o-link')
@@ -1132,7 +1130,7 @@ class RppmResource extends Resource
                             ->afterStateUpdated(function ($state, Forms\Set $set) {
                                 $set('content.link_drive', $state);
                             })
-                            ->helperText('Masukkan tautan Google Drive dokumen RPPM / Modul Ajar lengkap. Pastikan akses disetel "Siapa saja yang memiliki link dapat melihat".')
+                            ->helperText('Masukkan tautan Google Drive dokumen Perangkat Ajar / Modul Ajar lengkap. Pastikan akses disetel "Siapa saja yang memiliki link dapat melihat".')
                             ->columnSpanFull(),
                     ])->columns(2),
 
@@ -1485,10 +1483,10 @@ class RppmResource extends Resource
                     ->label('Hapus')
                     ->icon('heroicon-o-trash')
                     ->color('danger')
-                    ->modalHeading('Hapus Dokumen RPPM & Perangkat Ajar')
-                    ->modalDescription('Apakah Anda yakin ingin menghapus dokumen RPPM ini? Data yang telah dihapus tidak dapat dikembalikan.')
+                    ->modalHeading('Hapus Dokumen Perangkat Ajar')
+                    ->modalDescription('Apakah Anda yakin ingin menghapus dokumen Perangkat Ajar ini? Data yang telah dihapus tidak dapat dikembalikan.')
                     ->modalSubmitActionLabel('Ya, Hapus')
-                    ->successNotificationTitle('Dokumen RPPM Berhasil Dihapus')
+                    ->successNotificationTitle('Dokumen Perangkat Ajar Berhasil Dihapus')
                     ->visible(fn (Rppm $record): bool => !auth()->user()?->hasRole('kepala_sekolah') && (auth()->id() === $record->guru_id || auth()->user()?->hasAnyRole(['superadmin', 'waka_kurikulum']))),
 
                 // Tombol ACC khusus Kepala Sekolah & Superadmin

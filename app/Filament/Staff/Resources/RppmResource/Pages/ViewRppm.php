@@ -17,7 +17,7 @@ class ViewRppm extends ViewRecord
     public function getTitle(): string
     {
         $topik = $this->record->topik ? ": {$this->record->topik}" : '';
-        return "Detail RPPM & Perangkat Ajar {$this->record->mata_pelajaran}{$topik}";
+        return "Detail Perangkat Ajar {$this->record->mata_pelajaran}{$topik}";
     }
 
     public function infolist(Infolist $infolist): Infolist
@@ -47,13 +47,13 @@ class ViewRppm extends ViewRecord
                 ->visible(fn (): bool => !auth()->user()?->hasRole('kepala_sekolah') && (auth()->id() === $this->record->guru_id || auth()->user()?->hasAnyRole(['superadmin', 'waka_kurikulum']))),
 
             Actions\DeleteAction::make()
-                ->label('🗑️ Hapus RPPM')
+                ->label('🗑️ Hapus Perangkat Ajar')
                 ->color('danger')
                 ->icon('heroicon-o-trash')
-                ->modalHeading('Hapus Dokumen RPPM & Perangkat Ajar')
-                ->modalDescription('Apakah Anda yakin ingin menghapus dokumen RPPM ini? Data yang telah dihapus tidak dapat dikembalikan.')
+                ->modalHeading('Hapus Dokumen Perangkat Ajar')
+                ->modalDescription('Apakah Anda yakin ingin menghapus dokumen Perangkat Ajar ini? Data yang telah dihapus tidak dapat dikembalikan.')
                 ->modalSubmitActionLabel('Ya, Hapus')
-                ->successNotificationTitle('Dokumen RPPM Berhasil Dihapus')
+                ->successNotificationTitle('Dokumen Perangkat Ajar Berhasil Dihapus')
                 ->visible(fn (): bool => !auth()->user()?->hasRole('kepala_sekolah') && (auth()->id() === $this->record->guru_id || auth()->user()?->hasAnyRole(['superadmin', 'waka_kurikulum'])))
                 ->successRedirectUrl(RppmResource::getUrl('index')),
 
