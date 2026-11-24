@@ -66,8 +66,8 @@ class TeacherEvaluationResource extends Resource
                     ->sortable(),
 
                 Tables\Columns\TextColumn::make('kehadiran_score')
-                    ->label('Jurnal Mengajar (50%)')
-                    ->tooltip('Kewajiban menginput jurnal mengajar setelah selesai pembelajaran (Bobot 50%)')
+                    ->label('Jurnal Mengajar (60%)')
+                    ->tooltip('Kewajiban menginput jurnal mengajar setelah selesai pembelajaran (Bobot 60%)')
                     ->getStateUsing(function ($record) {
                         $kpiService = new \App\Services\TeacherKpiService();
                         return round($kpiService->calculateAttendancePercentage($record->id, 'bulanan'));
@@ -76,8 +76,8 @@ class TeacherEvaluationResource extends Resource
                     ->color(fn ($state) => $state >= 80 ? 'success' : 'danger'),
 
                 Tables\Columns\TextColumn::make('supervisi_score')
-                    ->label('Supervisi Guru (15%)')
-                    ->tooltip('Penilaian supervisi klinis pembelajaran oleh Pengawas / KS (Bobot 15%)')
+                    ->label('Supervisi Guru (10%)')
+                    ->tooltip('Penilaian supervisi klinis pembelajaran oleh Pengawas / KS (Bobot 10%)')
                     ->getStateUsing(function ($record) {
                         return TeacherSupervision::withoutGlobalScopes()
                             ->where('teacher_id', $record->id)
@@ -101,21 +101,19 @@ class TeacherEvaluationResource extends Resource
                     ->formatStateUsing(fn ($state) => number_format((float)$state, 1) . '%'),
 
                 Tables\Columns\TextColumn::make('observasi_score')
-                    ->label('Observasi (5%)')
-                    ->tooltip('Observasi pembelajaran oleh Tim Pengembang & Penjamin Mutu Yayasan (Bobot 5%)')
+                    ->label('Observasi Yayasan / PKG (5%)')
+                    ->tooltip('Observasi yayasan dari hasil Penilaian Kinerja Guru (PKG) / Observasi Pembelajaran (Bobot 5%)')
                     ->getStateUsing(function ($record) {
-                        return TeacherObservation::withoutGlobalScopes()
-                            ->where('teacher_id', $record->id)
-                            ->whereNotNull('score')
-                            ->latest('tanggal_observasi')
-                            ->value('score') ?? 0;
+                        $kpiService = new \App\Services\TeacherKpiService();
+                        $evaluation = $kpiService->calculateTeacherPerformanceEvaluation($record->id, 'bulanan');
+                        return $evaluation['observasi_score'];
                     })
                     ->formatStateUsing(fn ($state) => number_format((float)$state, 1) . '%')
                     ->color(fn ($state) => (float)$state >= 80 ? 'success' : ((float)$state >= 70 ? 'warning' : 'danger')),
 
                 Tables\Columns\TextColumn::make('kepsek_score')
-                    ->label('Penilaian Kerja oleh KS (30%)')
-                    ->tooltip('Penilaian kinerja guru bulanan oleh Kepala Sekolah (Bobot 30%)')
+                    ->label('Penilaian Kerja oleh KS (25%)')
+                    ->tooltip('Penilaian kinerja guru bulanan oleh Kepala Sekolah (Bobot 25%)')
                     ->getStateUsing(function ($record) {
                         return \App\Models\PrincipalTeacherEvaluation::withoutGlobalScopes()
                             ->where('teacher_id', $record->id)
@@ -128,7 +126,7 @@ class TeacherEvaluationResource extends Resource
 
                 Tables\Columns\TextColumn::make('final_score')
                     ->label('NILAI AKHIR (100%)')
-                    ->tooltip('Akumulasi Penilaian Kinerja Guru: 50% Pengisian Jurnal + 15% Supervisi + 5% Observasi + 30% Penilaian Kerja oleh KS')
+                    ->tooltip('Akumulasi Penilaian Kinerja Guru: 60% Pengisian Jurnal + 10% Supervisi + 5% Observasi Yayasan (PKG) + 25% Penilaian Kerja oleh KS')
                     ->badge()
                     ->getStateUsing(function ($record) {
                         $kpiService = new \App\Services\TeacherKpiService();
@@ -305,7 +303,7 @@ class TeacherEvaluationResource extends Resource
                     ->icon('heroicon-o-clipboard-document-check')
                     ->color('primary')
                     ->modalHeading(fn (User $record) => 'Penilaian Kinerja Bulanan Guru: ' . $record->name)
-                    ->modalDescription('Input penilaian kinerja guru oleh Kepala Sekolah per 1 bulan sekali (Bobot 30% pada nilai KPI).')
+                    ->modalDescription('Input penilaian kinerja guru oleh Kepala Sekolah per 1 bulan sekali (Bobot 25% pada nilai KPI).')
                     ->form([
                         Forms\Components\Select::make('bulan')
                             ->label('Bulan')
@@ -354,7 +352,7 @@ class TeacherEvaluationResource extends Resource
 
                         Notification::make()
                             ->title('Penilaian Kepala Sekolah Disimpan')
-                            ->body("Nilai kinerja bulanan untuk {$record->name} berhasil disimpan dan masuk dalam KPI Guru (bobot 30%).")
+                            ->body("Nilai kinerja bulanan untuk {$record->name} berhasil disimpan dan masuk dalam KPI Guru (bobot 25%).")
                             ->success()
                             ->send();
                     })

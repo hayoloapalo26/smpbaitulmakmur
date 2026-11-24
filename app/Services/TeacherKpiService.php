@@ -36,10 +36,10 @@ class TeacherKpiService
 
     /**
      * Hitung Nilai Evaluasi Kinerja Komprehensif Guru (Akumulasi Penilaian Kinerja Guru):
-     * - Kehadiran Pengisian Jurnal Mengajar: 50%
-     * - Supervisi Guru: 15%
-     * - Penilaian Observasi: 5%
-     * - Penilaian Kinerja oleh Kepala Sekolah (KS): 30%
+     * - Kehadiran Pengisian Jurnal Mengajar: 60%
+     * - Supervisi Guru: 10%
+     * - Observasi Yayasan (diambil dari fitur PKG / Uji Kompetensi): 5%
+     * - Penilaian Kinerja oleh Kepala Sekolah (KS): 25%
      * Total = 100%
      */
     public function calculateTeacherPerformanceEvaluation(int $teacherId, string $period = 'bulanan'): array
@@ -52,17 +52,26 @@ class TeacherKpiService
             ->latest()
             ->value('score') ?? 0);
 
-        $ukgScore = (float) (\App\Models\TeacherCompetencyTest::withoutGlobalScopes()
+        // Observasi Yayasan diambil dari fitur PKG (TeacherCompetencyTest)
+        $ukgRecord = \App\Models\TeacherCompetencyTest::withoutGlobalScopes()
             ->where('teacher_id', $teacherId)
-            ->whereNotNull('score')
+            ->where(function ($q) {
+                $q->whereNotNull('nilai_akhir')->orWhereNotNull('score');
+            })
             ->latest()
-            ->value('score') ?? 0);
+            ->first();
 
-        $observasiScore = (float) (\App\Models\TeacherObservation::withoutGlobalScopes()
+        $pkgScore = $ukgRecord ? (float) ($ukgRecord->nilai_akhir ?? $ukgRecord->score ?? 0) : 0;
+
+        // Fallback ke TeacherObservation jika data PKG belum ada
+        $observasiRecordScore = (float) (\App\Models\TeacherObservation::withoutGlobalScopes()
             ->where('teacher_id', $teacherId)
             ->whereNotNull('score')
             ->latest('tanggal_observasi')
             ->value('score') ?? 0);
+
+        // Prioritaskan nilai dari fitur PKG, jika kosong gunakan nilai TeacherObservation
+        $observasiScore = $pkgScore > 0 ? $pkgScore : ($observasiRecordScore > 0 ? $observasiRecordScore : 0);
 
         $kepsekScore = (float) (\App\Models\PrincipalTeacherEvaluation::withoutGlobalScopes()
             ->where('teacher_id', $teacherId)
@@ -70,16 +79,16 @@ class TeacherKpiService
             ->latest('tanggal_penilaian')
             ->value('score') ?? 0);
 
-        $finalScore = ($jurnalScore * 0.50)
-            + ($supervisiScore * 0.15)
+        $finalScore = ($jurnalScore * 0.60)
+            + ($supervisiScore * 0.10)
             + ($observasiScore * 0.05)
-            + ($kepsekScore * 0.30);
+            + ($kepsekScore * 0.25);
 
         return [
             'jurnal_score' => round($jurnalScore, 2),
             'supervisi_score' => round($supervisiScore, 2),
-            'ukg_score' => round($ukgScore, 2),
-            'pkg_score' => round($ukgScore, 2),
+            'ukg_score' => round($pkgScore, 2),
+            'pkg_score' => round($pkgScore, 2),
             'observasi_score' => round($observasiScore, 2),
             'kepsek_score' => round($kepsekScore, 2),
             'penilaian_kepsek_score' => round($kepsekScore, 2),
