@@ -39,7 +39,9 @@ class PrincipalTeacherEvaluationResource extends Resource
             return false;
         }
 
-        return $user->hasAnyRole(array_merge([
+        // HANYA Kepala Sekolah, Superadmin, dan Pimpinan Yayasan yang memiliki akses.
+        // Guru tidak memiliki akses agar hasil penilaian kinerja tidak membuat guru berkecil hati.
+        return $user->hasAnyRole([
             'superadmin',
             'kepala_sekolah',
             'ketua_yayasan',
@@ -47,11 +49,12 @@ class PrincipalTeacherEvaluationResource extends Resource
             'sekretaris_yayasan',
             'tim_pengembang_penjamin_mutu_yayasan',
             'pengembang_penjamin_mutu',
-            'waka_kurikulum',
-            'guru_mapel',
-            'wali_kelas',
-            'guru_ekstrakurikuler',
-        ], User::QURAN_TEACHER_ROLES));
+        ]);
+    }
+
+    public static function shouldRegisterNavigation(): bool
+    {
+        return static::canAccess();
     }
 
     public static function canCreate(): bool
@@ -68,9 +71,9 @@ class PrincipalTeacherEvaluationResource extends Resource
             return $query;
         }
 
-        // Jika guru biasa, hanya bisa melihat hasil penilaian dirinya sendiri
-        if (!$user->hasAnyRole(['superadmin', 'kepala_sekolah', 'ketua_yayasan', 'tim_pengembang_penjamin_mutu_yayasan', 'pengembang_penjamin_mutu'])) {
-            $query->where('teacher_id', $user->id);
+        // Kepala Sekolah hanya melihat penilaian untuk guru di lembaganya
+        if ($user->hasRole('kepala_sekolah') && $user->institution_id) {
+            $query->where('institution_id', $user->institution_id);
         }
 
         return $query;
