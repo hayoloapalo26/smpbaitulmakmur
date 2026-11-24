@@ -412,8 +412,91 @@ class RppmResource extends Resource
                                     ->rows(3)
                                     ->visible(fn (Forms\Get $get) => $get('cp_mode') === 'baru')
                                     ->required(fn (Forms\Get $get) => $get('cp_mode') === 'baru')
-                                    ->helperText('CP baru ini akan otomatis disimpan ke Bank CP dan langsung dijadikan rujukan pada Perangkat Ajar ini.')
+                                    ->helperText('Klik tombol Simpan CP di bawah untuk menyimpan langsung ke Bank CP dan menjadikannya rujukan pembelajaran.')
                                     ->columnSpanFull(),
+
+                                // TOMBOL SIMPAN CP KE BANK DATA
+                                Forms\Components\Actions::make([
+                                    Forms\Components\Actions\Action::make('save_cp_to_bank_btn')
+                                        ->label('💾 Simpan CP ke Bank Data & Jadikan Rujukan')
+                                        ->icon('heroicon-o-check-circle')
+                                        ->color('success')
+                                        ->button()
+                                        ->size('lg')
+                                        ->action(function (Forms\Get $get, Forms\Set $set) {
+                                            $mapel = $get('mata_pelajaran');
+                                            $fases = (array) ($get('fases') ?? ['D']);
+                                            $elemen = trim((string) $get('new_cp_elemen'));
+                                            $deskripsi = trim((string) $get('new_cp_deskripsi'));
+                                            $masaBerlaku = $get('new_cp_masa_berlaku') ?? '1 Tahun';
+                                            $kodeCp = trim((string) $get('new_cp_kode'));
+
+                                            if (empty($mapel)) {
+                                                \Filament\Notifications\Notification::make()
+                                                    ->title('Mata Pelajaran Belum Dipilih')
+                                                    ->body('Silakan pilih Mata Pelajaran yang Diampu terlebih dahulu di bagian atas.')
+                                                    ->danger()
+                                                    ->send();
+                                                return;
+                                            }
+
+                                            if (empty($elemen) || empty($deskripsi)) {
+                                                \Filament\Notifications\Notification::make()
+                                                    ->title('Data CP Belum Lengkap')
+                                                    ->body('Elemen Materi dan Rumusan Deskripsi CP wajib diisi sebelum menekan tombol simpan.')
+                                                    ->warning()
+                                                    ->send();
+                                                return;
+                                            }
+
+                                            $subj = \App\Models\Subject::where('name', $mapel)->first();
+                                            $subjectId = $subj?->id;
+                                            if (!$subjectId) {
+                                                $user = auth()->user();
+                                                $sIds = $user ? $user->getTeachedSubjectIds() : [];
+                                                $subjectId = !empty($sIds) ? $sIds[0] : \App\Models\Subject::first()?->id;
+                                            }
+
+                                            $faseStr = collect($fases)->map(fn ($f) => "Fase {$f}")->implode(', ');
+
+                                            $cp = \App\Models\CapaianPembelajaran::create([
+                                                'institution_id' => auth()->user()?->institution_id,
+                                                'guru_id' => auth()->id(),
+                                                'subject_id' => $subjectId,
+                                                'kode_cp' => !empty($kodeCp) ? $kodeCp : null,
+                                                'fase' => $faseStr ?: 'Fase D',
+                                                'fases' => $fases,
+                                                'tingkat' => '7',
+                                                'tahun_ajaran' => '2026/2027',
+                                                'semester' => '1',
+                                                'masa_berlaku' => $masaBerlaku,
+                                                'elemen' => $elemen,
+                                                'deskripsi_cp' => $deskripsi,
+                                            ]);
+
+                                            // Otomatis aktif sebagai rujukan terpilih
+                                            $set('cp_mode', 'pilih');
+                                            $set('capaian_pembelajaran_id', $cp->id);
+                                            $set('content.capaian_pembelajaran_id', $cp->id);
+                                            $set('content.capaian_pembelajaran', $cp->deskripsi_cp);
+                                            if (empty($get('topik'))) {
+                                                $set('topik', $cp->elemen);
+                                            }
+
+                                            // Bersihkan field baru
+                                            $set('new_cp_elemen', null);
+                                            $set('new_cp_kode', null);
+                                            $set('new_cp_deskripsi', null);
+
+                                            \Filament\Notifications\Notification::make()
+                                                ->title('Capaian Pembelajaran (CP) Berhasil Disimpan!')
+                                                ->body("CP elemen '{$cp->elemen}' tersimpan di Bank CP dan otomatis aktif sebagai rujukan pembuatan TP.")
+                                                ->success()
+                                                ->send();
+                                        }),
+                                ])
+                                ->visible(fn (Forms\Get $get) => $get('cp_mode') === 'baru')
+                                ->columnSpanFull(),
                             ])
                             ->columnSpanFull(),
 
@@ -422,6 +505,24 @@ class RppmResource extends Resource
                         // Section Terpadu 2: Tujuan Pembelajaran (TP) Langsung di Form
                         Forms\Components\Fieldset::make('2. Tujuan Pembelajaran (TP) Terkait')
                             ->schema([
+                                // Indikator Jelas: Rujukan CP yang Aktif untuk Pembuatan TP
+                                Forms\Components\Placeholder::make('info_rujukan_cp')
+                                    ->label('📌 Rujukan Capaian Pembelajaran (CP) untuk Pembuatan TP')
+                                    ->content(function (Forms\Get $get) {
+                                        $cpId = $get('capaian_pembelajaran_id') ?? $get('content.capaian_pembelajaran_id');
+                                        if (!$cpId) {
+                                            return new \Illuminate\Support\HtmlString('<div class="p-3 bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-700 rounded-lg text-sm text-amber-800 dark:text-amber-200 font-medium">⚠️ <strong>Belum ada CP yang dijadikan rujukan.</strong> Silakan pilih atau input & simpan CP pada bagian 1 di atas agar TP terhubung secara otomatis ke rujukan CP yang tepat.</div>');
+                                        }
+
+                                        $cp = \App\Models\CapaianPembelajaran::find($cpId);
+                                        if (!$cp) return 'CP tidak ditemukan.';
+
+                                        $cpKode = $cp->kode_cp ? "CP {$cp->kode_cp}" : "CP";
+                                        $faseStr = !empty($cp->fases) ? 'Fase ' . implode('&', (array) $cp->fases) : ($cp->fase ?: 'Fase D');
+                                        return new \Illuminate\Support\HtmlString("<div class='p-3 bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 rounded-lg text-sm text-blue-900 dark:text-blue-100'><strong>[{$cpKode}] [{$faseStr}] {$cp->elemen}</strong><br><span class='text-xs opacity-90 leading-relaxed block mt-1'>{$cp->deskripsi_cp}</span></div>");
+                                    })
+                                    ->columnSpanFull(),
+
                                 Forms\Components\Select::make('selected_tp_ids')
                                     ->label('Pilih TP yang Sudah Ada di Bank TP (Bisa Pilih Lebih Dari Satu)')
                                     ->multiple()
@@ -479,45 +580,142 @@ class RppmResource extends Resource
 
                                 Forms\Components\Toggle::make('enable_new_tps')
                                     ->label('➕ Tulis / Tambah Tujuan Pembelajaran (TP) Baru Langsung di Form Ini')
-                                    ->helperText('Aktifkan jika ingin membuat dan menyimpan TP baru secara langsung bersamaan dengan Perangkat Ajar ini.')
+                                    ->helperText('Input dan simpan rumusan TP baru langsung ke Bank TP merujuk pada CP yang aktif di atas.')
                                     ->default(false)
                                     ->live()
                                     ->columnSpanFull(),
 
-                                Forms\Components\Repeater::make('new_tps')
-                                    ->label('Daftar TP Baru yang Dibuat')
+                                Forms\Components\Grid::make(3)
                                     ->visible(fn (Forms\Get $get) => (bool) $get('enable_new_tps'))
                                     ->schema([
-                                        Forms\Components\Grid::make(3)->schema([
-                                            Forms\Components\TextInput::make('kode_tp')
-                                                ->label('Kode TP (Opsional)')
-                                                ->placeholder('Contoh: 1.1 / 1.2 (Otomatis jika kosong)'),
+                                        Forms\Components\TextInput::make('single_new_tp_kode')
+                                            ->label('Kode TP (Opsional)')
+                                            ->placeholder('Contoh: 1.1 / 1.2 (Otomatis jika kosong)'),
 
-                                            Forms\Components\TextInput::make('materi')
-                                                ->label('Materi Pokok (Opsional)')
-                                                ->placeholder('Contoh: Aljabar Dasar'),
+                                        Forms\Components\TextInput::make('single_new_tp_materi')
+                                            ->label('Materi Pokok (Opsional)')
+                                            ->placeholder('Contoh: Aljabar Dasar'),
 
-                                            Forms\Components\CheckboxList::make('kelas_rekomendasi')
-                                                ->label('Rekomendasi Kelas')
-                                                ->options([
-                                                    '7' => 'Kelas 7',
-                                                    '8' => 'Kelas 8',
-                                                    '9' => 'Kelas 9',
-                                                ])
-                                                ->default(['7'])
-                                                ->columns(3),
-                                        ]),
-
-                                        Forms\Components\Textarea::make('deskripsi_tp')
-                                            ->label('Rumusan Tujuan Pembelajaran (TP)')
-                                            ->placeholder('Tuliskan rumusan tujuan pembelajaran...')
-                                            ->rows(2)
-                                            ->required(),
+                                        Forms\Components\CheckboxList::make('single_new_tp_kelas')
+                                            ->label('Rekomendasi Kelas')
+                                            ->options([
+                                                '7' => 'Kelas 7',
+                                                '8' => 'Kelas 8',
+                                                '9' => 'Kelas 9',
+                                            ])
+                                            ->default(['7'])
+                                            ->columns(3),
                                     ])
-                                    ->addActionLabel('+ Tambah TP Baru')
-                                    ->collapsible()
-                                    ->defaultItems(1)
                                     ->columnSpanFull(),
+
+                                Forms\Components\Textarea::make('single_new_tp_deskripsi')
+                                    ->label('Rumusan Deskripsi Tujuan Pembelajaran (TP) Baru')
+                                    ->placeholder('Tuliskan rumusan tujuan pembelajaran yang ingin dicapai...')
+                                    ->rows(2)
+                                    ->visible(fn (Forms\Get $get) => (bool) $get('enable_new_tps'))
+                                    ->helperText('TP baru ini akan otomatis merujuk ke Capaian Pembelajaran (CP) yang aktif di atas.')
+                                    ->columnSpanFull(),
+
+                                // TOMBOL SIMPAN TP KE BANK DATA
+                                Forms\Components\Actions::make([
+                                    Forms\Components\Actions\Action::make('save_tp_to_bank_btn')
+                                        ->label('💾 Simpan TP ke Bank Data & Pilih untuk Modul Ini')
+                                        ->icon('heroicon-o-check-circle')
+                                        ->color('success')
+                                        ->button()
+                                        ->size('lg')
+                                        ->action(function (Forms\Get $get, Forms\Set $set) {
+                                            $cpId = $get('capaian_pembelajaran_id') ?? $get('content.capaian_pembelajaran_id');
+                                            $deskripsi = trim((string) $get('single_new_tp_deskripsi'));
+                                            $mapel = $get('mata_pelajaran');
+                                            $fases = (array) ($get('fases') ?? ['D']);
+
+                                            if (empty($cpId)) {
+                                                \Filament\Notifications\Notification::make()
+                                                    ->title('Rujukan CP Belum Terpilih')
+                                                    ->body('Silakan pilih atau simpan Capaian Pembelajaran (CP) pada bagian 1 terlebih dahulu sebagai rujukan TP ini.')
+                                                    ->danger()
+                                                    ->send();
+                                                return;
+                                            }
+
+                                            if (empty($deskripsi)) {
+                                                \Filament\Notifications\Notification::make()
+                                                    ->title('Rumusan TP Belum Diisi')
+                                                    ->body('Silakan tulis rumusan deskripsi Tujuan Pembelajaran sebelum menekan tombol simpan.')
+                                                    ->warning()
+                                                    ->send();
+                                                return;
+                                            }
+
+                                            $cp = \App\Models\CapaianPembelajaran::with('subject')->find($cpId);
+                                            $subjectId = $cp?->subject_id;
+                                            if (!$subjectId && $mapel) {
+                                                $subj = \App\Models\Subject::where('name', $mapel)->first();
+                                                $subjectId = $subj?->id;
+                                            }
+
+                                            $kodeTp = trim((string) $get('single_new_tp_kode'));
+                                            $materi = trim((string) $get('single_new_tp_materi'));
+                                            $rekomendasi = (array) ($get('single_new_tp_kelas') ?? ['7']);
+
+                                            $tp = \App\Models\TujuanPembelajaran::create([
+                                                'institution_id' => auth()->user()?->institution_id,
+                                                'guru_id' => auth()->id(),
+                                                'capaian_pembelajaran_id' => $cpId,
+                                                'subject_id' => $subjectId,
+                                                'kode_tp' => !empty($kodeTp) ? $kodeTp : null,
+                                                'fases' => !empty($cp?->fases) ? $cp->fases : $fases,
+                                                'rekomendasi_kelas' => $rekomendasi,
+                                                'materi' => !empty($materi) ? $materi : null,
+                                                'deskripsi_tp' => $deskripsi,
+                                                'kelas_tingkat' => (string) ($rekomendasi[0] ?? ($cp?->tingkat ?: '7')),
+                                                'semester' => 'Ganjil',
+                                            ]);
+
+                                            // Sinkronisasi otomatis ke ATP
+                                            if ($subjectId) {
+                                                \App\Models\AlurTujuanPembelajaran::syncForTeacherAndSubject(
+                                                    auth()->id(),
+                                                    $subjectId,
+                                                    $tp->kelas_tingkat
+                                                );
+                                            }
+
+                                            // Tambahkan langsung ke daftar TP terpilih
+                                            $currentSelected = $get('selected_tp_ids') ?? [];
+                                            if (!is_array($currentSelected)) {
+                                                $currentSelected = [];
+                                            }
+                                            $currentSelected[] = $tp->id;
+                                            $currentSelected = array_values(array_unique($currentSelected));
+
+                                            $set('selected_tp_ids', $currentSelected);
+                                            $set('content.selected_tp_dropdown', $currentSelected);
+
+                                            $tps = \App\Models\TujuanPembelajaran::whereIn('id', $currentSelected)->get()->sort(function ($a, $b) {
+                                                return strnatcmp($a->kode_tp ?? '', $b->kode_tp ?? '');
+                                            });
+                                            $tpItems = $tps->map(function ($item) {
+                                                $prefix = $item->materi ? "({$item->materi}) " : '';
+                                                return ['rumusan' => "[{$item->kode_tp}] {$prefix}{$item->deskripsi_tp}"];
+                                            })->values()->toArray();
+                                            $set('content.tujuan_pembelajaran', $tpItems);
+
+                                            // Bersihkan field inputan agar guru bisa input TP berikutnya jika ada
+                                            $set('single_new_tp_kode', null);
+                                            $set('single_new_tp_materi', null);
+                                            $set('single_new_tp_deskripsi', null);
+
+                                            \Filament\Notifications\Notification::make()
+                                                ->title('Tujuan Pembelajaran (TP) Berhasil Disimpan!')
+                                                ->body("TP '{$tp->kode_tp}' telah tersimpan ke Bank TP merujuk pada CP '{$cp->elemen}' dan otomatis terpilih untuk modul ini.")
+                                                ->success()
+                                                ->send();
+                                        }),
+                                ])
+                                ->visible(fn (Forms\Get $get) => (bool) $get('enable_new_tps'))
+                                ->columnSpanFull(),
                             ])
                             ->columnSpanFull(),
 

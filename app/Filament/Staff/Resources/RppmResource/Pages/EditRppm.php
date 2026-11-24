@@ -174,11 +174,31 @@ class EditRppm extends EditRecord
             }
         }
 
-        // 3. Simpan TP baru jika diinputkan langsung di form
+        // 3. Simpan TP baru jika diinputkan langsung di form (baik melalui single input maupun repeater)
         $selectedTpIds = $data['selected_tp_ids'] ?? [];
-        if (!empty($data['enable_new_tps']) && !empty($data['new_tps']) && is_array($data['new_tps'])) {
-            $targetCpId = $data['capaian_pembelajaran_id'] ?? CapaianPembelajaran::first()?->id;
+        $targetCpId = $data['capaian_pembelajaran_id'] ?? CapaianPembelajaran::first()?->id;
 
+        if (!empty($data['enable_new_tps']) && !empty($data['single_new_tp_deskripsi'])) {
+            $rekomendasi = !empty($data['single_new_tp_kelas']) ? (array) $data['single_new_tp_kelas'] : [$tingkat];
+            $autoKode = !empty($data['single_new_tp_kode']) ? (string) $data['single_new_tp_kode'] : null;
+
+            $tp = TujuanPembelajaran::create([
+                'institution_id' => auth()->user()?->institution_id,
+                'guru_id' => auth()->id(),
+                'capaian_pembelajaran_id' => $targetCpId,
+                'subject_id' => $subjectId,
+                'kode_tp' => $autoKode,
+                'fases' => $fases,
+                'rekomendasi_kelas' => $rekomendasi,
+                'materi' => $data['single_new_tp_materi'] ?? null,
+                'deskripsi_tp' => $data['single_new_tp_deskripsi'],
+                'kelas_tingkat' => (string) ($rekomendasi[0] ?? $tingkat),
+                'semester' => 'Ganjil',
+            ]);
+            $selectedTpIds[] = $tp->id;
+        }
+
+        if (!empty($data['enable_new_tps']) && !empty($data['new_tps']) && is_array($data['new_tps'])) {
             foreach ($data['new_tps'] as $tpIndex => $tpItem) {
                 if (!empty($tpItem['deskripsi_tp'])) {
                     $rekomendasi = !empty($tpItem['kelas_rekomendasi']) ? (array) $tpItem['kelas_rekomendasi'] : [$tingkat];
@@ -200,8 +220,8 @@ class EditRppm extends EditRecord
                     $selectedTpIds[] = $tp->id;
                 }
             }
-            $data['selected_tp_ids'] = array_values(array_unique($selectedTpIds));
         }
+        $data['selected_tp_ids'] = array_values(array_unique($selectedTpIds));
 
         // 4. Pastikan content.tujuan_pembelajaran terisi
         if (!empty($data['selected_tp_ids'])) {
@@ -237,6 +257,10 @@ class EditRppm extends EditRecord
             $data['new_cp_masa_berlaku'],
             $data['new_cp_deskripsi'],
             $data['enable_new_tps'],
+            $data['single_new_tp_kode'],
+            $data['single_new_tp_materi'],
+            $data['single_new_tp_kelas'],
+            $data['single_new_tp_deskripsi'],
             $data['new_tps'],
             $data['input_perangkat_mode']
         );
