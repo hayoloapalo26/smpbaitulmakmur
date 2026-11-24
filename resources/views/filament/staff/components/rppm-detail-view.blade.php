@@ -128,6 +128,36 @@
             </div>
         </div>
 
+        @if(!empty($record->link_drive))
+            <div class="m-6 sm:m-8 p-4 rounded-2xl bg-gradient-to-r from-blue-50 via-indigo-50/50 to-sky-50 dark:from-blue-950/40 dark:via-indigo-950/30 dark:to-sky-950/40 border-2 border-blue-300 dark:border-blue-700 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
+                <div class="flex items-center gap-3.5">
+                    <div class="w-11 h-11 rounded-xl bg-blue-600 text-white flex items-center justify-center text-2xl shadow-xs shrink-0">
+                        📁
+                    </div>
+                    <div>
+                        <div class="flex items-center gap-2">
+                            <span class="text-xs font-black text-blue-950 dark:text-blue-200 uppercase tracking-wide">
+                                Dokumen Perangkat Ajar Google Drive
+                            </span>
+                            <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-600 text-white">
+                                Cloud Drive
+                            </span>
+                        </div>
+                        <p class="text-xs text-blue-800 dark:text-blue-300 mt-0.5">
+                            Tautan dokumen modul ajar / RPPM lengkap yang diunggah oleh guru pengampu.
+                        </p>
+                    </div>
+                </div>
+                <div class="shrink-0 flex items-center gap-2 w-full sm:w-auto">
+                    <a href="{{ $record->link_drive }}" target="_blank"
+                       class="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white text-xs font-black rounded-xl shadow-md transition-all">
+                        <span>Buka Google Drive</span>
+                        <span>↗</span>
+                    </a>
+                </div>
+            </div>
+        @endif
+
         <div class="p-6 sm:p-8 space-y-8 text-xs sm:text-sm leading-relaxed">
 
             {{-- SECTION I: IDENTITAS MODUL & PERANGKAT PEMBELAJARAN --}}

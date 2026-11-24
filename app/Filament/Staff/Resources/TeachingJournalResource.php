@@ -560,13 +560,23 @@ class TeachingJournalResource extends Resource
                                         }
                                     }
 
-                                    $latestJournalWithDrive = TeachingJournal::where('teacher_id', $teacherId)
-                                        ->where('subject_id', $firstSchedule->subject_id)
-                                        ->whereNotNull('link_drive_rppm')
+                                    $latestRppmWithDrive = Rppm::where('guru_id', $teacherId)
+                                        ->where('mata_pelajaran', $firstSchedule->subject?->name)
+                                        ->whereNotNull('link_drive')
                                         ->latest()
                                         ->first();
-                                    if ($latestJournalWithDrive && empty($get('link_drive_rppm'))) {
-                                        $set('link_drive_rppm', $latestJournalWithDrive->link_drive_rppm);
+                                    if ($latestRppmWithDrive && empty($get('link_drive_rppm'))) {
+                                        $set('link_drive_rppm', $latestRppmWithDrive->link_drive);
+                                        $set('rppm_id', $latestRppmWithDrive->id);
+                                    } else {
+                                        $latestJournalWithDrive = TeachingJournal::where('teacher_id', $teacherId)
+                                            ->where('subject_id', $firstSchedule->subject_id)
+                                            ->whereNotNull('link_drive_rppm')
+                                            ->latest()
+                                            ->first();
+                                        if ($latestJournalWithDrive && empty($get('link_drive_rppm'))) {
+                                            $set('link_drive_rppm', $latestJournalWithDrive->link_drive_rppm);
+                                        }
                                     }
                                 }
 
@@ -812,6 +822,53 @@ class TeachingJournalResource extends Resource
                             ->hidden(fn (Forms\Get $get) => static::isQuranContext($get) || (bool) $get('is_kegiatan_lain'))
                             ->helperText('Filter daftar TP berdasarkan CP yang dipilih (opsional).'),
 
+                        Forms\Components\Select::make('rppm_id')
+                            ->label('Rujukan Dokumen RPPM (Opsional)')
+                            ->placeholder('Pilih RPPM yang pernah dibuat (Link Drive akan terisi otomatis)...')
+                            ->options(function (Forms\Get $get) {
+                                $user = Auth::user();
+                                $subjectId = $get('subject_id');
+                                $query = Rppm::query();
+                                if ($user && !$user->hasAnyRole(['superadmin', 'kepala_sekolah', 'waka_kurikulum'])) {
+                                    $query->where('guru_id', $user->id);
+                                }
+                                if ($subjectId) {
+                                    $subjName = Subject::where('id', $subjectId)->value('name');
+                                    if ($subjName) {
+                                        $query->where('mata_pelajaran', $subjName);
+                                    }
+                                }
+                                return $query->latest()->get()->mapWithKeys(function ($rppm) {
+                                    $drive = $rppm->link_drive ? ' [Ada Link Drive]' : '';
+                                    return [$rppm->id => "[{$rppm->kelas_fase}] {$rppm->topik}{$drive}"];
+                                });
+                            })
+                            ->searchable()
+                            ->preload()
+                            ->live()
+                            ->afterStateUpdated(function ($state, Forms\Set $set, Forms\Get $get) {
+                                if ($state) {
+                                    $rppm = Rppm::find($state);
+                                    if ($rppm) {
+                                        if ($rppm->link_drive) {
+                                            $set('link_drive_rppm', $rppm->link_drive);
+                                        }
+                                        if ($rppm->capaian_pembelajaran_id && empty($get('capaian_pembelajaran_id'))) {
+                                            $set('capaian_pembelajaran_id', $rppm->capaian_pembelajaran_id);
+                                        }
+                                        if (!empty($rppm->selected_tp_ids) && empty($get('tp_ids'))) {
+                                            $set('tp_ids', $rppm->selected_tp_ids);
+                                        }
+                                        if (!empty($rppm->topik) && empty($get('materi'))) {
+                                            $set('materi', $rppm->topik);
+                                        }
+                                    }
+                                }
+                            })
+                            ->hidden(fn (Forms\Get $get) => static::isQuranContext($get) || (bool) $get('is_kegiatan_lain'))
+                            ->helperText('Pilih RPPM yang sudah dibuat agar tautan Google Drive dan materi terisi otomatis, atau Anda dapat langsung mengisi tautan di bawah.')
+                            ->columnSpanFull(),
+
                         Forms\Components\TextInput::make('link_drive_rppm')
                             ->label('Link Google Drive RPPM / Modul Ajar')
                             ->placeholder('Contoh: https://drive.google.com/file/d/... atau https://docs.google.com/document/d/...')
@@ -820,8 +877,6 @@ class TeachingJournalResource extends Resource
                             ->hidden(fn (Forms\Get $get) => (bool) $get('is_kegiatan_lain'))
                             ->helperText('Masukkan tautan Google Drive dokumen RPPM / Modul Ajar / Perangkat Pembelajaran.')
                             ->columnSpanFull(),
-
-                        Forms\Components\Hidden::make('rppm_id'),
 
                         Forms\Components\TextInput::make('materi')
                             ->label(function (Forms\Get $get) {

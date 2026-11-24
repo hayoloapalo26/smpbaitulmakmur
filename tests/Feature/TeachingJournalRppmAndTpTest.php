@@ -379,4 +379,24 @@ class TeachingJournalRppmAndTpTest extends TestCase
         $this->assertEquals('https://drive.google.com/file/d/123456789/view', $journal->link_drive_rppm);
         $this->assertEquals([$this->tp1->id], $journal->tp_ids);
     }
+
+    public function test_rppm_supports_link_drive_and_fases(): void
+    {
+        $rppm = Rppm::create([
+            'institution_id' => $this->institution->id,
+            'guru_id' => $this->guru->id,
+            'mata_pelajaran' => $this->subject->name,
+            'fases' => ['D', 'E'],
+            'topik' => 'Modul Ajar Aljabar Pertemuan 1',
+            'alokasi_waktu' => '2 x 40 Menit',
+            'link_drive' => 'https://drive.google.com/file/d/abcdef123456/view',
+            'capaian_pembelajaran_id' => $this->cp->id,
+            'selected_tp_ids' => [$this->tp1->id],
+        ]);
+
+        $this->assertEquals(['D', 'E'], $rppm->fases);
+        $this->assertStringContainsString('Fase D', $rppm->fase);
+        $this->assertStringContainsString('Fase E', $rppm->fase);
+        $this->assertEquals('https://drive.google.com/file/d/abcdef123456/view', $rppm->link_drive);
+    }
 }
