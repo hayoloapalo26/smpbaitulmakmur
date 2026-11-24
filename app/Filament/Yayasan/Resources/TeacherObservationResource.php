@@ -175,7 +175,7 @@ class TeacherObservationResource extends Resource
                     ])->columns(2),
 
                 Forms\Components\Section::make('Hasil Penilaian Observasi Pembelajaran')
-                    ->description('Masukkan skor hasil observasi guru (bobot penilaian 20% pada evaluasi kinerja guru).')
+                    ->description('Masukkan skor hasil observasi guru (bobot penilaian 5% pada evaluasi kinerja guru).')
                     ->schema([
                         Forms\Components\TextInput::make('score')
                             ->label('Nilai Akhir Observasi (0 - 100)')
@@ -244,7 +244,7 @@ class TeacherObservationResource extends Resource
                     ->color('secondary'),
 
                 Tables\Columns\TextColumn::make('score')
-                    ->label('Nilai (Bobot 20%)')
+                    ->label('Nilai (Bobot 5%)')
                     ->badge()
                     ->formatStateUsing(fn ($state) => number_format((float) $state, 1) . '%')
                     ->color(fn ($state) => TeacherObservation::getPredicateColor((float) $state))

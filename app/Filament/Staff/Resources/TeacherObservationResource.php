@@ -163,7 +163,7 @@ class TeacherObservationResource extends Resource
                     ->default('-'),
 
                 Tables\Columns\TextColumn::make('score')
-                    ->label('Nilai (Bobot 20%)')
+                    ->label('Nilai (Bobot 5%)')
                     ->badge()
                     ->formatStateUsing(fn ($state) => number_format((float) $state, 1) . '%')
                     ->color(fn ($state) => TeacherObservation::getPredicateColor((float) $state))

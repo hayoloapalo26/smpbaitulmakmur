@@ -155,7 +155,7 @@ class PrincipalTeacherEvaluationResource extends Resource
                     ])->columns(2),
 
                 Forms\Components\Section::make('Rincian & Skor Penilaian Kinerja Bulanan')
-                    ->description('Evaluasi indikator kinerja guru dan tetapkan nilai akhir (Skala 0 - 100). Bobot KPI Guru: 20%.')
+                    ->description('Evaluasi indikator kinerja guru dan tetapkan nilai akhir (Skala 0 - 100). Bobot KPI Guru: 30%.')
                     ->schema([
                         Forms\Components\Grid::make(2)
                             ->schema([
@@ -215,7 +215,7 @@ class PrincipalTeacherEvaluationResource extends Resource
                             ->helperText(function (Forms\Get $get) {
                                 $score = (float) $get('score');
                                 $predikat = PrincipalTeacherEvaluation::determinePredicate($score);
-                                return "⭐ Predikat: {$predikat} (Bobot kontribusi ke KPI Guru: 20%)";
+                                return "⭐ Predikat: {$predikat} (Bobot kontribusi ke KPI Guru: 30%)";
                             }),
 
                         Forms\Components\Textarea::make('catatan')
@@ -256,7 +256,7 @@ class PrincipalTeacherEvaluationResource extends Resource
                     ->sortable(['tahun', 'bulan']),
 
                 Tables\Columns\TextColumn::make('score')
-                    ->label('Nilai KS (20%)')
+                    ->label('Nilai KS (30%)')
                     ->formatStateUsing(fn ($state) => number_format((float)$state, 1) . '%')
                     ->badge()
                     ->color(fn (PrincipalTeacherEvaluation $record) => PrincipalTeacherEvaluation::getPredicateBadgeColor((float)$record->score))

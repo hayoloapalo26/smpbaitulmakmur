@@ -66,8 +66,8 @@ class TeacherEvaluationResource extends Resource
                     ->sortable(),
 
                 Tables\Columns\TextColumn::make('kehadiran_score')
-                    ->label('Jurnal Mengajar (30%)')
-                    ->tooltip('Kewajiban menginput jurnal mengajar setelah selesai pembelajaran (Bobot 30%)')
+                    ->label('Jurnal Mengajar (50%)')
+                    ->tooltip('Kewajiban menginput jurnal mengajar setelah selesai pembelajaran (Bobot 50%)')
                     ->getStateUsing(function ($record) {
                         $kpiService = new \App\Services\TeacherKpiService();
                         return round($kpiService->calculateAttendancePercentage($record->id, 'bulanan'));
@@ -88,8 +88,9 @@ class TeacherEvaluationResource extends Resource
                     ->formatStateUsing(fn ($state) => number_format((float)$state, 1) . '%'),
 
                 Tables\Columns\TextColumn::make('ukg_score')
-                    ->label('PKG Guru (15%)')
-                    ->tooltip('Penilaian Kinerja Guru (PKG) / Uji Kompetensi (Bobot 15%)')
+                    ->label('PKG Guru (Opsional)')
+                    ->tooltip('Penilaian Kinerja Guru (PKG) / Uji Kompetensi (Terpisah)')
+                    ->toggleable(isToggledHiddenByDefault: true)
                     ->getStateUsing(function ($record) {
                         return TeacherCompetencyTest::withoutGlobalScopes()
                             ->where('teacher_id', $record->id)
@@ -100,8 +101,8 @@ class TeacherEvaluationResource extends Resource
                     ->formatStateUsing(fn ($state) => number_format((float)$state, 1) . '%'),
 
                 Tables\Columns\TextColumn::make('observasi_score')
-                    ->label('Observasi Yayasan (20%)')
-                    ->tooltip('Observasi pembelajaran oleh Tim Pengembang & Penjamin Mutu Yayasan (Bobot 20%)')
+                    ->label('Observasi (5%)')
+                    ->tooltip('Observasi pembelajaran oleh Tim Pengembang & Penjamin Mutu Yayasan (Bobot 5%)')
                     ->getStateUsing(function ($record) {
                         return TeacherObservation::withoutGlobalScopes()
                             ->where('teacher_id', $record->id)
@@ -113,8 +114,8 @@ class TeacherEvaluationResource extends Resource
                     ->color(fn ($state) => (float)$state >= 80 ? 'success' : ((float)$state >= 70 ? 'warning' : 'danger')),
 
                 Tables\Columns\TextColumn::make('kepsek_score')
-                    ->label('Penilaian Kepala Sekolah (20%)')
-                    ->tooltip('Penilaian kinerja guru bulanan oleh Kepala Sekolah (Bobot 20%)')
+                    ->label('Penilaian Kerja oleh KS (30%)')
+                    ->tooltip('Penilaian kinerja guru bulanan oleh Kepala Sekolah (Bobot 30%)')
                     ->getStateUsing(function ($record) {
                         return \App\Models\PrincipalTeacherEvaluation::withoutGlobalScopes()
                             ->where('teacher_id', $record->id)
@@ -127,7 +128,7 @@ class TeacherEvaluationResource extends Resource
 
                 Tables\Columns\TextColumn::make('final_score')
                     ->label('NILAI AKHIR (100%)')
-                    ->tooltip('Akumulasi 5 Komponen: 30% Jurnal + 15% Supervisi + 15% PKG + 20% Observasi Yayasan + 20% Penilaian Kepala Sekolah')
+                    ->tooltip('Akumulasi Penilaian Kinerja Guru: 50% Pengisian Jurnal + 15% Supervisi + 5% Observasi + 30% Penilaian Kerja oleh KS')
                     ->badge()
                     ->getStateUsing(function ($record) {
                         $kpiService = new \App\Services\TeacherKpiService();
@@ -224,7 +225,7 @@ class TeacherEvaluationResource extends Resource
                     ->icon('heroicon-o-eye')
                     ->color('info')
                     ->modalHeading(fn (User $record) => 'Observasi Pembelajaran Guru: ' . $record->name)
-                    ->modalDescription('Input hasil observasi pembelajaran oleh Tim Pengembang & Penjamin Mutu (Bobot 20% pada nilai akhir).')
+                    ->modalDescription('Input hasil observasi pembelajaran oleh Tim Pengembang & Penjamin Mutu (Bobot 5% pada nilai akhir).')
                     ->form([
                         Forms\Components\DatePicker::make('tanggal_observasi')
                             ->label('Tanggal Pelaksanaan Observasi')
@@ -265,7 +266,7 @@ class TeacherEvaluationResource extends Resource
 
                         Notification::make()
                             ->title('Hasil Observasi Disimpan')
-                            ->body("Nilai observasi untuk {$record->name} telah berhasil disimpan dan masuk ke evaluasi kinerja guru (bobot 20%).")
+                            ->body("Nilai observasi untuk {$record->name} telah berhasil disimpan dan masuk ke evaluasi kinerja guru (bobot 5%).")
                             ->success()
                             ->send();
                     })
@@ -304,7 +305,7 @@ class TeacherEvaluationResource extends Resource
                     ->icon('heroicon-o-clipboard-document-check')
                     ->color('primary')
                     ->modalHeading(fn (User $record) => 'Penilaian Kinerja Bulanan Guru: ' . $record->name)
-                    ->modalDescription('Input penilaian kinerja guru oleh Kepala Sekolah per 1 bulan sekali (Bobot 20% pada nilai KPI).')
+                    ->modalDescription('Input penilaian kinerja guru oleh Kepala Sekolah per 1 bulan sekali (Bobot 30% pada nilai KPI).')
                     ->form([
                         Forms\Components\Select::make('bulan')
                             ->label('Bulan')
@@ -353,7 +354,7 @@ class TeacherEvaluationResource extends Resource
 
                         Notification::make()
                             ->title('Penilaian Kepala Sekolah Disimpan')
-                            ->body("Nilai kinerja bulanan untuk {$record->name} berhasil disimpan dan masuk dalam KPI Guru (bobot 20%).")
+                            ->body("Nilai kinerja bulanan untuk {$record->name} berhasil disimpan dan masuk dalam KPI Guru (bobot 30%).")
                             ->success()
                             ->send();
                     })

@@ -35,12 +35,11 @@ class TeacherKpiService
     }
 
     /**
-     * Hitung Nilai Evaluasi Kinerja Komprehensif Guru (5 Komponen Progress KPI Guru):
-     * - Kehadiran Pengisian Jurnal Setiap Selesai Mengajar: 30%
+     * Hitung Nilai Evaluasi Kinerja Komprehensif Guru (Akumulasi Penilaian Kinerja Guru):
+     * - Kehadiran Pengisian Jurnal Mengajar: 50%
      * - Supervisi Guru: 15%
-     * - PKG (Penilaian Kinerja Guru): 15%
-     * - Penilaian Observasi Yayasan: 20%
-     * - Penilaian Kinerja Guru oleh Kepala Sekolah Bulanan: 20%
+     * - Penilaian Observasi: 5%
+     * - Penilaian Kinerja oleh Kepala Sekolah (KS): 30%
      * Total = 100%
      */
     public function calculateTeacherPerformanceEvaluation(int $teacherId, string $period = 'bulanan'): array
@@ -71,11 +70,10 @@ class TeacherKpiService
             ->latest('tanggal_penilaian')
             ->value('score') ?? 0);
 
-        $finalScore = ($jurnalScore * 0.30)
+        $finalScore = ($jurnalScore * 0.50)
             + ($supervisiScore * 0.15)
-            + ($ukgScore * 0.15)
-            + ($observasiScore * 0.20)
-            + ($kepsekScore * 0.20);
+            + ($observasiScore * 0.05)
+            + ($kepsekScore * 0.30);
 
         return [
             'jurnal_score' => round($jurnalScore, 2),
