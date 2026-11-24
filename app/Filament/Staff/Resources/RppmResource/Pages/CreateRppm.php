@@ -117,13 +117,18 @@ class CreateRppm extends CreateRecord
             $tingkat = $m[1];
         }
 
-        // 2. Simpan CP baru jika diinputkan langsung
-        if (!empty($data['new_cp_deskripsi'])) {
+        $fases = !empty($data['fases']) ? (array) $data['fases'] : ['D'];
+        $faseStr = collect($fases)->map(fn ($f) => "Fase {$f}")->implode(', ');
+
+        // 2. Simpan CP baru jika diinputkan langsung di form
+        if (($data['cp_mode'] ?? null) === 'baru' && !empty($data['new_cp_deskripsi'])) {
             $cp = CapaianPembelajaran::create([
                 'institution_id' => auth()->user()?->institution_id,
                 'guru_id' => auth()->id(),
                 'subject_id' => $subjectId,
-                'fase' => 'Fase D (SMP)',
+                'kode_cp' => !empty($data['new_cp_kode']) ? (string) $data['new_cp_kode'] : null,
+                'fase' => $faseStr ?: 'Fase D',
+                'fases' => $fases,
                 'tingkat' => $tingkat,
                 'tahun_ajaran' => '2026/2027',
                 'semester' => '1',
@@ -133,30 +138,37 @@ class CreateRppm extends CreateRecord
             ]);
 
             $data['capaian_pembelajaran_id'] = $cp->id;
+            $data['content']['capaian_pembelajaran_id'] = $cp->id;
             $data['content']['capaian_pembelajaran'] = $cp->deskripsi_cp;
         } elseif (!empty($data['capaian_pembelajaran_id'])) {
             $cp = CapaianPembelajaran::find($data['capaian_pembelajaran_id']);
             if ($cp) {
+                $data['content']['capaian_pembelajaran_id'] = $cp->id;
                 $data['content']['capaian_pembelajaran'] = $cp->deskripsi_cp;
             }
         }
 
-        // 3. Simpan TP baru jika diinputkan langsung
+        // 3. Simpan TP baru jika diinputkan langsung di form
         $selectedTpIds = $data['selected_tp_ids'] ?? [];
-        if (!empty($data['new_tps']) && is_array($data['new_tps'])) {
+        if (!empty($data['enable_new_tps']) && !empty($data['new_tps']) && is_array($data['new_tps'])) {
             $targetCpId = $data['capaian_pembelajaran_id'] ?? CapaianPembelajaran::first()?->id;
 
-            foreach ($data['new_tps'] as $tpItem) {
+            foreach ($data['new_tps'] as $tpIndex => $tpItem) {
                 if (!empty($tpItem['deskripsi_tp'])) {
+                    $rekomendasi = !empty($tpItem['kelas_rekomendasi']) ? (array) $tpItem['kelas_rekomendasi'] : [$tingkat];
+                    $autoKode = !empty($tpItem['kode_tp']) ? (string) $tpItem['kode_tp'] : null;
+
                     $tp = TujuanPembelajaran::create([
                         'institution_id' => auth()->user()?->institution_id,
                         'guru_id' => auth()->id(),
                         'capaian_pembelajaran_id' => $targetCpId,
                         'subject_id' => $subjectId,
-                        'kode_tp' => $tpItem['kode_tp'] ?? ('TP.' . $tingkat . '.' . rand(1, 9) . '.' . rand(1, 9)),
-                        'deskripsi_tp' => $tpItem['deskripsi_tp'],
+                        'kode_tp' => $autoKode,
+                        'fases' => $fases,
+                        'rekomendasi_kelas' => $rekomendasi,
                         'materi' => $tpItem['materi'] ?? null,
-                        'kelas_tingkat' => $tingkat,
+                        'deskripsi_tp' => $tpItem['deskripsi_tp'],
+                        'kelas_tingkat' => (string) ($rekomendasi[0] ?? $tingkat),
                         'semester' => 'Ganjil',
                     ]);
                     $selectedTpIds[] = $tp->id;
@@ -167,13 +179,16 @@ class CreateRppm extends CreateRecord
 
         // 4. Pastikan content.tujuan_pembelajaran terisi
         if (!empty($data['selected_tp_ids'])) {
-            $tps = TujuanPembelajaran::whereIn('id', $data['selected_tp_ids'])->get();
+            $tps = TujuanPembelajaran::whereIn('id', $data['selected_tp_ids'])->get()->sort(function ($a, $b) {
+                return strnatcmp($a->kode_tp ?? '', $b->kode_tp ?? '');
+            });
             $tpItems = [];
             foreach ($tps as $tp) {
                 $prefix = $tp->materi ? "[{$tp->materi}] " : '';
-                $tpItems[] = ['rumusan' => "{$prefix}{$tp->deskripsi_tp}"];
+                $tpItems[] = ['rumusan' => "[{$tp->kode_tp}] {$prefix}{$tp->deskripsi_tp}"];
             }
             $data['content']['tujuan_pembelajaran'] = $tpItems;
+            $data['content']['selected_tp_dropdown'] = $data['selected_tp_ids'];
         }
 
         // 5. Otomatis tautkan ATP yang terakumulasi untuk guru dan mapel ini
@@ -190,9 +205,12 @@ class CreateRppm extends CreateRecord
 
         // Bersihkan variabel form sementara
         unset(
+            $data['cp_mode'],
             $data['new_cp_elemen'],
+            $data['new_cp_kode'],
             $data['new_cp_masa_berlaku'],
             $data['new_cp_deskripsi'],
+            $data['enable_new_tps'],
             $data['new_tps'],
             $data['input_perangkat_mode']
         );
