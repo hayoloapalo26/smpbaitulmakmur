@@ -74,8 +74,14 @@ class ManageGrades extends ManageRecords
     protected function getHeaderActions(): array
     {
         return [
+            Actions\Action::make('rumah_nilai')
+                ->label('📝 Input Nilai Per Mapel (Lembar Grid)')
+                ->color('success')
+                ->icon('heroicon-o-pencil-square')
+                ->url(fn () => url('/staff/input-nilai-mapel')),
+
             Actions\Action::make('input_nilai_rombel')
-                ->label('⚡ Input Nilai Rombel (Format Jurnal Mengajar)')
+                ->label('⚡ Input Nilai Rombel (Format Jurnal)')
                 ->modalHeading('📝 Input Nilai Siswa Sekelas Sekaligus (Format Jurnal Mengajar)')
                 ->modalSubheading('Atur parameter pembelajaran (Mapel, CP, TP, Materi, Tipe Penilaian) satu kali di atas untuk seluruh kelas. Nilai dan catatan evaluasi diinput langsung per siswa di lembar tabel bawah.')
                 ->color('primary')
@@ -517,12 +523,6 @@ class ManageGrades extends ManageRecords
                             ->send();
                     }
                 }),
-
-            Actions\Action::make('rumah_nilai')
-                ->label('🏠 Buka Lembar Input Nilai Per Mapel (Batch Grid)')
-                ->color('success')
-                ->icon('heroicon-o-academic-cap')
-                ->url(fn () => url('/staff/input-nilai-mapel')),
 
             Actions\Action::make('quran_hafalan')
                 ->label('📖 Capaian Quran & Setoran')

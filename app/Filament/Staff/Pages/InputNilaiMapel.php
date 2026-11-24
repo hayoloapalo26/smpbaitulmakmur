@@ -17,15 +17,8 @@ class InputNilaiMapel extends Page
 {
     public static function shouldRegisterNavigation(): bool
     {
-        $user = Auth::user();
-        if (!$user) return false;
-
-        // Guru Al-Qur'an murni TIDAK PERNAH melihat Input Nilai Per Mapel umum di sidebar
-        if ($user->isQuranTeacher() && !$user->hasAnyRole(['koordinator_madin', 'waka_kurikulum', 'kepala_sekolah', 'superadmin'])) {
-            return false;
-        }
-
-        return static::canAccess();
+        // Disatukan ke dalam satu fitur tunggal "Input & Daftar Nilai Siswa" (GradeResource) agar sidebar ringkas
+        return false;
     }
 
     public static function canAccess(): bool
