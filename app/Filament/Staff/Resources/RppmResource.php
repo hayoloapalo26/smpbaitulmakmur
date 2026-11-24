@@ -256,7 +256,7 @@ class RppmResource extends Resource
                             })
                             ->searchable()
                             ->preload()
-                            ->required()
+                            ->required(false)
                             ->live()
                             ->afterStateUpdated(function ($state, Forms\Set $set) {
                                 $set('capaian_pembelajaran_id', null);
@@ -273,7 +273,7 @@ class RppmResource extends Resource
                             ->options(CapaianPembelajaran::FASE_OPTIONS)
                             ->columns(3)
                             ->default(['D'])
-                            ->required()
+                            ->required(false)
                             ->live()
                             ->afterStateHydrated(function ($component, ?Rppm $record) {
                                 if ($record) {
@@ -306,7 +306,7 @@ class RppmResource extends Resource
                         Forms\Components\TextInput::make('topik')
                             ->label('Topik / Judul Modul Ajar / RPPM')
                             ->placeholder('Contoh: Modul Ajar 1 - Teks Deskripsi / Operasi Aljabar')
-                            ->required(),
+                            ->required(false),
 
                         Forms\Components\TextInput::make('alokasi_waktu')
                             ->label('Alokasi Waktu (Opsional)')
@@ -389,7 +389,7 @@ class RppmResource extends Resource
                                         Forms\Components\TextInput::make('new_cp_elemen')
                                             ->label('Elemen / Lingkup Materi CP')
                                             ->placeholder('Contoh: Bilangan, Aljabar, Fikih, dll.')
-                                            ->required(fn (Forms\Get $get) => $get('cp_mode') === 'baru'),
+                                            ->required(false),
 
                                         Forms\Components\TextInput::make('new_cp_kode')
                                             ->label('Kode CP (Opsional)')
@@ -402,7 +402,7 @@ class RppmResource extends Resource
                                                 '1 Semester' => '1 Semester',
                                             ])
                                             ->default('1 Tahun')
-                                            ->required(fn (Forms\Get $get) => $get('cp_mode') === 'baru'),
+                                            ->required(false),
                                     ])
                                     ->columnSpanFull(),
 
@@ -411,7 +411,7 @@ class RppmResource extends Resource
                                     ->placeholder('Tuliskan rumusan lengkap Capaian Pembelajaran yang harus dicapai peserta didik...')
                                     ->rows(3)
                                     ->visible(fn (Forms\Get $get) => $get('cp_mode') === 'baru')
-                                    ->required(fn (Forms\Get $get) => $get('cp_mode') === 'baru')
+                                    ->required(false)
                                     ->helperText('Klik tombol Simpan CP di bawah untuk menyimpan langsung ke Bank CP dan menjadikannya rujukan pembelajaran.')
                                     ->columnSpanFull(),
 
@@ -724,7 +724,7 @@ class RppmResource extends Resource
                             ->placeholder('Contoh: https://drive.google.com/file/d/... atau https://docs.google.com/document/d/...')
                             ->url()
                             ->prefixIcon('heroicon-o-link')
-                            ->required()
+                            ->required(false)
                             ->live()
                             ->afterStateUpdated(function ($state, Forms\Set $set) {
                                 $set('content.link_drive', $state);

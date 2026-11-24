@@ -32,6 +32,110 @@ class EditRppm extends EditRecord
     public function saveDraft(): void
     {
         $this->isDraft = true;
+        $this->authorizeAccess();
+
+        try {
+            $this->beginDatabaseTransaction();
+
+            $data = $this->data ?? [];
+
+            $data = $this->mutateFormDataBeforeSave($data);
+
+            $this->handleRecordUpdate($this->getRecord(), $data);
+
+            $this->commitDatabaseTransaction();
+
+            $this->getSavedNotification()?->send();
+
+            $this->redirect($this->getRedirectUrl());
+        } catch (\Throwable $exception) {
+            $this->rollBackDatabaseTransaction();
+            throw $exception;
+        }
+    }
+
+    public function publish(): void
+    {
+        $this->isDraft = false;
+        $data = $this->data ?? [];
+
+        // 1. Validasi Mata Pelajaran
+        if (empty($data['mata_pelajaran'])) {
+            \Filament\Notifications\Notification::make()
+                ->title('Mata Pelajaran Wajib Dipilih')
+                ->body('Untuk mempublikasikan perangkat ajar, silakan pilih Mata Pelajaran yang Diampu.')
+                ->danger()
+                ->send();
+            return;
+        }
+
+        // 2. Validasi Pilihan Fase
+        if (empty($data['fases'])) {
+            \Filament\Notifications\Notification::make()
+                ->title('Pilihan Fase Wajib Dipilih')
+                ->body('Untuk mempublikasikan perangkat ajar, silakan pilih minimal 1 Fase Kurikulum.')
+                ->danger()
+                ->send();
+            return;
+        }
+
+        // 3. Validasi Topik / Judul
+        if (empty(trim((string) ($data['topik'] ?? '')))) {
+            \Filament\Notifications\Notification::make()
+                ->title('Topik / Judul Modul Ajar Wajib Diisi')
+                ->body('Untuk mempublikasikan perangkat ajar, silakan isi Topik atau Judul Modul Ajar.')
+                ->danger()
+                ->send();
+            return;
+        }
+
+        // 4. Validasi Capaian Pembelajaran (CP)
+        $hasCp = !empty($data['capaian_pembelajaran_id'])
+            || (!empty($data['new_cp_deskripsi']) && !empty($data['new_cp_elemen']));
+
+        if (!$hasCp) {
+            \Filament\Notifications\Notification::make()
+                ->title('Capaian Pembelajaran (CP) Wajib Diisi')
+                ->body('Untuk mempublikasikan perangkat ajar, silakan pilih CP dari Bank CP atau simpan CP baru terlebih dahulu.')
+                ->danger()
+                ->send();
+            return;
+        }
+
+        // 5. Validasi Tujuan Pembelajaran (TP)
+        $hasTp = !empty($data['selected_tp_ids'])
+            || !empty($data['single_new_tp_deskripsi'])
+            || (!empty($data['new_tps']) && count(array_filter($data['new_tps'], fn($t) => !empty($t['deskripsi_tp']))) > 0);
+
+        if (!$hasTp) {
+            \Filament\Notifications\Notification::make()
+                ->title('Tujuan Pembelajaran (TP) Wajib Dipilih / Diisi')
+                ->body('Untuk mempublikasikan perangkat ajar, minimal harus ada 1 Tujuan Pembelajaran (TP) yang dipilih atau diinput.')
+                ->danger()
+                ->send();
+            return;
+        }
+
+        // 6. Validasi Tautan Google Drive
+        $linkDrive = trim((string) ($data['link_drive'] ?? ''));
+        if (empty($linkDrive)) {
+            \Filament\Notifications\Notification::make()
+                ->title('Tautan Google Drive Wajib Diisi')
+                ->body('Untuk mempublikasikan perangkat ajar, tautan Google Drive dokumen perangkat ajar wajib disertakan.')
+                ->danger()
+                ->send();
+            return;
+        }
+
+        if (!filter_var($linkDrive, FILTER_VALIDATE_URL)) {
+            \Filament\Notifications\Notification::make()
+                ->title('Tautan Google Drive Tidak Valid')
+                ->body('Format tautan Google Drive tidak valid. Pastikan format URL benar (diawali dengan https://).')
+                ->danger()
+                ->send();
+            return;
+        }
+
         $this->save();
     }
 
@@ -53,6 +157,7 @@ class EditRppm extends EditRecord
                 ->label('💾 Simpan Sementara (Draft)')
                 ->color('warning')
                 ->icon('heroicon-o-bookmark')
+                ->extraAttributes(['formnovalidate' => 'formnovalidate'])
                 ->action('saveDraft'),
             Actions\DeleteAction::make()
                 ->label('🗑️ Hapus Perangkat Ajar')
@@ -74,15 +179,13 @@ class EditRppm extends EditRecord
                 ->label('💾 Simpan Sementara (Draft)')
                 ->color('warning')
                 ->icon('heroicon-o-bookmark')
+                ->extraAttributes(['formnovalidate' => 'formnovalidate'])
                 ->action('saveDraft'),
-            $this->getSaveFormAction()
+            Actions\Action::make('publish')
                 ->label('🚀 Simpan & Publikasikan (Selesai)')
                 ->icon('heroicon-o-check-circle')
                 ->color('success')
-                ->action(function () {
-                    $this->isDraft = false;
-                    $this->save();
-                }),
+                ->action('publish'),
             $this->getCancelFormAction(),
         ];
     }
