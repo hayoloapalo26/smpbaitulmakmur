@@ -123,9 +123,7 @@ class Dashboard extends BaseDashboard
         $totalTeachers = $this->teacherCount;
         $topTeachers = $this->topTeachers;
         
-        $totalAll = collect($pillars)->sum('total');
-        $totalSelesaiAll = collect($pillars)->sum('selesai');
-        $percentage = $totalAll > 0 ? round(($totalSelesaiAll / $totalAll) * 100) : 0;
+        $percentage = \App\Services\SchoolPillarService::getOverallProgress(Auth::user()?->institution_id, Auth::user());
 
         $tertinggal = collect($pillars)->sortBy('percentage')->first();
         $terbaik = collect($pillars)->sortByDesc('percentage')->first();
@@ -337,9 +335,7 @@ class Dashboard extends BaseDashboard
         }
 
         $pillars = $this->pillarsData;
-        $totalAll = collect($pillars)->sum('total');
-        $totalSelesaiAll = collect($pillars)->sum('selesai');
-        $percentage = $totalAll > 0 ? round(($totalSelesaiAll / $totalAll) * 100) : 0;
+        $percentage = \App\Services\SchoolPillarService::getOverallProgress(Auth::user()?->institution_id, Auth::user());
         
         $terbaik = collect($pillars)->sortByDesc('percentage')->first();
         $topTeachers = collect($this->topTeachers)->first();

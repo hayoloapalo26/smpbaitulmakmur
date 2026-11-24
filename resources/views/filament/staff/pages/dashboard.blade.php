@@ -280,10 +280,19 @@
 
                 <!-- OVERALL STATS (ENLARGED & CLICKABLE) -->
                 @php
-                    $allTasks = collect($this->pillarsData)->pluck('tasks')->flatten();
-                    $totalSelesai = collect($this->pillarsData)->sum('selesai');
-                    $totalSemua = collect($this->pillarsData)->sum('total');
-                    $percentageOverall = $totalSemua > 0 ? round(($totalSelesai / $totalSemua) * 100) : 0;
+                    $percentageOverall = \App\Services\SchoolPillarService::getOverallProgress(auth()->user()?->institution_id, auth()->user());
+                    
+                    // Hitung tugas pilar operasional (Pilar 2 s.d 9 yang memiliki tugas riil)
+                    $operationalPillars = collect($this->pillarsData)->filter(fn($p) => (int)($p['order'] ?? 0) !== 1);
+                    $totalSelesai = $operationalPillars->sum('selesai');
+                    $totalSemua = $operationalPillars->sum('total');
+
+                    // Jika totalSemua 0 atau hanya pilar 1, gunakan pilar 1 komposit
+                    if ($totalSemua === 0) {
+                        $pilar1 = collect($this->pillarsData)->firstWhere('order', 1);
+                        $totalSelesai = $pilar1['selesai'] ?? 0;
+                        $totalSemua = $pilar1['total'] ?? 7;
+                    }
                     
                     $radius = 65;
                     $circumference = 2 * pi() * $radius;
