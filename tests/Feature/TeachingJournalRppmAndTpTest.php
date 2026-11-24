@@ -399,4 +399,31 @@ class TeachingJournalRppmAndTpTest extends TestCase
         $this->assertStringContainsString('Fase E', $rppm->fase);
         $this->assertEquals('https://drive.google.com/file/d/abcdef123456/view', $rppm->link_drive);
     }
+
+    public function test_rppm_get_all_tp_ids_extracts_from_new_and_legacy_formats(): void
+    {
+        // 1. Format baru via selected_tp_ids
+        $rppmNew = new Rppm([
+            'selected_tp_ids' => [$this->tp1->id, $this->tp2->id],
+        ]);
+        $this->assertEquals([$this->tp1->id, $this->tp2->id], $rppmNew->getAllTpIds());
+
+        // 2. Format transisi via content.selected_tp_dropdown
+        $rppmTransisi = new Rppm([
+            'content' => ['selected_tp_dropdown' => [$this->tp1->id]],
+        ]);
+        $this->assertEquals([$this->tp1->id], $rppmTransisi->getAllTpIds());
+
+        // 3. Format lama tersimpan via content.tujuan_pembelajaran
+        $rppmLama = new Rppm([
+            'mata_pelajaran' => 'Matematika',
+            'content' => [
+                'tujuan_pembelajaran' => [
+                    ['rumusan' => "[TP 1.1] {$this->tp1->deskripsi_tp}"],
+                ],
+            ],
+        ]);
+        $extracted = $rppmLama->getAllTpIds();
+        $this->assertContains($this->tp1->id, $extracted);
+    }
 }

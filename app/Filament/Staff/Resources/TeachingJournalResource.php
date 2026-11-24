@@ -523,52 +523,56 @@ class TeachingJournalResource extends Resource
 
                                     if ($matchingRppm) {
                                         $set('rppm_id', $matchingRppm->id);
-                                        if (!empty($matchingRppm->topik) && empty($get('materi'))) {
-                                            $set('materi', $matchingRppm->topik);
+
+                                        // 1. Tarik Topik / Materi dari dokumen RPPM
+                                        $topik = $matchingRppm->getEffectiveMateri();
+                                        if (!empty($topik)) {
+                                            $set('materi', $topik);
                                         }
-                                        $matchingTpIds = !empty($matchingRppm->selected_tp_ids)
-                                            ? array_values(array_map('intval', (array) $matchingRppm->selected_tp_ids))
-                                            : [];
-                                        if (empty($matchingTpIds) && !empty($matchingRppm->content['tujuan_pembelajaran']) && is_array($matchingRppm->content['tujuan_pembelajaran'])) {
-                                            foreach ($matchingRppm->content['tujuan_pembelajaran'] as $tpItem) {
-                                                $rumusan = is_array($tpItem) ? ($tpItem['rumusan'] ?? '') : (string) $tpItem;
-                                                if ($rumusan) {
-                                                    $cleanRumusan = trim(preg_replace('/^\[.*?\]\s*/', '', $rumusan));
-                                                    $matched = TujuanPembelajaran::where('deskripsi_tp', 'like', "%{$cleanRumusan}%")->first();
-                                                    if ($matched) {
-                                                        $matchingTpIds[] = (int) $matched->id;
-                                                    }
-                                                }
-                                            }
-                                            $matchingTpIds = array_values(array_unique($matchingTpIds));
+
+                                        // 2. Tarik Rujukan Capaian Pembelajaran (CP) dari RPPM
+                                        $cpId = $matchingRppm->getEffectiveCpId();
+                                        if ($cpId) {
+                                            $set('capaian_pembelajaran_id', $cpId);
                                         }
-                                        if (!empty($matchingTpIds) && empty($get('tp_ids'))) {
+
+                                        // 3. Tarik Tujuan Pembelajaran (TP) lengkap dari dokumen RPPM (baik format baru maupun format lama tersimpan)
+                                        $matchingTpIds = $matchingRppm->getAllTpIds();
+                                        if (!empty($matchingTpIds)) {
                                             $set('tp_ids', $matchingTpIds);
                                         }
-                                    }
 
-                                    // Cek tautan Google Drive RPPM & Rujukan CP otomatis
-                                    $matchingCp = CapaianPembelajaran::where('subject_id', $firstSchedule->subject_id)
-                                        ->where(function ($q) {
-                                            $q->whereJsonContains('fases', 'D')->orWhere('fase', 'like', '%D%')->orWhereNull('fases');
-                                        })
-                                        ->first();
-                                    if ($matchingCp && empty($get('capaian_pembelajaran_id'))) {
-                                        $set('capaian_pembelajaran_id', $matchingCp->id);
-                                        if (empty($get('materi')) && !empty($matchingCp->elemen)) {
-                                            $set('materi', $matchingCp->elemen);
+                                        // 4. Tarik Tautan Google Drive dari RPPM
+                                        $linkDrive = $matchingRppm->link_drive ?: ($matchingRppm->content['link_drive'] ?? null);
+                                        if ($linkDrive) {
+                                            $set('link_drive_rppm', $linkDrive);
                                         }
-                                    }
 
-                                    $latestRppmWithDrive = Rppm::where('guru_id', $teacherId)
-                                        ->where('mata_pelajaran', $firstSchedule->subject?->name)
-                                        ->whereNotNull('link_drive')
-                                        ->latest()
-                                        ->first();
-                                    if ($latestRppmWithDrive && empty($get('link_drive_rppm'))) {
-                                        $set('link_drive_rppm', $latestRppmWithDrive->link_drive);
-                                        $set('rppm_id', $latestRppmWithDrive->id);
+                                        // 5. Sesuaikan Fase jika tercatat di RPPM
+                                        if (!empty($matchingRppm->fases) && is_array($matchingRppm->fases)) {
+                                            $set('fase', $matchingRppm->fases[0]);
+                                        } elseif (!empty($matchingRppm->fase)) {
+                                            foreach (['A', 'B', 'C', 'D', 'E', 'F'] as $f) {
+                                                if (stripos($matchingRppm->fase, $f) !== false) {
+                                                    $set('fase', $f);
+                                                    break;
+                                                }
+                                            }
+                                        }
                                     } else {
+                                        // Fallback jika belum ada dokumen RPPM terdaftar
+                                        $matchingCp = CapaianPembelajaran::where('subject_id', $firstSchedule->subject_id)
+                                            ->where(function ($q) {
+                                                $q->whereJsonContains('fases', 'D')->orWhere('fase', 'like', '%D%')->orWhereNull('fases');
+                                            })
+                                            ->first();
+                                        if ($matchingCp && empty($get('capaian_pembelajaran_id'))) {
+                                            $set('capaian_pembelajaran_id', $matchingCp->id);
+                                            if (empty($get('materi')) && !empty($matchingCp->elemen)) {
+                                                $set('materi', $matchingCp->elemen);
+                                            }
+                                        }
+
                                         $latestJournalWithDrive = TeachingJournal::where('teacher_id', $teacherId)
                                             ->where('subject_id', $firstSchedule->subject_id)
                                             ->whereNotNull('link_drive_rppm')
@@ -762,7 +766,7 @@ class TeachingJournalResource extends Resource
                     }
                     return static::isQuranContext($get)
                         ? '📖 Lingkup Materi Pembelajaran Al-Qur\'an'
-                        : '🎯 Perangkat Pembelajaran: Fase, CP, TP & Link Drive RPPM';
+                        : '🎯 Perangkat Pembelajaran: Dokumen RPPM, CP, TP & Link Drive';
                 })
                     ->description(function (Forms\Get $get) {
                         if ((bool) $get('is_kegiatan_lain')) {
@@ -770,21 +774,99 @@ class TeachingJournalResource extends Resource
                         }
                         return static::isQuranContext($get)
                             ? 'Inputkan materi pokok atau capaian pembelajaran Al-Qur\'an (Surat/Ayat/Jilid/Halaman) yang diajarkan pada jam ini tanpa perlu input CP/TP/ATP.'
-                            : 'Pilih Fase untuk memfilter Capaian Pembelajaran (CP) dan Tujuan Pembelajaran (TP) yang relevan, serta sertakan link dokumen RPPM Google Drive.';
+                            : 'Pilih Dokumen RPPM yang pernah dibuat untuk menarik TP, CP, Materi, dan Link Google Drive secara otomatis, atau sesuaikan CP & TP secara fleksibel.';
                     })
                     ->schema([
+                        Forms\Components\Select::make('rppm_id')
+                            ->label('📂 Tarik Dokumen RPPM & Perangkat Ajar Guru (Rujukan Utama)')
+                            ->placeholder('Pilih Dokumen RPPM yang pernah dibuat (TP, CP, Materi, & Drive terisi otomatis)...')
+                            ->options(function (Forms\Get $get) {
+                                $user = Auth::user();
+                                $teacherId = $get('teacher_id') ?: ($user ? $user->id : null);
+                                $subjectId = $get('subject_id');
+                                $query = Rppm::query();
+                                if ($teacherId && (!$user || !$user->hasAnyRole(['superadmin', 'kepala_sekolah', 'waka_kurikulum']))) {
+                                    $query->where('guru_id', $teacherId);
+                                }
+                                if ($subjectId) {
+                                    $subjName = Subject::where('id', $subjectId)->value('name');
+                                    if ($subjName) {
+                                        $query->where(function ($sq) use ($subjName, $subjectId) {
+                                            $sq->where('mata_pelajaran', 'like', "%{$subjName}%")
+                                               ->orWhereHas('capaianPembelajaran', fn ($cp) => $cp->where('subject_id', $subjectId));
+                                        });
+                                    }
+                                }
+                                return $query->latest()->get()->mapWithKeys(function ($rppm) {
+                                    $drive = $rppm->link_drive ? ' [Ada Link Drive]' : '';
+                                    $tpCount = count($rppm->getAllTpIds());
+                                    $tpBadge = $tpCount > 0 ? " ({$tpCount} TP)" : '';
+                                    $faseLabel = !empty($rppm->fases) ? 'Fase ' . implode('&', (array) $rppm->fases) : ($rppm->kelas_fase ?: 'Fase D');
+                                    return [$rppm->id => "[{$faseLabel}] {$rppm->topik}{$tpBadge}{$drive}"];
+                                });
+                            })
+                            ->searchable()
+                            ->preload()
+                            ->live()
+                            ->afterStateUpdated(function ($state, Forms\Set $set, Forms\Get $get) {
+                                if ($state) {
+                                    $rppm = Rppm::with('capaianPembelajaran')->find($state);
+                                    if ($rppm) {
+                                        // 1. Tarik Materi / Topik
+                                        $materi = $rppm->getEffectiveMateri();
+                                        if ($materi) {
+                                            $set('materi', $materi);
+                                        }
+
+                                        // 2. Tarik CP
+                                        $cpId = $rppm->getEffectiveCpId();
+                                        if ($cpId) {
+                                            $set('capaian_pembelajaran_id', $cpId);
+                                        }
+
+                                        // 3. Tarik TP (baik format baru maupun format lama tersimpan)
+                                        $tpIds = $rppm->getAllTpIds();
+                                        if (!empty($tpIds)) {
+                                            $set('tp_ids', $tpIds);
+                                        }
+
+                                        // 4. Tarik Link Drive
+                                        if ($rppm->link_drive) {
+                                            $set('link_drive_rppm', $rppm->link_drive);
+                                        }
+
+                                        // 5. Sesuaikan Fase jika tercatat di RPPM
+                                        if (!empty($rppm->fases) && is_array($rppm->fases)) {
+                                            $set('fase', $rppm->fases[0]);
+                                        } elseif (!empty($rppm->fase)) {
+                                            foreach (['A', 'B', 'C', 'D', 'E', 'F'] as $f) {
+                                                if (stripos($rppm->fase, $f) !== false) {
+                                                    $set('fase', $f);
+                                                    break;
+                                                }
+                                            }
+                                        }
+
+                                        \Filament\Notifications\Notification::make()
+                                            ->title('Dokumen RPPM Berhasil Ditarik!')
+                                            ->body("Tujuan Pembelajaran (" . count($tpIds) . " TP), CP, Materi, dan Link Google Drive otomatis diterapkan.")
+                                            ->success()
+                                            ->send();
+                                    }
+                                }
+                            })
+                            ->hidden(fn (Forms\Get $get) => static::isQuranContext($get) || (bool) $get('is_kegiatan_lain'))
+                            ->helperText('⭐ Pilih dokumen RPPM yang pernah dibuat guru untuk menarik data TP dan perangkat ajar secara instan.')
+                            ->columnSpanFull(),
+
                         Forms\Components\Select::make('fase')
                             ->label('Fase Kurikulum')
                             ->options(CapaianPembelajaran::FASE_OPTIONS)
                             ->default('D')
                             ->required()
                             ->live()
-                            ->afterStateUpdated(function (Forms\Set $set) {
-                                $set('capaian_pembelajaran_id', null);
-                                $set('tp_ids', []);
-                            })
                             ->hidden(fn (Forms\Get $get) => static::isQuranContext($get) || (bool) $get('is_kegiatan_lain'))
-                            ->helperText('Pilih Fase untuk menyaring Capaian Pembelajaran (CP) & Tujuan Pembelajaran (TP) yang sesuai.'),
+                            ->helperText('Pilih Fase Kurikulum untuk menyaring daftar Capaian Pembelajaran (CP) & Tujuan Pembelajaran (TP).'),
 
                         Forms\Components\Select::make('capaian_pembelajaran_id')
                             ->label('Rujukan Capaian Pembelajaran (CP)')
@@ -792,20 +874,36 @@ class TeachingJournalResource extends Resource
                             ->options(function (Forms\Get $get) {
                                 $subjectId = $get('subject_id');
                                 $fase = $get('fase') ?: 'D';
+                                $currentCpId = $get('capaian_pembelajaran_id');
 
                                 $query = CapaianPembelajaran::query();
                                 if ($subjectId) {
                                     $query->where('subject_id', $subjectId);
                                 }
-                                $query->where(function ($q) use ($fase) {
-                                    $q->whereJsonContains('fases', $fase)
-                                      ->orWhere('fase', 'like', "%{$fase}%")
-                                      ->orWhereNull('fases');
-                                });
 
-                                return $query->get()->mapWithKeys(function ($cp) {
+                                if ($currentCpId) {
+                                    $query->where(function ($mainQ) use ($currentCpId, $fase) {
+                                        $mainQ->where('id', $currentCpId)
+                                              ->orWhere(function ($q) use ($fase) {
+                                                  $q->whereJsonContains('fases', $fase)
+                                                    ->orWhere('fase', 'like', "%{$fase}%")
+                                                    ->orWhereNull('fases');
+                                              });
+                                    });
+                                } else {
+                                    $query->where(function ($q) use ($fase) {
+                                        $q->whereJsonContains('fases', $fase)
+                                          ->orWhere('fase', 'like', "%{$fase}%")
+                                          ->orWhereNull('fases');
+                                    });
+                                }
+
+                                return $query->orderBy('tingkat')->orderBy('id')->get()->mapWithKeys(function ($cp) use ($currentCpId) {
+                                    $isCurrent = ($currentCpId && $cp->id == $currentCpId);
+                                    $star = $isCurrent ? '⭐ [Dari RPPM] ' : '';
                                     $kode = $cp->kode_cp ? "[CP {$cp->kode_cp}] " : '';
-                                    return [$cp->id => "{$kode}[{$cp->elemen}] " . \Illuminate\Support\Str::limit($cp->deskripsi_cp, 60)];
+                                    $faseStr = !empty($cp->fases) ? '[Fase ' . implode('&', (array) $cp->fases) . '] ' : ($cp->fase ? "[{$cp->fase}] " : '');
+                                    return [$cp->id => "{$star}{$faseStr}{$kode}[{$cp->elemen}] " . \Illuminate\Support\Str::limit($cp->deskripsi_cp, 60)];
                                 });
                             })
                             ->searchable()
@@ -820,54 +918,7 @@ class TeachingJournalResource extends Resource
                                 }
                             })
                             ->hidden(fn (Forms\Get $get) => static::isQuranContext($get) || (bool) $get('is_kegiatan_lain'))
-                            ->helperText('Filter daftar TP berdasarkan CP yang dipilih (opsional).'),
-
-                        Forms\Components\Select::make('rppm_id')
-                            ->label('Rujukan Dokumen RPPM (Opsional)')
-                            ->placeholder('Pilih RPPM yang pernah dibuat (Link Drive akan terisi otomatis)...')
-                            ->options(function (Forms\Get $get) {
-                                $user = Auth::user();
-                                $subjectId = $get('subject_id');
-                                $query = Rppm::query();
-                                if ($user && !$user->hasAnyRole(['superadmin', 'kepala_sekolah', 'waka_kurikulum'])) {
-                                    $query->where('guru_id', $user->id);
-                                }
-                                if ($subjectId) {
-                                    $subjName = Subject::where('id', $subjectId)->value('name');
-                                    if ($subjName) {
-                                        $query->where('mata_pelajaran', $subjName);
-                                    }
-                                }
-                                return $query->latest()->get()->mapWithKeys(function ($rppm) {
-                                    $drive = $rppm->link_drive ? ' [Ada Link Drive]' : '';
-                                    return [$rppm->id => "[{$rppm->kelas_fase}] {$rppm->topik}{$drive}"];
-                                });
-                            })
-                            ->searchable()
-                            ->preload()
-                            ->live()
-                            ->afterStateUpdated(function ($state, Forms\Set $set, Forms\Get $get) {
-                                if ($state) {
-                                    $rppm = Rppm::find($state);
-                                    if ($rppm) {
-                                        if ($rppm->link_drive) {
-                                            $set('link_drive_rppm', $rppm->link_drive);
-                                        }
-                                        if ($rppm->capaian_pembelajaran_id && empty($get('capaian_pembelajaran_id'))) {
-                                            $set('capaian_pembelajaran_id', $rppm->capaian_pembelajaran_id);
-                                        }
-                                        if (!empty($rppm->selected_tp_ids) && empty($get('tp_ids'))) {
-                                            $set('tp_ids', $rppm->selected_tp_ids);
-                                        }
-                                        if (!empty($rppm->topik) && empty($get('materi'))) {
-                                            $set('materi', $rppm->topik);
-                                        }
-                                    }
-                                }
-                            })
-                            ->hidden(fn (Forms\Get $get) => static::isQuranContext($get) || (bool) $get('is_kegiatan_lain'))
-                            ->helperText('Pilih RPPM yang sudah dibuat agar tautan Google Drive dan materi terisi otomatis, atau Anda dapat langsung mengisi tautan di bawah.')
-                            ->columnSpanFull(),
+                            ->helperText('Rujukan Capaian Pembelajaran (CP) yang terkait dengan materi dan TP.'),
 
                         Forms\Components\TextInput::make('link_drive_rppm')
                             ->label('Link Google Drive RPPM / Modul Ajar')
@@ -875,7 +926,7 @@ class TeachingJournalResource extends Resource
                             ->url()
                             ->prefixIcon('heroicon-o-link')
                             ->hidden(fn (Forms\Get $get) => (bool) $get('is_kegiatan_lain'))
-                            ->helperText('Masukkan tautan Google Drive dokumen RPPM / Modul Ajar / Perangkat Pembelajaran.')
+                            ->helperText('Tautan Google Drive dokumen RPPM / Modul Ajar (terisi otomatis saat memilih dokumen RPPM di atas).')
                             ->columnSpanFull(),
 
                         Forms\Components\TextInput::make('materi')
@@ -901,29 +952,40 @@ class TeachingJournalResource extends Resource
 
                         Forms\Components\Select::make('tp_ids')
                             ->label('Tujuan Pembelajaran (TP) yang Diajarkan')
-                            ->placeholder('Pilih Tujuan Pembelajaran (TP)...')
+                            ->placeholder('Pilih Tujuan Pembelajaran (TP) atau tarik otomatis dari RPPM di atas...')
                             ->hidden(fn (Forms\Get $get) => static::isQuranContext($get) || (bool) $get('is_kegiatan_lain'))
                             ->dehydrated(fn (Forms\Get $get) => !static::isQuranContext($get) && !(bool) $get('is_kegiatan_lain'))
                             ->multiple()
-                            ->getOptionLabelUsing(function ($value): ?string {
+                            ->getOptionLabelUsing(function ($value, Forms\Get $get): ?string {
                                 if (!$value) return null;
                                 $tp = TujuanPembelajaran::find($value);
                                 if (!$tp) return null;
+
+                                $rppmId = $get('rppm_id');
+                                $rppm = $rppmId ? Rppm::find($rppmId) : null;
+                                $rppmTpIds = $rppm ? $rppm->getAllTpIds() : [];
+
+                                $star = in_array((int) $value, $rppmTpIds) ? '⭐ [Dari Dokumen RPPM] ' : '';
                                 $faseStr = !empty($tp->fases) ? '[Fase ' . implode('&', (array) $tp->fases) . '] ' : '';
-                                $kode = $tp->kode_tp ? "[{$tp->kode_tp}] " : '';
-                                $prefix = $tp->materi ? "[{$tp->materi}] " : '';
-                                return "{$faseStr}{$kode}{$prefix}" . trim((string) ($tp->deskripsi_tp ?: "Tujuan Pembelajaran #{$tp->id}"));
+                                $kode = $tp->kode_tp ? "[TP {$tp->kode_tp}] " : '';
+                                $prefix = $tp->materi ? "({$tp->materi}) " : '';
+                                return "{$star}{$faseStr}{$kode}{$prefix}" . trim((string) ($tp->deskripsi_tp ?: "Tujuan Pembelajaran #{$tp->id}"));
                             })
-                            ->getOptionLabelsUsing(function (array $values): array {
+                            ->getOptionLabelsUsing(function (array $values, Forms\Get $get): array {
                                 if (empty($values)) return [];
+                                $rppmId = $get('rppm_id');
+                                $rppm = $rppmId ? Rppm::find($rppmId) : null;
+                                $rppmTpIds = $rppm ? $rppm->getAllTpIds() : [];
+
                                 return TujuanPembelajaran::whereIn('id', $values)
                                     ->get()
-                                    ->mapWithKeys(function ($tp) {
+                                    ->mapWithKeys(function ($tp) use ($rppmTpIds) {
+                                        $star = in_array((int) $tp->id, $rppmTpIds) ? '⭐ [Dari Dokumen RPPM] ' : '';
                                         $faseStr = !empty($tp->fases) ? '[Fase ' . implode('&', (array) $tp->fases) . '] ' : '';
-                                        $kode = $tp->kode_tp ? "[{$tp->kode_tp}] " : '';
-                                        $prefix = $tp->materi ? "[{$tp->materi}] " : '';
+                                        $kode = $tp->kode_tp ? "[TP {$tp->kode_tp}] " : '';
+                                        $prefix = $tp->materi ? "({$tp->materi}) " : '';
                                         $desc = trim((string) ($tp->deskripsi_tp ?: "Tujuan Pembelajaran #{$tp->id}"));
-                                        return [(string) $tp->id => "{$faseStr}{$kode}{$prefix}{$desc}"];
+                                        return [(string) $tp->id => "{$star}{$faseStr}{$kode}{$prefix}{$desc}"];
                                     })
                                     ->toArray();
                             })
@@ -932,7 +994,13 @@ class TeachingJournalResource extends Resource
                                 $classroomId = $get('classroom_id');
                                 $fase = $get('fase') ?: 'D';
                                 $cpId = $get('capaian_pembelajaran_id');
-                                $currentTpIds = (array) ($get('tp_ids') ?? []);
+                                $currentTpIds = array_values(array_filter(array_map('intval', (array) ($get('tp_ids') ?? []))));
+
+                                $rppmId = $get('rppm_id');
+                                $rppm = $rppmId ? Rppm::find($rppmId) : null;
+                                $rppmTpIds = $rppm ? $rppm->getAllTpIds() : [];
+
+                                $priorityIds = array_values(array_unique(array_filter(array_merge($rppmTpIds, $currentTpIds))));
 
                                 $tingkat = null;
                                 if ($classroomId) {
@@ -942,88 +1010,114 @@ class TeachingJournalResource extends Resource
                                     }
                                 }
 
-                                $query = TujuanPembelajaran::query();
-
-                                // Saring berdasarkan Fase Kurikulum yang dipilih guru
-                                $query->where(function ($q) use ($fase) {
-                                    $q->whereJsonContains('fases', $fase)
-                                      ->orWhereHas('capaianPembelajaran', function ($cpQ) use ($fase) {
-                                          $cpQ->whereJsonContains('fases', $fase)
-                                              ->orWhere('fase', 'like', "%{$fase}%");
-                                      })
-                                      ->orWhereNull('fases');
-                                });
-
-                                if ($cpId) {
-                                    $query->where('capaian_pembelajaran_id', $cpId);
-                                }
-
+                                $query = TujuanPembelajaran::with(['capaianPembelajaran', 'subject']);
                                 if ($subjectId) {
                                     $query->where('subject_id', $subjectId);
                                 }
 
-                                // Rekomendasi kelas sasaran
-                                if ($classroomId || $tingkat) {
-                                    $query->where(function ($q) use ($classroomId, $tingkat, $currentTpIds) {
-                                        if (!empty($currentTpIds)) {
-                                            $q->whereIn('id', $currentTpIds)->orWhere(function ($sub) use ($classroomId, $tingkat) {
-                                                if ($classroomId) {
-                                                    $sub->whereJsonContains('rekomendasi_kelas', (int) $classroomId);
-                                                }
-                                                if ($tingkat) {
-                                                    $sub->orWhereJsonContains('rekomendasi_tingkat', (string) $tingkat)
-                                                        ->orWhere('kelas_tingkat', $tingkat)
-                                                        ->orWhere('kelas_tingkat', 'like', "%{$tingkat}%");
-                                                }
-                                                $sub->orWhere(function ($w) {
-                                                    $w->whereNull('rekomendasi_kelas')
-                                                      ->whereNull('rekomendasi_tingkat')
-                                                      ->whereNull('kelas_tingkat');
+                                if (!empty($priorityIds)) {
+                                    // TP dari dokumen RPPM atau yang sedang dipilih guru HARUS SELALU TERSEDIA dan TIDAK BOLEH TERFILTER KELUAR
+                                    $query->where(function ($mainQ) use ($priorityIds, $fase, $cpId, $classroomId, $tingkat) {
+                                        $mainQ->whereIn('id', $priorityIds)
+                                            ->orWhere(function ($normalQ) use ($fase, $cpId, $classroomId, $tingkat) {
+                                                // Saring berdasarkan fase jika bukan priority
+                                                $normalQ->where(function ($q) use ($fase) {
+                                                    $q->whereJsonContains('fases', $fase)
+                                                      ->orWhereHas('capaianPembelajaran', function ($cpQ) use ($fase) {
+                                                          $cpQ->whereJsonContains('fases', $fase)
+                                                              ->orWhere('fase', 'like', "%{$fase}%");
+                                                      })
+                                                      ->orWhereNull('fases');
                                                 });
+
+                                                if ($cpId) {
+                                                    $normalQ->where('capaian_pembelajaran_id', $cpId);
+                                                }
+
+                                                if ($classroomId || $tingkat) {
+                                                    $normalQ->where(function ($sub) use ($classroomId, $tingkat) {
+                                                        if ($classroomId) {
+                                                            $sub->whereJsonContains('rekomendasi_kelas', (int) $classroomId);
+                                                        }
+                                                        if ($tingkat) {
+                                                            $sub->orWhereJsonContains('rekomendasi_tingkat', (string) $tingkat)
+                                                                ->orWhere('kelas_tingkat', $tingkat)
+                                                                ->orWhere('kelas_tingkat', 'like', "%{$tingkat}%");
+                                                        }
+                                                        $sub->orWhere(function ($w) {
+                                                            $w->whereNull('rekomendasi_kelas')
+                                                              ->whereNull('rekomendasi_tingkat')
+                                                              ->whereNull('kelas_tingkat');
+                                                        });
+                                                    });
+                                                }
                                             });
-                                        } else {
+                                    });
+                                } else {
+                                    // Jika belum ada TP yang dipilih/ditarik dari RPPM, tampilkan TP fase terkait dan TP lama (fases null)
+                                    $query->where(function ($q) use ($fase) {
+                                        $q->whereJsonContains('fases', $fase)
+                                          ->orWhereHas('capaianPembelajaran', function ($cpQ) use ($fase) {
+                                              $cpQ->whereJsonContains('fases', $fase)
+                                                  ->orWhere('fase', 'like', "%{$fase}%");
+                                          })
+                                          ->orWhereNull('fases');
+                                    });
+
+                                    if ($cpId) {
+                                        $query->where('capaian_pembelajaran_id', $cpId);
+                                    }
+
+                                    if ($classroomId || $tingkat) {
+                                        $query->where(function ($sub) use ($classroomId, $tingkat) {
                                             if ($classroomId) {
-                                                $q->whereJsonContains('rekomendasi_kelas', (int) $classroomId);
+                                                $sub->whereJsonContains('rekomendasi_kelas', (int) $classroomId);
                                             }
                                             if ($tingkat) {
-                                                $q->orWhereJsonContains('rekomendasi_tingkat', (string) $tingkat)
-                                                  ->orWhere('kelas_tingkat', $tingkat)
-                                                  ->orWhere('kelas_tingkat', 'like', "%{$tingkat}%");
+                                                $sub->orWhereJsonContains('rekomendasi_tingkat', (string) $tingkat)
+                                                    ->orWhere('kelas_tingkat', $tingkat)
+                                                    ->orWhere('kelas_tingkat', 'like', "%{$tingkat}%");
                                             }
-                                            $q->orWhere(function ($w) {
+                                            $sub->orWhere(function ($w) {
                                                 $w->whereNull('rekomendasi_kelas')
                                                   ->whereNull('rekomendasi_tingkat')
                                                   ->whereNull('kelas_tingkat');
                                             });
-                                        }
-                                    });
+                                        });
+                                    }
                                 }
 
-                                return $query->get()->sort(function ($a, $b) {
+                                $records = $query->get();
+
+                                // Urutkan: priority (dari RPPM / dipilih) di paling atas, lalu sesuai kode_tp
+                                $sorted = $records->sort(function ($a, $b) use ($priorityIds) {
+                                    $aPriority = in_array($a->id, $priorityIds) ? 0 : 1;
+                                    $bPriority = in_array($b->id, $priorityIds) ? 0 : 1;
+                                    if ($aPriority !== $bPriority) {
+                                        return $aPriority <=> $bPriority;
+                                    }
                                     return strnatcmp($a->kode_tp ?? '', $b->kode_tp ?? '');
-                                })->mapWithKeys(function ($tp) {
+                                });
+
+                                return $sorted->mapWithKeys(function ($tp) use ($rppmTpIds) {
+                                    $star = in_array((int) $tp->id, $rppmTpIds) ? '⭐ [Dari Dokumen RPPM] ' : '';
                                     $faseStr = !empty($tp->fases) ? '[Fase ' . implode('&', (array) $tp->fases) . '] ' : '';
-                                    $kode = $tp->kode_tp ? "[{$tp->kode_tp}] " : '';
-                                    $prefix = $tp->materi ? "[{$tp->materi}] " : '';
+                                    $kode = $tp->kode_tp ? "[TP {$tp->kode_tp}] " : '';
+                                    $prefix = $tp->materi ? "({$tp->materi}) " : '';
                                     $deskripsi = trim((string) ($tp->deskripsi_tp ?: "Tujuan Pembelajaran #{$tp->id}"));
-                                    return [(string) $tp->id => "{$faseStr}{$kode}{$prefix}{$deskripsi}"];
+                                    return [(string) $tp->id => "{$star}{$faseStr}{$kode}{$prefix}{$deskripsi}"];
                                 })->toArray();
                             })
                             ->getSearchResultsUsing(function (string $search, Forms\Get $get): array {
                                 $subjectId = $get('subject_id');
-                                $fase = $get('fase') ?: 'D';
-                                $query = TujuanPembelajaran::query();
+                                $rppmId = $get('rppm_id');
+                                $rppm = $rppmId ? Rppm::find($rppmId) : null;
+                                $rppmTpIds = $rppm ? $rppm->getAllTpIds() : [];
+
+                                $query = TujuanPembelajaran::with(['capaianPembelajaran', 'subject']);
                                 if ($subjectId) {
                                     $query->where('subject_id', $subjectId);
                                 }
-                                $query->where(function ($q) use ($fase) {
-                                    $q->whereJsonContains('fases', $fase)
-                                      ->orWhereHas('capaianPembelajaran', function ($cpQ) use ($fase) {
-                                          $cpQ->whereJsonContains('fases', $fase)
-                                              ->orWhere('fase', 'like', "%{$fase}%");
-                                      })
-                                      ->orWhereNull('fases');
-                                });
                                 return $query->where(function ($q) use ($search) {
                                     $q->where('deskripsi_tp', 'like', "%{$search}%")
                                       ->orWhere('materi', 'like', "%{$search}%")
@@ -1031,12 +1125,13 @@ class TeachingJournalResource extends Resource
                                 })
                                 ->limit(50)
                                 ->get()
-                                ->mapWithKeys(function ($tp) {
+                                ->mapWithKeys(function ($tp) use ($rppmTpIds) {
+                                    $star = in_array((int) $tp->id, $rppmTpIds) ? '⭐ [Dari Dokumen RPPM] ' : '';
                                     $faseStr = !empty($tp->fases) ? '[Fase ' . implode('&', (array) $tp->fases) . '] ' : '';
-                                    $kode = $tp->kode_tp ? "[{$tp->kode_tp}] " : '';
-                                    $prefix = $tp->materi ? "[{$tp->materi}] " : '';
+                                    $kode = $tp->kode_tp ? "[TP {$tp->kode_tp}] " : '';
+                                    $prefix = $tp->materi ? "({$tp->materi}) " : '';
                                     $deskripsi = trim((string) ($tp->deskripsi_tp ?: "Tujuan Pembelajaran #{$tp->id}"));
-                                    return [(string) $tp->id => "{$faseStr}{$kode}{$prefix}{$deskripsi}"];
+                                    return [(string) $tp->id => "{$star}{$faseStr}{$kode}{$prefix}{$deskripsi}"];
                                 })
                                 ->toArray();
                             })
@@ -1051,7 +1146,7 @@ class TeachingJournalResource extends Resource
                                     }
                                 }
                             })
-                            ->helperText('💡 Pilih Tujuan Pembelajaran (TP) yang sesuai dengan Fase yang dipilih. Anda dapat memilih lebih dari satu TP.')
+                            ->helperText('💡 Pilih satu atau beberapa Tujuan Pembelajaran (TP). TP dari dokumen RPPM ditandai dengan ⭐ dan diprioritaskan di daftar teratas.')
                             ->columnSpanFull(),
                     ])->columns(2),
 
