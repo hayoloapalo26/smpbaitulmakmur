@@ -348,6 +348,12 @@ class RppmResource extends Resource
                                             $query->whereHas('subject', fn ($q) => $q->where('name', $selectedMapel));
                                         }
 
+                                        $query->where(function ($q) {
+                                            $q->where('status', 'published')
+                                              ->orWhereNull('status')
+                                              ->orWhere('guru_id', auth()->id());
+                                        });
+
                                         if (!empty($selectedFases)) {
                                             $query->where(function ($q) use ($selectedFases) {
                                                 foreach ($selectedFases as $f) {
@@ -472,6 +478,7 @@ class RppmResource extends Resource
                                                 'masa_berlaku' => $masaBerlaku,
                                                 'elemen' => $elemen,
                                                 'deskripsi_cp' => $deskripsi,
+                                                'status' => 'draft',
                                             ]);
 
                                             // Otomatis aktif sebagai rujukan terpilih
@@ -538,6 +545,12 @@ class RppmResource extends Resource
                                         } elseif ($selectedMapel) {
                                             $query->whereHas('subject', fn ($q) => $q->where('name', $selectedMapel));
                                         }
+
+                                        $query->where(function ($q) {
+                                            $q->where('status', 'published')
+                                              ->orWhereNull('status')
+                                              ->orWhere('guru_id', auth()->id());
+                                        });
 
                                         if (!empty($selectedFases)) {
                                             $query->where(function ($q) use ($selectedFases) {
@@ -671,6 +684,7 @@ class RppmResource extends Resource
                                                 'deskripsi_tp' => $deskripsi,
                                                 'kelas_tingkat' => (string) ($rekomendasi[0] ?? ($cp?->tingkat ?: '7')),
                                                 'semester' => 'Ganjil',
+                                                'status' => 'draft',
                                             ]);
 
                                             // Sinkronisasi otomatis ke ATP

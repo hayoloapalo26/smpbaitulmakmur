@@ -80,6 +80,19 @@ class TujuanPembelajaran extends Model
         });
     }
 
+    public function scopePublished($query)
+    {
+        return $query->where(function ($q) {
+            $q->where('status', 'published')
+              ->orWhereNull('status');
+        });
+    }
+
+    public function isPublished(): bool
+    {
+        return ($this->status ?? 'published') === 'published';
+    }
+
     public function capaianPembelajaran()
     {
         return $this->belongsTo(CapaianPembelajaran::class, 'capaian_pembelajaran_id');

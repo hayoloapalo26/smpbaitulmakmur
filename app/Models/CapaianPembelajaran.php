@@ -54,6 +54,19 @@ class CapaianPembelajaran extends Model
         });
     }
 
+    public function scopePublished($query)
+    {
+        return $query->where(function ($q) {
+            $q->where('status', 'published')
+              ->orWhereNull('status');
+        });
+    }
+
+    public function isPublished(): bool
+    {
+        return ($this->status ?? 'published') === 'published';
+    }
+
     public function guru()
     {
         return $this->belongsTo(User::class, 'guru_id');

@@ -240,6 +240,7 @@ class CreateRppm extends CreateRecord
                 'masa_berlaku' => $data['new_cp_masa_berlaku'] ?? '1 Tahun',
                 'elemen' => $data['new_cp_elemen'] ?? 'Materi Inti',
                 'deskripsi_cp' => $data['new_cp_deskripsi'],
+                'status' => $this->isDraft ? 'draft' : 'published',
             ]);
 
             $data['capaian_pembelajaran_id'] = $cp->id;
@@ -273,6 +274,7 @@ class CreateRppm extends CreateRecord
                 'deskripsi_tp' => $data['single_new_tp_deskripsi'],
                 'kelas_tingkat' => (string) ($rekomendasi[0] ?? $tingkat),
                 'semester' => 'Ganjil',
+                'status' => $this->isDraft ? 'draft' : 'published',
             ]);
             $selectedTpIds[] = $tp->id;
         }
@@ -295,6 +297,7 @@ class CreateRppm extends CreateRecord
                         'deskripsi_tp' => $tpItem['deskripsi_tp'],
                         'kelas_tingkat' => (string) ($rekomendasi[0] ?? $tingkat),
                         'semester' => 'Ganjil',
+                        'status' => $this->isDraft ? 'draft' : 'published',
                     ]);
                     $selectedTpIds[] = $tp->id;
                 }
@@ -345,5 +348,22 @@ class CreateRppm extends CreateRecord
         );
 
         return $data;
+    }
+
+    protected function afterCreate(): void
+    {
+        $record = $this->getRecord();
+        if ($record && $record->status === 'published') {
+            if (!empty($record->capaian_pembelajaran_id)) {
+                CapaianPembelajaran::where('id', $record->capaian_pembelajaran_id)
+                    ->where('status', 'draft')
+                    ->update(['status' => 'published']);
+            }
+            if (!empty($record->selected_tp_ids)) {
+                TujuanPembelajaran::whereIn('id', (array) $record->selected_tp_ids)
+                    ->where('status', 'draft')
+                    ->update(['status' => 'published']);
+            }
+        }
     }
 }

@@ -509,9 +509,19 @@ class TeachingJournalResource extends Resource
                                 } else {
                                     $matchingRppm = Rppm::query()
                                         ->where('guru_id', $teacherId)
+                                        ->where(function ($statusQ) {
+                                            $statusQ->where('status', 'published')
+                                                    ->orWhereNull('status');
+                                        })
                                         ->where(function ($q) use ($firstSchedule, $subjectName) {
                                             if ($firstSchedule->subject_id) {
-                                                $q->whereHas('capaianPembelajaran', fn ($cp) => $cp->where('subject_id', $firstSchedule->subject_id));
+                                                $q->whereHas('capaianPembelajaran', function ($cp) use ($firstSchedule) {
+                                                    $cp->where('subject_id', $firstSchedule->subject_id)
+                                                       ->where(function ($cpStatus) {
+                                                           $cpStatus->where('status', 'published')
+                                                                    ->orWhereNull('status');
+                                                       });
+                                                });
                                             }
                                             if ($subjectName) {
                                                 $q->orWhere('mata_pelajaran', 'like', "%{$subjectName}%");
@@ -527,16 +537,27 @@ class TeachingJournalResource extends Resource
                                             $set('materi', $topik);
                                         }
 
-                                        // 2. Tarik Rujukan Capaian Pembelajaran (CP) dari RPPM
+                                        // 2. Tarik Rujukan Capaian Pembelajaran (CP) dari RPPM (hanya jika CP valid & published)
                                         $cpId = $matchingRppm->getEffectiveCpId();
                                         if ($cpId) {
-                                            $set('capaian_pembelajaran_id', $cpId);
+                                            $cpRecord = CapaianPembelajaran::find($cpId);
+                                            if ($cpRecord && (($cpRecord->status ?? 'published') === 'published')) {
+                                                $set('capaian_pembelajaran_id', $cpId);
+                                            }
                                         }
 
-                                        // 3. Tarik Tujuan Pembelajaran (TP) lengkap dari dokumen RPPM (baik format baru maupun format lama tersimpan)
+                                        // 3. Tarik Tujuan Pembelajaran (TP) lengkap dari dokumen RPPM (hanya yang published)
                                         $matchingTpIds = $matchingRppm->getAllTpIds();
                                         if (!empty($matchingTpIds)) {
-                                            $set('tp_ids', $matchingTpIds);
+                                            $validTpIds = TujuanPembelajaran::whereIn('id', $matchingTpIds)
+                                                ->where(function ($tQ) {
+                                                    $tQ->where('status', 'published')->orWhereNull('status');
+                                                })
+                                                ->pluck('id')
+                                                ->toArray();
+                                            if (!empty($validTpIds)) {
+                                                $set('tp_ids', $validTpIds);
+                                            }
                                         }
 
                                         // 4. Sesuaikan Fase jika tercatat di RPPM
@@ -551,8 +572,12 @@ class TeachingJournalResource extends Resource
                                             }
                                         }
                                     } else {
-                                        // Fallback jika belum ada dokumen RPPM terdaftar
+                                        // Fallback jika belum ada dokumen RPPM terdaftar (hanya ambil CP yang sudah published)
                                         $matchingCp = CapaianPembelajaran::where('subject_id', $firstSchedule->subject_id)
+                                            ->where(function ($statusQ) {
+                                                $statusQ->where('status', 'published')
+                                                        ->orWhereNull('status');
+                                            })
                                             ->where(function ($q) {
                                                 $q->whereJsonContains('fases', 'D')->orWhere('fase', 'like', '%D%')->orWhereNull('fases');
                                             })
@@ -780,6 +805,12 @@ class TeachingJournalResource extends Resource
                                     $query->where('subject_id', $subjectId);
                                 }
 
+                                // HANYA tampilkan CP yang sudah fix dipublikasikan (status = 'published' atau data lama NULL)
+                                $query->where(function ($statusQ) {
+                                    $statusQ->where('status', 'published')
+                                            ->orWhereNull('status');
+                                });
+
                                 if ($currentCpId) {
                                     $query->where(function ($mainQ) use ($currentCpId, $fase) {
                                         $mainQ->where('id', $currentCpId)
@@ -889,6 +920,20 @@ class TeachingJournalResource extends Resource
                                     $query->where('subject_id', $subjectId);
                                 }
 
+                                // HANYA tampilkan TP yang sudah fix dipublikasikan (status = 'published' atau data lama NULL)
+                                // DAN jika TP terhubung ke CP, pastikan CP rujukan juga sudah fix dipublikasikan
+                                $query->where(function ($statusQ) {
+                                    $statusQ->where('status', 'published')
+                                            ->orWhereNull('status');
+                                })
+                                ->where(function ($cpStatusQ) {
+                                    $cpStatusQ->whereDoesntHave('capaianPembelajaran')
+                                              ->orWhereHas('capaianPembelajaran', function ($cpQ) {
+                                                  $cpQ->where('status', 'published')
+                                                      ->orWhereNull('status');
+                                              });
+                                });
+
                                 if (!empty($currentTpIds)) {
                                     // TP yang sedang terpilih HARUS SELALU TERSEDIA dan TIDAK BOLEH TERFILTER KELUAR
                                     $query->where(function ($mainQ) use ($currentTpIds, $fase, $cpId, $classroomId, $tingkat) {
@@ -988,6 +1033,19 @@ class TeachingJournalResource extends Resource
                                 if ($subjectId) {
                                     $query->where('subject_id', $subjectId);
                                 }
+
+                                $query->where(function ($statusQ) {
+                                    $statusQ->where('status', 'published')
+                                            ->orWhereNull('status');
+                                })
+                                ->where(function ($cpStatusQ) {
+                                    $cpStatusQ->whereDoesntHave('capaianPembelajaran')
+                                              ->orWhereHas('capaianPembelajaran', function ($cpQ) {
+                                                  $cpQ->where('status', 'published')
+                                                      ->orWhereNull('status');
+                                              });
+                                });
+
                                 return $query->where(function ($q) use ($search) {
                                     $q->where('deskripsi_tp', 'like', "%{$search}%")
                                       ->orWhere('materi', 'like', "%{$search}%")
