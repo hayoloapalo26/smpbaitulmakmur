@@ -282,8 +282,8 @@
                 @php
                     $percentageOverall = \App\Services\SchoolPillarService::getOverallProgress(auth()->user()?->institution_id, auth()->user());
                     
-                    // Hitung tugas pilar operasional (Pilar 2 s.d 9 yang memiliki tugas riil)
-                    $operationalPillars = collect($this->pillarsData)->filter(fn($p) => (int)($p['order'] ?? 0) !== 1);
+                    // Hitung tugas pilar operasional (Pilar 2 s.d 9 yang memiliki tugas riil berpersentase)
+                    $operationalPillars = collect($this->pillarsData)->filter(fn($p) => (int)($p['order'] ?? 0) !== 1 && !empty($p['has_percentage']));
                     $totalSelesai = $operationalPillars->sum('selesai');
                     $totalSemua = $operationalPillars->sum('total');
 

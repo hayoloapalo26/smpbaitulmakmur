@@ -340,14 +340,19 @@ class SchoolPillarService
                 break;
 
             case 3: // Bidang Kurikulum
-                // Ketercapaian diambil dari program kerja kurikulum
+                // Ketercapaian pilar ini murni diambil dari program kerja kurikulum
                 $programs = self::filterByInstitution(ProgramKurikulum::query(), $institutionId, 'program_kurikulums')
                     ->where('nama_program', 'NOT LIKE', '%Dummy%')
+                    ->orderBy('id', 'asc')
                     ->get();
 
                 if ($programs->isNotEmpty()) {
                     $tasks = $programs->map(function ($m) {
-                        $isDone = strtolower($m->status_pelaksanaan ?? '') === 'selesai';
+                        $rawStatus = strtolower($m->status_pelaksanaan ?? '');
+                        $isDone = in_array($rawStatus, ['selesai', 'terlaksana', 'sudah']);
+                        $isProgress = in_array($rawStatus, ['sedang berjalan', 'berjalan', 'proses']);
+                        $pct = $isDone ? 100 : ($isProgress ? 50 : 0);
+
                         return (object) [
                             'id' => 'dynamic_kurikulum_' . $m->id,
                             'name' => $m->nama_program,
@@ -355,58 +360,16 @@ class SchoolPillarService
                             'code' => 'WKr',
                             'assigned_role' => 'WKr',
                             'is_sop_merah' => false,
-                            'desc' => 'Program Kerja Kurikulum | Status: ' . ($m->status_pelaksanaan ?: 'Rencana') . ' | Sifat: ' . ($m->sifat ?? 'Wajib'),
+                            'desc' => 'Program Kerja Kurikulum | Status: ' . ($m->status_pelaksanaan ?: 'Rencana') . ' | Sifat: ' . ($m->sifat ?? 'Terjadwal'),
                             'url' => self::resolveUrlForRoute('program-kurikulums'),
+                            'percentage' => $pct,
                         ];
                     })->all();
                     $selesaiCount = collect($tasks)->where('status', 'selesai')->count();
                     $customPercentage = count($tasks) > 0 ? (int) round(($selesaiCount / count($tasks)) * 100) : 0;
                 } else {
-                    // Integrasi otomatis aktivitas riil kurikulum: Perangkat Ajar (RPPM) & Jurnal Mengajar Guru
-                    $teachersCount = max(1, User::query()
-                        ->when($institutionId, fn($q) => $q->where('institution_id', $institutionId))
-                        ->whereHas('roles', fn($q) => $q->whereIn('name', array_merge(['guru_mapel', 'guru_kelas', 'wali_kelas'], User::QURAN_TEACHER_ROLES)))
-                        ->count());
-
-                    // A. Modul Ajar / RPPM
-                    $totalRppmCount = \App\Models\Rppm::query()
-                        ->when($institutionId, fn($q) => $q->where('institution_id', $institutionId))
-                        ->count();
-
-                    $pctRppm = min(100, (int) round(($totalRppmCount / $teachersCount) * 100));
-                    $isRppmDone = ($pctRppm >= 75 || $totalRppmCount > 0);
-
-                    // B. Jurnal Mengajar & Presensi Pembelajaran Guru
-                    $kpiService = new \App\Services\TeacherKpiService();
-                    $avgJurnalPct = (int) round($kpiService->getInstitutionAverage($institutionId, 'bulanan'));
-                    $isJurnalDone = ($avgJurnalPct >= 75);
-
-                    $tasks = [
-                        (object) [
-                            'id' => 'kurikulum_modul_ajar',
-                            'name' => 'Penyusunan Perangkat Ajar & Modul Ajar (RPPM)',
-                            'status' => $isRppmDone ? 'selesai' : 'belum',
-                            'code' => '3.1',
-                            'assigned_role' => 'WKr / Guru Mapel',
-                            'is_sop_merah' => false,
-                            'desc' => "Perangkat Ajar: {$totalRppmCount} modul ajar dibuat dari target {$teachersCount} guru ({$pctRppm}%)",
-                            'url' => self::resolveUrlForRoute('rppms'),
-                            'percentage' => $pctRppm,
-                        ],
-                        (object) [
-                            'id' => 'kurikulum_jurnal_mengajar',
-                            'name' => 'Keterlaksanaan Pembelajaran & Jurnal Mengajar',
-                            'status' => $isJurnalDone ? 'selesai' : 'belum',
-                            'code' => '3.2',
-                            'assigned_role' => 'WKr / Guru',
-                            'is_sop_merah' => false,
-                            'desc' => "Tingkat pengisian jurnal mengajar guru bulan ini: {$avgJurnalPct}%",
-                            'url' => self::resolveUrlForRoute('teaching-journals'),
-                            'percentage' => $avgJurnalPct,
-                        ],
-                    ];
-
-                    $customPercentage = (int) round(($pctRppm + $avgJurnalPct) / 2);
+                    $tasks = [];
+                    $customPercentage = 0;
                 }
                 break;
 
@@ -472,14 +435,19 @@ class SchoolPillarService
                 break;
 
             case 5: // Kesiswaan
-                // Ketercapaian dari program kerja kesiswaan
+                // Ketercapaian pilar ini murni diambil dari program kerja kesiswaan
                 $programs = self::filterByInstitution(ProgramKesiswaan::query(), $institutionId, 'program_kesiswaans')
                     ->where('nama_program', 'NOT LIKE', '%Dummy%')
+                    ->orderBy('id', 'asc')
                     ->get();
 
                 if ($programs->isNotEmpty()) {
                     $tasks = $programs->map(function ($m) {
-                        $isDone = strtolower($m->status_pelaksanaan ?? '') === 'selesai';
+                        $rawStatus = strtolower($m->status_pelaksanaan ?? '');
+                        $isDone = in_array($rawStatus, ['selesai', 'terlaksana', 'sudah']);
+                        $isProgress = in_array($rawStatus, ['sedang berjalan', 'berjalan', 'proses']);
+                        $pct = $isDone ? 100 : ($isProgress ? 50 : 0);
+
                         return (object) [
                             'id' => 'dynamic_kesiswaan_' . $m->id,
                             'name' => $m->nama_program,
@@ -487,48 +455,33 @@ class SchoolPillarService
                             'code' => 'WKs',
                             'assigned_role' => 'WKs',
                             'is_sop_merah' => false,
-                            'desc' => 'Program Kerja Kesiswaan | Status: ' . ($m->status_pelaksanaan ?: 'Rencana') . ' | Sifat: ' . ($m->sifat ?? 'Wajib'),
+                            'desc' => 'Program Kerja Kesiswaan | Status: ' . ($m->status_pelaksanaan ?: 'Rencana') . ' | Sifat: ' . ($m->sifat ?? 'Terjadwal'),
                             'url' => self::resolveUrlForRoute('program-kesiswaans'),
+                            'percentage' => $pct,
                         ];
                     })->all();
                     $selesaiCount = collect($tasks)->where('status', 'selesai')->count();
                     $customPercentage = count($tasks) > 0 ? (int) round(($selesaiCount / count($tasks)) * 100) : 0;
                 } else {
-                    // Integrasi otomatis aktivitas kesiswaan riil: Presensi Siswa
-                    $hasAttendance = \App\Models\DailyAttendance::query()
-                        ->when($institutionId, fn($q) => $q->where('institution_id', $institutionId))
-                        ->exists();
-
-                    $pctPresensi = $hasAttendance ? 85 : 0;
-                    $isPresensiDone = ($pctPresensi >= 75);
-
-                    $tasks = [
-                        (object) [
-                            'id' => 'kesiswaan_presensi_harian',
-                            'name' => 'Presensi & Kedisiplinan Kehadiran Siswa',
-                            'status' => $isPresensiDone ? 'selesai' : 'belum',
-                            'code' => '5.1',
-                            'assigned_role' => 'WKs / Piket',
-                            'is_sop_merah' => false,
-                            'desc' => $hasAttendance ? "Pencatatan presensi siswa berjalan aktif ({$pctPresensi}%)" : "Pencatatan presensi dan kedisiplinan siswa",
-                            'url' => self::resolveUrlForRoute('daily-attendances'),
-                            'percentage' => $pctPresensi,
-                        ],
-                    ];
-
-                    $customPercentage = $pctPresensi;
+                    $tasks = [];
+                    $customPercentage = 0;
                 }
                 break;
 
             case 6: // Sarpras
-                // Ketercapaian diambil dari program kerja sarpras
+                // Ketercapaian pilar ini murni diambil dari program kerja sarpras
                 $programs = self::filterByInstitution(ProgramSarpras::query(), $institutionId, 'program_sarpras')
                     ->where('nama_program', 'NOT LIKE', '%Dummy%')
+                    ->orderBy('id', 'asc')
                     ->get();
 
                 if ($programs->isNotEmpty()) {
                     $tasks = $programs->map(function ($m) {
-                        $isDone = strtolower($m->status_pelaksanaan ?? '') === 'selesai';
+                        $rawStatus = strtolower($m->status_pelaksanaan ?? '');
+                        $isDone = in_array($rawStatus, ['selesai', 'terlaksana', 'sudah']);
+                        $isProgress = in_array($rawStatus, ['sedang berjalan', 'berjalan', 'proses']);
+                        $pct = $isDone ? 100 : ($isProgress ? 50 : 0);
+
                         return (object) [
                             'id' => 'dynamic_sarpras_' . $m->id,
                             'name' => $m->nama_program,
@@ -536,8 +489,9 @@ class SchoolPillarService
                             'code' => 'SP',
                             'assigned_role' => 'SP',
                             'is_sop_merah' => false,
-                            'desc' => 'Program Kerja Sarpras | Status: ' . ($m->status_pelaksanaan ?: 'Rencana') . ' | Sifat: ' . ($m->sifat ?? 'Wajib'),
+                            'desc' => 'Program Kerja Sarpras | Status: ' . ($m->status_pelaksanaan ?: 'Rencana') . ' | Sifat: ' . ($m->sifat ?? 'Terjadwal'),
                             'url' => self::resolveUrlForRoute('program-sarpras'),
+                            'percentage' => $pct,
                         ];
                     })->all();
                     $selesaiCount = collect($tasks)->where('status', 'selesai')->count();
@@ -594,24 +548,30 @@ class SchoolPillarService
                 break;
 
             case 8: // Humas
-                // Ketercapaian diambil dari program kerja humas
+                // Ketercapaian pilar ini murni diambil dari program kerja humas
                 $programs = self::filterByInstitution(ProgramHumas::query(), $institutionId, 'program_humas')
                     ->where('nama_program', 'NOT LIKE', '%Dummy%')
+                    ->orderBy('id', 'asc')
                     ->get();
                 if ($programs->isEmpty()) {
                     $programs = self::filterByInstitution(HumasProgram::query(), $institutionId, 'humas_programs')
                         ->where('nama', 'NOT LIKE', '%Dummy%')
+                        ->orderBy('id', 'asc')
                         ->get();
                 }
 
                 if ($programs->isNotEmpty()) {
                     $tasks = $programs->map(function ($m) {
-                        $isDone = false;
+                        $rawStatus = '';
                         if (isset($m->status_pelaksanaan)) {
-                            $isDone = strtolower($m->status_pelaksanaan) === 'selesai';
+                            $rawStatus = strtolower($m->status_pelaksanaan);
                         } elseif (isset($m->status)) {
-                            $isDone = in_array(strtolower($m->status), ['sudah', 'selesai']);
+                            $rawStatus = strtolower($m->status);
                         }
+                        $isDone = in_array($rawStatus, ['selesai', 'terlaksana', 'sudah']);
+                        $isProgress = in_array($rawStatus, ['sedang berjalan', 'berjalan', 'proses']);
+                        $pct = $isDone ? 100 : ($isProgress ? 50 : 0);
+
                         return (object) [
                             'id' => 'dynamic_humas_' . $m->id,
                             'name' => $m->nama_program ?? ($m->nama ?? 'Program Kerja Humas'),
@@ -619,81 +579,50 @@ class SchoolPillarService
                             'code' => 'Hm',
                             'assigned_role' => 'Hm',
                             'is_sop_merah' => false,
-                            'desc' => 'Program Kerja Humas | Sinergi Sekolah, Wali Murid & Masyarakat',
+                            'desc' => 'Program Kerja Humas | Status: ' . ($m->status_pelaksanaan ?? ($m->status ?? 'Rencana')) . ' | Sinergi Sekolah & Masyarakat',
                             'url' => self::resolveUrlForRoute('program-humas'),
+                            'percentage' => $pct,
                         ];
                     })->all();
                     $selesaiCount = collect($tasks)->where('status', 'selesai')->count();
                     $customPercentage = count($tasks) > 0 ? (int) round(($selesaiCount / count($tasks)) * 100) : 0;
                 } else {
-                    // Integrasi otomatis Publikasi Berita / Pengumuman Sekolah
-                    $newsCount = \App\Models\News::where('is_published', true)->count();
-                    $pctHumas = $newsCount > 0 ? 80 : 0;
-                    $isHumasDone = ($pctHumas >= 75);
-
-                    $tasks = [
-                        (object) [
-                            'id' => 'humas_publikasi_informasi',
-                            'name' => 'Publikasi Berita & Media Informasi Sekolah',
-                            'status' => $isHumasDone ? 'selesai' : 'belum',
-                            'code' => '8.1',
-                            'assigned_role' => 'Hm',
-                            'is_sop_merah' => false,
-                            'desc' => $newsCount > 0 ? "Terdapat {$newsCount} informasi / pengumuman resmi dipublikasikan ({$pctHumas}%)" : "Media publikasi informasi sekolah",
-                            'url' => self::resolveUrlForRoute('news'),
-                            'percentage' => $pctHumas,
-                        ],
-                    ];
-                    $customPercentage = $pctHumas;
+                    $tasks = [];
+                    $customPercentage = 0;
                 }
                 break;
 
             case 9: // Layanan Khusus / BK
-                // Ketercapaian diambil dari program kerja BK
+                // Ketercapaian pilar ini murni diambil dari program kerja BK
                 $programs = self::filterByInstitution(BkWorkProgram::query(), $institutionId, 'bk_work_programs')
                     ->where('judul_program', 'NOT LIKE', '%Dummy%')
+                    ->orderBy('id', 'asc')
                     ->get();
 
                 if ($programs->isNotEmpty()) {
                     $tasks = $programs->map(function ($m) {
                         $statusStr = strtolower($m->status ?? '');
-                        $isDone = in_array($statusStr, ['terlaksana', 'selesai']);
+                        $isDone = in_array($statusStr, ['terlaksana', 'selesai', 'sudah']);
+                        $isProgress = in_array($statusStr, ['sedang berjalan', 'berjalan', 'proses']);
+                        $pct = $isDone ? 100 : ($isProgress ? 50 : 0);
+
                         return (object) [
                             'id' => 'dynamic_bk_' . $m->id,
-                            'name' => $m->judul_program ?? 'Program Kerja BK',
+                            'name' => $m->judul_program ?? ($m->nama_program ?? 'Program Kerja BK'),
                             'status' => $isDone ? 'selesai' : 'belum',
                             'code' => 'BK',
                             'assigned_role' => 'BK',
                             'is_sop_merah' => false,
-                            'desc' => 'Program Kerja BK | Sasaran: ' . ($m->sasaran ?? 'Siswa') . ' | Bidang: ' . ($m->bidang_layanan ?? 'Umum'),
+                            'desc' => 'Program Kerja BK | Status: ' . ($m->status ?: 'Rencana') . ' | Bidang: ' . ($m->bidang_layanan ?? 'Umum'),
                             'url' => self::resolveUrlForRoute('bk-work-programs'),
+                            'percentage' => $pct,
                         ];
                     })->all();
                     $selesaiCount = collect($tasks)->where('status', 'selesai')->count();
                     $customPercentage = count($tasks) > 0 ? (int) round(($selesaiCount / count($tasks)) * 100) : 0;
                 } else {
-                    // Integrasi layanan bimbingan konseling riil
-                    $bkReportsCount = \App\Models\BkReport::query()
-                        ->when($institutionId, fn($q) => $q->where('institution_id', $institutionId))
-                        ->count();
-
-                    $pctBk = $bkReportsCount > 0 ? 80 : 0;
-                    $isBkDone = ($pctBk >= 75);
-
-                    $tasks = [
-                        (object) [
-                            'id' => 'bk_layanan_konseling',
-                            'name' => 'Layanan Bimbingan Konseling & Pendampingan Siswa',
-                            'status' => $isBkDone ? 'selesai' : 'belum',
-                            'code' => '9.1',
-                            'assigned_role' => 'BK',
-                            'is_sop_merah' => false,
-                            'desc' => $bkReportsCount > 0 ? "Tercatat {$bkReportsCount} layanan konseling aktif ({$pctBk}%)" : "Layanan bimbingan konseling dan pendampingan siswa",
-                            'url' => self::resolveUrlForRoute('bk-reports'),
-                            'percentage' => $pctBk,
-                        ],
-                    ];
-                    $customPercentage = $pctBk;
+                    $tasks = [];
+                    $customPercentage = 0;
                 }
                 break;
 

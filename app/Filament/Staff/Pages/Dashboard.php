@@ -407,13 +407,14 @@ class Dashboard extends BaseDashboard
         // HANDLE DYNAMIC TASKS
         if (is_string($taskId) && str_starts_with($taskId, 'dynamic_')) {
             $parts = explode('_', $taskId);
-            $type = $parts[1]; // 'kurikulum', 'kesiswaan', 'humas', 'bk', 'ks'
+            $type = $parts[1]; // 'kurikulum', 'kesiswaan', 'sarpras', 'humas', 'bk', 'ks'
             $id = $parts[2];
             
             $hasAccess = $isKS;
             if (!$isKS) {
                 if ($type == 'kurikulum' && in_array('WKr', $codes)) $hasAccess = true;
                 if ($type == 'kesiswaan' && in_array('WKs', $codes)) $hasAccess = true;
+                if ($type == 'sarpras' && in_array('SP', $codes)) $hasAccess = true;
                 if ($type == 'humas' && in_array('Hm', $codes)) $hasAccess = true;
                 if ($type == 'bk' && in_array('BK', $codes)) $hasAccess = true;
                 if ($type == 'ks' && in_array('KS', $codes)) $hasAccess = true;
@@ -426,9 +427,18 @@ class Dashboard extends BaseDashboard
                 } elseif ($type == 'kesiswaan') {
                     $t = \App\Models\ProgramKesiswaan::find($id);
                     if ($t) { $t->status_pelaksanaan = $status === 'selesai' ? 'Selesai' : 'Sedang Berjalan'; $t->save(); }
+                } elseif ($type == 'sarpras') {
+                    $t = \App\Models\ProgramSarpras::find($id);
+                    if ($t) { $t->status_pelaksanaan = $status === 'selesai' ? 'Selesai' : 'Sedang Berjalan'; $t->save(); }
                 } elseif ($type == 'humas') {
-                    $t = \App\Models\HumasProgram::find($id);
-                    if ($t) { $t->status = $status === 'selesai' ? 'sudah' : 'belum'; $t->save(); }
+                    $t = \App\Models\ProgramHumas::find($id);
+                    if ($t) {
+                        $t->status_pelaksanaan = $status === 'selesai' ? 'Selesai' : 'Sedang Berjalan';
+                        $t->save();
+                    } else {
+                        $t2 = \App\Models\HumasProgram::find($id);
+                        if ($t2) { $t2->status = $status === 'selesai' ? 'sudah' : 'belum'; $t2->save(); }
+                    }
                 } elseif ($type == 'bk') {
                     $t = \App\Models\BkWorkProgram::find($id);
                     if ($t) { $t->status = $status === 'selesai' ? 'Terlaksana' : 'Sedang Berjalan'; $t->save(); }
