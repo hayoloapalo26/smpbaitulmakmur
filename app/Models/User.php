@@ -692,9 +692,11 @@ class User extends Authenticatable implements FilamentUser, HasAvatar
 
         if ($user && $user->institution_id && !$user->hasRole('superadmin')) {
             $query->where(function ($q) use ($user) {
-                $q->where('institution_id', $user->institution_id)
-                  ->orWhere('institution_id', 1)
-                  ->orWhereNull('institution_id');
+                $q->where('institution_id', $user->institution_id);
+                if ($user->institution_id == 2 || $user->institution_id == 1) {
+                    $q->orWhere('institution_id', 1)
+                      ->orWhereNull('institution_id');
+                }
             });
         }
 

@@ -38,12 +38,17 @@ trait BelongsToInstitution
                 }
 
                 $builder->where(function ($q) use ($table, $user, $userInstitutionIds) {
+                    $hasSmpOrYayasan = in_array(2, $userInstitutionIds) || in_array(1, $userInstitutionIds) || $user->institution_id == 2 || $user->institution_id == 1;
+
                     if (!empty($userInstitutionIds)) {
-                        $q->whereIn($table . '.institution_id', $userInstitutionIds)
-                          ->orWhereNull($table . '.institution_id');
+                        $q->whereIn($table . '.institution_id', $userInstitutionIds);
                     } else {
-                        $q->where($table . '.institution_id', $user->institution_id)
-                          ->orWhereNull($table . '.institution_id');
+                        $q->where($table . '.institution_id', $user->institution_id);
+                    }
+
+                    // Legacy records (NULL institution_id) hanya diwariskan ke SMP/Yayasan, bukan unit baru seperti SD (ID=4)
+                    if ($hasSmpOrYayasan) {
+                        $q->orWhereNull($table . '.institution_id');
                     }
 
                     // Khusus tabel penting akademik & presensi (students, schedules, classrooms, subjects, teacher_subject_classes, daily_attendances, prayer_attendances, teacher_attendances):
@@ -96,10 +101,21 @@ trait BelongsToInstitution
             }
 
             // Khusus data Siswa: Siswa tidak pernah berada di Yayasan (ID = 1).
-            // Jika kosong, null, atau 1, otomatis arahkan ke unit SMP (ID = 2).
+            // Tentukan lembaga secara dinamis: prioritaskan classroom, user pembuat, atau default SMP (ID = 2).
             if ($model instanceof \App\Models\Student) {
                 if (empty($model->institution_id) || $model->institution_id == 1) {
-                    $model->institution_id = 2;
+                    $resolvedInstId = null;
+                    if (!empty($model->classroom_id)) {
+                        $resolvedInstId = \App\Models\Classroom::withoutGlobalScopes()
+                            ->where('id', $model->classroom_id)
+                            ->value('institution_id');
+                    }
+                    if (!$resolvedInstId && auth()->check()) {
+                        $user = auth()->user();
+                        $nonYayasanId = collect($user->institution_ids)->first(fn ($id) => $id != 1);
+                        $resolvedInstId = $nonYayasanId ?: $user->institution_id;
+                    }
+                    $model->institution_id = ($resolvedInstId && $resolvedInstId != 1) ? $resolvedInstId : 2;
                 }
                 return;
             }

@@ -106,8 +106,10 @@ class SchoolPillarService
         $rawPillars = SchoolPillar::query()
             ->when($institutionId, function ($q) use ($institutionId) {
                 $q->where(function ($sub) use ($institutionId) {
-                    $sub->where('institution_id', $institutionId)
-                        ->orWhereNull('institution_id');
+                    $sub->where('institution_id', $institutionId);
+                    if ($institutionId == 2 || $institutionId == 1) {
+                        $sub->orWhereNull('institution_id');
+                    }
                 });
             })
             ->orderBy('order')

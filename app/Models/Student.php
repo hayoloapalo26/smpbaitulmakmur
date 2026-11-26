@@ -256,9 +256,20 @@ class Student extends Model
 
         static::saving(function (Student $student) {
             // Siswa di lingkungan Baitul Makmur tidak pernah berada di Yayasan (ID = 1).
-            // Jika kosong, null, atau 1, otomatis arahkan ke unit SMP (ID = 2).
+            // Tentukan lembaga secara dinamis: prioritaskan classroom, user pembuat, atau default SMP (ID = 2).
             if (empty($student->institution_id) || $student->institution_id == 1) {
-                $student->institution_id = 2;
+                $resolvedInstId = null;
+                if (!empty($student->classroom_id)) {
+                    $resolvedInstId = \App\Models\Classroom::withoutGlobalScopes()
+                        ->where('id', $student->classroom_id)
+                        ->value('institution_id');
+                }
+                if (!$resolvedInstId && auth()->check()) {
+                    $user = auth()->user();
+                    $nonYayasanId = collect($user->institution_ids)->first(fn ($id) => $id != 1);
+                    $resolvedInstId = $nonYayasanId ?: $user->institution_id;
+                }
+                $student->institution_id = ($resolvedInstId && $resolvedInstId != 1) ? $resolvedInstId : 2;
             }
 
             // Sinkronisasi dua arah antara id_finger, fingerspot_pin, dan hikvision_employee_no

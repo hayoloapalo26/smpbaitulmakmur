@@ -251,7 +251,8 @@ class StudentImporter extends Importer
     protected function beforeSave(): void
     {
         if (empty($this->record->institution_id) || $this->record->institution_id == 1) {
-            $this->record->institution_id = 2; // Pastikan selalu masuk ke SMP Islam Baitul Makmur
+            $userInstId = auth()->user()?->institution_id;
+            $this->record->institution_id = ($userInstId && $userInstId != 1) ? $userInstId : 2;
         }
         if (empty($this->record->character_score)) {
             $this->record->character_score = 80;
@@ -274,11 +275,17 @@ class StudentImporter extends Importer
                     str_contains($fn, '8') || str_contains($fn, 'VIII') => '8',
                     str_contains($fn, '7') || str_contains($fn, 'VII') => '7',
                     str_contains($fn, '9') || str_contains($fn, 'IX') => '9',
+                    str_contains($fn, '1') || str_contains($fn, 'I') => '1',
+                    str_contains($fn, '2') || str_contains($fn, 'II') => '2',
+                    str_contains($fn, '3') || str_contains($fn, 'III') => '3',
+                    str_contains($fn, '4') || str_contains($fn, 'IV') => '4',
+                    str_contains($fn, '5') || str_contains($fn, 'V') => '5',
+                    str_contains($fn, '6') || str_contains($fn, 'VI') => '6',
                     default => null,
                 };
                 if ($tingkat) {
                     $cls = \App\Models\Classroom::withoutGlobalScopes()
-                        ->where('institution_id', 2)
+                        ->where('institution_id', $this->record->institution_id)
                         ->where('tingkat', $tingkat)
                         ->first();
                     if ($cls) {
@@ -287,8 +294,8 @@ class StudentImporter extends Importer
                 }
             }
 
-            // 3. Fallback cerdas berdasarkan rentang NIS resmi SMP
-            if (empty($this->record->classroom_id) && !empty($this->record->nis)) {
+            // 3. Fallback cerdas berdasarkan rentang NIS resmi SMP (khusus lembaga SMP ID=2)
+            if ($this->record->institution_id == 2 && empty($this->record->classroom_id) && !empty($this->record->nis)) {
                 $nis = trim($this->record->nis);
                 $k8Nis = ['0285','0286','0287','0288','0289','0290','0291','0293','0294','0295','0296','0297','0298','0299','0300','0301','0302','0304','0305','0306','0307','0308','0309','0310','0311','0312','0313','0314','0315','0319'];
                 $k7Nis = ['0320','0321','0322','0323','0324','0325','0326','0327','0328','0329','0330','0331','0332','0333','0334','0335','0336','0337','0338','0339','0340','0341','0342','0343','0344','0345','0346','0347','0348','0349'];

@@ -15,7 +15,7 @@ class Schedule extends Model
     {
         static::saved(function (Schedule $schedule) {
             if ($schedule->teacher_id && $schedule->subject_id && $schedule->classroom_id) {
-                $instId = $schedule->institution_id ?? 2;
+                $instId = $schedule->institution_id ?: ($schedule->classroom?->institution_id ?? 2);
                 $existing = TeacherSubjectClass::withoutGlobalScopes()
                     ->where('teacher_id', $schedule->teacher_id)
                     ->where('subject_id', $schedule->subject_id)
