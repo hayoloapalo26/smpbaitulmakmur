@@ -32,16 +32,20 @@ class RedirectPortalUsers
             }
 
             // Check roles
-            $isYayasan = $user->hasAnyRole([
+            $hasYayasanRole = $user->hasAnyRole([
                 'yayasan', 'ketua_yayasan', 'wakil_ketua_yayasan', 'sekretaris_yayasan',
                 'tim_pengembang_penjamin_mutu_yayasan', 'pengembang_penjamin_mutu', 'tim_pengembang_yayasan',
-                'pembina_yayasan', 'pegawai_keuangan_yayasan', 'pegawai_keuangan'
+                'pembina_yayasan', 'pegawai_keuangan_yayasan'
             ]);
+            // Hanya user yang memang bertugas di Yayasan (institution_id = 1) yang diarahkan ke /yayasan
+            $isYayasan = ($hasYayasanRole && ($user->institution_id == 1 || in_array(1, $user->institution_ids)))
+                || ($user->institution_id == 1 && !$user->hasAnyRole(['siswa', 'orang_tua']));
+
             $isTeacherOrStaff = $user->isQuranTeacher() || $user->hasAnyRole([
                 'guru_mapel', 'guru_kelas', 'guru_piket', 'wali_kelas', 'koordinator_madin', 'guru_alquran'
             ]);
-            $isPortalOnly = $user->hasRole(['siswa', 'orang_tua']) && $user->roles->count() == 1;
-            $isStaff = !$isYayasan && !$isPortalOnly; // Anyone else is considered staff
+            $isPortalOnly = $user->hasAnyRole(['siswa', 'orang_tua']) && $user->roles->count() == 1;
+            $isStaff = !$isYayasan && !$isPortalOnly; // Anyone else is considered staff (SMP, SD, KB/TK, dll.)
 
             // Path checks (excluding login/logout paths to prevent redirect loops)
             $path = $request->path();
