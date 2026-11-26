@@ -49,6 +49,8 @@ return new class extends Migration
             'koordinator_madin',
             'guru_ekstrakurikuler',
             'pembina_osis',
+            'siswa',
+            'orang_tua',
         ];
 
         foreach ($rolesToEnsure as $rName) {
@@ -185,6 +187,18 @@ return new class extends Migration
                 'email' => 'pembina_sd@baitulmakmur.sch.id',
                 'username' => 'pembina_sd',
                 'roles' => ['pembina_osis'],
+            ],
+            [
+                'name' => 'Siswa SD Islam Baitul Makmur',
+                'email' => 'siswa_sd@baitulmakmur.sch.id',
+                'username' => 'siswa_sd',
+                'roles' => ['siswa'],
+            ],
+            [
+                'name' => 'Wali Murid / Orang Tua SD Islam Baitul Makmur',
+                'email' => 'ortu_sd@baitulmakmur.sch.id',
+                'username' => 'ortu_sd',
+                'roles' => ['orang_tua'],
             ],
         ];
 
