@@ -164,7 +164,7 @@ return new class extends Migration
                     'name' => $uData['name'],
                     'email' => $uData['email'],
                     'username' => $uData['username'],
-                    'password' => Hash::make('password123'),
+                    'password' => Hash::make('password'),
                     'institution_id' => $sdId,
                     'is_active' => true,
                     'has_account' => true,
