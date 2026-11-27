@@ -357,6 +357,37 @@ class Student extends Model
                 $student->tanggal_penempatan_quran = now()->toDateString();
             }
         });
+
+        // Sinkronisasi otomatis orang tua ke Data Orang Tua (Guardians) saat siswa disimpan
+        static::saved(function (Student $student) {
+            $parentName = $student->nama_ayah ?: ($student->nama_ibu ?: ($student->nama_wali ?: null));
+            if (!empty($parentName) && trim($parentName) !== '') {
+                $relation = $student->nama_ayah ? 'Ayah' : ($student->nama_ibu ? 'Ibu' : 'Wali');
+                $phone = $student->no_hp_ayah ?: ($student->no_hp_ibu ?: ($student->no_hp_wali ?: ($student->no_telepon_orang_tua ?: '-')));
+                $instId = $student->institution_id ?: 2;
+
+                $guardian = Guardian::firstOrCreate(
+                    [
+                        'name' => trim($parentName),
+                        'institution_id' => $instId,
+                    ],
+                    [
+                        'phone' => trim($phone),
+                        'address' => $student->alamat ?? '-',
+                    ]
+                );
+
+                StudentGuardian::firstOrCreate(
+                    [
+                        'student_id' => $student->id,
+                        'guardian_id' => $guardian->id,
+                    ],
+                    [
+                        'relation' => $relation,
+                    ]
+                );
+            }
+        });
     }
 }
 
