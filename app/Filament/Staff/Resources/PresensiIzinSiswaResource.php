@@ -5,6 +5,7 @@ namespace App\Filament\Staff\Resources;
 use App\Filament\Staff\Resources\PresensiIzinSiswaResource\Pages;
 use App\Models\Classroom;
 use App\Models\DailyAttendance;
+use App\Models\PrayerAttendance;
 use App\Models\Student;
 use App\Models\StudentHalangan;
 use Carbon\Carbon;
