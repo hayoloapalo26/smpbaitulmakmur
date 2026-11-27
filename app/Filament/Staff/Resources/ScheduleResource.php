@@ -43,11 +43,17 @@ class ScheduleResource extends Resource
 
     public static function getEloquentQuery(): Builder
     {
-        $query = parent::getEloquentQuery()->withoutGlobalScopes();
         $user = Auth::user();
 
         if (!$user) {
-            return $query->whereRaw('1 = 0');
+            return parent::getEloquentQuery()->whereRaw('1 = 0');
+        }
+
+        $query = parent::getEloquentQuery();
+
+        if (!$user->hasRole('superadmin')) {
+            $instId = $user->institution_id ?: 2;
+            $query->where('schedules.institution_id', $instId);
         }
 
         if ($user->hasAnyRole(['waka_kurikulum', 'kepala_sekolah', 'superadmin', 'yayasan', 'ketua_yayasan', 'pembina_yayasan', 'sekretaris_yayasan', 'tim_pengembang_penjamin_mutu_yayasan', 'pengembang_penjamin_mutu'])) {
@@ -64,26 +70,40 @@ class ScheduleResource extends Resource
                 Forms\Components\Section::make('Informasi Kelas & Mata Pelajaran')
                     ->description('Tentukan rombongan belajar kelas, mata pelajaran, dan guru pengampu.')
                     ->schema([
+                        Forms\Components\Hidden::make('institution_id')
+                            ->default(fn () => auth()->user()?->institution_id ?: 2),
+
                         Forms\Components\Select::make('classroom_id')
                             ->label('Kelas')
-                            ->relationship('classroom', 'name')
+                            ->relationship('classroom', 'name', modifyQueryUsing: function (Builder $query) {
+                                if (!auth()->user()?->hasRole('superadmin')) {
+                                    $query->where('institution_id', auth()->user()?->institution_id ?: 2);
+                                }
+                            })
                             ->searchable()
                             ->preload()
                             ->live()
                             ->required(),
                         Forms\Components\Select::make('subject_id')
                             ->label('Mata Pelajaran')
-                            ->relationship('subject', 'name')
+                            ->relationship('subject', 'name', modifyQueryUsing: function (Builder $query) {
+                                if (!auth()->user()?->hasRole('superadmin')) {
+                                    $query->where('institution_id', auth()->user()?->institution_id ?: 2);
+                                }
+                            })
                             ->searchable()
                             ->preload()
                             ->required(),
                         Forms\Components\Select::make('teacher_id')
                             ->label('Guru Pengajar')
                             ->relationship('teacher', 'name', modifyQueryUsing: function (Builder $query) {
-                                $query->where('is_active', true)
-                                    ->whereHas('roles', function ($q) {
-                                        $q->whereIn('name', array_merge(['guru_mapel', 'koordinator_madin', 'wali_kelas', 'guru_kelas'], \App\Models\User::QURAN_TEACHER_ROLES));
-                                    });
+                                $query->where('is_active', true);
+                                if (!auth()->user()?->hasRole('superadmin')) {
+                                    $query->where('institution_id', auth()->user()?->institution_id ?: 2);
+                                }
+                                $query->whereHas('roles', function ($q) {
+                                    $q->whereIn('name', array_merge(['guru_mapel', 'koordinator_madin', 'wali_kelas', 'guru_kelas', 'guru'], \App\Models\User::QURAN_TEACHER_ROLES));
+                                });
                             })
                             ->getOptionLabelFromRecordUsing(function ($record) {
                                 $user = Auth::user();

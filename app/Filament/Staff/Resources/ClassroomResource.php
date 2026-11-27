@@ -49,6 +49,20 @@ class ClassroomResource extends Resource
         return 3;
     }
 
+    public static function getEloquentQuery(): Builder
+    {
+        $query = parent::getEloquentQuery();
+        $user = auth()->user();
+        if (!$user) {
+            return $query->whereRaw('1 = 0');
+        }
+        if ($user->hasRole('superadmin')) {
+            return $query;
+        }
+        $instId = $user->institution_id ?: 2;
+        return $query->where('institution_id', $instId);
+    }
+
     public static function form(Form $form): Form
     {
         return $form
@@ -60,6 +74,10 @@ class ClassroomResource extends Resource
                             ->label('Lembaga (Khusus Superadmin)')
                             ->visible(fn () => auth()->user()->hasRole('superadmin'))
                             ->required(fn () => auth()->user()->hasRole('superadmin')),
+
+                        Forms\Components\Hidden::make('institution_id')
+                            ->default(fn () => auth()->user()?->institution_id ?: 2)
+                            ->visible(fn () => !auth()->user()->hasRole('superadmin')),
 
                         Forms\Components\Radio::make('tipe')
                             ->label('Jenis / Kategori Rombel')
@@ -84,22 +102,24 @@ class ClassroomResource extends Resource
                             ->visible(fn (Forms\Get $get) => $get('tipe') === Classroom::TIPE_QURAN)
                             ->live()
                             ->afterStateUpdated(function ($state, Forms\Set $set) {
+                                $isSd = (auth()->user()?->institution_id == 4);
+                                $unitTag = $isSd ? 'SD' : 'SMP';
                                 match ($state) {
                                     'yanbua' => [
-                                        $set('name', 'Yanbu\'a'),
-                                        $set('tingkat', 'Yanbu\'a SMP'),
+                                        $set('name', $isSd ? 'Kelas Yanbua SD' : 'Yanbu\'a'),
+                                        $set('tingkat', "Yanbu'a {$unitTag}"),
                                     ],
                                     'tahsin' => [
-                                        $set('name', 'Tahsin'),
-                                        $set('tingkat', 'Tahsin SMP'),
+                                        $set('name', $isSd ? 'Kelas Tahsin SD' : 'Tahsin'),
+                                        $set('tingkat', "Tahsin {$unitTag}"),
                                     ],
                                     'tahfidz_dasar' => [
-                                        $set('name', 'Tahfidz Dasar'),
-                                        $set('tingkat', 'Tahfidz Dasar SMP'),
+                                        $set('name', $isSd ? 'Kelas Tahfidz Dasar SD' : 'Tahfidz Dasar'),
+                                        $set('tingkat', "Tahfidz Dasar {$unitTag}"),
                                     ],
                                     'tahfidz_lanjutan' => [
-                                        $set('name', 'Tahfidz Lanjutan'),
-                                        $set('tingkat', 'Tahfidz Lanjutan SMP'),
+                                        $set('name', $isSd ? 'Kelas Tahfidz Lanjutan SD' : 'Tahfidz Lanjutan'),
+                                        $set('tingkat', "Tahfidz Lanjutan {$unitTag}"),
                                     ],
                                     default => null,
                                 };
@@ -108,31 +128,25 @@ class ClassroomResource extends Resource
 
                         Forms\Components\TextInput::make('name')
                             ->label('Nama Kelas / Kelompok')
-                            ->placeholder('Contoh: Kelas 7A / Yanbu\'a / Tahsin / Tahfidz Dasar / Tahfidz Lanjutan')
-                            ->datalist([
-                                'Yanbu\'a',
-                                'Tahsin',
-                                'Tahfidz Dasar',
-                                'Tahfidz Lanjutan',
-                                'Kelas 7A',
-                                'Kelas 8A',
-                                'Kelas 9A',
-                            ])
+                            ->placeholder(fn () => (auth()->user()?->institution_id == 4) ? 'Contoh: Kelas 1 / Kelas Yanbua SD' : 'Contoh: Kelas 7A / Yanbu\'a')
+                            ->datalist(function () {
+                                $isSd = (auth()->user()?->institution_id == 4);
+                                return $isSd
+                                    ? ['Kelas 1', 'Kelas 2', 'Kelas 3', 'Kelas 4', 'Kelas 5', 'Kelas 6', 'Kelas Yanbua SD', 'Kelas Tahsin SD', 'Kelas Tahfidz Dasar SD', 'Kelas Tahfidz Lanjutan SD']
+                                    : ['Yanbu\'a', 'Tahsin', 'Tahfidz Dasar', 'Tahfidz Lanjutan', 'Kelas 7A', 'Kelas 7B', 'Kelas 8A', 'Kelas 8B', 'Kelas 9A', 'Kelas 9B'];
+                            })
                             ->required()
                             ->maxLength(255),
 
                         Forms\Components\TextInput::make('tingkat')
                             ->label('Tingkat / Keterangan')
-                            ->placeholder('Contoh: 7 / SMP / Tahfidz Dasar SMP')
-                            ->datalist([
-                                '7',
-                                '8',
-                                '9',
-                                'Yanbu\'a SMP',
-                                'Tahsin SMP',
-                                'Tahfidz Dasar SMP',
-                                'Tahfidz Lanjutan SMP',
-                            ])
+                            ->placeholder(fn () => (auth()->user()?->institution_id == 4) ? 'Contoh: 1 / SD / Tahfidz Dasar SD' : 'Contoh: 7 / SMP / Tahfidz Dasar SMP')
+                            ->datalist(function () {
+                                $isSd = (auth()->user()?->institution_id == 4);
+                                return $isSd
+                                    ? ['1', '2', '3', '4', '5', '6', 'Yanbu\'a SD', 'Tahsin SD', 'Tahfidz Dasar SD', 'Tahfidz Lanjutan SD']
+                                    : ['7', '8', '9', 'Yanbu\'a SMP', 'Tahsin SMP', 'Tahfidz Dasar SMP', 'Tahfidz Lanjutan SMP'];
+                            })
                             ->required()
                             ->maxLength(255),
 
@@ -144,13 +158,10 @@ class ClassroomResource extends Resource
                                 $isQuran = $get('tipe') === Classroom::TIPE_QURAN;
                                 $query = User::where('is_active', true);
 
-                                // Filter by institution if not superadmin
+                                // Filter strictly by institution if not superadmin
                                 if (!auth()->user()->hasRole('superadmin')) {
-                                    $query->where(function ($q) {
-                                        $q->where('institution_id', auth()->user()->institution_id)
-                                          ->orWhereNull('institution_id')
-                                          ->orWhere('institution_id', 1);
-                                    });
+                                    $instId = auth()->user()->institution_id ?: 2;
+                                    $query->where('institution_id', $instId);
                                 }
 
                                 if ($isQuran) {

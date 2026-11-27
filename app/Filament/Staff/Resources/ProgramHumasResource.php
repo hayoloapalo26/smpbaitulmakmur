@@ -33,7 +33,10 @@ class ProgramHumasResource extends Resource
     public static function getNavigationBadge(): ?string
     {
         if (auth()->user()?->hasRole('kepala_sekolah')) {
-            $count = static::getModel()::where('status_persetujuan', 'Menunggu Persetujuan')->count();
+            $instId = auth()->user()?->institution_id ?: 2;
+            $count = static::getModel()::where('status_persetujuan', 'Menunggu Persetujuan')
+                ->where('institution_id', $instId)
+                ->count();
             return $count > 0 ? (string) $count : null;
         }
         return null;
@@ -64,10 +67,9 @@ class ProgramHumasResource extends Resource
         $query = parent::getEloquentQuery();
         $user = auth()->user();
 
-        if ($user && !$user->hasRole('superadmin') && $user->institution_id) {
-            $query->whereHas('user', function ($q) use ($user) {
-                $q->where('institution_id', $user->institution_id);
-            });
+        if ($user && !$user->hasRole('superadmin')) {
+            $instId = $user->institution_id ?: 2;
+            $query->where('institution_id', $instId);
         }
 
         return $query;

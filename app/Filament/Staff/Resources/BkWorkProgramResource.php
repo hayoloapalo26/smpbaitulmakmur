@@ -11,6 +11,7 @@ use Filament\Infolists\Infolist;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
 
 class BkWorkProgramResource extends Resource
 {
@@ -24,10 +25,23 @@ class BkWorkProgramResource extends Resource
         return auth()->user()?->hasAnyRole(['bk', 'kepala_sekolah', 'superadmin']) ?? false;
     }
 
+    public static function getEloquentQuery(): Builder
+    {
+        $query = parent::getEloquentQuery();
+        $user = auth()->user();
+        if (!$user) return $query->whereRaw('1 = 0');
+        if ($user->hasRole('superadmin')) return $query;
+        $instId = $user->institution_id ?: 2;
+        return $query->where('institution_id', $instId);
+    }
+
     public static function getNavigationBadge(): ?string
     {
         if (auth()->user()?->hasRole('kepala_sekolah')) {
-            $count = static::getModel()::where('status_persetujuan', 'Menunggu Persetujuan')->count();
+            $instId = auth()->user()?->institution_id ?: 2;
+            $count = static::getModel()::where('status_persetujuan', 'Menunggu Persetujuan')
+                ->where('institution_id', $instId)
+                ->count();
             return $count > 0 ? (string) $count : null;
         }
 

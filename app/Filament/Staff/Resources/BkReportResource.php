@@ -32,6 +32,13 @@ class BkReportResource extends Resource
         $query = parent::getEloquentQuery();
         $user = Auth::user();
 
+        if (!$user) return $query->whereRaw('1 = 0');
+
+        if (!$user->hasRole('superadmin')) {
+            $instId = $user->institution_id ?: 2;
+            $query->where('bk_reports.institution_id', $instId);
+        }
+
         if ($user->hasRole(['kepala_sekolah', 'waka_kesiswaan', 'bk'])) {
             return $query;
         }

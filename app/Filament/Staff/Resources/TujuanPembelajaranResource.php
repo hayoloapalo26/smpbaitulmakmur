@@ -66,6 +66,15 @@ class TujuanPembelajaranResource extends Resource
         $query = parent::getEloquentQuery();
         $user = Auth::user();
 
+        if (!$user) {
+            return $query->whereRaw('1 = 0');
+        }
+
+        if (!$user->hasRole('superadmin')) {
+            $instId = $user->institution_id ?: 2;
+            $query->where('tujuan_pembelajarans.institution_id', $instId);
+        }
+
         if ($user->hasAnyRole(['waka_kurikulum', 'kepala_sekolah', 'superadmin'])) {
             return $query;
         }

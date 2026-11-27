@@ -66,6 +66,15 @@ class AlurTujuanPembelajaranResource extends Resource
         $query = parent::getEloquentQuery();
         $user = Auth::user();
 
+        if (!$user) {
+            return $query->whereRaw('1 = 0');
+        }
+
+        if (!$user->hasRole('superadmin')) {
+            $instId = $user->institution_id ?: 2;
+            $query->where('alur_tujuan_pembelajarans.institution_id', $instId);
+        }
+
         if ($user->hasAnyRole([
             'superadmin', 'kepala_sekolah', 'waka_kurikulum',
             'ketua_yayasan', 'pembina_yayasan', 'sekretaris_yayasan',

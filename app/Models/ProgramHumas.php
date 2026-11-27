@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class ProgramHumas extends Model
 {
     use HasFactory;
+    use \App\Models\Traits\BelongsToInstitution;
 
     protected $guarded = ['id'];
 

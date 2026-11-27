@@ -63,12 +63,27 @@ class InventoryResource extends Resource
         return auth()->user()?->hasAnyRole(['sarpras', 'superadmin']) ?? false;
     }
 
+    public static function getEloquentQuery(): Builder
+    {
+        $query = parent::getEloquentQuery();
+        $user = auth()->user();
+        if (!$user) return $query->whereRaw('1 = 0');
+        if (!$user->hasRole('superadmin')) {
+            $instId = $user->institution_id ?: 2;
+            $query->where('inventories.institution_id', $instId);
+        }
+        return $query;
+    }
+
     public static function form(Form $form): Form
     {
         return $form
             ->schema([
                 Forms\Components\Hidden::make('user_id')
                     ->default(fn () => auth()->id()),
+
+                Forms\Components\Hidden::make('institution_id')
+                    ->default(fn () => auth()->user()?->institution_id ?: 2),
 
                 Forms\Components\Section::make('Identitas & Kode Sarpras')
                     ->description('Informasi pokok mengenai barang, kategori, merk, dan status inventarisasi')

@@ -34,6 +34,18 @@ class ExtracurricularResource extends Resource
     protected static ?string $pluralModelLabel = 'Data & Jadwal Ekstrakurikuler';
     protected static ?int $navigationSort = 7;
 
+    public static function getEloquentQuery(): Builder
+    {
+        $query = parent::getEloquentQuery();
+        $user = auth()->user();
+        if (!$user) return $query->whereRaw('1 = 0');
+        if (!$user->hasRole('superadmin')) {
+            $instId = $user->institution_id ?: 2;
+            $query->where('extracurriculars.institution_id', $instId);
+        }
+        return $query;
+    }
+
     public static function form(Form $form): Form
     {
         return $form
@@ -41,6 +53,9 @@ class ExtracurricularResource extends Resource
                 Forms\Components\Section::make('Informasi Ekstrakurikuler & Pembina')
                     ->description('Waka Kesiswaan mengatur identitas ekstrakurikuler serta menunjuk Guru Pembina/Pelatih.')
                     ->schema([
+                        Forms\Components\Hidden::make('institution_id')
+                            ->default(fn () => auth()->user()?->institution_id ?: 2),
+
                         Forms\Components\TextInput::make('name')
                             ->label('Nama Ekstrakurikuler')
                             ->placeholder('Contoh: Pramuka, ECC, Futsal, Bulutangkis, Teater, Pagar Nusa, dll.')
@@ -51,7 +66,9 @@ class ExtracurricularResource extends Resource
                         Forms\Components\Select::make('pembina_id')
                             ->label('Guru Pembina / Pelatih')
                             ->options(function () {
+                                $instId = auth()->user()?->institution_id ?: 2;
                                 return User::where('is_active', true)
+                                    ->when(!auth()->user()?->hasRole('superadmin'), fn ($q) => $q->where('institution_id', $instId))
                                     ->orderBy('name')
                                     ->get()
                                     ->mapWithKeys(function ($u) {

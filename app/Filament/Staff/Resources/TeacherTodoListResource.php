@@ -31,11 +31,17 @@ class TeacherTodoListResource extends Resource
     public static function getEloquentQuery(): Builder
     {
         $query = parent::getEloquentQuery();
+        $user = auth()->user();
+        if (!$user) return $query->whereRaw('1 = 0');
+        if (!$user->hasRole('superadmin')) {
+            $instId = $user->institution_id ?: 2;
+            $query->where('institution_id', $instId);
+        }
         // Guru hanya bisa melihat tugasnya sendiri. KS/Waka bisa lihat semua.
-        if (auth()->user()->hasRole(['kepala_sekolah', 'superadmin', 'waka_kurikulum'])) {
+        if ($user->hasRole(['kepala_sekolah', 'superadmin', 'waka_kurikulum'])) {
             return $query;
         }
-        return $query->where('teacher_id', auth()->id());
+        return $query->where('teacher_id', $user->id);
     }
 
     public static function form(Form $form): Form

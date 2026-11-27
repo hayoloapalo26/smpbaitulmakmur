@@ -2,10 +2,13 @@
 
 namespace App\Models;
 
+use App\Models\Traits\BelongsToInstitution;
 use Illuminate\Database\Eloquent\Model;
 
 class SchoolPillarTask extends Model
 {
+    use BelongsToInstitution;
+
     protected $guarded = ['id'];
 
     protected $casts = [

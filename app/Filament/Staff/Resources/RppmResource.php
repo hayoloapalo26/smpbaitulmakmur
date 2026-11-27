@@ -86,6 +86,11 @@ class RppmResource extends Resource
             return $query->whereRaw('1 = 0');
         }
 
+        if (!$user->hasRole('superadmin')) {
+            $instId = $user->institution_id ?: 2;
+            $query->where('rppms.institution_id', $instId);
+        }
+
         // Kepala sekolah, Waka Kurikulum, superadmin, dan yayasan dapat melihat seluruh RPPM di lembaganya untuk supervisi & ACC
         if ($user->hasAnyRole([
             'superadmin',

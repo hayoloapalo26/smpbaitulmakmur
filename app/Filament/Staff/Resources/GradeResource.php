@@ -75,6 +75,16 @@ class GradeResource extends Resource
     {
         $query = parent::getEloquentQuery()->whereHas('subject', fn ($sq) => $sq->akademik());
         $user = Auth::user();
+
+        if (!$user) {
+            return $query->whereRaw('1 = 0');
+        }
+
+        if (!$user->hasRole('superadmin')) {
+            $instId = $user->institution_id ?: 2;
+            $query->where('grades.institution_id', $instId);
+        }
+
         if ($user->hasAnyRole(['waka_kurikulum', 'superadmin', 'kepala_sekolah'])) {
             return $query;
         }
@@ -171,12 +181,19 @@ class GradeResource extends Resource
                         Forms\Components\Hidden::make('teacher_id')
                             ->default(fn () => Auth::id()),
 
+                        Forms\Components\Hidden::make('institution_id')
+                            ->default(fn () => Auth::user()?->institution_id ?: 2),
+
                         Forms\Components\Select::make('classroom_id')
                             ->label('1. Kelas / Rombel')
                             ->options(function () use ($isPrivileged, $isWaliKelas) {
                                 $user = Auth::user();
                                 if (!$user) return [];
+                                $instId = $user->institution_id ?: 2;
                                 $query = Classroom::reguler();
+                                if (!$user->hasRole('superadmin')) {
+                                    $query->where('institution_id', $instId);
+                                }
                                 if ($isPrivileged) {
                                     return $query->orderBy('name')->pluck('name', 'id');
                                 }
@@ -204,6 +221,10 @@ class GradeResource extends Resource
                             ->options(function (Forms\Get $get) {
                                 $classroomId = $get('classroom_id');
                                 $query = Student::query()->with(['classroom', 'guruQuran']);
+                                $instId = Auth::user()?->institution_id ?: 2;
+                                if (Auth::user() && !Auth::user()->hasRole('superadmin')) {
+                                    $query->where('institution_id', $instId);
+                                }
                                 if (!empty($classroomId)) {
                                     $selectedCls = Classroom::withoutGlobalScopes()->find($classroomId);
                                     if ($selectedCls && $selectedCls->isQuran()) {
@@ -255,11 +276,15 @@ class GradeResource extends Resource
                             })
                             ->getSearchResultsUsing(function (string $search, Forms\Get $get) {
                                 $classroomId = $get('classroom_id');
-                                $query = Student::query()->with(['classroom', 'guruQuran'])
-                                    ->where(function ($sq) use ($search) {
-                                        $sq->where('name', 'like', "%{$search}%")
-                                           ->orWhere('nis', 'like', "%{$search}%");
-                                    });
+                                $query = Student::query()->with(['classroom', 'guruQuran']);
+                                $instId = Auth::user()?->institution_id ?: 2;
+                                if (Auth::user() && !Auth::user()->hasRole('superadmin')) {
+                                    $query->where('institution_id', $instId);
+                                }
+                                $query->where(function ($sq) use ($search) {
+                                    $sq->where('name', 'like', "%{$search}%")
+                                       ->orWhere('nis', 'like', "%{$search}%");
+                                });
 
                                 if (!empty($classroomId)) {
                                     $selectedCls = Classroom::withoutGlobalScopes()->find($classroomId);
@@ -339,14 +364,19 @@ class GradeResource extends Resource
                             ->options(function () {
                                 $user = Auth::user();
                                 if (!$user) return [];
+                                $instId = $user->institution_id ?: 2;
+                                $query = Subject::akademik();
+                                if (!$user->hasRole('superadmin')) {
+                                    $query->where('institution_id', $instId);
+                                }
                                 if ($user->hasRole('superadmin')) {
-                                    return Subject::akademik()->orderBy('name')->pluck('name', 'id');
+                                    return $query->orderBy('name')->pluck('name', 'id');
                                 }
                                 $subjectIds = $user->getTeachedSubjectIds();
-                                if ($user->hasRole('waka_kurikulum') && empty($subjectIds)) {
-                                    return Subject::akademik()->orderBy('name')->pluck('name', 'id');
+                                if (($user->hasRole('waka_kurikulum') || $user->hasRole('kepala_sekolah')) && empty($subjectIds)) {
+                                    return $query->orderBy('name')->pluck('name', 'id');
                                 }
-                                return Subject::akademik()->whereIn('id', $subjectIds)->orderBy('name')->pluck('name', 'id');
+                                return $query->whereIn('id', $subjectIds)->orderBy('name')->pluck('name', 'id');
                             })
                             ->searchable()
                             ->preload()

@@ -38,11 +38,17 @@ class TeacherSubjectClassResource extends Resource
 
     public static function getEloquentQuery(): \Illuminate\Database\Eloquent\Builder
     {
-        $query = parent::getEloquentQuery()->withoutGlobalScopes();
         $user = auth()->user();
 
         if (!$user) {
-            return $query->whereRaw('1 = 0');
+            return parent::getEloquentQuery()->whereRaw('1 = 0');
+        }
+
+        $query = parent::getEloquentQuery();
+
+        if (!$user->hasRole('superadmin')) {
+            $instId = $user->institution_id ?: 2;
+            $query->where('teacher_subject_classes.institution_id', $instId);
         }
 
         if ($user->hasAnyRole(['waka_kurikulum', 'kepala_sekolah', 'superadmin', 'yayasan', 'ketua_yayasan', 'pembina_yayasan', 'sekretaris_yayasan', 'tim_pengembang_penjamin_mutu_yayasan', 'pengembang_penjamin_mutu'])) {
@@ -62,19 +68,12 @@ class TeacherSubjectClassResource extends Resource
                 $q->whereIn('name', array_merge([
                     'guru_mapel',
                     'guru_kelas',
+                    'guru',
                 ], User::QURAN_TEACHER_ROLES));
             });
 
         if ($user && $user->institution_id && !$user->hasRole('superadmin')) {
-            $query->where(function ($q) use ($user) {
-                $q->where('institution_id', $user->institution_id)
-                  ->orWhereNull('institution_id')
-                  ->orWhere('institution_id', 1);
-
-                if (\Illuminate\Support\Facades\Schema::hasTable('institution_user')) {
-                    $q->orWhereHas('institutions', fn ($iq) => $iq->where('institutions.id', $user->institution_id));
-                }
-            });
+            $query->where('institution_id', $user->institution_id);
         }
 
         return $query;
@@ -87,6 +86,9 @@ class TeacherSubjectClassResource extends Resource
                 Forms\Components\Section::make('Penugasan Guru & Mata Pelajaran')
                     ->description('Tentukan guru pengampu, mata pelajaran yang diajarkan, dan kelas tujuan. 1 guru dapat mengampu lebih dari 1 mata pelajaran.')
                     ->schema([
+                        Forms\Components\Hidden::make('institution_id')
+                            ->default(fn () => auth()->user()?->institution_id ?: 2),
+
                         Forms\Components\Select::make('teacher_id')
                             ->relationship('teacher', 'name', modifyQueryUsing: fn ($query) => static::getEligibleTeachersQuery($query))
                             ->getOptionLabelFromRecordUsing(function ($record) {
@@ -114,7 +116,12 @@ class TeacherSubjectClassResource extends Resource
                             ->required(),
 
                         Forms\Components\Select::make('subject_id')
-                            ->relationship('subject', 'name')
+                            ->relationship('subject', 'name', modifyQueryUsing: function ($query) {
+                                $user = auth()->user();
+                                if ($user && $user->institution_id && !$user->hasRole('superadmin')) {
+                                    $query->where('institution_id', $user->institution_id);
+                                }
+                            })
                             ->label('Mata Pelajaran')
                             ->searchable()
                             ->preload()

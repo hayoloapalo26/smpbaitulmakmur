@@ -110,17 +110,17 @@ class StudentCaseResource extends Resource
             if (!$user->hasRole('superadmin') && $user->institution_id && $user->institution_id != 1) {
                 return $query->where(function ($q) use ($user) {
                     $q->where(function ($sub) use ($user) {
-                        $sub->where('student_cases.institution_id', $user->institution_id)
-                            ->orWhereNull('student_cases.institution_id');
+                        $sub->where('student_cases.institution_id', $user->institution_id);
                         if ($user->institution_id == 2) {
-                            $sub->orWhere('student_cases.institution_id', 1);
+                            $sub->orWhereNull('student_cases.institution_id')
+                                ->orWhere('student_cases.institution_id', 1);
                         }
                     })->orWhereHas('student', function ($sq) use ($user) {
                         $sq->withoutGlobalScopes()->where(function ($sub) use ($user) {
-                            $sub->where('students.institution_id', $user->institution_id)
-                                ->orWhereNull('students.institution_id');
+                            $sub->where('students.institution_id', $user->institution_id);
                             if ($user->institution_id == 2) {
-                                $sub->orWhere('students.institution_id', 1);
+                                $sub->orWhereNull('students.institution_id')
+                                    ->orWhere('students.institution_id', 1);
                             }
                         });
                     });

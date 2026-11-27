@@ -8,6 +8,7 @@ use Filament\Resources\Resource;
 use Filament\Forms\Form;
 use Filament\Tables\Table;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Database\Eloquent\Builder;
 
 class SopResource extends Resource
 {
@@ -17,6 +18,18 @@ class SopResource extends Resource
     protected static ?string $navigationLabel = 'SOP Sekolah';
     protected static ?string $pluralModelLabel = 'Standar Operasional Prosedur (SOP)';
     protected static ?int $navigationSort = 6;
+
+    public static function getEloquentQuery(): Builder
+    {
+        $query = parent::getEloquentQuery();
+        $user = Auth::user();
+        if (!$user) return $query->whereRaw('1 = 0');
+        if (!$user->hasRole('superadmin')) {
+            $instId = $user->institution_id ?: 2;
+            $query->where('institution_id', $instId);
+        }
+        return $query;
+    }
 
     public static function canAccess(): bool
     {

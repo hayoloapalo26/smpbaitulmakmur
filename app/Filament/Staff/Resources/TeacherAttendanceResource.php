@@ -84,8 +84,15 @@ class TeacherAttendanceResource extends Resource
 
     public static function getEloquentQuery(): Builder
     {
-        $query = parent::getEloquentQuery()->withoutGlobalScope('institution');
+        $query = parent::getEloquentQuery();
         $user = Auth::user();
+
+        if (!$user) return $query->whereRaw('1 = 0');
+
+        if (!$user->hasRole('superadmin')) {
+            $instId = $user->institution_id ?: 2;
+            $query->where('teacher_attendances.institution_id', $instId);
+        }
 
         if ($user->hasAnyRole(['tata_usaha', 'waka_kurikulum', 'kepala_sekolah', 'superadmin'])) {
             return $query;
@@ -109,7 +116,11 @@ class TeacherAttendanceResource extends Resource
                 Forms\Components\Select::make('teacher_id')
                     ->label('Guru Utama (Yang Berhalangan / Mengajar)')
                     ->relationship('teacher', 'name', modifyQueryUsing: function (Builder $query) {
-                        $query->whereHas('roles', fn ($q) => $q->whereIn('name', array_merge(['guru_mapel', 'wali_kelas', 'guru_kelas', 'waka_kurikulum'], \App\Models\User::QURAN_TEACHER_ROLES)));
+                        $instId = Auth::user()?->institution_id ?: 2;
+                        if (!Auth::user()?->hasRole('superadmin')) {
+                            $query->where('institution_id', $instId);
+                        }
+                        $query->whereHas('roles', fn ($q) => $q->whereIn('name', array_merge(['guru_mapel', 'wali_kelas', 'guru_kelas', 'guru', 'waka_kurikulum'], \App\Models\User::QURAN_TEACHER_ROLES)));
                     })
                     ->searchable()
                     ->preload()

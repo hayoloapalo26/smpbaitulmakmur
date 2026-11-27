@@ -37,10 +37,18 @@ class PengajuanSupervisiResource extends Resource
     public static function getEloquentQuery(): Builder
     {
         $query = parent::getEloquentQuery()->orderBy('created_at', 'desc');
-        if (Auth::user()->hasAnyRole(['superadmin', 'kepala_sekolah', 'waka_kurikulum'])) {
-            return $query; // KS & Waka Kurikulum see all in their institution (handled by BelongsToInstitution trait)
+        $user = Auth::user();
+        if (!$user) {
+            return $query->whereRaw('1 = 0');
         }
-        return $query->where('teacher_id', Auth::id()); // Teacher sees their own (both Jalur 1 & Jalur 2)
+        if (!$user->hasRole('superadmin')) {
+            $instId = $user->institution_id ?: 2;
+            $query->where('teacher_supervisions.institution_id', $instId);
+        }
+        if ($user->hasAnyRole(['superadmin', 'kepala_sekolah', 'waka_kurikulum'])) {
+            return $query;
+        }
+        return $query->where('teacher_id', $user->id);
     }
 
     public static function canAccess(): bool

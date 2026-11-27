@@ -163,7 +163,17 @@ class Dashboard extends BaseDashboard
             return $this->cachedLatestNews;
         }
 
-        $news = \App\Models\News::where('is_published', true)->latest()->first();
+        $instId = Auth::user()?->institution_id;
+        $news = \App\Models\News::where('is_published', true)
+            ->where(function ($q) use ($instId) {
+                $q->whereNull('target_institutions')
+                    ->orWhereJsonContains('target_institutions', 'all')
+                    ->orWhereJsonContains('target_institutions', (string) $instId)
+                    ->orWhereJsonContains('target_institutions', (int) $instId);
+            })
+            ->latest()
+            ->first();
+
         if ($news) {
             return $this->cachedLatestNews = "**" . $news->title . "**\n\n" . \Illuminate\Support\Str::limit(strip_tags($news->content), 100);
         }
@@ -367,12 +377,17 @@ class Dashboard extends BaseDashboard
             $news .= "⚠️ **Perlu Perhatian:** Pilar {$tertinggal['order']} ({$tertinggal['name']}) baru mencapai {$tertinggal['percentage']}%. Memerlukan intervensi segera.\n\n";
         }
 
-        $emptyClasses = \App\Models\EmptyClassLog::whereDate('created_at', \Carbon\Carbon::today())->count();
+        $instId = Auth::user()?->institution_id;
+        $emptyClasses = \App\Models\EmptyClassLog::when($instId, fn($q) => $q->where('institution_id', $instId))
+            ->whereDate('created_at', \Carbon\Carbon::today())
+            ->count();
         if ($emptyClasses > 0) {
             $news .= "🚨 **Kelas Kosong:** Terdapat {$emptyClasses} laporan kelas kosong hari ini.\n\n";
         }
 
-        $pendingLeaves = \App\Models\TeacherLeaveRequest::where('status', 'diajukan')->count();
+        $pendingLeaves = \App\Models\TeacherLeaveRequest::when($instId, fn($q) => $q->where('institution_id', $instId))
+            ->where('status', 'diajukan')
+            ->count();
         if ($pendingLeaves > 0) {
             $news .= "⏳ **Perizinan Guru:** {$pendingLeaves} pengajuan izin menunggu persetujuan Kepala Sekolah/Wakakur.\n\n";
         }

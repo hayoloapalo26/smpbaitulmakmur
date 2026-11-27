@@ -25,10 +25,35 @@ class SubjectResource extends Resource
     protected static ?string $model = Subject::class;
     protected static ?string $navigationIcon = 'heroicon-o-book-open';
     protected static ?string $navigationGroup = 'Akademik & Kurikulum';
-    protected static ?string $navigationLabel = 'Mata Pelajaran SMP';
     protected static ?string $modelLabel = 'Mata Pelajaran';
     protected static ?string $pluralModelLabel = 'Mata Pelajaran';
     protected static ?int $navigationSort = 2;
+
+    public static function getNavigationLabel(): string
+    {
+        $instId = auth()->user()?->institution_id;
+        if ($instId == 4) {
+            return 'Mata Pelajaran SD';
+        }
+        if ($instId == 2) {
+            return 'Mata Pelajaran SMP';
+        }
+        return 'Mata Pelajaran';
+    }
+
+    public static function getEloquentQuery(): \Illuminate\Database\Eloquent\Builder
+    {
+        $query = parent::getEloquentQuery();
+        $user = auth()->user();
+        if (!$user) {
+            return $query->whereRaw('1 = 0');
+        }
+        if ($user->hasRole('superadmin')) {
+            return $query;
+        }
+        $instId = $user->institution_id ?: 2;
+        return $query->where('institution_id', $instId);
+    }
 
     public static function form(Form $form): Form
     {
@@ -36,6 +61,8 @@ class SubjectResource extends Resource
             ->schema([
                 Forms\Components\Section::make('Informasi Mata Pelajaran')
                     ->schema([
+                        Forms\Components\Hidden::make('institution_id')
+                            ->default(fn () => auth()->user()?->institution_id ?: 2),
                         Forms\Components\TextInput::make('name')
                             ->label('Nama Mata Pelajaran')
                             ->placeholder('Contoh: Matematika, Fiqih/Tarikh, dsb.')

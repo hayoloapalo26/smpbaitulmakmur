@@ -138,11 +138,21 @@ class TeachingJournalResource extends Resource
     {
         $query = parent::getEloquentQuery();
         $user = Auth::user();
-        if ($user && $user->hasRole('kepala_sekolah')) {
+
+        if (!$user) {
+            return $query->whereRaw('1 = 0');
+        }
+
+        if (!$user->hasRole('superadmin')) {
+            $instId = $user->institution_id ?: 2;
+            $query->where('teaching_journals.institution_id', $instId);
+        }
+
+        if ($user->hasRole('kepala_sekolah')) {
             // Kepala Sekolah hanya melihat jurnal yang siap (tepat waktu atau terlambat yang sudah disetujui Waka)
             return $query->readyForKepsek();
         }
-        if ($user && $user->hasAnyRole(['waka_kurikulum', 'superadmin'])) {
+        if ($user->hasAnyRole(['waka_kurikulum', 'superadmin'])) {
             return $query;
         }
         return $query->where('teacher_id', Auth::id());

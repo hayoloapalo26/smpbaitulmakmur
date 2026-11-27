@@ -30,7 +30,14 @@ public static function canAccess(): bool
 
     public static function getEloquentQuery(): Builder
     {
-        return parent::getEloquentQuery()->with('student.classroom');
+        $query = parent::getEloquentQuery()->with('student.classroom');
+        $user = auth()->user();
+        if (!$user) return $query->whereRaw('1 = 0');
+        if (!$user->hasRole('superadmin')) {
+            $instId = $user->institution_id ?: 2;
+            $query->where('dcm_responses.institution_id', $instId);
+        }
+        return $query;
     }
 
     public static function table(Table $table): Table

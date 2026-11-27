@@ -87,6 +87,16 @@ class QuranAchievementResource extends Resource
     {
         $query = parent::getEloquentQuery();
         $user = Auth::user();
+
+        if (!$user) {
+            return $query->whereRaw('1 = 0');
+        }
+
+        if (!$user->hasRole('superadmin')) {
+            $instId = $user->institution_id ?: 2;
+            $query->where('quran_achievements.institution_id', $instId);
+        }
+
         if ($user->hasAnyRole(['koordinator_madin', 'waka_kurikulum', 'kepala_sekolah', 'superadmin'])) {
             return $query;
         }

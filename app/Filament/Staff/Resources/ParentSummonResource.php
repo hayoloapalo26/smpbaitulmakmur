@@ -84,6 +84,13 @@ class ParentSummonResource extends Resource
         $query = parent::getEloquentQuery();
         $user = Auth::user();
 
+        if (!$user) return $query->whereRaw('1 = 0');
+
+        if (!$user->hasRole('superadmin')) {
+            $instId = $user->institution_id ?: 2;
+            $query->where('parent_summons.institution_id', $instId);
+        }
+
         if ($user->hasAnyRole(['waka_kesiswaan', 'bk', 'kepala_sekolah', 'superadmin'])) {
             return $query;
         }

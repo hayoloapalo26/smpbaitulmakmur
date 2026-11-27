@@ -24,6 +24,18 @@ class SchoolVisionMissionResource extends Resource
     protected static ?string $pluralModelLabel = 'Visi & Misi Sekolah';
     protected static ?int $navigationSort = 0;
 
+    public static function getEloquentQuery(): Builder
+    {
+        $query = parent::getEloquentQuery();
+        $user = auth()->user();
+        if (!$user) return $query->whereRaw('1 = 0');
+        if (!$user->hasRole('superadmin')) {
+            $instId = $user->institution_id ?: 2;
+            $query->where('institution_id', $instId);
+        }
+        return $query;
+    }
+
     public static function getNavigationGroup(): ?string
     {
         return 'Manajemen Sekolah';

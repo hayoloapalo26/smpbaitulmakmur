@@ -28,7 +28,13 @@ class TeachingMaterialResource extends Resource
     public static function getEloquentQuery(): Builder
     {
         $query = parent::getEloquentQuery();
-        if (Auth::user()->hasAnyRole(['waka_kurikulum', 'kepala_sekolah'])) {
+        $user = Auth::user();
+        if (!$user) return $query->whereRaw('1 = 0');
+        if (!$user->hasRole('superadmin')) {
+            $instId = $user->institution_id ?: 2;
+            $query->where('institution_id', $instId);
+        }
+        if ($user->hasAnyRole(['waka_kurikulum', 'kepala_sekolah'])) {
             return $query;
         }
         return $query->where('teacher_id', Auth::id());

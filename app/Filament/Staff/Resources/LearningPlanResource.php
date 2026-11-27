@@ -27,6 +27,18 @@ class LearningPlanResource extends Resource
     protected static ?string $pluralModelLabel = 'Telaah Perencanaan Pembelajaran';
     protected static ?int $navigationSort = 5;
 
+    public static function getEloquentQuery(): Builder
+    {
+        $query = parent::getEloquentQuery();
+        $user = auth()->user();
+        if (!$user) return $query->whereRaw('1 = 0');
+        if (!$user->hasRole('superadmin')) {
+            $instId = $user->institution_id ?: 2;
+            $query->where('institution_id', $instId);
+        }
+        return $query;
+    }
+
     
 
     public static function form(Form $form): Form

@@ -21,9 +21,15 @@ class DashboardStats extends BaseWidget
 
     protected function getStats(): array
     {
-        $pendingLeaves = TeacherLeaveRequest::where('status', 'disetujui_wakakur')->count();
-        $pendingMaterials = TeachingMaterial::where('status', 'direview_wakakur')->count();
-        $avgScore = Student::avg('character_score');
+        $instId = Auth::user()?->institution_id ?: 2;
+
+        $pendingLeaves = TeacherLeaveRequest::where('status', 'disetujui_wakakur')
+            ->when($instId, fn ($q) => $q->where('institution_id', $instId))
+            ->count();
+        $pendingMaterials = TeachingMaterial::where('status', 'direview_wakakur')
+            ->when($instId, fn ($q) => $q->where('institution_id', $instId))
+            ->count();
+        $avgScore = Student::when($instId, fn ($q) => $q->where('institution_id', $instId))->avg('character_score');
         
         $today = Carbon::today()->toDateString();
         $filledTeacherIds = CharacterScoreLog::whereDate('tanggal', $today)
@@ -32,8 +38,10 @@ class DashboardStats extends BaseWidget
             ->pluck('submitted_by')->unique()->toArray();
             
         $totalTeachers = User::whereHas('roles', function($q) {
-            $q->whereIn('name', array_merge(['guru_mapel', 'wali_kelas'], User::QURAN_TEACHER_ROLES));
-        })->count();
+            $q->whereIn('name', array_merge(['guru_mapel', 'wali_kelas', 'guru_kelas'], User::QURAN_TEACHER_ROLES));
+        })
+        ->where('institution_id', $instId)
+        ->count();
         
         $missingCount = max(0, $totalTeachers - count($filledTeacherIds));
         

@@ -85,7 +85,10 @@ class TeacherLeaveRequestResource extends Resource
     public static function getNavigationBadge(): ?string
     {
         if (auth()->user()?->hasAnyRole(['waka_kurikulum', 'superadmin', 'kepala_sekolah'])) {
-            $count = TeacherLeaveRequest::where('status', 'diajukan')->count();
+            $instId = auth()->user()?->institution_id ?: 2;
+            $count = TeacherLeaveRequest::where('status', 'diajukan')
+                ->where('institution_id', $instId)
+                ->count();
             return $count > 0 ? (string)$count : null;
         }
 
@@ -100,10 +103,18 @@ class TeacherLeaveRequestResource extends Resource
     public static function getEloquentQuery(): Builder
     {
         $query = parent::getEloquentQuery();
-        if (Auth::user()?->hasAnyRole(['waka_kurikulum', 'kepala_sekolah', 'tata_usaha', 'superadmin'])) {
+        $user = Auth::user();
+        if (!$user) return $query->whereRaw('1 = 0');
+
+        if (!$user->hasRole('superadmin')) {
+            $instId = $user->institution_id ?: 2;
+            $query->where('teacher_leave_requests.institution_id', $instId);
+        }
+
+        if ($user->hasAnyRole(['waka_kurikulum', 'kepala_sekolah', 'tata_usaha', 'superadmin'])) {
             return $query;
         }
-        return $query->where('teacher_id', Auth::id());
+        return $query->where('teacher_id', $user->id);
     }
 
     
