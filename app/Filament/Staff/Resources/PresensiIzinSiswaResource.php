@@ -112,16 +112,10 @@ class PresensiIzinSiswaResource extends Resource
 
         $user = Auth::user();
 
-        // Pastikan selain superadmin / yayasan, data terfilter sesuai institution_id masing-masing lembaga
-        if ($user && !$user->hasRole('superadmin') && $user->institution_id && $user->institution_id != 1) {
-            $instId = $user->institution_id;
-            $query->where(function ($q) use ($instId) {
-                $q->where('institution_id', $instId)
-                  ->orWhereNull('institution_id');
-                if ($instId == 2) {
-                    $q->orWhere('institution_id', 1);
-                }
-            });
+        // Pastikan selain superadmin / yayasan, data terfilter murni sesuai institution_id masing-masing lembaga
+        if ($user && !$user->hasRole('superadmin')) {
+            $instId = $user->institution_id ?: 2;
+            $query->where('institution_id', $instId);
         }
 
         if ($user && ($user->hasAnyRole(['kepala_sekolah', 'waka_kesiswaan', 'guru_piket', 'superadmin']) || $user->isPiketToday())) {
@@ -145,7 +139,14 @@ class PresensiIzinSiswaResource extends Resource
             ->schema([
                 Forms\Components\Select::make('student_id')
                     ->label('Nama Siswa')
-                    ->options(fn () => Student::withoutGlobalScopes()->where('status_siswa', 'aktif')->orderBy('name')->pluck('name', 'id'))
+                    ->options(function () {
+                        $instId = Auth::user()?->institution_id ?: 2;
+                        return Student::withoutGlobalScopes()
+                            ->where('status_siswa', 'aktif')
+                            ->where('institution_id', $instId)
+                            ->orderBy('name')
+                            ->pluck('name', 'id');
+                    })
                     ->searchable()
                     ->required(),
 

@@ -143,7 +143,7 @@
         }
     </script>
 
-    @include('pdf.kop_surat', ['institutionName' => 'SMP ISLAM BAITUL MAKMUR'])
+    @include('pdf.kop_surat', ['institutionName' => $institutionName ?? 'SMP ISLAM BAITUL MAKMUR'])
 
     <div class="doc-title-box">
         <div class="doc-title-main">LAPORAN REKAPITULASI BEBAN & KEHADIRAN JAM MENGAJAR GURU BULANAN</div>

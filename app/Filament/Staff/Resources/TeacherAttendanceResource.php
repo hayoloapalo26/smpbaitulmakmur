@@ -389,20 +389,23 @@ class TeacherAttendanceResource extends Resource
                     ->label('Guru Utama')
                     ->searchable()
                     ->preload()
-                    ->options(fn () => \App\Models\User::withoutGlobalScopes()
-                        ->where(function ($q) {
-                            $q->whereHas('roles', fn ($r) => $r->whereIn('name', array_merge(['guru_mapel', 'wali_kelas', 'guru_kelas', 'waka_kurikulum'], \App\Models\User::QURAN_TEACHER_ROLES)))
-                              ->orWhereHas('schedules');
-                        })
-                        ->where('name', 'not like', '%piket%')
-                        ->where(fn ($q) => $q->whereNull('username')->orWhere('username', 'not like', '%piket%'))
-                        ->where('email', 'not like', '%piket%')
-                        ->where('email', 'not like', '%@smp.com')
-                        ->whereNotIn('id', [1, 2, 3, 25, 30, 31, 32])
-                        ->orderBy('name')
-                        ->pluck('name', 'id')
-                        ->toArray()
-                    ),
+                    ->options(function () {
+                        $instId = Auth::user()?->institution_id ?: 2;
+                        return \App\Models\User::withoutGlobalScopes()
+                            ->where(function ($q) {
+                                $q->whereHas('roles', fn ($r) => $r->whereIn('name', array_merge(['guru_mapel', 'wali_kelas', 'guru_kelas', 'waka_kurikulum'], \App\Models\User::QURAN_TEACHER_ROLES)))
+                                  ->orWhereHas('schedules');
+                            })
+                            ->where('institution_id', $instId)
+                            ->where('name', 'not like', '%piket%')
+                            ->where(fn ($q) => $q->whereNull('username')->orWhere('username', 'not like', '%piket%'))
+                            ->where('email', 'not like', '%piket%')
+                            ->where('email', 'not like', '%@smp.com')
+                            ->whereNotIn('id', [1, 2, 3, 25, 30, 31, 32])
+                            ->orderBy('name')
+                            ->pluck('name', 'id')
+                            ->toArray();
+                    }),
                 Tables\Filters\SelectFilter::make('substitute_teacher_id')
                     ->label('Guru Pengganti (Inval)')
                     ->searchable()

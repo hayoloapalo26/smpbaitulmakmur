@@ -12,7 +12,13 @@ class TeacherAttendanceStatsOverviewWidget extends BaseWidget
     protected function getStats(): array
     {
         $user = Auth::user();
+        $instId = $user?->institution_id ?: 2;
         $query = TeacherAttendance::withoutGlobalScope('institution');
+
+        // Batasi ketat per lembaga aktif jika bukan superadmin
+        if ($user && !$user->hasRole('superadmin')) {
+            $query->where('institution_id', $instId);
+        }
 
         // Jika bukan waka_kurikulum, superadmin, kepsek, atau tata_usaha, batasi ke user yang bersangkutan
         if ($user && !$user->hasAnyRole(['waka_kurikulum', 'superadmin', 'kepala_sekolah', 'tata_usaha'])) {

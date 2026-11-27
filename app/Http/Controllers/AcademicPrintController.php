@@ -308,8 +308,9 @@ class AcademicPrintController extends Controller
         $month = (int) $request->query('bulan', date('m'));
         $year = (int) $request->query('tahun', date('Y'));
         $teacherId = $request->filled('teacher_id') ? (int) $request->query('teacher_id') : null;
+        $instId = $request->filled('institution_id') ? (int) $request->query('institution_id') : (auth()->user()?->institution_id ?: 2);
 
-        $data = \App\Services\TeacherAttendanceReportService::getReportData($month, $year, $teacherId);
+        $data = \App\Services\TeacherAttendanceReportService::getReportData($month, $year, $teacherId, $instId);
 
         $namaBulanSlug = Str::slug($data['namaBulan']);
         $filename = "rekap-presensi-beban-jam-guru-{$namaBulanSlug}.pdf";

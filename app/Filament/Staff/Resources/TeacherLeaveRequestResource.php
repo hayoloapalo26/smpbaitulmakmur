@@ -130,11 +130,7 @@ class TeacherLeaveRequestResource extends Resource
                             ->relationship('teacher', 'name', modifyQueryUsing: function (Builder $query) {
                                 $user = Auth::user();
                                 if ($user->institution_id && !$user->hasRole('superadmin')) {
-                                    $query->where(function ($q) use ($user) {
-                                        $q->where('institution_id', $user->institution_id)
-                                          ->orWhere('institution_id', 1)
-                                          ->orWhereNull('institution_id');
-                                    });
+                                    $query->where('institution_id', $user->institution_id);
                                 }
                                 $query->whereHas('roles', fn ($q) => $q->whereIn('name', array_merge(['guru_mapel', 'koordinator_madin', 'wali_kelas', 'guru_kelas', 'waka_kurikulum'], \App\Models\User::QURAN_TEACHER_ROLES)));
                             })

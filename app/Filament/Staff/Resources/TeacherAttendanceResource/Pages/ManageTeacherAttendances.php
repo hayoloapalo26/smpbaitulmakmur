@@ -60,20 +60,23 @@ class ManageTeacherAttendances extends ManageRecords
                         \Filament\Forms\Components\Select::make('teacher_id')
                             ->label('Pencarian / Filter Guru')
                             ->placeholder('-- Semua Guru (Tampilkan Seluruh Rekap) --')
-                            ->options(fn () => \App\Models\User::withoutGlobalScopes()
-                                ->where(function ($q) {
-                                    $q->whereHas('roles', fn ($r) => $r->whereIn('name', array_merge(['guru_mapel', 'wali_kelas', 'guru_kelas', 'waka_kurikulum'], \App\Models\User::QURAN_TEACHER_ROLES)))
-                                      ->orWhereHas('schedules');
-                                })
-                                ->where('name', 'not like', '%piket%')
-                                ->where(fn ($q) => $q->whereNull('username')->orWhere('username', 'not like', '%piket%'))
-                                ->where('email', 'not like', '%piket%')
-                                ->where('email', 'not like', '%@smp.com')
-                                ->whereNotIn('id', [1, 2, 3, 25, 30, 31, 32])
-                                ->orderBy('name')
-                                ->pluck('name', 'id')
-                                ->toArray()
-                            )
+                            ->options(function () {
+                                $instId = Auth::user()?->institution_id ?: 2;
+                                return \App\Models\User::withoutGlobalScopes()
+                                    ->where(function ($q) {
+                                        $q->whereHas('roles', fn ($r) => $r->whereIn('name', array_merge(['guru_mapel', 'wali_kelas', 'guru_kelas', 'waka_kurikulum'], \App\Models\User::QURAN_TEACHER_ROLES)))
+                                          ->orWhereHas('schedules');
+                                    })
+                                    ->where('institution_id', $instId)
+                                    ->where('name', 'not like', '%piket%')
+                                    ->where(fn ($q) => $q->whereNull('username')->orWhere('username', 'not like', '%piket%'))
+                                    ->where('email', 'not like', '%piket%')
+                                    ->where('email', 'not like', '%@smp.com')
+                                    ->whereNotIn('id', [1, 2, 3, 25, 30, 31, 32])
+                                    ->orderBy('name')
+                                    ->pluck('name', 'id')
+                                    ->toArray();
+                            })
                             ->searchable()
                             ->preload()
                             ->live(),
@@ -83,10 +86,12 @@ class ManageTeacherAttendances extends ManageRecords
                     $bulan = !empty($data['bulan']) ? (int) $data['bulan'] : (int) date('m');
                     $tahun = !empty($data['tahun']) ? (int) $data['tahun'] : (int) date('Y');
                     $teacherId = !empty($data['teacher_id']) ? (int) $data['teacher_id'] : null;
+                    $instId = Auth::user()?->institution_id ?: 2;
                     return view('filament.staff.modals.teacher-attendance-report', [
                         'selectedMonth' => $bulan,
                         'selectedYear' => $tahun,
                         'selectedTeacherId' => $teacherId,
+                        'institutionId' => $instId,
                     ]);
                 })
                 ->modalSubmitAction(fn ($action) => $action

@@ -36,10 +36,7 @@ class DutyScheduleGeneratorService
             });
 
         if ($institutionId && $institutionId != 1) {
-            $query->where(function ($q) use ($institutionId) {
-                $q->where('institution_id', $institutionId)
-                  ->orWhereNull('institution_id');
-            });
+            $query->where('institution_id', $institutionId);
         }
 
         return $query->orderBy('name')->get();

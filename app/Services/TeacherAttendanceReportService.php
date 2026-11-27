@@ -12,8 +12,9 @@ class TeacherAttendanceReportService
     /**
      * Hitung rekapitulasi beban mengajar (JP) dan kehadiran guru bulanan.
      */
-    public static function getReportData(int $month, int $year, ?int $selectedTeacherId = null): array
+    public static function getReportData(int $month, int $year, ?int $selectedTeacherId = null, ?int $institutionId = null): array
     {
+        $institutionId = $institutionId ?? auth()->user()?->institution_id ?? 2;
         $startOfMonth = Carbon::create($year, $month, 1)->startOfMonth();
         $endOfMonth = Carbon::create($year, $month, 1)->endOfMonth();
 
@@ -41,12 +42,13 @@ class TeacherAttendanceReportService
             $cursor->addDay();
         }
 
-        // Ambil guru riil (tanpa dummy @smp.com dan tanpa akun Guru Piket)
+        // Ambil guru riil sesuai lembaga yang sedang aktif (terisolasi 100% per lembaga)
         $teachersQuery = User::withoutGlobalScopes()
             ->where(function ($q) {
                 $q->whereHas('roles', fn ($r) => $r->whereIn('name', array_merge(['guru_mapel', 'guru_alquran', 'wali_kelas', 'guru_kelas', 'waka_kurikulum'], User::QURAN_TEACHER_ROLES)))
                   ->orWhereHas('schedules');
             })
+            ->where('institution_id', $institutionId)
             ->where('name', 'not like', '%piket%')
             ->where(fn ($q) => $q->whereNull('username')->orWhere('username', 'not like', '%piket%'))
             ->where('email', 'not like', '%piket%')
@@ -77,7 +79,10 @@ class TeacherAttendanceReportService
             if (str_contains(strtolower($t->name), 'piket') || str_contains(strtolower($t->username ?? ''), 'piket') || str_contains(strtolower($t->email ?? ''), 'piket')) {
                 continue;
             }
-            $schedules = Schedule::withoutGlobalScopes()->where('teacher_id', $t->id)->get();
+            $schedules = Schedule::withoutGlobalScopes()
+                ->where('teacher_id', $t->id)
+                ->where('institution_id', $institutionId)
+                ->get();
             $weeklyJP = $schedules->count();
 
             // Tanggung jawab bulanan (target JP wajib sesuai kalender aktif)
@@ -88,6 +93,7 @@ class TeacherAttendanceReportService
 
             $attendances = TeacherAttendance::withoutGlobalScopes()
                 ->where('teacher_id', $t->id)
+                ->where('institution_id', $institutionId)
                 ->whereYear('tanggal', $year)
                 ->whereMonth('tanggal', $month)
                 ->get();
@@ -100,6 +106,7 @@ class TeacherAttendanceReportService
 
             $invalJP = TeacherAttendance::withoutGlobalScopes()
                 ->where('substitute_teacher_id', $t->id)
+                ->where('institution_id', $institutionId)
                 ->whereYear('tanggal', $year)
                 ->whereMonth('tanggal', $month)
                 ->count();
@@ -143,6 +150,10 @@ class TeacherAttendanceReportService
 
         $namaBulan = Carbon::create($year, $month, 1)->translatedFormat('F Y');
 
+        $institution = \App\Models\Institution::find($institutionId);
+        $institutionName = $institution ? strtoupper($institution->name) : 'SMP ISLAM BAITUL MAKMUR MALANG';
+        $institutionSlug = $institution ? $institution->slug : 'smp';
+
         return [
             'month' => $month,
             'year' => $year,
@@ -154,6 +165,9 @@ class TeacherAttendanceReportService
             'totals' => $totals,
             'avgPersen' => $avgPersen,
             'selectedTeacherId' => $selectedTeacherId,
+            'institutionId' => $institutionId,
+            'institutionName' => $institutionName,
+            'institutionSlug' => $institutionSlug,
         ];
     }
 }

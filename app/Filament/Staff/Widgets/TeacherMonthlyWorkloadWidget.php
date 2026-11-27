@@ -55,12 +55,14 @@ class TeacherMonthlyWorkloadWidget extends Widget
             $cursor->addDay();
         }
 
-        // Ambil guru riil (tanpa akun dummy, role non-guru, dan akun Guru Piket)
+        // Ambil guru riil sesuai lembaga aktif (tanpa akun dummy, role non-guru, dan akun Guru Piket)
+        $instId = auth()->user()?->institution_id ?: 2;
         $teachers = User::withoutGlobalScopes()
             ->where(function ($q) {
                 $q->whereHas('roles', fn ($r) => $r->whereIn('name', array_merge(['guru_mapel', 'wali_kelas', 'guru_kelas', 'waka_kurikulum'], User::QURAN_TEACHER_ROLES)))
                   ->orWhereHas('schedules');
             })
+            ->where('institution_id', $instId)
             ->where('name', 'not like', '%piket%')
             ->where('username', 'not like', '%piket%')
             ->where('email', 'not like', '%piket%')
@@ -89,7 +91,10 @@ class TeacherMonthlyWorkloadWidget extends Widget
                 continue;
             }
             // 1. Beban mingguan
-            $schedules = Schedule::withoutGlobalScopes()->where('teacher_id', $t->id)->get();
+            $schedules = Schedule::withoutGlobalScopes()
+                ->where('institution_id', $instId)
+                ->where('teacher_id', $t->id)
+                ->get();
             $weeklyJP = $schedules->count();
 
             // 2. Tanggung jawab wajib bulan ini sesuai kalender hari
@@ -100,6 +105,7 @@ class TeacherMonthlyWorkloadWidget extends Widget
 
             // 3. Presensi riil di bulan yang dipilih
             $attendances = TeacherAttendance::withoutGlobalScopes()
+                ->where('institution_id', $instId)
                 ->where('teacher_id', $t->id)
                 ->whereYear('tanggal', $year)
                 ->whereMonth('tanggal', $month)
@@ -113,6 +119,7 @@ class TeacherMonthlyWorkloadWidget extends Widget
 
             // 4. Inval / Pengganti (saat ditugaskan menggantikan guru lain)
             $invalJP = TeacherAttendance::withoutGlobalScopes()
+                ->where('institution_id', $instId)
                 ->where('substitute_teacher_id', $t->id)
                 ->whereYear('tanggal', $year)
                 ->whereMonth('tanggal', $month)

@@ -2,13 +2,16 @@
     $month = $selectedMonth ?? (int) request('bulan', date('m'));
     $year = $selectedYear ?? (int) request('tahun', date('Y'));
     $selectedTeacherId = $selectedTeacherId ?? request('teacher_id');
+    $institutionId = $institutionId ?? auth()->user()?->institution_id ?? 2;
 
-    $reportState = \App\Services\TeacherAttendanceReportService::getReportData($month, $year, $selectedTeacherId);
+    $reportState = \App\Services\TeacherAttendanceReportService::getReportData($month, $year, $selectedTeacherId, $institutionId);
     $reportData = $reportState['reportData'];
     $totals = $reportState['totals'];
     $avgPersen = $reportState['avgPersen'];
     $namaBulan = $reportState['namaBulan'];
     $totalHariAktif = $reportState['totalHariAktif'];
+    $institutionName = $reportState['institutionName'] ?? 'SMP ISLAM BAITUL MAKMUR MALANG';
+    $institutionSlug = $reportState['institutionSlug'] ?? 'smp';
 @endphp
 
 <style>
@@ -88,7 +91,7 @@
             <p class="text-xs text-gray-500">Periode: <strong class="text-primary-600">{{ $namaBulan }}</strong> ({{ $totalHariAktif }} Hari Efektif Belajar)</p>
         </div>
         <div class="flex items-center gap-2 flex-wrap">
-            <a href="{{ route('academic.teacher-attendance.rekap.pdf', ['bulan' => $month, 'tahun' => $year, 'teacher_id' => $selectedTeacherId]) }}"
+            <a href="{{ route('academic.teacher-attendance.rekap.pdf', ['bulan' => $month, 'tahun' => $year, 'teacher_id' => $selectedTeacherId, 'institution_id' => $institutionId]) }}"
                target="_blank"
                class="inline-flex items-center px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold rounded-lg shadow-sm transition">
                 <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
@@ -162,10 +165,10 @@
         </div>
         <div class="flex-1 text-center px-4">
             <h2 class="text-sm font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-400">YAYASAN PENDIDIKAN ISLAM BAITUL MAKMUR</h2>
-            <h3 class="text-base font-extrabold text-gray-900 dark:text-white uppercase tracking-tight">SMP ISLAM BAITUL MAKMUR MALANG</h3>
+            <h3 class="text-base font-extrabold text-gray-900 dark:text-white uppercase tracking-tight">{{ $institutionName }}</h3>
             <p class="text-[10px] text-gray-600 dark:text-gray-400 leading-tight mt-0.5">
                 Gg. 17B Jl. Raya Sawojajar No.58, Sawojajar, Kec. Kedungkandang, Kota Malang, Jawa Timur 65139<br>
-                <span>Email: <strong>adminsmp@baitulmakmur.sch.id</strong></span> &bull; <span>Instagram: <strong>@smpibaitulmakmurmlg</strong></span>
+                <span>Email: <strong>admin{{ $institutionSlug }}@baitulmakmur.sch.id</strong></span>
             </p>
         </div>
         <div class="w-20 flex-shrink-0">

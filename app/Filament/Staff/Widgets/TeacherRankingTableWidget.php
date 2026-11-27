@@ -40,7 +40,7 @@ class TeacherRankingTableWidget extends BaseWidget
         return $table
             ->query(
                 User::query()
-                    ->where('institution_id', auth()->user()->institution_id ?? 0)
+                    ->where('institution_id', auth()->user()?->institution_id ?: 2)
                     ->whereHas('roles', function($q) {
                         $q->whereIn('name', array_merge(['guru_mapel', 'wali_kelas'], User::QURAN_TEACHER_ROLES));
                     })

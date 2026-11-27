@@ -662,10 +662,10 @@ class User extends Authenticatable implements FilamentUser, HasAvatar
      */
     public static function getSubstituteTeacherOptions(?int $excludedTeacherId = null, ?self $currentUser = null): array
     {
-        $piketUser = static::ensureGuruPiketUser();
-        $piketId = $piketUser?->id;
-
         $user = $currentUser ?: \Illuminate\Support\Facades\Auth::user();
+        $instId = $user?->institution_id ?: 2;
+        $piketUser = static::ensureGuruPiketUser($instId);
+        $piketId = $piketUser?->id;
 
         $query = static::withoutGlobalScopes()
             ->where(function ($q) {
@@ -690,14 +690,8 @@ class User extends Authenticatable implements FilamentUser, HasAvatar
                 $q->whereNull('email')->orWhere('email', '!=', 'gurupiket@smp.com');
             });
 
-        if ($user && $user->institution_id && !$user->hasRole('superadmin')) {
-            $query->where(function ($q) use ($user) {
-                $q->where('institution_id', $user->institution_id);
-                if ($user->institution_id == 2 || $user->institution_id == 1) {
-                    $q->orWhere('institution_id', 1)
-                      ->orWhereNull('institution_id');
-                }
-            });
+        if ($user && !$user->hasRole('superadmin')) {
+            $query->where('institution_id', $instId);
         }
 
         if ($excludedTeacherId) {
