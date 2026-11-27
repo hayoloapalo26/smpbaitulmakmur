@@ -57,7 +57,7 @@ class TeacherMonthlyWorkloadWidget extends Widget
 
         // Ambil guru riil sesuai lembaga aktif (tanpa akun dummy, role non-guru, dan akun Guru Piket)
         $instId = auth()->user()?->institution_id ?: 2;
-        $teachers = User::withoutGlobalScopes()
+        $teachersQuery = User::withoutGlobalScopes()
             ->where(function ($q) {
                 $q->whereHas('roles', fn ($r) => $r->whereIn('name', array_merge(['guru_mapel', 'wali_kelas', 'guru_kelas', 'waka_kurikulum'], User::QURAN_TEACHER_ROLES)))
                   ->orWhereHas('schedules');
@@ -67,9 +67,21 @@ class TeacherMonthlyWorkloadWidget extends Widget
             ->where('username', 'not like', '%piket%')
             ->where('email', 'not like', '%piket%')
             ->where('email', 'not like', '%@smp.com')
-            ->whereNotIn('id', [1, 2, 3, 25, 30, 31, 32])
-            ->orderBy('name')
-            ->get();
+            ->whereNotIn('id', [1, 2, 3, 25, 30, 31, 32]);
+
+        if ($instId == 2) {
+            $teachersQuery->where('name', 'not like', '%SD Islam%')
+                          ->where('name', 'not like', '% SD%')
+                          ->where('email', 'not like', '%_sd@%')
+                          ->where('username', 'not like', '%_sd');
+        } elseif ($instId == 4) {
+            $teachersQuery->where('name', 'not like', '%SMP Islam%')
+                          ->where('name', 'not like', '% SMP%')
+                          ->where('email', 'not like', '%_smp@%')
+                          ->where('username', 'not like', '%_smp');
+        }
+
+        $teachers = $teachersQuery->orderBy('name')->get();
 
         $rows = [];
         $totals = [

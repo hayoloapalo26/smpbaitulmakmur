@@ -49,14 +49,15 @@ class GuardianResource extends Resource
 
     public static function getEloquentQuery(): Builder
     {
-        $query = parent::getEloquentQuery()->with(['students.classroom', 'institution', 'user']);
+        $query = parent::getEloquentQuery()->with(['students.classroom', 'institution', 'user', 'studentGuardians.student.classroom']);
         $authUser = Auth::user();
 
         if ($authUser && !$authUser->hasRole('superadmin')) {
             $instId = $authUser->institution_id ?: 2;
             $query->where(function ($q) use ($instId) {
-                $q->where('institution_id', $instId)
-                  ->orWhereHas('students', fn ($sq) => $sq->where('students.institution_id', $instId));
+                $q->where('guardians.institution_id', $instId)
+                  ->orWhereHas('students', fn ($sq) => $sq->where('students.institution_id', $instId))
+                  ->orWhereNull('guardians.institution_id');
             });
         }
 
@@ -135,17 +136,30 @@ class GuardianResource extends Resource
                     ->formatStateUsing(function (Guardian $record) {
                         $students = $record->students;
                         if ($students->isEmpty()) {
-                            return '<span class="text-xs text-rose-500 italic">⚠️ Belum ada anak terhubung</span>';
+                            $studentIds = $record->studentGuardians()->whereNotNull('student_id')->pluck('student_id')->unique();
+                            if ($studentIds->isNotEmpty()) {
+                                $students = Student::with('classroom')->whereIn('id', $studentIds)->get();
+                            }
+                        }
+
+                        if ($students->isEmpty()) {
+                            return '<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-rose-50 text-rose-600 dark:bg-rose-950/40 dark:text-rose-400 border border-rose-200 dark:border-rose-800">⚠️ Belum Dirouting TU</span>';
                         }
 
                         $badges = [];
                         foreach ($students as $s) {
-                            $className = $s->classroom?->name ? " [{$s->classroom->name}]" : '';
-                            $badges[] = '<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300 mr-1 mb-1">'
-                                . htmlspecialchars($s->name . $className)
+                            $className = $s->classroom?->name ? " [Kelas {$s->classroom->name}]" : '';
+                            $badges[] = '<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-emerald-100 text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-300 mr-1 mb-1 border border-emerald-200 dark:border-emerald-800">'
+                                . '👤 ' . htmlspecialchars($s->name . $className)
                                 . '</span>';
                         }
                         return implode(' ', $badges);
+                    })
+                    ->searchable(query: function (Builder $query, string $search) {
+                        $query->whereHas('students', function ($q) use ($search) {
+                            $q->where('name', 'like', "%{$search}%")
+                              ->orWhere('nis', 'like', "%{$search}%");
+                        });
                     }),
 
                 Tables\Columns\TextColumn::make('phone')
@@ -157,10 +171,47 @@ class GuardianResource extends Resource
                 Tables\Columns\TextColumn::make('status_akun')
                     ->label('Status Akun Login')
                     ->badge()
-                    ->state(fn (Guardian $record) => $record->has_account ? 'Sudah Dibuat' : 'Belum Dibuat')
-                    ->color(fn (string $state) => $state === 'Sudah Dibuat' ? 'success' : 'danger')
-                    ->icon(fn (string $state) => $state === 'Sudah Dibuat' ? 'heroicon-m-check-circle' : 'heroicon-m-x-circle')
-                    ->description(fn (Guardian $record) => $record->user_account ? "User: {$record->user_account->username}" : 'Belum ada akun login')
+                    ->state(function (Guardian $record) {
+                        $hasAccount = $record->has_account;
+                        $isRouted = $record->students->isNotEmpty() || $record->studentGuardians()->whereNotNull('student_id')->exists();
+
+                        if ($hasAccount && $isRouted) {
+                            return 'Akun Aktif';
+                        }
+                        if ($hasAccount && !$isRouted) {
+                            return 'Menunggu Routing TU';
+                        }
+                        if (!$hasAccount && $isRouted) {
+                            return 'Belum Dibuatkan Akun';
+                        }
+                        return 'Belum Dibuat';
+                    })
+                    ->color(fn (string $state) => match ($state) {
+                        'Akun Aktif' => 'success',
+                        'Menunggu Routing TU' => 'warning',
+                        'Belum Dibuatkan Akun' => 'info',
+                        default => 'danger',
+                    })
+                    ->icon(fn (string $state) => match ($state) {
+                        'Akun Aktif' => 'heroicon-m-check-badge',
+                        'Menunggu Routing TU' => 'heroicon-m-clock',
+                        'Belum Dibuatkan Akun' => 'heroicon-m-exclamation-triangle',
+                        default => 'heroicon-m-x-circle',
+                    })
+                    ->description(function (Guardian $record) {
+                        $user = $record->user_account;
+                        $studentCount = $record->students->count() ?: $record->studentGuardians()->whereNotNull('student_id')->count();
+                        if ($user && $studentCount > 0) {
+                            return "Login: {$user->username} • {$studentCount} Siswa Terhubung";
+                        }
+                        if ($user) {
+                            return "Akun: {$user->username} (TU belum routing anak)";
+                        }
+                        if ($studentCount > 0) {
+                            return "{$studentCount} Siswa terhubung (Superadmin belum buat akun)";
+                        }
+                        return 'Belum dirouting & belum ada akun';
+                    })
                     ->sortable(false),
 
                 Tables\Columns\TextColumn::make('institution.name')
@@ -172,20 +223,40 @@ class GuardianResource extends Resource
             ])
             ->filters([
                 Tables\Filters\SelectFilter::make('status_akun')
-                    ->label('Status Akun Login')
+                    ->label('Status Akun & Routing')
                     ->options([
-                        'sudah' => '✅ Akun Sudah Dibuat',
-                        'belum' => '❌ Akun Belum Dibuat',
+                        'aktif' => '✅ Akun Aktif (Sudah Dirouting & Ada Akun)',
+                        'menunggu_routing' => '⏳ Menunggu Routing TU (Ada Akun, Belum Ada Anak)',
+                        'menunggu_akun' => '⚠️ Belum Dibuatkan Akun (Sudah Ada Anak)',
+                        'belum' => '❌ Belum Dirouting & Belum Ada Akun',
                     ])
                     ->query(function (Builder $query, array $data) {
-                        if ($data['value'] === 'sudah') {
+                        if ($data['value'] === 'aktif') {
                             $query->where(function ($q) {
                                 $q->whereHas('user')
                                   ->orWhereHas('studentGuardians', fn ($sq) => $sq->whereNotNull('user_id'));
+                            })->where(function ($q) {
+                                $q->whereHas('students')
+                                  ->orWhereHas('studentGuardians', fn ($sq) => $sq->whereNotNull('student_id'));
                             });
+                        } elseif ($data['value'] === 'menunggu_routing') {
+                            $query->where(function ($q) {
+                                $q->whereHas('user')
+                                  ->orWhereHas('studentGuardians', fn ($sq) => $sq->whereNotNull('user_id'));
+                            })->whereDoesntHave('students')
+                              ->whereDoesntHave('studentGuardians', fn ($sq) => $sq->whereNotNull('student_id'));
+                        } elseif ($data['value'] === 'menunggu_akun') {
+                            $query->whereDoesntHave('user')
+                                  ->whereDoesntHave('studentGuardians', fn ($sq) => $sq->whereNotNull('user_id'))
+                                  ->where(function ($q) {
+                                      $q->whereHas('students')
+                                        ->orWhereHas('studentGuardians', fn ($sq) => $sq->whereNotNull('student_id'));
+                                  });
                         } elseif ($data['value'] === 'belum') {
                             $query->whereDoesntHave('user')
-                                  ->whereDoesntHave('studentGuardians', fn ($sq) => $sq->whereNotNull('user_id'));
+                                  ->whereDoesntHave('studentGuardians', fn ($sq) => $sq->whereNotNull('user_id'))
+                                  ->whereDoesntHave('students')
+                                  ->whereDoesntHave('studentGuardians', fn ($sq) => $sq->whereNotNull('student_id'));
                         }
                     }),
 
@@ -249,7 +320,8 @@ class GuardianResource extends Resource
                     ->action(function (Guardian $record, array $data) {
                         $studentIds = (array) ($data['student_ids'] ?? []);
                         $relation = $data['relation'] ?? 'Ayah';
-                        $userId = $record->user_account?->id;
+                        $userAccount = $record->user_account;
+                        $userId = $userAccount?->id;
 
                         // Bersihkan mapping lama untuk guardian ini
                         StudentGuardian::where('guardian_id', $record->id)->delete();
@@ -264,9 +336,18 @@ class GuardianResource extends Resource
                             ]);
                         }
 
+                        // Pastikan user_account jika ada tetap aktif dan terhubung
+                        if ($userAccount) {
+                            $userAccount->update([
+                                'guardian_id' => $record->id,
+                                'is_active' => true,
+                                'has_account' => true,
+                            ]);
+                        }
+
                         Notification::make()
                             ->title('Routing Siswa Berhasil Disimpan')
-                            ->body("Data orang tua {$record->name} berhasil dihubungkan dengan " . count($studentIds) . " anak.")
+                            ->body("Data orang tua {$record->name} berhasil dihubungkan dengan " . count($studentIds) . " anak. Status akun otomatis terintegrasi.")
                             ->success()
                             ->send();
                     }),
@@ -355,7 +436,11 @@ class GuardianResource extends Resource
                     ->action(function (Guardian $record, array $data) {
                         $user = User::find($data['user_id']);
                         if ($user) {
-                            $user->update(['guardian_id' => $record->id]);
+                            $user->update([
+                                'guardian_id' => $record->id,
+                                'is_active'   => true,
+                                'has_account' => true,
+                            ]);
                             StudentGuardian::where('guardian_id', $record->id)->update(['user_id' => $user->id]);
 
                             Notification::make()

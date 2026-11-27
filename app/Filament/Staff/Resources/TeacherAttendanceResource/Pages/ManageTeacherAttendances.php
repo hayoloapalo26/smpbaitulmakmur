@@ -62,7 +62,7 @@ class ManageTeacherAttendances extends ManageRecords
                             ->placeholder('-- Semua Guru (Tampilkan Seluruh Rekap) --')
                             ->options(function () {
                                 $instId = Auth::user()?->institution_id ?: 2;
-                                return \App\Models\User::withoutGlobalScopes()
+                                $query = \App\Models\User::withoutGlobalScopes()
                                     ->where(function ($q) {
                                         $q->whereHas('roles', fn ($r) => $r->whereIn('name', array_merge(['guru_mapel', 'wali_kelas', 'guru_kelas', 'waka_kurikulum'], \App\Models\User::QURAN_TEACHER_ROLES)))
                                           ->orWhereHas('schedules');
@@ -72,8 +72,21 @@ class ManageTeacherAttendances extends ManageRecords
                                     ->where(fn ($q) => $q->whereNull('username')->orWhere('username', 'not like', '%piket%'))
                                     ->where('email', 'not like', '%piket%')
                                     ->where('email', 'not like', '%@smp.com')
-                                    ->whereNotIn('id', [1, 2, 3, 25, 30, 31, 32])
-                                    ->orderBy('name')
+                                    ->whereNotIn('id', [1, 2, 3, 25, 30, 31, 32]);
+
+                                if ($instId == 2) {
+                                    $query->where('name', 'not like', '%SD Islam%')
+                                          ->where('name', 'not like', '% SD%')
+                                          ->where('email', 'not like', '%_sd@%')
+                                          ->where('username', 'not like', '%_sd');
+                                } elseif ($instId == 4) {
+                                    $query->where('name', 'not like', '%SMP Islam%')
+                                          ->where('name', 'not like', '% SMP%')
+                                          ->where('email', 'not like', '%_smp@%')
+                                          ->where('username', 'not like', '%_smp');
+                                }
+
+                                return $query->orderBy('name')
                                     ->pluck('name', 'id')
                                     ->toArray();
                             })

@@ -55,6 +55,22 @@ class TeacherAttendanceReportService
             ->where('email', 'not like', '%@smp.com')
             ->whereNotIn('id', [1, 2, 3, 25, 30, 31, 32]);
 
+        if ($institutionId == 2) {
+            // Khusus SMP (Lembaga ID 2): kecualikan SEMUA akun / guru SD
+            $teachersQuery->where('name', 'not like', '%SD Islam%')
+                          ->where('name', 'not like', '% SD%')
+                          ->where('email', 'not like', '%_sd@%')
+                          ->where('email', 'not like', '%@sd%')
+                          ->where('username', 'not like', '%_sd');
+        } elseif ($institutionId == 4) {
+            // Khusus SD (Lembaga ID 4): kecualikan SEMUA akun / guru SMP
+            $teachersQuery->where('name', 'not like', '%SMP Islam%')
+                          ->where('name', 'not like', '% SMP%')
+                          ->where('email', 'not like', '%_smp@%')
+                          ->where('email', 'not like', '%@smp%')
+                          ->where('username', 'not like', '%_smp');
+        }
+
         if (!empty($selectedTeacherId)) {
             $teachersQuery->where('id', $selectedTeacherId);
         }

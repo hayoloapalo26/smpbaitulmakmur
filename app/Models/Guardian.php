@@ -49,4 +49,29 @@ class Guardian extends Model
     {
         return $this->user_account !== null;
     }
+
+    public function getIsRoutedAttribute(): bool
+    {
+        return $this->students()->exists() || $this->studentGuardians()->whereNotNull('student_id')->exists();
+    }
+
+    public function getAccountStatusAttribute(): string
+    {
+        $hasAccount = $this->has_account;
+        $isRouted = $this->is_routed;
+
+        if ($hasAccount && $isRouted) {
+            return 'Akun Aktif';
+        }
+
+        if ($hasAccount && !$isRouted) {
+            return 'Menunggu Routing TU';
+        }
+
+        if (!$hasAccount && $isRouted) {
+            return 'Belum Dibuatkan Akun';
+        }
+
+        return 'Belum Dibuat';
+    }
 }

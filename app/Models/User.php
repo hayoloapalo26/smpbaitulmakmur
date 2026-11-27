@@ -499,6 +499,7 @@ class User extends Authenticatable implements FilamentUser, HasAvatar
         }
 
         $guardian = Guardian::create([
+            'institution_id' => $this->institution_id ?: 2,
             'name' => $this->name,
             'phone' => $this->phone ?? '-',
             'address' => '-',

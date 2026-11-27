@@ -922,6 +922,12 @@ class StudentResource extends Resource
                                 ]
                             );
 
+                            $parentUser->update([
+                                'guardian_id' => $guardian->id,
+                                'is_active'   => true,
+                                'has_account' => true,
+                            ]);
+
                             Notification::make()
                                 ->title('Akun Orang Tua Berhasil Ditautkan')
                                 ->body("Siswa {$record->name} berhasil ditautkan dengan akun orang tua {$parentUser->name}.")
