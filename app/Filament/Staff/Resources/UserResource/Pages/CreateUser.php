@@ -67,5 +67,9 @@ class CreateUser extends CreateRecord
         } elseif ($this->record->institution_id) {
             $this->record->institutions()->sync([$this->record->institution_id]);
         }
+
+        if ($this->record->hasRole('orang_tua')) {
+            $this->record->ensureGuardianRecord();
+        }
     }
 }

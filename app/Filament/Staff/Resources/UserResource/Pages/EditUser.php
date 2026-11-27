@@ -103,5 +103,9 @@ class EditUser extends EditRecord
         if (!empty($institutions)) {
             $this->record->institutions()->sync($institutions);
         }
+
+        if ($this->record->hasRole('orang_tua')) {
+            $this->record->ensureGuardianRecord();
+        }
     }
 }

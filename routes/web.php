@@ -43,6 +43,22 @@ Route::get('/portal/parent', \App\Livewire\Portal\ParentDashboard::class)->name(
 
 Route::get('/portal/rapor/{student}', function (\App\Models\Student $student, \Illuminate\Http\Request $request) {
     if (!auth()->check()) return redirect('/staff/login');
+    $user = auth()->user();
+
+    // Jika orang tua, pastikan siswa ini adalah anak yang terhubung
+    if ($user->hasRole('orang_tua') && !$user->hasRole('superadmin')) {
+        $isLinked = \App\Models\StudentGuardian::where('student_id', $student->id)
+            ->where(function ($q) use ($user) {
+                $q->where('user_id', $user->id);
+                if ($user->guardian_id) {
+                    $q->orWhere('guardian_id', $user->guardian_id);
+                }
+            })->exists();
+
+        if (!$isLinked) {
+            abort(403, 'Akses ditolak: Siswa ini bukan anak yang terdaftar pada akun Anda.');
+        }
+    }
     
     // Pastikan administrasi lunas
     if (!$student->is_administrasi_lunas) {

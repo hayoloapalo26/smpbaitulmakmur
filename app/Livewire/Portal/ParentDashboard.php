@@ -29,22 +29,33 @@ class ParentDashboard extends Component
     public function mount()
     {
         $user = Auth::user();
-        if (!$user->guardian_id) {
-            abort(403, 'Akses ditolak: Akun tidak terhubung dengan orang tua/wali.');
+        if (!$user) {
+            return redirect('/login');
         }
 
-        // Get students linked to this guardian
-        $this->students = Student::join('student_guardians', 'students.id', '=', 'student_guardians.student_id')
-            ->where('student_guardians.guardian_id', $user->guardian_id)
-            ->select('students.*')
+        // Pastikan akun memiliki record guardian
+        if (!$user->guardian_id) {
+            $user->ensureGuardianRecord();
+        }
+
+        // Ambil seluruh anak / siswa yang terhubung dengan orang tua ini (baik via user_id maupun guardian_id)
+        $this->students = Student::withoutGlobalScopes()
+            ->whereIn('id', function ($q) use ($user) {
+                $q->select('student_id')
+                  ->from('student_guardians')
+                  ->where('user_id', $user->id)
+                  ->when($user->guardian_id, fn ($sq) => $sq->orWhere('guardian_id', $user->guardian_id));
+            })
+            ->with(['classroom'])
             ->get();
 
-        if ($this->students->isEmpty()) {
-            abort(403, 'Tidak ada data anak yang terhubung.');
+        if ($this->students->isNotEmpty()) {
+            $this->selectedStudentId = $this->students->first()->id;
+            $this->loadStudentData();
+        } else {
+            $this->selectedStudentId = null;
+            $this->activeStudent = null;
         }
-
-        $this->selectedStudentId = $this->students->first()->id;
-        $this->loadStudentData();
     }
 
     public function updatedSelectedStudentId()
@@ -54,7 +65,11 @@ class ParentDashboard extends Component
 
     public function loadStudentData()
     {
-        $this->activeStudent = Student::find($this->selectedStudentId);
+        if (!$this->selectedStudentId) {
+            $this->activeStudent = null;
+            return;
+        }
+        $this->activeStudent = Student::withoutGlobalScopes()->find($this->selectedStudentId);
         $this->resetChecklists();
         $this->loadTodayChecklists();
     }
@@ -115,6 +130,10 @@ class ParentDashboard extends Component
 
     private function saveChecklist($timeSlot, $activity, $isDone)
     {
+        if (!$this->selectedStudentId) {
+            return;
+        }
+
         $today = Carbon::today()->toDateString();
         $record = ParentDailyChecklist::where('student_id', $this->selectedStudentId)
             ->where('tanggal', $today)
@@ -146,6 +165,16 @@ class ParentDashboard extends Component
 
     public function render()
     {
+        if (!$this->selectedStudentId) {
+            return view('livewire.portal.parent-dashboard', [
+                'schoolScoreTotal' => 0,
+                'homeScoreTotal' => 0,
+                'academicPct' => 0,
+                'nonAcademicPct' => 0,
+                'characterPct' => 0,
+            ])->layout('components.layouts.app');
+        }
+
         $today = Carbon::today();
         
         // 1. Calculate Home vs School Scores for the Visualizer

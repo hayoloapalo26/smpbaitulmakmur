@@ -19,4 +19,9 @@ class StudentGuardian extends Model
     {
         return $this->belongsTo(Guardian::class, 'guardian_id');
     }
+
+    public function user()
+    {
+        return $this->belongsTo(User::class, 'user_id');
+    }
 }

@@ -125,6 +125,7 @@ class UserResource extends Resource
                                 }
                             })
                             ->getOptionLabelFromRecordUsing(fn ($record) => User::getRoleDisplayName($record->name))
+                            ->helperText('💡 Khusus Orang Tua: Cukup buat 1 akun per orang tua meskipun memiliki 2 anak atau lebih. Petugas Tata Usaha (TU) yang bertugas merouting/menghubungkan siswa di menu Pemetaan Wali Murid.')
                             ->disabled(function (?User $record) use ($protectedRoles) {
                                 if (!$record) return false;
                                 if (auth()->user()->hasRole('superadmin')) return false;

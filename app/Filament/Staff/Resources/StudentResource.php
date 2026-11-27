@@ -510,6 +510,20 @@ class StudentResource extends Resource
                     })
                     ->tooltip(fn () => auth()->user()->hasRole('superadmin') ? 'Klik untuk membuat / kelola akun' : null)
                     ->toggleable(isToggledHiddenByDefault: false),
+                Tables\Columns\TextColumn::make('parent_account_status')
+                    ->label('Akun Wali Murid')
+                    ->state(function (Student $record): string {
+                        $parent = $record->parentUsers()->first();
+                        return $parent ? $parent->name : 'Belum Ditautkan';
+                    })
+                    ->badge()
+                    ->color(function (Student $record): string {
+                        return $record->parentUsers()->exists() ? 'info' : 'gray';
+                    })
+                    ->icon(function (Student $record): string {
+                        return $record->parentUsers()->exists() ? 'heroicon-m-user-check' : 'heroicon-m-user-minus';
+                    })
+                    ->toggleable(isToggledHiddenByDefault: false),
             ])
             ->filters([
                 Tables\Filters\SelectFilter::make('institution_id')
@@ -845,6 +859,75 @@ class StudentResource extends Resource
                             ->body("Akun untuk {$record->name} berhasil diaktifkan dengan username {$data['username']}.")
                             ->success()
                             ->send();
+                    }),
+                Tables\Actions\Action::make('tautkan_wali_murid')
+                    ->label('Tautkan Wali Murid')
+                    ->icon('heroicon-m-user-group')
+                    ->color('info')
+                    ->visible(fn () => auth()->user()->hasAnyRole(['tata_usaha', 'superadmin', 'kepala_sekolah']))
+                    ->modalHeading(fn (Student $record) => "Tautkan Akun Wali Murid: {$record->name}")
+                    ->modalDescription('Pilih akun orang tua (wali murid) yang telah dibuat oleh Superadmin. Satu akun orang tua dapat menaungi 2 anak atau lebih.')
+                    ->modalWidth('lg')
+                    ->fillForm(function (Student $record) {
+                        $currentParent = $record->parentUsers()->first();
+                        $firstPivot = \App\Models\StudentGuardian::where('student_id', $record->id)->first();
+                        return [
+                            'parent_user_id' => $currentParent?->id,
+                            'relation' => $firstPivot?->relation ?? 'Ayah',
+                        ];
+                    })
+                    ->form([
+                        Forms\Components\Select::make('parent_user_id')
+                            ->label('Pilih Akun Orang Tua (Wali Murid)')
+                            ->options(function (Student $record) {
+                                $authUser = auth()->user();
+                                $instId = $authUser?->institution_id ?: 2;
+                                $query = User::withoutGlobalScopes()
+                                    ->whereHas('roles', fn ($q) => $q->where('name', 'orang_tua'));
+                                if (!$authUser->hasRole('superadmin')) {
+                                    $query->where(function ($q) use ($instId, $record) {
+                                        $q->where('institution_id', $instId)
+                                          ->orWhere('institution_id', $record->institution_id ?? $instId);
+                                    });
+                                }
+                                return $query->orderBy('name')->pluck('name', 'id')->toArray();
+                            })
+                            ->searchable()
+                            ->preload()
+                            ->required()
+                            ->helperText('Pilih akun orang tua yang telah dibuat Superadmin.'),
+
+                        Forms\Components\Select::make('relation')
+                            ->label('Hubungan dengan Siswa')
+                            ->options([
+                                'Ayah' => '👨 Ayah Kandung / Ayah',
+                                'Ibu'  => '👩 Ibu Kandung / Ibu',
+                                'Wali' => '🤝 Wali Murid',
+                            ])
+                            ->default('Ayah')
+                            ->required(),
+                    ])
+                    ->action(function (Student $record, array $data) {
+                        $parentUser = User::find($data['parent_user_id']);
+                        if ($parentUser) {
+                            $guardian = $parentUser->ensureGuardianRecord();
+                            \App\Models\StudentGuardian::updateOrCreate(
+                                [
+                                    'student_id' => $record->id,
+                                    'user_id' => $parentUser->id,
+                                ],
+                                [
+                                    'guardian_id' => $guardian->id,
+                                    'relation' => $data['relation'] ?? 'Ayah',
+                                ]
+                            );
+
+                            Notification::make()
+                                ->title('Akun Orang Tua Berhasil Ditautkan')
+                                ->body("Siswa {$record->name} berhasil ditautkan dengan akun orang tua {$parentUser->name}.")
+                                ->success()
+                                ->send();
+                        }
                     }),
                 Tables\Actions\Action::make('edit_akun')
                     ->label('Kelola Akun')

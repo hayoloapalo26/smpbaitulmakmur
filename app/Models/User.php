@@ -472,6 +472,42 @@ class User extends Authenticatable implements FilamentUser, HasAvatar
         return $this->belongsTo(Guardian::class, 'guardian_id');
     }
 
+    public function students()
+    {
+        return $this->belongsToMany(Student::class, 'student_guardians', 'user_id', 'student_id')
+            ->withPivot('relation')
+            ->withTimestamps();
+    }
+
+    public function getLinkedStudentsAttribute()
+    {
+        return Student::withoutGlobalScopes()
+            ->whereIn('id', function ($q) {
+                $q->select('student_id')
+                  ->from('student_guardians')
+                  ->where('user_id', $this->id)
+                  ->when($this->guardian_id, fn ($sq) => $sq->orWhere('guardian_id', $this->guardian_id));
+            })
+            ->with('classroom')
+            ->get();
+    }
+
+    public function ensureGuardianRecord(): Guardian
+    {
+        if ($this->guardian_id && ($guardian = Guardian::find($this->guardian_id))) {
+            return $guardian;
+        }
+
+        $guardian = Guardian::create([
+            'name' => $this->name,
+            'phone' => $this->phone ?? '-',
+            'address' => '-',
+        ]);
+
+        $this->updateQuietly(['guardian_id' => $guardian->id]);
+        return $guardian;
+    }
+
     public function schedules()
     {
         return $this->hasMany(Schedule::class, 'teacher_id');

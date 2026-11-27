@@ -15,6 +15,25 @@ class Student extends Model
         return $this->hasOne(User::class, 'student_id');
     }
 
+    public function parentUsers()
+    {
+        return $this->belongsToMany(User::class, 'student_guardians', 'student_id', 'user_id')
+            ->withPivot('relation')
+            ->withTimestamps();
+    }
+
+    public function guardians()
+    {
+        return $this->belongsToMany(Guardian::class, 'student_guardians', 'student_id', 'guardian_id')
+            ->withPivot('relation')
+            ->withTimestamps();
+    }
+
+    public function studentGuardians()
+    {
+        return $this->hasMany(StudentGuardian::class, 'student_id');
+    }
+
     public function classroom()
     {
         return $this->belongsTo(Classroom::class, 'classroom_id');

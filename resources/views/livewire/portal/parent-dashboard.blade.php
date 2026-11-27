@@ -6,12 +6,13 @@
             <h2 class="text-2xl font-bold text-gray-900">Dashboard Orang Tua</h2>
             <p class="text-sm text-gray-500">Pantau dan laporkan kegiatan harian anak di rumah.</p>
         </div>
+        @if($students->isNotEmpty())
         <div class="w-full sm:w-72">
             <label for="studentSelect" class="sr-only">Pilih Anak:</label>
             <div class="relative">
                 <select wire:model.live="selectedStudentId" id="studentSelect" class="block w-full pl-4 pr-10 py-3 text-base font-medium text-gray-700 bg-gray-50 border-gray-200 focus:outline-none focus:ring-emerald-500 focus:border-emerald-500 rounded-xl appearance-none cursor-pointer">
                     @foreach($students as $s)
-                        <option value="{{ $s->id }}">{{ $s->name }} (NIS: {{ $s->nis }})</option>
+                        <option value="{{ $s->id }}">{{ $s->name }} ({{ $s->classroom?->name ?? 'Kelas -' }})</option>
                     @endforeach
                 </select>
                 <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-gray-500">
@@ -19,7 +20,20 @@
                 </div>
             </div>
         </div>
+        @endif
     </div>
+
+    @if($students->isEmpty())
+    <div class="bg-amber-50 border border-amber-200 rounded-2xl p-8 text-center space-y-4 shadow-sm">
+        <div class="w-16 h-16 bg-amber-100 text-amber-600 rounded-full flex items-center justify-center mx-auto">
+            <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+        </div>
+        <h3 class="text-xl font-bold text-amber-900">Akun Orang Tua Telah Aktif</h3>
+        <p class="text-sm text-amber-700 max-w-lg mx-auto">
+            Data anak saat ini sedang dalam proses pemetaan / routing oleh bagian Tata Usaha (TU). Jika Anda memiliki pertanyaan atau data anak belum muncul, silakan menghubungi pihak Tata Usaha sekolah.
+        </p>
+    </div>
+    @endif
 
     @if($activeStudent)
     <!-- E-Rapor Section -->
@@ -49,6 +63,7 @@
     </div>
     @endif
 
+    @if($activeStudent)
     <!-- Active Student Hero -->
     <div class="bg-gradient-to-r from-teal-600 to-emerald-500 rounded-2xl shadow-xl overflow-hidden relative p-5 sm:p-10 text-white flex flex-col md:flex-row items-center justify-between gap-6">
         <div class="absolute top-0 right-0 -mt-4 -mr-4 w-32 h-32 bg-white opacity-10 rounded-full blur-2xl"></div>
@@ -287,5 +302,6 @@
             </div>
         </div>
     </div>
+    @endif
 </div>
 
