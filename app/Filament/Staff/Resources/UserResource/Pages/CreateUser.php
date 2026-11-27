@@ -38,6 +38,28 @@ class CreateUser extends CreateRecord
                     $this->halt();
                 }
             }
+
+            // Validasi duplikasi khusus akun Orang Tua
+            $isParentRole = \Spatie\Permission\Models\Role::whereIn('id', $data['roles'])
+                ->where('name', 'orang_tua')
+                ->exists();
+
+            if ($isParentRole && !empty($data['name'])) {
+                $trimmedName = strtolower(trim($data['name']));
+                $existingParent = User::withoutGlobalScopes()
+                    ->whereHas('roles', fn ($q) => $q->where('name', 'orang_tua'))
+                    ->whereRaw('LOWER(TRIM(name)) = ?', [$trimmedName])
+                    ->first();
+
+                if ($existingParent) {
+                    Notification::make()
+                        ->title('Akun Orang Tua Sudah Ada')
+                        ->body("Akun orang tua atas nama '{$data['name']}' sudah ada di sistem (Username: {$existingParent->username}). Satu orang tua hanya butuh 1 akun untuk seluruh anaknya.")
+                        ->warning()
+                        ->send();
+                    $this->halt();
+                }
+            }
         }
 
         // Handle institutions for superadmin and non-superadmin

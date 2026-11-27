@@ -498,14 +498,34 @@ class User extends Authenticatable implements FilamentUser, HasAvatar
             return $guardian;
         }
 
-        $guardian = Guardian::create([
-            'institution_id' => $this->institution_id ?: 2,
-            'name' => $this->name,
-            'phone' => $this->phone ?? '-',
-            'address' => '-',
-        ]);
+        $trimmedName = trim($this->name);
+        $instId = $this->institution_id ?: 2;
+
+        // Cek apakah Guardian dengan nama ini sudah ada di lembaga terkait
+        $guardian = Guardian::where('institution_id', $instId)
+            ->whereRaw('LOWER(TRIM(name)) = ?', [strtolower($trimmedName)])
+            ->first();
+
+        if (!$guardian) {
+            $guardian = Guardian::whereRaw('LOWER(TRIM(name)) = ?', [strtolower($trimmedName)])->first();
+        }
+
+        if (!$guardian) {
+            $guardian = Guardian::create([
+                'institution_id' => $instId,
+                'name' => $trimmedName,
+                'phone' => $this->phone ?? '-',
+                'address' => '-',
+            ]);
+        }
 
         $this->updateQuietly(['guardian_id' => $guardian->id]);
+
+        // Hubungkan semua student_guardians milik guardian ini dengan user_id ini
+        StudentGuardian::where('guardian_id', $guardian->id)
+            ->whereNull('user_id')
+            ->update(['user_id' => $this->id]);
+
         return $guardian;
     }
 

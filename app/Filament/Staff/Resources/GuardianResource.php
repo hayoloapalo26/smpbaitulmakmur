@@ -73,7 +73,8 @@ class GuardianResource extends Resource
                         Forms\Components\TextInput::make('name')
                             ->label('Nama Orang Tua / Wali')
                             ->required()
-                            ->maxLength(255),
+                            ->maxLength(255)
+                            ->helperText('💡 Cukup buat 1 data orang tua meskipun mempunyai 2 anak atau lebih. Hubungkan seluruh anaknya pada pilihan Siswa di bawah.'),
 
                         Forms\Components\TextInput::make('phone')
                             ->label('No. Telepon / WhatsApp')
@@ -387,25 +388,45 @@ class GuardianResource extends Resource
                             ->required(),
                     ])
                     ->action(function (Guardian $record, array $data) {
-                        $user = User::create([
-                            'guardian_id'    => $record->id,
-                            'institution_id' => $record->institution_id ?: 2,
-                            'name'           => $data['name'],
-                            'username'       => $data['username'],
-                            'email'          => $data['email'],
-                            'password'       => Hash::make($data['password']),
-                            'has_account'    => true,
-                            'is_active'      => true,
-                        ]);
+                        // Cek apakah akun user untuk orang tua ini sudah ada di sistem
+                        $user = User::withoutGlobalScopes()
+                            ->where(function ($q) use ($record, $data) {
+                                $q->whereRaw('LOWER(TRIM(name)) = ?', [strtolower(trim($record->name))])
+                                  ->orWhere('username', $data['username'])
+                                  ->orWhere('email', $data['email']);
+                            })
+                            ->first();
 
-                        $user->assignRole('orang_tua');
+                        if ($user) {
+                            $user->update([
+                                'guardian_id'    => $record->id,
+                                'institution_id' => $record->institution_id ?: 2,
+                                'is_active'      => true,
+                                'has_account'    => true,
+                            ]);
+                        } else {
+                            $user = User::create([
+                                'guardian_id'    => $record->id,
+                                'institution_id' => $record->institution_id ?: 2,
+                                'name'           => $data['name'],
+                                'username'       => $data['username'],
+                                'email'          => $data['email'],
+                                'password'       => Hash::make($data['password']),
+                                'has_account'    => true,
+                                'is_active'      => true,
+                            ]);
+                        }
+
+                        if (!$user->hasRole('orang_tua')) {
+                            $user->assignRole('orang_tua');
+                        }
 
                         // Update user_id pada tabel pivot student_guardians
                         StudentGuardian::where('guardian_id', $record->id)->update(['user_id' => $user->id]);
 
                         Notification::make()
-                            ->title('Akun Orang Tua Berhasil Dibuat')
-                            ->body("Akun login untuk {$record->name} berhasil dibuat dengan username: {$data['username']}.")
+                            ->title('Akun Orang Tua Siap Digunakan')
+                            ->body("Akun login untuk {$record->name} berhasil disiapkan (Username: {$user->username}). Status akun otomatis Aktif.")
                             ->success()
                             ->send();
                     }),
