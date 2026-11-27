@@ -20,15 +20,18 @@ class UserResource extends Resource
     }
 
     protected static ?string $model = User::class;
-    protected static ?string $navigationIcon = 'heroicon-o-users';
+    protected static ?string $navigationIcon = 'heroicon-o-academic-cap';
     protected static ?string $navigationGroup = 'Administrasi & Data Induk';
-    protected static ?string $modelLabel = 'Manajemen Akun (User)';
+    protected static ?string $modelLabel = 'Akun Guru & Karyawan';
+    protected static ?string $pluralModelLabel = 'Manajemen Guru & Karyawan';
+    protected static ?string $navigationLabel = 'Manajemen Guru & Karyawan';
     protected static ?string $recordTitleAttribute = 'name';
-    protected static ?int $navigationSort = 99;
+    protected static ?int $navigationSort = 98;
 
     public static function getEloquentQuery(): Builder
     {
-        $query = parent::getEloquentQuery();
+        $query = parent::getEloquentQuery()
+            ->whereDoesntHave('roles', fn ($q) => $q->whereIn('name', ['orang_tua', 'siswa']));
         $user = auth()->user();
         
         if (!$user->hasRole('superadmin')) {
@@ -117,15 +120,13 @@ class UserResource extends Resource
                             ->helperText('Bisa memilih lebih dari satu unit/lembaga (contoh: Yayasan dan SMP jika menjabat di Yayasan sekaligus mengajar di SMP).')
                             ->disabled(fn () => !auth()->user()->hasRole('superadmin')),
                         Forms\Components\Select::make('roles')
-                            ->label('Role / Hak Akses')
+                            ->label('Role / Hak Akses (Guru & Karyawan)')
                             ->multiple()
                             ->relationship('roles', 'name', modifyQueryUsing: function (Builder $query) use ($protectedRoles) {
-                                if (!auth()->user()->hasRole('superadmin')) {
-                                    $query->whereNotIn('name', $protectedRoles);
-                                }
+                                $query->whereNotIn('name', array_merge(['orang_tua', 'siswa'], $protectedRoles));
                             })
                             ->getOptionLabelFromRecordUsing(fn ($record) => User::getRoleDisplayName($record->name))
-                            ->helperText('💡 Khusus Orang Tua: Cukup buat 1 akun per orang tua meskipun memiliki 2 anak atau lebih. Petugas Tata Usaha (TU) yang bertugas merouting/menghubungkan siswa di menu Pemetaan Wali Murid.')
+                            ->helperText('Pilih satu atau beberapa role penugasan guru atau staf karyawan struktural.')
                             ->disabled(function (?User $record) use ($protectedRoles) {
                                 if (!$record) return false;
                                 if (auth()->user()->hasRole('superadmin')) return false;
