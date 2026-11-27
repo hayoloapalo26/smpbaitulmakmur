@@ -51,10 +51,8 @@ class ScheduleResource extends Resource
 
         $query = parent::getEloquentQuery();
 
-        if (!$user->hasRole('superadmin')) {
-            $instId = $user->institution_id ?: 2;
-            $query->where('schedules.institution_id', $instId);
-        }
+        $instId = \App\Models\Institution::getActiveInstitutionId();
+        $query->where('schedules.institution_id', $instId);
 
         if ($user->hasAnyRole(['waka_kurikulum', 'kepala_sekolah', 'superadmin', 'yayasan', 'ketua_yayasan', 'pembina_yayasan', 'sekretaris_yayasan', 'tim_pengembang_penjamin_mutu_yayasan', 'pengembang_penjamin_mutu'])) {
             return $query;
@@ -71,14 +69,13 @@ class ScheduleResource extends Resource
                     ->description('Tentukan rombongan belajar kelas, mata pelajaran, dan guru pengampu.')
                     ->schema([
                         Forms\Components\Hidden::make('institution_id')
-                            ->default(fn () => auth()->user()?->institution_id ?: 2),
+                            ->default(fn () => \App\Models\Institution::getActiveInstitutionId()),
 
                         Forms\Components\Select::make('classroom_id')
                             ->label('Kelas')
                             ->relationship('classroom', 'name', modifyQueryUsing: function (Builder $query) {
-                                if (!auth()->user()?->hasRole('superadmin')) {
-                                    $query->where('institution_id', auth()->user()?->institution_id ?: 2);
-                                }
+                                $instId = \App\Models\Institution::getActiveInstitutionId();
+                                $query->where('institution_id', $instId);
                             })
                             ->searchable()
                             ->preload()
@@ -87,9 +84,8 @@ class ScheduleResource extends Resource
                         Forms\Components\Select::make('subject_id')
                             ->label('Mata Pelajaran')
                             ->relationship('subject', 'name', modifyQueryUsing: function (Builder $query) {
-                                if (!auth()->user()?->hasRole('superadmin')) {
-                                    $query->where('institution_id', auth()->user()?->institution_id ?: 2);
-                                }
+                                $instId = \App\Models\Institution::getActiveInstitutionId();
+                                $query->where('institution_id', $instId);
                             })
                             ->searchable()
                             ->preload()
@@ -97,9 +93,14 @@ class ScheduleResource extends Resource
                         Forms\Components\Select::make('teacher_id')
                             ->label('Guru Pengajar')
                             ->relationship('teacher', 'name', modifyQueryUsing: function (Builder $query) {
-                                $query->where('is_active', true);
-                                if (!auth()->user()?->hasRole('superadmin')) {
-                                    $query->where('institution_id', auth()->user()?->institution_id ?: 2);
+                                $instId = \App\Models\Institution::getActiveInstitutionId();
+                                $query->where('is_active', true)
+                                      ->where('institution_id', $instId);
+                                if ($instId === 2) {
+                                    $query->where('name', 'not like', '%SD Islam%')
+                                          ->where('name', 'not like', '% SD%')
+                                          ->where('email', 'not like', '%_sd@%')
+                                          ->where('username', 'not like', '%_sd%');
                                 }
                                 $query->whereHas('roles', function ($q) {
                                     $q->whereIn('name', array_merge(['guru_mapel', 'koordinator_madin', 'wali_kelas', 'guru_kelas', 'guru'], \App\Models\User::QURAN_TEACHER_ROLES));
@@ -258,21 +259,21 @@ class ScheduleResource extends Resource
                 Tables\Filters\SelectFilter::make('teacher_id')
                     ->label('Guru')
                     ->relationship('teacher', 'name', modifyQueryUsing: function (\Illuminate\Database\Eloquent\Builder $query) {
-                        $user = auth()->user();
+                        $instId = \App\Models\Institution::getActiveInstitutionId();
                         $query->where('is_active', true)
+                            ->where('institution_id', $instId)
                             ->whereHas('roles', function ($q) {
                                 $q->whereIn('name', array_merge([
                                     'guru_mapel',
                                     'guru_kelas',
+                                    'guru',
                                 ], \App\Models\User::QURAN_TEACHER_ROLES));
                             });
-
-                        if ($user && $user->institution_id && !$user->hasRole('superadmin')) {
-                            $query->where(function ($q) use ($user) {
-                                $q->where('institution_id', $user->institution_id)
-                                  ->orWhereNull('institution_id')
-                                  ->orWhere('institution_id', 1);
-                            });
+                        if ($instId === 2) {
+                            $query->where('name', 'not like', '%SD Islam%')
+                                  ->where('name', 'not like', '% SD%')
+                                  ->where('email', 'not like', '%_sd@%')
+                                  ->where('username', 'not like', '%_sd%');
                         }
                     })
                     ->searchable()

@@ -89,10 +89,8 @@ class TeacherAttendanceResource extends Resource
 
         if (!$user) return $query->whereRaw('1 = 0');
 
-        if (!$user->hasRole('superadmin')) {
-            $instId = $user->institution_id ?: 2;
-            $query->where('teacher_attendances.institution_id', $instId);
-        }
+        $instId = \App\Models\Institution::getActiveInstitutionId();
+        $query->where('teacher_attendances.institution_id', $instId);
 
         if ($user->hasAnyRole(['tata_usaha', 'waka_kurikulum', 'kepala_sekolah', 'superadmin'])) {
             return $query;
@@ -116,9 +114,20 @@ class TeacherAttendanceResource extends Resource
                 Forms\Components\Select::make('teacher_id')
                     ->label('Guru Utama (Yang Berhalangan / Mengajar)')
                     ->relationship('teacher', 'name', modifyQueryUsing: function (Builder $query) {
-                        $instId = Auth::user()?->institution_id ?: 2;
-                        if (!Auth::user()?->hasRole('superadmin')) {
-                            $query->where('institution_id', $instId);
+                        $instId = \App\Models\Institution::getActiveInstitutionId();
+                        $query->where('institution_id', $instId);
+                        if ($instId === 2) {
+                            $query->where('name', 'not like', '%SD Islam%')
+                                  ->where('name', 'not like', '% SD%')
+                                  ->where('name', 'not like', '%Sekolah Dasar%')
+                                  ->where('email', 'not like', '%_sd@%')
+                                  ->where('username', 'not like', '%_sd%');
+                        } elseif ($instId === 4) {
+                            $query->where('name', 'not like', '%SMP Islam%')
+                                  ->where('name', 'not like', '% SMP%')
+                                  ->where('name', 'not like', '%Sekolah Menengah Pertama%')
+                                  ->where('email', 'not like', '%_smp@%')
+                                  ->where('username', 'not like', '%_smp%');
                         }
                         $query->whereHas('roles', fn ($q) => $q->whereIn('name', array_merge(['guru_mapel', 'wali_kelas', 'guru_kelas', 'guru', 'waka_kurikulum'], \App\Models\User::QURAN_TEACHER_ROLES)));
                     })
@@ -390,18 +399,8 @@ class TeacherAttendanceResource extends Resource
                     ->searchable()
                     ->preload()
                     ->options(function () {
-                        $instId = Auth::user()?->institution_id ?: 2;
-                        return \App\Models\User::withoutGlobalScopes()
-                            ->where(function ($q) {
-                                $q->whereHas('roles', fn ($r) => $r->whereIn('name', array_merge(['guru_mapel', 'wali_kelas', 'guru_kelas', 'waka_kurikulum'], \App\Models\User::QURAN_TEACHER_ROLES)))
-                                  ->orWhereHas('schedules');
-                            })
-                            ->where('institution_id', $instId)
-                            ->where('name', 'not like', '%piket%')
-                            ->where(fn ($q) => $q->whereNull('username')->orWhere('username', 'not like', '%piket%'))
-                            ->where('email', 'not like', '%piket%')
-                            ->where('email', 'not like', '%@smp.com')
-                            ->whereNotIn('id', [1, 2, 3, 25, 30, 31, 32])
+                        $instId = \App\Models\Institution::getActiveInstitutionId();
+                        return \App\Models\User::getTeachersQuery($instId)
                             ->orderBy('name')
                             ->pluck('name', 'id')
                             ->toArray();

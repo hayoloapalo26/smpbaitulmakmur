@@ -143,10 +143,8 @@ class TeachingJournalResource extends Resource
             return $query->whereRaw('1 = 0');
         }
 
-        if (!$user->hasRole('superadmin')) {
-            $instId = $user->institution_id ?: 2;
-            $query->where('teaching_journals.institution_id', $instId);
-        }
+        $instId = \App\Models\Institution::getActiveInstitutionId();
+        $query->where('teaching_journals.institution_id', $instId);
 
         if ($user->hasRole('kepala_sekolah')) {
             // Kepala Sekolah hanya melihat jurnal yang siap (tepat waktu atau terlambat yang sudah disetujui Waka)
@@ -204,11 +202,16 @@ class TeachingJournalResource extends Resource
 
                         Forms\Components\Select::make('teacher_id')
                             ->label('Guru Pengajar')
-                            ->relationship('teacher', 'name', modifyQueryUsing: function (Builder $query) use ($user) {
-                                if ($user->institution_id && !$user->hasRole('superadmin')) {
-                                    $query->where('institution_id', $user->institution_id);
+                            ->relationship('teacher', 'name', modifyQueryUsing: function (Builder $query) {
+                                $instId = \App\Models\Institution::getActiveInstitutionId();
+                                $query->where('institution_id', $instId);
+                                if ($instId === 2) {
+                                    $query->where('name', 'not like', '%SD Islam%')
+                                          ->where('name', 'not like', '% SD%')
+                                          ->where('email', 'not like', '%_sd@%')
+                                          ->where('username', 'not like', '%_sd%');
                                 }
-                                $query->whereHas('roles', fn ($q) => $q->whereIn('name', array_merge(['guru_mapel', 'koordinator_madin', 'wali_kelas'], \App\Models\User::QURAN_TEACHER_ROLES)));
+                                $query->whereHas('roles', fn ($q) => $q->whereIn('name', array_merge(['guru_mapel', 'koordinator_madin', 'wali_kelas', 'guru_kelas', 'guru'], \App\Models\User::QURAN_TEACHER_ROLES)));
                             })
                             ->default(Auth::id())
                             ->visible($isAdminOrWaka)

@@ -709,6 +709,53 @@ class User extends Authenticatable implements FilamentUser, HasAvatar
     }
 
     /**
+     * Scope query guru riil terisolasi ketat per lembaga (SD vs SMP)
+     */
+    public static function getTeachersQuery(?int $institutionId = null)
+    {
+        $instId = $institutionId ?? Institution::getActiveInstitutionId();
+
+        $query = static::withoutGlobalScopes()
+            ->where(function ($q) {
+                $q->whereHas('roles', fn ($r) => $r->whereIn('name', array_merge([
+                    'guru_mapel',
+                    'guru_alquran',
+                    'wali_kelas',
+                    'guru_kelas',
+                    'waka_kurikulum',
+                    'guru',
+                ], static::QURAN_TEACHER_ROLES)))
+                ->orWhereHas('schedules');
+            })
+            ->where('institution_id', $instId)
+            ->where('name', 'not like', '%piket%')
+            ->where(fn ($q) => $q->whereNull('username')->orWhere('username', 'not like', '%piket%'))
+            ->where('email', 'not like', '%piket%')
+            ->where('email', 'not like', '%@smp.com')
+            ->whereNotIn('id', [1, 2, 3, 25, 30, 31, 32]);
+
+        if ($instId === 2) {
+            $query->where('name', 'not like', '%SD Islam%')
+                  ->where('name', 'not like', '% SD%')
+                  ->where('name', 'not like', '%Sekolah Dasar%')
+                  ->where('email', 'not like', '%_sd@%')
+                  ->where('email', 'not like', '%@sd%')
+                  ->where('username', 'not like', '%_sd%')
+                  ->where('username', 'not like', 'sd_%');
+        } elseif ($instId === 4) {
+            $query->where('name', 'not like', '%SMP Islam%')
+                  ->where('name', 'not like', '% SMP%')
+                  ->where('name', 'not like', '%Sekolah Menengah Pertama%')
+                  ->where('email', 'not like', '%_smp@%')
+                  ->where('email', 'not like', '%@smp%')
+                  ->where('username', 'not like', '%_smp%')
+                  ->where('username', 'not like', 'smp_%');
+        }
+
+        return $query;
+    }
+
+    /**
      * Mendapatkan daftar opsi Guru Pengganti (Inval) dengan 'Guru Piket' selalu di posisi teratas.
      * Hanya opsi tunggal 'Guru Piket' (tanpa nama guru) agar tidak terhitung jam inval.
      * Guru pengganti lainnya adalah daftar guru asli yang akan mendapatkan jam inval sesuai JP.
@@ -720,35 +767,17 @@ class User extends Authenticatable implements FilamentUser, HasAvatar
     public static function getSubstituteTeacherOptions(?int $excludedTeacherId = null, ?self $currentUser = null): array
     {
         $user = $currentUser ?: \Illuminate\Support\Facades\Auth::user();
-        $instId = $user?->institution_id ?: 2;
+        $instId = $user?->institution_id ?: Institution::getActiveInstitutionId();
+        if ($instId == 1) {
+            $instId = 2;
+        }
         $piketUser = static::ensureGuruPiketUser($instId);
         $piketId = $piketUser?->id;
 
-        $query = static::withoutGlobalScopes()
-            ->where(function ($q) {
-                $q->whereHas('roles', fn ($r) => $r->whereIn('name', array_merge([
-                    'guru_mapel',
-                    'wali_kelas',
-                    'guru_kelas',
-                    'waka_kurikulum',
-                ], self::QURAN_TEACHER_ROLES)))
-                ->orWhereHas('schedules');
-            });
+        $query = static::getTeachersQuery($instId);
 
         if ($piketId) {
             $query->where('id', '!=', $piketId);
-        }
-
-        $query->where('name', '!=', 'Guru Piket')
-            ->where(function ($q) {
-                $q->whereNull('username')->orWhere('username', '!=', 'gurupiket');
-            })
-            ->where(function ($q) {
-                $q->whereNull('email')->orWhere('email', '!=', 'gurupiket@smp.com');
-            });
-
-        if ($user && !$user->hasRole('superadmin')) {
-            $query->where('institution_id', $instId);
         }
 
         if ($excludedTeacherId) {

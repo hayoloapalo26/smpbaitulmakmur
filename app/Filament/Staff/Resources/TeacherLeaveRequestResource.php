@@ -106,18 +106,14 @@ class TeacherLeaveRequestResource extends Resource
         $user = Auth::user();
         if (!$user) return $query->whereRaw('1 = 0');
 
-        if (!$user->hasRole('superadmin')) {
-            $instId = $user->institution_id ?: 2;
-            $query->where('teacher_leave_requests.institution_id', $instId);
-        }
+        $instId = \App\Models\Institution::getActiveInstitutionId();
+        $query->where('teacher_leave_requests.institution_id', $instId);
 
         if ($user->hasAnyRole(['waka_kurikulum', 'kepala_sekolah', 'tata_usaha', 'superadmin'])) {
             return $query;
         }
         return $query->where('teacher_id', $user->id);
     }
-
-    
 
     public static function form(Form $form): Form
     {
@@ -128,11 +124,22 @@ class TeacherLeaveRequestResource extends Resource
                         Forms\Components\Select::make('teacher_id')
                             ->label('Nama Guru')
                             ->relationship('teacher', 'name', modifyQueryUsing: function (Builder $query) {
-                                $user = Auth::user();
-                                if ($user->institution_id && !$user->hasRole('superadmin')) {
-                                    $query->where('institution_id', $user->institution_id);
+                                $instId = \App\Models\Institution::getActiveInstitutionId();
+                                $query->where('institution_id', $instId);
+                                if ($instId === 2) {
+                                    $query->where('name', 'not like', '%SD Islam%')
+                                          ->where('name', 'not like', '% SD%')
+                                          ->where('name', 'not like', '%Sekolah Dasar%')
+                                          ->where('email', 'not like', '%_sd@%')
+                                          ->where('username', 'not like', '%_sd%');
+                                } elseif ($instId === 4) {
+                                    $query->where('name', 'not like', '%SMP Islam%')
+                                          ->where('name', 'not like', '% SMP%')
+                                          ->where('name', 'not like', '%Sekolah Menengah Pertama%')
+                                          ->where('email', 'not like', '%_smp@%')
+                                          ->where('username', 'not like', '%_smp%');
                                 }
-                                $query->whereHas('roles', fn ($q) => $q->whereIn('name', array_merge(['guru_mapel', 'koordinator_madin', 'wali_kelas', 'guru_kelas', 'waka_kurikulum'], \App\Models\User::QURAN_TEACHER_ROLES)));
+                                $query->whereHas('roles', fn ($q) => $q->whereIn('name', array_merge(['guru_mapel', 'koordinator_madin', 'wali_kelas', 'guru_kelas', 'waka_kurikulum', 'guru'], \App\Models\User::QURAN_TEACHER_ROLES)));
                             })
                             ->default(Auth::id())
                             ->searchable()

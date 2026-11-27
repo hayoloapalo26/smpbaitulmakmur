@@ -2,7 +2,7 @@
     $month = $selectedMonth ?? (int) request('bulan', date('m'));
     $year = $selectedYear ?? (int) request('tahun', date('Y'));
     $selectedTeacherId = $selectedTeacherId ?? request('teacher_id');
-    $institutionId = $institutionId ?? auth()->user()?->institution_id ?? 2;
+    $institutionId = $institutionId ?? \App\Models\Institution::getActiveInstitutionId();
 
     $reportState = \App\Services\TeacherAttendanceReportService::getReportData($month, $year, $selectedTeacherId, $institutionId);
     $reportData = $reportState['reportData'];

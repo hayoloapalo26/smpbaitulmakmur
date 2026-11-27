@@ -112,11 +112,9 @@ class PresensiIzinSiswaResource extends Resource
 
         $user = Auth::user();
 
-        // Pastikan selain superadmin / yayasan, data terfilter murni sesuai institution_id masing-masing lembaga
-        if ($user && !$user->hasRole('superadmin')) {
-            $instId = $user->institution_id ?: 2;
-            $query->where('institution_id', $instId);
-        }
+        // Pastikan seluruh data presensi siswa terfilter murni sesuai lembaga aktif (SD vs SMP terisolasi 100%)
+        $instId = \App\Models\Institution::getActiveInstitutionId();
+        $query->where('institution_id', $instId);
 
         if ($user && ($user->hasAnyRole(['kepala_sekolah', 'waka_kesiswaan', 'guru_piket', 'superadmin']) || $user->isPiketToday())) {
             return $query;
