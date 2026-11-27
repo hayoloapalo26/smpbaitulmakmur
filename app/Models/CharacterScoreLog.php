@@ -16,4 +16,9 @@ class CharacterScoreLog extends Model
     {
         return $this->belongsTo(Student::class, 'student_id');
     }
+
+    public function submitter()
+    {
+        return $this->belongsTo(User::class, 'submitted_by');
+    }
 }

@@ -24,6 +24,19 @@ class Dashboard extends BaseDashboard
     protected ?string $cachedGoodNews = null;
     protected ?string $cachedBadNews = null;
 
+    public function mount(): void
+    {
+        $user = Auth::user();
+        if ($user && $user->hasRole('orang_tua') && !$user->hasAnyRole(['superadmin', 'tata_usaha', 'kepala_sekolah', 'waka_kurikulum', 'waka_kesiswaan', 'guru_mapel', 'guru_kelas', 'wali_kelas'])) {
+            redirect()->route('portal.parent')->send();
+            return;
+        }
+        if ($user && $user->hasRole('siswa') && !$user->hasRole('superadmin')) {
+            redirect()->route('portal.student')->send();
+            return;
+        }
+    }
+
     public function getWidgets(): array
     {
         return [

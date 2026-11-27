@@ -128,6 +128,25 @@ class CustomLogin extends BaseLogin
         \Filament\Facades\Filament::auth()->login($user, $remember);
         session()->regenerate();
 
+        // Redirect otomatis akun orang tua & siswa ke portal masing-masing
+        if ($user->hasRole('orang_tua') && !$user->hasAnyRole(['superadmin', 'tata_usaha', 'kepala_sekolah', 'waka_kurikulum', 'waka_kesiswaan', 'guru_mapel', 'guru_kelas', 'wali_kelas'])) {
+            return new class implements \Filament\Http\Responses\Auth\Contracts\LoginResponse {
+                public function toResponse($request)
+                {
+                    return redirect()->route('portal.parent');
+                }
+            };
+        }
+
+        if ($user->hasRole('siswa') && !$user->hasRole('superadmin')) {
+            return new class implements \Filament\Http\Responses\Auth\Contracts\LoginResponse {
+                public function toResponse($request)
+                {
+                    return redirect()->route('portal.student');
+                }
+            };
+        }
+
         return app(\Filament\Http\Responses\Auth\Contracts\LoginResponse::class);
     }
 

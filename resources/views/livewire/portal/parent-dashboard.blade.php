@@ -1,26 +1,47 @@
 <div class="max-w-7xl mx-auto py-4 sm:py-8 px-2.5 sm:px-6 lg:px-8 space-y-6 sm:space-y-8">
 
-    <!-- Header / Student Selector -->
-    <div class="bg-white p-6 shadow-sm sm:rounded-2xl border border-gray-100 flex flex-col sm:flex-row items-center justify-between gap-4">
+    <!-- Top Navigation / Header & Child Switcher -->
+    <div class="bg-white p-5 sm:p-6 shadow-sm sm:rounded-2xl border border-gray-100 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div>
-            <h2 class="text-2xl font-bold text-gray-900">Dashboard Orang Tua</h2>
-            <p class="text-sm text-gray-500">Pantau dan laporkan kegiatan harian anak di rumah.</p>
+            <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 text-xs font-bold uppercase tracking-wider mb-2">
+                <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                Portal Monitoring Orang Tua
+            </div>
+            <h2 class="text-xl sm:text-2xl font-black text-gray-900">
+                Laporan Harian & Karakter Ananda
+            </h2>
+            <p class="text-xs sm:text-sm text-gray-500 mt-0.5">
+                Monitoring terpadu kehadiran, ibadah sholat, presensi mapel, poin karakter, nilai, dan capaian Al-Qur'an.
+            </p>
         </div>
-        @if($students->isNotEmpty())
-        <div class="w-full sm:w-72">
-            <label for="studentSelect" class="sr-only">Pilih Anak:</label>
-            <div class="relative">
-                <select wire:model.live="selectedStudentId" id="studentSelect" class="block w-full pl-4 pr-10 py-3 text-base font-medium text-gray-700 bg-gray-50 border-gray-200 focus:outline-none focus:ring-emerald-500 focus:border-emerald-500 rounded-xl appearance-none cursor-pointer">
+
+        <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full md:w-auto">
+            <!-- Student Selector (Jika punya >1 anak) -->
+            @if($students->isNotEmpty())
+            <div class="relative min-w-[220px]">
+                <label for="studentSelect" class="sr-only">Pilih Anak:</label>
+                <select wire:model.live="selectedStudentId" id="studentSelect" class="block w-full pl-3 pr-10 py-2.5 text-xs sm:text-sm font-bold text-gray-800 bg-emerald-50/60 border border-emerald-200 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 rounded-xl appearance-none cursor-pointer shadow-sm">
                     @foreach($students as $s)
-                        <option value="{{ $s->id }}">{{ $s->name }} ({{ $s->classroom?->name ?? 'Kelas -' }})</option>
+                        <option value="{{ $s->id }}">👦 {{ $s->name }} ({{ $s->classroom?->name ?? 'Kelas -' }})</option>
                     @endforeach
                 </select>
-                <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-gray-500">
+                <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-emerald-600">
                     <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
                 </div>
             </div>
+            @endif
+
+            <!-- Date Selector -->
+            <div class="flex items-center gap-2 bg-gray-50 p-1 rounded-xl border border-gray-200">
+                <button type="button" wire:click="setDateToday" class="px-3 py-1.5 text-xs font-bold rounded-lg transition {{ $selectedDate === \Carbon\Carbon::today()->toDateString() ? 'bg-emerald-600 text-white shadow-sm' : 'text-gray-600 hover:bg-gray-200' }}">
+                    Hari Ini
+                </button>
+                <button type="button" wire:click="setDateYesterday" class="px-3 py-1.5 text-xs font-bold rounded-lg transition {{ $selectedDate === \Carbon\Carbon::yesterday()->toDateString() ? 'bg-emerald-600 text-white shadow-sm' : 'text-gray-600 hover:bg-gray-200' }}">
+                    Kemarin
+                </button>
+                <input type="date" wire:model.live="selectedDate" class="text-xs font-semibold text-gray-700 bg-white border border-gray-200 rounded-lg px-2 py-1 focus:ring-emerald-500 focus:border-emerald-500">
+            </div>
         </div>
-        @endif
     </div>
 
     @if($students->isEmpty())
@@ -30,278 +51,1008 @@
         </div>
         <h3 class="text-xl font-bold text-amber-900">Akun Orang Tua Telah Aktif</h3>
         <p class="text-sm text-amber-700 max-w-lg mx-auto">
-            Data anak saat ini sedang dalam proses pemetaan / routing oleh bagian Tata Usaha (TU). Jika Anda memiliki pertanyaan atau data anak belum muncul, silakan menghubungi pihak Tata Usaha sekolah.
+            Akun Anda telah berhasil dibuat. Saat ini bagian Tata Usaha (TU) sedang memetakan data ananda ke akun Anda. Mohon konfirmasi ke pihak Tata Usaha jika data ananda belum tampil.
         </p>
     </div>
     @endif
 
     @if($activeStudent)
-    <!-- E-Rapor Section -->
-    <div class="mt-6">
-        @if($activeStudent->is_administrasi_lunas)
-            <div class="bg-emerald-50 border border-emerald-200 rounded-xl p-6 flex flex-col sm:flex-row items-center justify-between gap-4">
-                <div>
-                    <h3 class="text-lg font-bold text-emerald-900">E-Rapor Akademik</h3>
-                    <p class="text-sm text-emerald-700">Administrasi telah lunas. Anda dapat mengunduh E-Rapor ananda.</p>
-                </div>
-                <a href="/portal/rapor/{{ $activeStudent->id }}" target="_blank" class="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-lg text-white bg-emerald-600 hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 transition-colors">
-                    <svg class="-ml-1 mr-2 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
-                    Download E-Rapor
-                </a>
-            </div>
-        @else
-            <div class="bg-red-50 border border-red-200 rounded-xl p-6 flex items-start gap-4">
-                <div class="flex-shrink-0">
-                    <svg class="h-6 w-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+    <!-- Active Student Hero Header -->
+    <div class="bg-gradient-to-r from-emerald-700 via-teal-600 to-cyan-600 rounded-2xl shadow-xl overflow-hidden relative p-6 sm:p-8 text-white">
+        <div class="absolute top-0 right-0 -mt-6 -mr-6 w-48 h-48 bg-white/10 rounded-full blur-2xl pointer-events-none"></div>
+        <div class="absolute bottom-0 right-40 -mb-6 w-32 h-32 bg-emerald-400/20 rounded-full blur-xl pointer-events-none"></div>
+
+        <div class="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+            <div class="flex items-center gap-4">
+                <div class="w-16 h-16 rounded-2xl bg-white/20 backdrop-blur-md border border-white/30 flex items-center justify-center text-2xl font-black shadow-inner">
+                    {{ strtoupper(substr($activeStudent->name, 0, 1)) }}
                 </div>
                 <div>
-                    <h3 class="text-lg font-bold text-red-900">Pembayaran Administrasi Diperlukan</h3>
-                    <p class="text-sm text-red-700 mt-1">Mohon maaf, Anda belum dapat mengunduh E-Rapor. Silakan selesaikan pembayaran administrasi untuk membuka akses unduh E-Rapor ananda.</p>
-                </div>
-            </div>
-        @endif
-    </div>
-    @endif
-
-    @if($activeStudent)
-    <!-- Active Student Hero -->
-    <div class="bg-gradient-to-r from-teal-600 to-emerald-500 rounded-2xl shadow-xl overflow-hidden relative p-5 sm:p-10 text-white flex flex-col md:flex-row items-center justify-between gap-6">
-        <div class="absolute top-0 right-0 -mt-4 -mr-4 w-32 h-32 bg-white opacity-10 rounded-full blur-2xl"></div>
-        <div class="absolute bottom-0 left-10 -mb-4 w-24 h-24 bg-white opacity-10 rounded-full blur-xl"></div>
-        
-        <div class="relative z-10 text-center md:text-left">
-            <p class="text-teal-100 font-medium mb-1 tracking-wide uppercase text-xs sm:text-sm">Sedang Memantau</p>
-            <h2 class="text-2xl sm:text-3xl font-extrabold tracking-tight">{{ $activeStudent->name }}</h2>
-            <p class="mt-2 text-teal-50 max-w-xl text-xs sm:text-sm">Mari bekerja sama membentuk kebiasaan baik anak di rumah.</p>
-        </div>
-    </div>
-
-    <!-- 3 Kotak Metrik Utama (Akademik, Non-Akademik, Karakter) -->
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-        
-        <!-- Akademik -->
-        <div class="bg-indigo-50 border border-indigo-100 rounded-2xl p-6 shadow-sm relative overflow-hidden">
-            <div class="absolute -right-6 -top-6 text-indigo-100/50">
-                <svg class="w-32 h-32" fill="currentColor" viewBox="0 0 20 20"><path d="M10.394 2.08a1 1 0 00-.788 0l-7 3a1 1 0 000 1.84L5.25 8.051a.999.999 0 01.356-.257l4-1.714a1 1 0 11.788 1.838L7.667 9.088l1.94.831a1 1 0 00.787 0l7-3a1 1 0 000-1.838l-7-3zM3.31 9.397L5 10.12v4.102a8.969 8.969 0 00-1.05-.174 1 1 0 01-.89-.89 11.115 11.115 0 01.25-3.762zM9.3 16.573A9.026 9.026 0 007 14.935v-3.957l1.818.78a3 3 0 002.364 0l5.508-2.361a11.026 11.026 0 01.25 3.762 1 1 0 01-.89.89 8.968 8.968 0 00-5.35 2.524 1 1 0 01-1.4 0zM6 18a1 1 0 001-1v-2.065a8.935 8.935 0 00-2-.712V17a1 1 0 001 1z"></path></svg>
-            </div>
-            <div class="relative z-10">
-                <h3 class="text-sm font-bold text-indigo-800 uppercase tracking-widest mb-2 flex items-center gap-2">
-                    Akademik
-                </h3>
-                <div class="flex items-baseline gap-2">
-                    <span class="text-4xl font-black text-indigo-900">{{ $academicPct }}</span>
-                    <span class="text-lg font-bold text-indigo-600">%</span>
-                </div>
-                <div class="mt-4 w-full bg-indigo-200 rounded-full h-2">
-                    <div class="bg-indigo-600 h-2 rounded-full transition-all duration-1000" style="width: {{ $academicPct }}%"></div>
-                </div>
-                <p class="text-xs text-indigo-700 mt-2 font-medium">Gabungan Nilai & Kehadiran Harian</p>
-            </div>
-        </div>
-
-        <!-- Non-Akademik -->
-        <div class="bg-teal-50 border border-teal-100 rounded-2xl p-6 shadow-sm relative overflow-hidden">
-            <div class="absolute -right-6 -top-6 text-teal-100/50">
-                <svg class="w-32 h-32" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v2H7a1 1 0 100 2h2v2a1 1 0 102 0v-2h2a1 1 0 100-2h-2V7z" clip-rule="evenodd"></path></svg>
-            </div>
-            <div class="relative z-10">
-                <h3 class="text-sm font-bold text-teal-800 uppercase tracking-widest mb-2 flex items-center gap-2">
-                    Non-Akademik
-                </h3>
-                <div class="flex items-baseline gap-2">
-                    <span class="text-4xl font-black text-teal-900">{{ $nonAcademicPct }}</span>
-                    <span class="text-lg font-bold text-teal-600">%</span>
-                </div>
-                <div class="mt-4 w-full bg-teal-200 rounded-full h-2">
-                    <div class="bg-teal-600 h-2 rounded-full transition-all duration-1000" style="width: {{ $nonAcademicPct }}%"></div>
-                </div>
-                <p class="text-xs text-teal-700 mt-2 font-medium">Kehadiran Ekstrakurikuler & Organisasi</p>
-            </div>
-        </div>
-
-        <!-- Karakter -->
-        <div class="bg-fuchsia-50 border border-fuchsia-100 rounded-2xl p-6 shadow-sm relative overflow-hidden">
-            <div class="absolute -right-6 -top-6 text-fuchsia-100/50">
-                <svg class="w-32 h-32" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clip-rule="evenodd"></path></svg>
-            </div>
-            <div class="relative z-10">
-                <h3 class="text-sm font-bold text-fuchsia-800 uppercase tracking-widest mb-2 flex items-center gap-2">
-                    Karakter
-                </h3>
-                <div class="flex items-baseline gap-2">
-                    <span class="text-4xl font-black text-fuchsia-900">{{ $characterPct }}</span>
-                    <span class="text-lg font-bold text-fuchsia-600">%</span>
-                </div>
-                <div class="mt-4 w-full bg-fuchsia-200 rounded-full h-2">
-                    <div class="bg-fuchsia-600 h-2 rounded-full transition-all duration-1000" style="width: {{ $characterPct }}%"></div>
-                </div>
-                <p class="text-xs text-fuchsia-700 mt-2 font-medium">Skor Pencapaian Karakter Global</p>
-            </div>
-        </div>
-
-    </div>
-
-    <!-- Karakter Komparasi: Sekolah vs Rumah -->
-    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 md:p-8 mb-8">
-        <h3 class="text-xl font-bold text-gray-900 mb-6 flex items-center gap-2">
-            <svg class="w-6 h-6 text-fuchsia-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>
-            Detail Skor Karakter Siswa
-        </h3>
-
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
-            
-            <!-- Visualisasi Bar Sejajar -->
-            <div class="space-y-6">
-                <!-- Sekolah -->
-                <div>
-                    <div class="flex justify-between text-sm font-bold mb-2">
-                        <span class="text-blue-700 flex items-center gap-2">
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path></svg>
-                            Karakter di Sekolah
+                    <div class="flex items-center gap-2 flex-wrap">
+                        <h2 class="text-2xl sm:text-3xl font-black tracking-tight">{{ $activeStudent->name }}</h2>
+                        <span class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-white/20 text-white border border-white/30">
+                            {{ $activeStudent->classroom?->name ?? 'Belum ada kelas' }}
                         </span>
-                        <span class="text-blue-900">{{ $schoolScoreTotal }} Poin</span>
                     </div>
-                    <div class="w-full bg-gray-100 rounded-full h-3">
-                        <div class="bg-blue-500 h-3 rounded-full" style="width: {{ min(100, max(0, ($schoolScoreTotal / max(1, $schoolScoreTotal + $homeScoreTotal)) * 100)) }}%"></div>
-                    </div>
-                </div>
-
-                <!-- Rumah -->
-                <div>
-                    <div class="flex justify-between text-sm font-bold mb-2">
-                        <span class="text-amber-700 flex items-center gap-2">
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"></path></svg>
-                            Karakter di Rumah
-                        </span>
-                        <span class="text-amber-900">{{ $homeScoreTotal }} Poin</span>
-                    </div>
-                    <div class="w-full bg-gray-100 rounded-full h-3">
-                        <div class="bg-amber-500 h-3 rounded-full" style="width: {{ min(100, max(0, ($homeScoreTotal / max(1, $schoolScoreTotal + $homeScoreTotal)) * 100)) }}%"></div>
-                    </div>
+                    <p class="text-xs sm:text-sm text-emerald-100 mt-1">
+                        NISN: <span class="font-bold text-white">{{ $activeStudent->nisn ?: '-' }}</span>
+                        • Wali Kelas: <span class="font-bold text-white">{{ $activeStudent->classroom?->waliKelas?->name ?? 'Belum ditentukan' }}</span>
+                    </p>
                 </div>
             </div>
 
-            <!-- Deskripsi Singkat -->
-            <div class="bg-gray-50 border border-gray-200 rounded-xl p-6">
-                <h4 class="text-gray-900 font-bold mb-2">Analisis Singkat</h4>
-                <p class="text-gray-600 text-sm leading-relaxed">
-                    @if($schoolScoreTotal == 0 && $homeScoreTotal == 0)
-                        Belum ada pencatatan poin karakter untuk ananda. Mari mulai catat kebaikan amaliyah di rumah melalui checklist di bawah ini!
-                    @elseif($homeScoreTotal > $schoolScoreTotal)
-                        Alhamdulillah, amaliyah ibadah dan karakter di rumah sangat baik! Poin di rumah mendominasi skor karakter ananda. Terus pertahankan dukungan Anda.
-                    @elseif($schoolScoreTotal > $homeScoreTotal)
-                        Poin karakter di sekolah mendominasi. Ananda aktif dan berperilaku baik di lingkungan sekolah. Jangan lupa untuk terus memantau Checklist Amaliyah di bawah ini agar karakter di rumah juga meningkat.
+            <div class="flex items-center gap-3 bg-black/20 backdrop-blur-md px-4 py-2.5 rounded-xl border border-white/20">
+                <div class="text-right">
+                    <p class="text-[10px] text-emerald-200 uppercase tracking-widest font-bold">Periode Tanggal Pantau</p>
+                    <p class="text-sm font-extrabold text-white">
+                        {{ \Carbon\Carbon::parse($selectedDate)->translatedFormat('l, d F Y') }}
+                    </p>
+                </div>
+                <div class="w-8 h-8 rounded-lg bg-emerald-500/40 flex items-center justify-center text-white">
+                    📅
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 7 KARTU RINGKASAN CEPAT (7 POIN UTAMA) -->
+    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-3 sm:gap-4">
+        
+        <!-- 1. Presensi Masuk -->
+        @php
+            $arrival = $this->arrivalAttendance;
+            $hasArrival = !empty($arrival);
+            $waktuMasuk = $arrival?->waktu_kedatangan ? \Carbon\Carbon::parse($arrival->waktu_kedatangan)->format('H:i') : null;
+        @endphp
+        <div class="bg-white rounded-xl p-3.5 border {{ $hasArrival ? ($arrival->is_late ? 'border-amber-300 bg-amber-50/40' : 'border-emerald-200 bg-emerald-50/40') : 'border-gray-200' }} shadow-sm flex flex-col justify-between">
+            <div>
+                <div class="flex items-center justify-between text-xs text-gray-500 mb-1">
+                    <span class="font-bold uppercase tracking-wider text-[10px]">1. Kehadiran</span>
+                    <span>🕒</span>
+                </div>
+                <div class="text-sm font-black text-gray-900">
+                    {{ $waktuMasuk ? "{$waktuMasuk} WIB" : ($hasArrival ? ucfirst($arrival->status) : 'Belum Scan') }}
+                </div>
+            </div>
+            <div class="mt-2">
+                @if($hasArrival)
+                    @if($arrival->is_late)
+                        <span class="inline-block px-2 py-0.5 text-[10px] font-bold rounded bg-amber-100 text-amber-800">⚠️ Terlambat</span>
+                    @elseif($arrival->status === 'hadir')
+                        <span class="inline-block px-2 py-0.5 text-[10px] font-bold rounded bg-emerald-100 text-emerald-800">✓ Tepat Waktu</span>
                     @else
-                        Karakter ananda seimbang antara di sekolah dan di rumah. Terus pertahankan sinergi yang baik ini!
+                        <span class="inline-block px-2 py-0.5 text-[10px] font-bold rounded bg-blue-100 text-blue-800">{{ ucfirst($arrival->status) }}</span>
                     @endif
-                </p>
+                @else
+                    <span class="inline-block px-2 py-0.5 text-[10px] font-medium rounded bg-gray-100 text-gray-600">Menunggu</span>
+                @endif
             </div>
-
         </div>
+
+        <!-- 2. Sholat Dhuhur -->
+        @php
+            $dhuhur = $this->dhuhurPrayer;
+            $hasDhuhur = !empty($dhuhur);
+        @endphp
+        <div class="bg-white rounded-xl p-3.5 border {{ $hasDhuhur ? 'border-teal-200 bg-teal-50/40' : 'border-gray-200' }} shadow-sm flex flex-col justify-between">
+            <div>
+                <div class="flex items-center justify-between text-xs text-gray-500 mb-1">
+                    <span class="font-bold uppercase tracking-wider text-[10px]">2. Sholat Dhuhur</span>
+                    <span>🕌</span>
+                </div>
+                <div class="text-sm font-black text-gray-900">
+                    @if($hasDhuhur)
+                        {{ $dhuhur->status === 'halangan' ? 'Halangan' : (in_array($dhuhur->status, ['hadir', 'masuk']) ? ($dhuhur->is_khusyu ? 'Tepat Waktu' : 'Masbuk') : ucfirst($dhuhur->status)) }}
+                    @else
+                        Belum Sholat
+                    @endif
+                </div>
+            </div>
+            <div class="mt-2">
+                @if($hasDhuhur)
+                    @if($dhuhur->status === 'halangan')
+                        <span class="inline-block px-2 py-0.5 text-[10px] font-bold rounded bg-purple-100 text-purple-800">🌸 Halangan</span>
+                    @elseif(in_array($dhuhur->status, ['hadir', 'masuk']))
+                        <span class="inline-block px-2 py-0.5 text-[10px] font-bold rounded {{ $dhuhur->is_khusyu ? 'bg-teal-100 text-teal-800' : 'bg-amber-100 text-amber-800' }}">
+                            {{ $dhuhur->is_khusyu ? '✓ Khusyu' : '⏳ Masbuk' }}
+                        </span>
+                    @else
+                        <span class="inline-block px-2 py-0.5 text-[10px] font-bold rounded bg-rose-100 text-rose-800">{{ ucfirst($dhuhur->status) }}</span>
+                    @endif
+                @else
+                    <span class="inline-block px-2 py-0.5 text-[10px] font-medium rounded bg-gray-100 text-gray-600">Jadwal Dhuhur</span>
+                @endif
+            </div>
+        </div>
+
+        <!-- 3. Sholat Ashar -->
+        @php
+            $ashar = $this->asharPrayer;
+            $hasAshar = !empty($ashar);
+        @endphp
+        <div class="bg-white rounded-xl p-3.5 border {{ $hasAshar ? 'border-teal-200 bg-teal-50/40' : 'border-gray-200' }} shadow-sm flex flex-col justify-between">
+            <div>
+                <div class="flex items-center justify-between text-xs text-gray-500 mb-1">
+                    <span class="font-bold uppercase tracking-wider text-[10px]">3. Sholat Ashar</span>
+                    <span>🕌</span>
+                </div>
+                <div class="text-sm font-black text-gray-900">
+                    @if($hasAshar)
+                        {{ $ashar->status === 'halangan' ? 'Halangan' : (in_array($ashar->status, ['hadir', 'masuk']) ? ($ashar->is_khusyu ? 'Tepat Waktu' : 'Masbuk') : ucfirst($ashar->status)) }}
+                    @else
+                        Belum Sholat
+                    @endif
+                </div>
+            </div>
+            <div class="mt-2">
+                @if($hasAshar)
+                    @if($ashar->status === 'halangan')
+                        <span class="inline-block px-2 py-0.5 text-[10px] font-bold rounded bg-purple-100 text-purple-800">🌸 Halangan</span>
+                    @elseif(in_array($ashar->status, ['hadir', 'masuk']))
+                        <span class="inline-block px-2 py-0.5 text-[10px] font-bold rounded {{ $ashar->is_khusyu ? 'bg-teal-100 text-teal-800' : 'bg-amber-100 text-amber-800' }}">
+                            {{ $ashar->is_khusyu ? '✓ Khusyu' : '⏳ Masbuk' }}
+                        </span>
+                    @else
+                        <span class="inline-block px-2 py-0.5 text-[10px] font-bold rounded bg-rose-100 text-rose-800">{{ ucfirst($ashar->status) }}</span>
+                    @endif
+                @else
+                    <span class="inline-block px-2 py-0.5 text-[10px] font-medium rounded bg-gray-100 text-gray-600">Jadwal Ashar</span>
+                @endif
+            </div>
+        </div>
+
+        <!-- 4. Kehadiran Mapel -->
+        @php
+            $subjAtts = $this->subjectAttendances;
+            $countSubj = $subjAtts->count();
+            $countHadirSubj = $subjAtts->where('status', 'hadir')->count();
+        @endphp
+        <div class="bg-white rounded-xl p-3.5 border {{ $countSubj > 0 ? 'border-sky-200 bg-sky-50/40' : 'border-gray-200' }} shadow-sm flex flex-col justify-between">
+            <div>
+                <div class="flex items-center justify-between text-xs text-gray-500 mb-1">
+                    <span class="font-bold uppercase tracking-wider text-[10px]">4. Presensi Mapel</span>
+                    <span>📚</span>
+                </div>
+                <div class="text-sm font-black text-gray-900">
+                    {{ $countSubj > 0 ? "{$countHadirSubj} / {$countSubj} Mapel" : 'Belum Ada Jurnal' }}
+                </div>
+            </div>
+            <div class="mt-2">
+                @if($countSubj > 0)
+                    <span class="inline-block px-2 py-0.5 text-[10px] font-bold rounded bg-sky-100 text-sky-800">
+                        {{ $countHadirSubj == $countSubj ? '✓ Lengkap Hadir' : '⚠️ Ada Izin/Absen' }}
+                    </span>
+                @else
+                    <span class="inline-block px-2 py-0.5 text-[10px] font-medium rounded bg-gray-100 text-gray-600">Mengikuti KBM</span>
+                @endif
+            </div>
+        </div>
+
+        <!-- 5. Skor Karakter -->
+        @php
+            $charLogs = $this->characterLogsToday;
+            $plusPoints = $charLogs->where('point_change', '>', 0)->sum('point_change');
+            $minusPoints = $charLogs->where('point_change', '<', 0)->sum('point_change');
+        @endphp
+        <div class="bg-white rounded-xl p-3.5 border border-purple-200 bg-purple-50/40 shadow-sm flex flex-col justify-between">
+            <div>
+                <div class="flex items-center justify-between text-xs text-gray-500 mb-1">
+                    <span class="font-bold uppercase tracking-wider text-[10px]">5. Skor Karakter</span>
+                    <span>⭐</span>
+                </div>
+                <div class="text-sm font-black text-gray-900">
+                    {{ $activeStudent->character_score ?? ($schoolScoreTotal + $homeScoreTotal) }} Poin
+                </div>
+            </div>
+            <div class="mt-2 flex items-center gap-1 flex-wrap">
+                @if($plusPoints > 0)
+                    <span class="inline-block px-1.5 py-0.5 text-[10px] font-bold rounded bg-emerald-100 text-emerald-800">+{{ $plusPoints }}</span>
+                @endif
+                @if($minusPoints < 0)
+                    <span class="inline-block px-1.5 py-0.5 text-[10px] font-bold rounded bg-rose-100 text-rose-800">{{ $minusPoints }}</span>
+                @endif
+                @if($plusPoints == 0 && $minusPoints == 0)
+                    <span class="inline-block px-2 py-0.5 text-[10px] font-medium rounded bg-gray-100 text-gray-600">Stabil</span>
+                @endif
+            </div>
+        </div>
+
+        <!-- 6. Pelanggaran -->
+        @php
+            $violations = $this->violationsToday;
+            $countViolations = $violations->count();
+            $sikap = $this->sikapPredikat;
+        @endphp
+        <div class="bg-white rounded-xl p-3.5 border {{ $countViolations > 0 ? 'border-rose-300 bg-rose-50/40' : 'border-gray-200' }} shadow-sm flex flex-col justify-between">
+            <div>
+                <div class="flex items-center justify-between text-xs text-gray-500 mb-1">
+                    <span class="font-bold uppercase tracking-wider text-[10px]">6. Pelanggaran</span>
+                    <span>⚠️</span>
+                </div>
+                <div class="text-sm font-black text-gray-900">
+                    {{ $countViolations > 0 ? "{$countViolations} Catatan" : '0 Pelanggaran' }}
+                </div>
+            </div>
+            <div class="mt-2">
+                @if($countViolations > 0)
+                    <span class="inline-block px-2 py-0.5 text-[10px] font-bold rounded bg-rose-100 text-rose-800">⚠️ Ada Poin Minus</span>
+                @else
+                    <span class="inline-block px-2 py-0.5 text-[10px] font-bold rounded bg-emerald-100 text-emerald-800">✓ Sikap {{ $sikap['predikat'] }}</span>
+                @endif
+            </div>
+        </div>
+
+        <!-- 7. Capaian Al-Qur'an -->
+        @php
+            $quranToday = $this->quranAchievementsToday->first() ?: $this->recentQuranAchievements->first();
+        @endphp
+        <div class="bg-white rounded-xl p-3.5 border {{ $quranToday ? 'border-amber-200 bg-amber-50/40' : 'border-gray-200' }} shadow-sm flex flex-col justify-between">
+            <div>
+                <div class="flex items-center justify-between text-xs text-gray-500 mb-1">
+                    <span class="font-bold uppercase tracking-wider text-[10px]">7. Al-Qur'an</span>
+                    <span>📖</span>
+                </div>
+                <div class="text-xs font-black text-gray-900 truncate">
+                    @if($quranToday)
+                        {{ $quranToday->surah ?: 'Ziyadah' }} ({{ $quranToday->ayah ?: '-' }})
+                    @else
+                        Belum Ada Setoran
+                    @endif
+                </div>
+            </div>
+            <div class="mt-2">
+                @if($quranToday)
+                    <span class="inline-block px-2 py-0.5 text-[10px] font-bold rounded bg-amber-100 text-amber-800">
+                        {{ $quranToday->predikat ?: 'Mumtaz' }}
+                    </span>
+                @else
+                    <span class="inline-block px-2 py-0.5 text-[10px] font-medium rounded bg-gray-100 text-gray-600">Menunggu</span>
+                @endif
+            </div>
+        </div>
+
     </div>
 
-    <!-- Checklists Grid -->
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        
-        <!-- Kegiatan Pagi -->
-        <div class="bg-white shadow-sm sm:rounded-2xl p-8 border border-gray-100 relative overflow-hidden">
-            <div class="absolute top-0 right-0 w-24 h-24 bg-amber-50 rounded-bl-full -z-10"></div>
-            
-            <h3 class="text-xl font-bold text-gray-900 flex items-center gap-2 mb-6">
-                <span class="p-2 bg-amber-100 text-amber-600 rounded-lg">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
-                </span>
-                Kegiatan Pagi
-            </h3>
-            
-            @if (session()->has('message_morning'))
-                <div class="px-4 py-3 mb-6 text-sm text-green-700 bg-green-50 border border-green-200 rounded-xl flex items-center gap-2">
-                    <svg class="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                    {{ session('message_morning') }}
-                </div>
-            @endif
-            
-            <div class="space-y-4">
-                <label class="flex items-center justify-between p-4 rounded-xl border border-gray-100 hover:border-amber-100 bg-gray-50/50 cursor-pointer transition-colors {{ $morning_sholat_subuh ? 'opacity-60 bg-gray-100 cursor-not-allowed' : '' }}">
-                    <span class="font-medium text-gray-700">Sholat Subuh</span>
-                    <input type="checkbox" wire:model="morning_sholat_subuh" {{ $morning_sholat_subuh ? 'disabled' : '' }} class="w-5 h-5 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 {{ $morning_sholat_subuh ? 'cursor-not-allowed' : 'cursor-pointer' }}">
-                </label>
-                
-                <label class="flex items-center justify-between p-4 rounded-xl border border-gray-100 hover:border-amber-100 bg-gray-50/50 cursor-pointer transition-colors {{ $morning_merapikan_tempat_tidur ? 'opacity-60 bg-gray-100 cursor-not-allowed' : '' }}">
-                    <span class="font-medium text-gray-700">Merapikan Tempat Tidur</span>
-                    <input type="checkbox" wire:model="morning_merapikan_tempat_tidur" {{ $morning_merapikan_tempat_tidur ? 'disabled' : '' }} class="w-5 h-5 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 {{ $morning_merapikan_tempat_tidur ? 'cursor-not-allowed' : 'cursor-pointer' }}">
-                </label>
-                
-                <label class="flex items-center justify-between p-4 rounded-xl border border-gray-100 hover:border-amber-100 bg-gray-50/50 cursor-pointer transition-colors {{ $morning_meminta_doa ? 'opacity-60 bg-gray-100 cursor-not-allowed' : '' }}">
-                    <span class="font-medium text-gray-700">Meminta Doa sebelum berangkat</span>
-                    <input type="checkbox" wire:model="morning_meminta_doa" {{ $morning_meminta_doa ? 'disabled' : '' }} class="w-5 h-5 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 {{ $morning_meminta_doa ? 'cursor-not-allowed' : 'cursor-pointer' }}">
-                </label>
-                
-                <div class="pt-4">
-                    <button wire:click="saveMorning" class="w-full bg-amber-500 text-white px-4 py-3 rounded-xl font-bold tracking-wide hover:bg-amber-600 focus:ring-2 focus:ring-offset-2 focus:ring-amber-500 transition-colors shadow-sm">
-                        Kirim Laporan Pagi
-                    </button>
-                </div>
-            </div>
-        </div>
+    <!-- TABS NAVIGASI 7 FITUR LENGKAP -->
+    <div class="flex items-center gap-2 overflow-x-auto border-b border-gray-200 pb-2">
+        <button type="button" wire:click="setActiveTab('semua')" class="px-4 py-2 rounded-xl text-xs sm:text-sm font-bold whitespace-nowrap transition {{ $activeTab === 'semua' ? 'bg-gray-900 text-white shadow-sm' : 'text-gray-600 hover:bg-gray-100' }}">
+            📑 Tampilkan Semua
+        </button>
+        <button type="button" wire:click="setActiveTab('presensi')" class="px-4 py-2 rounded-xl text-xs sm:text-sm font-bold whitespace-nowrap transition {{ $activeTab === 'presensi' ? 'bg-emerald-600 text-white shadow-sm' : 'text-gray-600 hover:bg-gray-100' }}">
+            🕒 Presensi & Sholat (1-2)
+        </button>
+        <button type="button" wire:click="setActiveTab('mapel')" class="px-4 py-2 rounded-xl text-xs sm:text-sm font-bold whitespace-nowrap transition {{ $activeTab === 'mapel' ? 'bg-sky-600 text-white shadow-sm' : 'text-gray-600 hover:bg-gray-100' }}">
+            📚 Kehadiran Mapel (3)
+        </button>
+        <button type="button" wire:click="setActiveTab('karakter')" class="px-4 py-2 rounded-xl text-xs sm:text-sm font-bold whitespace-nowrap transition {{ $activeTab === 'karakter' ? 'bg-purple-600 text-white shadow-sm' : 'text-gray-600 hover:bg-gray-100' }}">
+            ⭐ Skor Karakter (4)
+        </button>
+        <button type="button" wire:click="setActiveTab('pelanggaran')" class="px-4 py-2 rounded-xl text-xs sm:text-sm font-bold whitespace-nowrap transition {{ $activeTab === 'pelanggaran' ? 'bg-rose-600 text-white shadow-sm' : 'text-gray-600 hover:bg-gray-100' }}">
+            ⚠️ Pelanggaran Siswa (5)
+        </button>
+        <button type="button" wire:click="setActiveTab('nilai')" class="px-4 py-2 rounded-xl text-xs sm:text-sm font-bold whitespace-nowrap transition {{ $activeTab === 'nilai' ? 'bg-indigo-600 text-white shadow-sm' : 'text-gray-600 hover:bg-gray-100' }}">
+            📝 Nilai Harian (6)
+        </button>
+        <button type="button" wire:click="setActiveTab('quran')" class="px-4 py-2 rounded-xl text-xs sm:text-sm font-bold whitespace-nowrap transition {{ $activeTab === 'quran' ? 'bg-amber-600 text-white shadow-sm' : 'text-gray-600 hover:bg-gray-100' }}">
+            📖 Capaian Qur'an (7)
+        </button>
+        <button type="button" wire:click="setActiveTab('amaliyah')" class="px-4 py-2 rounded-xl text-xs sm:text-sm font-bold whitespace-nowrap transition {{ $activeTab === 'amaliyah' ? 'bg-teal-600 text-white shadow-sm' : 'text-gray-600 hover:bg-gray-100' }}">
+            🏡 Checklist Rumah & Rapor
+        </button>
+    </div>
 
-        <!-- Kegiatan Sore/Malam -->
-        <div class="bg-white shadow-sm sm:rounded-2xl p-8 border border-gray-100 relative overflow-hidden">
-            <div class="absolute top-0 right-0 w-24 h-24 bg-indigo-50 rounded-bl-full -z-10"></div>
-            
-            <h3 class="text-xl font-bold text-gray-900 flex items-center gap-2 mb-6">
-                <span class="p-2 bg-indigo-100 text-indigo-600 rounded-lg">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path></svg>
+    <!-- DETAIL SECTIONS -->
+    <div class="space-y-6">
+
+        <!-- 1 & 2. PRESENSI MASUK & SHOLAT BERJAMAAH -->
+        @if($activeTab === 'semua' || $activeTab === 'presensi')
+        <div class="bg-white rounded-2xl p-6 sm:p-7 shadow-sm border border-gray-100 space-y-6">
+            <div class="flex items-center justify-between border-b pb-4">
+                <div>
+                    <h3 class="text-base sm:text-lg font-bold text-gray-900 flex items-center gap-2">
+                        <span class="p-1.5 bg-emerald-100 text-emerald-700 rounded-lg">🕒</span>
+                        1. Kehadiran Masuk Sekolah & 2. Absensi Sholat Berjamaah
+                    </h3>
+                    <p class="text-xs text-gray-500 mt-0.5">Waktu kedatangan di gerbang sekolah serta ketepatan waktu sholat berjamaah Dhuhur & Ashar.</p>
+                </div>
+                <span class="text-xs font-bold text-emerald-700 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200">
+                    {{ \Carbon\Carbon::parse($selectedDate)->translatedFormat('d M Y') }}
                 </span>
-                Kegiatan Sore & Malam
-            </h3>
-            
-            @if (session()->has('message_evening'))
-                <div class="px-4 py-3 mb-6 text-sm text-green-700 bg-green-50 border border-green-200 rounded-xl flex items-center gap-2">
-                    <svg class="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                    {{ session('message_evening') }}
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                
+                <!-- Waktu Kedatangan -->
+                <div class="bg-gradient-to-br from-emerald-50/50 to-emerald-100/30 rounded-xl p-5 border border-emerald-200 flex flex-col justify-between">
+                    <div>
+                        <div class="flex items-center justify-between">
+                            <span class="text-xs font-bold text-emerald-800 uppercase tracking-wider">Presensi Masuk</span>
+                            <span class="text-xl">🚪</span>
+                        </div>
+                        <div class="mt-3">
+                            @if($arrival)
+                                <div class="text-3xl font-black text-gray-900">
+                                    {{ $arrival->waktu_kedatangan ? \Carbon\Carbon::parse($arrival->waktu_kedatangan)->format('H:i') . ' WIB' : ucfirst($arrival->status) }}
+                                </div>
+                                <div class="mt-2 flex items-center gap-2">
+                                    @if($arrival->is_late)
+                                        <span class="px-2.5 py-1 text-xs font-bold rounded-lg bg-rose-100 text-rose-800 border border-rose-200">
+                                            ⚠️ Terlambat Masuk
+                                        </span>
+                                    @elseif($arrival->status === 'hadir')
+                                        <span class="px-2.5 py-1 text-xs font-bold rounded-lg bg-emerald-100 text-emerald-800 border border-emerald-200">
+                                            ✓ Tepat Waktu (Sebelum 06.45)
+                                        </span>
+                                    @else
+                                        <span class="px-2.5 py-1 text-xs font-bold rounded-lg bg-blue-100 text-blue-800">
+                                            {{ ucfirst($arrival->status) }}
+                                        </span>
+                                    @endif
+                                </div>
+                                @if($arrival->keterangan)
+                                    <p class="text-xs text-gray-600 mt-2 bg-white/70 p-2 rounded-lg border border-emerald-100">
+                                        Catatan: {{ $arrival->keterangan }}
+                                    </p>
+                                @endif
+                            @else
+                                <div class="text-xl font-bold text-gray-400">Belum Tercatat</div>
+                                <p class="text-xs text-gray-500 mt-1">Belum ada scan presensi masuk pada tanggal ini.</p>
+                            @endif
+                        </div>
+                    </div>
+                    @if($this->latestArrival && !$arrival)
+                        <div class="mt-4 pt-3 border-t border-emerald-200/60 text-[11px] text-gray-500">
+                            Terakhir tercatat: <strong>{{ \Carbon\Carbon::parse($this->latestArrival->tanggal)->translatedFormat('d M Y') }}</strong> ({{ $this->latestArrival->waktu_kedatangan ? \Carbon\Carbon::parse($this->latestArrival->waktu_kedatangan)->format('H:i') . ' WIB' : ucfirst($this->latestArrival->status) }})
+                        </div>
+                    @endif
+                </div>
+
+                <!-- Sholat Dhuhur -->
+                <div class="bg-gradient-to-br from-teal-50/50 to-teal-100/30 rounded-xl p-5 border border-teal-200 flex flex-col justify-between">
+                    <div>
+                        <div class="flex items-center justify-between">
+                            <span class="text-xs font-bold text-teal-800 uppercase tracking-wider">Sholat Dhuhur</span>
+                            <span class="text-xl">🕌</span>
+                        </div>
+                        <div class="mt-3">
+                            @if($dhuhur)
+                                <div class="text-2xl font-black text-gray-900">
+                                    @if($dhuhur->status === 'halangan')
+                                        🌸 Berhalangan / Haid
+                                    @elseif(in_array($dhuhur->status, ['hadir', 'masuk']))
+                                        {{ $dhuhur->is_khusyu ? '✓ Tepat Waktu & Khusyu' : '⏳ Masbuk' }}
+                                    @else
+                                        {{ ucfirst($dhuhur->status) }}
+                                    @endif
+                                </div>
+                                <div class="mt-2">
+                                    <span class="inline-block px-2.5 py-1 text-xs font-bold rounded-lg {{ $dhuhur->status === 'halangan' ? 'bg-purple-100 text-purple-800' : ($dhuhur->is_khusyu ? 'bg-teal-100 text-teal-800' : 'bg-amber-100 text-amber-800') }}">
+                                        {{ $dhuhur->keterangan ?: ($dhuhur->is_khusyu ? 'Hadir Berjamaah Tepat Waktu' : 'Terlambat / Masbuk') }}
+                                    </span>
+                                </div>
+                                @if(!empty($dhuhur->teacher))
+                                    <p class="text-[11px] text-gray-500 mt-2">Guru Pendamping: {{ $dhuhur->teacher->name }}</p>
+                                @endif
+                            @else
+                                <div class="text-xl font-bold text-gray-400">Belum Tercatat</div>
+                                <p class="text-xs text-gray-500 mt-1">Presensi sholat Dhuhur belum diinputkan oleh guru pembimbing.</p>
+                            @endif
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Sholat Ashar -->
+                <div class="bg-gradient-to-br from-cyan-50/50 to-cyan-100/30 rounded-xl p-5 border border-cyan-200 flex flex-col justify-between">
+                    <div>
+                        <div class="flex items-center justify-between">
+                            <span class="text-xs font-bold text-cyan-800 uppercase tracking-wider">Sholat Ashar</span>
+                            <span class="text-xl">🕌</span>
+                        </div>
+                        <div class="mt-3">
+                            @if($ashar)
+                                <div class="text-2xl font-black text-gray-900">
+                                    @if($ashar->status === 'halangan')
+                                        🌸 Berhalangan / Haid
+                                    @elseif(in_array($ashar->status, ['hadir', 'masuk']))
+                                        {{ $ashar->is_khusyu ? '✓ Tepat Waktu & Khusyu' : '⏳ Masbuk' }}
+                                    @else
+                                        {{ ucfirst($ashar->status) }}
+                                    @endif
+                                </div>
+                                <div class="mt-2">
+                                    <span class="inline-block px-2.5 py-1 text-xs font-bold rounded-lg {{ $ashar->status === 'halangan' ? 'bg-purple-100 text-purple-800' : ($ashar->is_khusyu ? 'bg-cyan-100 text-cyan-800' : 'bg-amber-100 text-amber-800') }}">
+                                        {{ $ashar->keterangan ?: ($ashar->is_khusyu ? 'Hadir Berjamaah Tepat Waktu' : 'Terlambat / Masbuk') }}
+                                    </span>
+                                </div>
+                                @if(!empty($ashar->teacher))
+                                    <p class="text-[11px] text-gray-500 mt-2">Guru Pendamping: {{ $ashar->teacher->name }}</p>
+                                @endif
+                            @else
+                                <div class="text-xl font-bold text-gray-400">Belum Tercatat</div>
+                                <p class="text-xs text-gray-500 mt-1">Presensi sholat Ashar belum diinputkan oleh guru pembimbing.</p>
+                            @endif
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Mini Strip 7 Hari Terakhir -->
+            @if($this->recentWeeklyAttendances->isNotEmpty())
+            <div class="pt-4 border-t border-gray-100">
+                <span class="text-xs font-bold text-gray-600 block mb-2">Riwayat Kehadiran 7 Hari Terakhir:</span>
+                <div class="flex items-center gap-2 overflow-x-auto pb-1">
+                    @foreach($this->recentWeeklyAttendances as $wAtt)
+                        <div class="flex-shrink-0 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-center text-xs min-w-[90px]">
+                            <div class="text-[10px] text-gray-500 font-semibold">{{ \Carbon\Carbon::parse($wAtt->tanggal)->translatedFormat('D, d M') }}</div>
+                            <div class="font-extrabold mt-0.5 {{ $wAtt->is_late ? 'text-amber-600' : ($wAtt->status === 'hadir' ? 'text-emerald-600' : 'text-blue-600') }}">
+                                {{ $wAtt->waktu_kedatangan ? \Carbon\Carbon::parse($wAtt->waktu_kedatangan)->format('H:i') : ucfirst($wAtt->status) }}
+                            </div>
+                            <div class="text-[9px] font-bold mt-0.5">
+                                {{ $wAtt->is_late ? 'Terlambat' : ($wAtt->status === 'hadir' ? 'Tepat Waktu' : ucfirst($wAtt->status)) }}
+                            </div>
+                        </div>
+                    @endforeach
+                </div>
+            </div>
+            @endif
+        </div>
+        @endif
+
+        <!-- 3. KEHADIRAN PER MATA PELAJARAN (JURNAL MENGAJAR GURU) -->
+        @if($activeTab === 'semua' || $activeTab === 'mapel')
+        <div class="bg-white rounded-2xl p-6 sm:p-7 shadow-sm border border-gray-100 space-y-5">
+            <div class="flex items-center justify-between border-b pb-4">
+                <div>
+                    <h3 class="text-base sm:text-lg font-bold text-gray-900 flex items-center gap-2">
+                        <span class="p-1.5 bg-sky-100 text-sky-700 rounded-lg">📚</span>
+                        3. Presensi Kehadiran Tiap Jam Mata Pelajaran (Mapel)
+                    </h3>
+                    <p class="text-xs text-gray-500 mt-0.5">Catatan presensi per jam pelajaran yang diinput langsung oleh guru pengampu saat KBM.</p>
+                </div>
+            </div>
+
+            @php
+                $subjectAtts = $this->subjectAttendances;
+            @endphp
+
+            @if($subjectAtts->isNotEmpty())
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-xs sm:text-sm">
+                        <thead>
+                            <tr class="bg-sky-50/70 text-sky-900 border-b border-sky-100 font-bold">
+                                <th class="px-4 py-3">Jam Ke</th>
+                                <th class="px-4 py-3">Mata Pelajaran</th>
+                                <th class="px-4 py-3">Guru Pengajar</th>
+                                <th class="px-4 py-3 text-center">Status Kehadiran</th>
+                                <th class="px-4 py-3">Materi Pelajaran</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-100">
+                            @foreach($subjectAtts as $sa)
+                                @php
+                                    $tj = $sa->teachingJournal;
+                                @endphp
+                                <tr class="hover:bg-gray-50 transition">
+                                    <td class="px-4 py-3 font-bold text-gray-700 whitespace-nowrap">
+                                        Jam ke {{ $tj?->jam_ke ?? '-' }}
+                                    </td>
+                                    <td class="px-4 py-3 font-black text-gray-900 whitespace-nowrap">
+                                        {{ $tj?->subject?->name ?? 'Mata Pelajaran' }}
+                                    </td>
+                                    <td class="px-4 py-3 text-gray-600 whitespace-nowrap">
+                                        {{ $tj?->teacher?->name ?? '-' }}
+                                    </td>
+                                    <td class="px-4 py-3 text-center whitespace-nowrap">
+                                        @if($sa->status === 'hadir')
+                                            <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800">
+                                                ✓ Hadir di Kelas
+                                            </span>
+                                        @elseif($sa->status === 'izin')
+                                            <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800">
+                                                ⏳ Izin
+                                            </span>
+                                        @elseif($sa->status === 'sakit')
+                                            <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-orange-100 text-orange-800">
+                                                🏥 Sakit
+                                            </span>
+                                        @else
+                                            <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-rose-100 text-rose-800">
+                                                ❌ {{ ucfirst($sa->status) }}
+                                            </span>
+                                        @endif
+                                    </td>
+                                    <td class="px-4 py-3 text-gray-600">
+                                        {{ $tj?->materi ?: '-' }}
+                                    </td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+            @else
+                <div class="bg-gray-50 border border-dashed border-gray-200 rounded-xl p-6 text-center">
+                    <p class="text-sm font-bold text-gray-700">Belum ada inputan jurnal mapel pada tanggal ini.</p>
+                    <p class="text-xs text-gray-500 mt-1">KBM mungkin sedang libur atau guru belum selesai menginput jurnal mengajar hari ini.</p>
+
+                    @if($this->recentSubjectAttendances->isNotEmpty())
+                        <div class="mt-4 pt-4 border-t border-gray-200 text-left">
+                            <span class="text-xs font-bold text-gray-600 block mb-2">Riwayat Presensi Mapel Terakhir:</span>
+                            <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                                @foreach($this->recentSubjectAttendances as $rsa)
+                                    @php $rtj = $rsa->teachingJournal; @endphp
+                                    <div class="bg-white p-3 rounded-xl border border-gray-200 text-xs shadow-sm">
+                                        <div class="flex items-center justify-between text-gray-500 font-semibold mb-1">
+                                            <span>{{ $rtj?->tanggal ? \Carbon\Carbon::parse($rtj->tanggal)->translatedFormat('d M Y') : '-' }}</span>
+                                            <span class="font-bold text-emerald-600 uppercase">{{ $rsa->status }}</span>
+                                        </div>
+                                        <div class="font-extrabold text-gray-900">{{ $rtj?->subject?->name ?? 'Mapel' }}</div>
+                                        <div class="text-[11px] text-gray-500 mt-0.5">{{ $rtj?->teacher?->name ?? '-' }}</div>
+                                    </div>
+                                @endforeach
+                            </div>
+                        </div>
+                    @endif
                 </div>
             @endif
-            
-            <div class="space-y-4">
-                <label class="flex items-center justify-between p-4 rounded-xl border border-gray-100 hover:border-indigo-100 bg-gray-50/50 cursor-pointer transition-colors {{ $evening_sholat_maghrib ? 'opacity-60 bg-gray-100 cursor-not-allowed' : '' }}">
-                    <span class="font-medium text-gray-700">Sholat Maghrib</span>
-                    <input type="checkbox" wire:model="evening_sholat_maghrib" {{ $evening_sholat_maghrib ? 'disabled' : '' }} class="w-5 h-5 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 {{ $evening_sholat_maghrib ? 'cursor-not-allowed' : 'cursor-pointer' }}">
-                </label>
-                
-                <label class="flex items-center justify-between p-4 rounded-xl border border-gray-100 hover:border-indigo-100 bg-gray-50/50 cursor-pointer transition-colors {{ $evening_sholat_isya ? 'opacity-60 bg-gray-100 cursor-not-allowed' : '' }}">
-                    <span class="font-medium text-gray-700">Sholat Isya'</span>
-                    <input type="checkbox" wire:model="evening_sholat_isya" {{ $evening_sholat_isya ? 'disabled' : '' }} class="w-5 h-5 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 {{ $evening_sholat_isya ? 'cursor-not-allowed' : 'cursor-pointer' }}">
-                </label>
-                
-                <label class="flex items-center justify-between p-4 rounded-xl border border-gray-100 hover:border-indigo-100 bg-gray-50/50 cursor-pointer transition-colors {{ $evening_murajaah ? 'opacity-60 bg-gray-100 cursor-not-allowed' : '' }}">
-                    <span class="font-medium text-gray-700">Muraja'ah Hafalan</span>
-                    <input type="checkbox" wire:model="evening_murajaah" {{ $evening_murajaah ? 'disabled' : '' }} class="w-5 h-5 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 {{ $evening_murajaah ? 'cursor-not-allowed' : 'cursor-pointer' }}">
-                </label>
-                
-                <label class="flex items-center justify-between p-4 rounded-xl border border-gray-100 hover:border-indigo-100 bg-gray-50/50 cursor-pointer transition-colors {{ $evening_mengaji ? 'opacity-60 bg-gray-100 cursor-not-allowed' : '' }}">
-                    <span class="font-medium text-gray-700">Mengaji</span>
-                    <input type="checkbox" wire:model="evening_mengaji" {{ $evening_mengaji ? 'disabled' : '' }} class="w-5 h-5 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 {{ $evening_mengaji ? 'cursor-not-allowed' : 'cursor-pointer' }}">
-                </label>
-                
-                <label class="flex items-center justify-between p-4 rounded-xl border border-gray-100 hover:border-indigo-100 bg-gray-50/50 cursor-pointer transition-colors {{ $evening_membantu_ortu ? 'opacity-60 bg-gray-100 cursor-not-allowed' : '' }}">
-                    <span class="font-medium text-gray-700">Membantu Orang Tua (Min. 2 Kegiatan)</span>
-                    <input type="checkbox" wire:model="evening_membantu_ortu" {{ $evening_membantu_ortu ? 'disabled' : '' }} class="w-5 h-5 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 {{ $evening_membantu_ortu ? 'cursor-not-allowed' : 'cursor-pointer' }}">
-                </label>
-                
-                <label class="flex items-center justify-between p-4 rounded-xl border border-gray-100 hover:border-indigo-100 bg-gray-50/50 cursor-pointer transition-colors {{ $evening_persiapan_sekolah ? 'opacity-60 bg-gray-100 cursor-not-allowed' : '' }}">
-                    <span class="font-medium text-gray-700">Persiapan Sekolah Esok Hari</span>
-                    <input type="checkbox" wire:model="evening_persiapan_sekolah" {{ $evening_persiapan_sekolah ? 'disabled' : '' }} class="w-5 h-5 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 {{ $evening_persiapan_sekolah ? 'cursor-not-allowed' : 'cursor-pointer' }}">
-                </label>
-                
-                <div class="pt-4">
-                    <button wire:click="saveEvening" class="w-full bg-indigo-600 text-white px-4 py-3 rounded-xl font-bold tracking-wide hover:bg-indigo-700 focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors shadow-sm">
-                        Kirim Laporan Malam
-                    </button>
+        </div>
+        @endif
+
+        <!-- 4. SKOR KARAKTER DARI JURNAL MENGAJAR GURU -->
+        @if($activeTab === 'semua' || $activeTab === 'karakter')
+        <div class="bg-white rounded-2xl p-6 sm:p-7 shadow-sm border border-gray-100 space-y-6">
+            <div class="flex items-center justify-between border-b pb-4">
+                <div>
+                    <h3 class="text-base sm:text-lg font-bold text-gray-900 flex items-center gap-2">
+                        <span class="p-1.5 bg-purple-100 text-purple-700 rounded-lg">⭐</span>
+                        4. Catatan Skor Karakter Harian dari Guru
+                    </h3>
+                    <p class="text-xs text-gray-500 mt-0.5">Detail skor tambah (kebaikan/prestasi) dan skor kurang (evaluasi sikap) yang diinputkan guru di jurnal mengajar.</p>
+                </div>
+                <div class="text-right">
+                    <span class="text-xs text-gray-500 block">Total Poin Karakter:</span>
+                    <span class="text-xl font-black text-purple-700">{{ $activeStudent->character_score ?? ($schoolScoreTotal + $homeScoreTotal) }} Poin</span>
+                </div>
+            </div>
+
+            @php
+                $charToday = $this->characterLogsToday;
+                $charRecent = $this->recentCharacterLogs;
+            @endphp
+
+            @if($charToday->isNotEmpty())
+                <div class="space-y-3">
+                    <h4 class="text-xs font-bold text-gray-700 uppercase tracking-wider">Catatan Karakter Hari Ini:</h4>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        @foreach($charToday as $cLog)
+                            <div class="p-4 rounded-xl border {{ $cLog->point_change > 0 ? 'border-emerald-200 bg-emerald-50/50' : 'border-rose-200 bg-rose-50/50' }} flex items-start gap-3">
+                                <span class="text-2xl mt-0.5">{{ $cLog->point_change > 0 ? '🌟' : '⚠️' }}</span>
+                                <div class="flex-1">
+                                    <div class="flex items-center justify-between">
+                                        <span class="text-xs font-black {{ $cLog->point_change > 0 ? 'text-emerald-700' : 'text-rose-700' }}">
+                                            {{ $cLog->point_change > 0 ? "+{$cLog->point_change} Skor Tambah" : "{$cLog->point_change} Skor Kurang" }}
+                                        </span>
+                                        <span class="text-[10px] text-gray-500 uppercase font-bold">{{ $cLog->category }}</span>
+                                    </div>
+                                    <p class="text-sm font-semibold text-gray-800 mt-1">{{ $cLog->description }}</p>
+                                    <p class="text-[11px] text-gray-500 mt-1">Dicatat oleh: <strong>{{ $cLog->submitter?->name ?? 'Guru Sekolah' }}</strong></p>
+                                </div>
+                            </div>
+                        @endforeach
+                    </div>
+                </div>
+            @else
+                <div class="bg-gray-50 border border-gray-200 rounded-xl p-4 text-center text-xs text-gray-500">
+                    Tidak ada catatan perubahan poin karakter pada tanggal yang dipilih.
+                </div>
+            @endif
+
+            <!-- Riwayat 10 Poin Karakter Terakhir -->
+            @if($charRecent->isNotEmpty())
+                <div class="pt-4 border-t border-gray-100">
+                    <h4 class="text-xs font-bold text-gray-700 uppercase tracking-wider mb-3">Riwayat Catatan Karakter Sekolah Terakhir:</h4>
+                    <div class="divide-y divide-gray-100 max-h-80 overflow-y-auto">
+                        @foreach($charRecent as $rLog)
+                            <div class="py-2.5 flex items-center justify-between text-xs gap-3">
+                                <div class="flex items-center gap-2.5">
+                                    <span class="px-2 py-0.5 rounded font-black text-xs {{ $rLog->point_change > 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800' }}">
+                                        {{ $rLog->point_change > 0 ? "+{$rLog->point_change}" : $rLog->point_change }}
+                                    </span>
+                                    <div>
+                                        <span class="font-bold text-gray-800">{{ $rLog->description }}</span>
+                                        <span class="text-[10px] text-gray-500 block">Guru: {{ $rLog->submitter?->name ?? 'Guru' }} • {{ \Carbon\Carbon::parse($rLog->tanggal)->translatedFormat('d M Y') }}</span>
+                                    </div>
+                                </div>
+                                <span class="text-[10px] font-bold text-gray-400 uppercase">{{ $rLog->category }}</span>
+                            </div>
+                        @endforeach
+                    </div>
+                </div>
+            @endif
+        </div>
+        @endif
+
+        <!-- 5. PELANGGARAN SISWA -->
+        @if($activeTab === 'semua' || $activeTab === 'pelanggaran')
+        <div class="bg-white rounded-2xl p-6 sm:p-7 shadow-sm border border-gray-100 space-y-6">
+            <div class="flex items-center justify-between border-b pb-4">
+                <div>
+                    <h3 class="text-base sm:text-lg font-bold text-gray-900 flex items-center gap-2">
+                        <span class="p-1.5 bg-rose-100 text-rose-700 rounded-lg">⚠️</span>
+                        5. Catatan Pelanggaran Siswa & Kedisiplinan
+                    </h3>
+                    <p class="text-xs text-gray-500 mt-0.5">Bentuk pelanggaran tata tertib sekolah, bobot poin, dan tindak lanjut pembinaan.</p>
+                </div>
+                @php $sikapInfo = $this->sikapPredikat; @endphp
+                <div class="text-right">
+                    <span class="text-xs text-gray-500 block">Predikat Sikap:</span>
+                    <span class="text-base font-black px-2.5 py-0.5 rounded-lg bg-emerald-100 text-emerald-800 border border-emerald-200">
+                        {{ $sikapInfo['label'] }}
+                    </span>
+                </div>
+            </div>
+
+            @php
+                $allViolations = $this->allViolations;
+            @endphp
+
+            @if($allViolations->isEmpty())
+                <div class="bg-emerald-50 border border-emerald-200 rounded-xl p-6 text-center space-y-2">
+                    <div class="text-3xl">🎉</div>
+                    <h4 class="text-base font-bold text-emerald-900">Alhamdulillah! Tidak Ada Catatan Pelanggaran</h4>
+                    <p class="text-xs text-emerald-700 max-w-md mx-auto">
+                        Ananda memiliki catatan kedisiplinan yang sangat baik dan senantiasa menaati tata tertib sekolah. Terus dampingi dan berikan apresiasi kepada ananda!
+                    </p>
+                </div>
+            @else
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-xs sm:text-sm">
+                        <thead>
+                            <tr class="bg-rose-50/70 text-rose-900 border-b border-rose-100 font-bold">
+                                <th class="px-4 py-3">Tanggal & Jam</th>
+                                <th class="px-4 py-3">Bentuk Pelanggaran</th>
+                                <th class="px-4 py-3 text-center">Poin</th>
+                                <th class="px-4 py-3">Guru Pelapor</th>
+                                <th class="px-4 py-3">Tindak Lanjut Langsung</th>
+                                <th class="px-4 py-3">Penanganan Wali Kelas / BK</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-100">
+                            @foreach($allViolations as $v)
+                                <tr class="hover:bg-gray-50 transition">
+                                    <td class="px-4 py-3 font-semibold text-gray-700 whitespace-nowrap">
+                                        {{ \Carbon\Carbon::parse($v->tanggal)->translatedFormat('d M Y') }}
+                                        <span class="block text-[11px] text-gray-400">{{ $v->jam ?: '-' }}</span>
+                                    </td>
+                                    <td class="px-4 py-3 font-bold text-rose-900">
+                                        {{ $v->bentuk_pelanggaran }}
+                                    </td>
+                                    <td class="px-4 py-3 text-center whitespace-nowrap">
+                                        <span class="px-2 py-0.5 rounded-full text-xs font-black bg-rose-100 text-rose-800">
+                                            -{{ $v->poin }} Poin
+                                        </span>
+                                    </td>
+                                    <td class="px-4 py-3 text-gray-600 whitespace-nowrap">
+                                        {{ $v->teacher?->name ?? 'Guru Piket' }}
+                                    </td>
+                                    <td class="px-4 py-3 text-gray-700">
+                                        {{ $v->tindak_lanjut_langsung ?: '-' }}
+                                    </td>
+                                    <td class="px-4 py-3 text-gray-700">
+                                        {{ $v->penanganan_wali_kelas ?: ($v->penanganan_bk ?: '-') }}
+                                    </td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+            @endif
+        </div>
+        @endif
+
+        <!-- 6. NILAI SISWA PER HARI (PENILAIAN HARIAN MAPEL) -->
+        @if($activeTab === 'semua' || $activeTab === 'nilai')
+        <div class="bg-white rounded-2xl p-6 sm:p-7 shadow-sm border border-gray-100 space-y-6">
+            <div class="flex items-center justify-between border-b pb-4">
+                <div>
+                    <h3 class="text-base sm:text-lg font-bold text-gray-900 flex items-center gap-2">
+                        <span class="p-1.5 bg-indigo-100 text-indigo-700 rounded-lg">📝</span>
+                        6. Nilai Penilaian Harian (PH / UH / Tugas)
+                    </h3>
+                    <p class="text-xs text-gray-500 mt-0.5">Hasil asesmen harian mata pelajaran beserta feedback umpan balik guru.</p>
+                </div>
+            </div>
+
+            @php
+                $gradesToday = $this->dailyGradesToday;
+                $recentGrades = $this->recentGrades;
+            @endphp
+
+            @if($gradesToday->isNotEmpty())
+                <div class="space-y-3">
+                    <h4 class="text-xs font-bold text-gray-700 uppercase tracking-wider">Nilai Penilaian Hari Ini:</h4>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                        @foreach($gradesToday as $g)
+                            <div class="bg-gradient-to-br from-indigo-50/60 to-purple-50/60 rounded-xl p-4 border border-indigo-200">
+                                <div class="flex items-center justify-between">
+                                    <span class="text-xs font-bold text-indigo-800 uppercase">{{ $g->type ?: 'Penilaian Harian' }}</span>
+                                    <span class="text-2xl font-black text-indigo-900">{{ $g->score }}</span>
+                                </div>
+                                <div class="font-extrabold text-sm text-gray-900 mt-1">{{ $g->subject?->name ?? 'Mapel' }}</div>
+                                @if($g->feedback)
+                                    <p class="text-xs text-gray-600 mt-2 bg-white/70 p-2 rounded-lg">
+                                        Feedback Guru: "{{ $g->feedback }}"
+                                    </p>
+                                @endif
+                                <p class="text-[10px] text-gray-400 mt-2">Pengajar: {{ $g->teacher?->name ?? '-' }}</p>
+                            </div>
+                        @endforeach
+                    </div>
+                </div>
+            @endif
+
+            @if($recentGrades->isNotEmpty())
+                <div class="pt-4 border-t border-gray-100">
+                    <h4 class="text-xs font-bold text-gray-700 uppercase tracking-wider mb-3">Daftar Penilaian Harian Terbaru:</h4>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-xs sm:text-sm">
+                            <thead>
+                                <tr class="bg-indigo-50/60 text-indigo-900 border-b border-indigo-100 font-bold">
+                                    <th class="px-4 py-2.5">Tanggal</th>
+                                    <th class="px-4 py-2.5">Mata Pelajaran</th>
+                                    <th class="px-4 py-2.5">Jenis Penilaian</th>
+                                    <th class="px-4 py-2.5 text-center">Nilai</th>
+                                    <th class="px-4 py-2.5">Guru</th>
+                                    <th class="px-4 py-2.5">Catatan / Umpan Balik</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-100">
+                                @foreach($recentGrades as $rg)
+                                    <tr class="hover:bg-gray-50 transition">
+                                        <td class="px-4 py-2.5 text-gray-600 whitespace-nowrap">
+                                            {{ \Carbon\Carbon::parse($rg->tanggal)->translatedFormat('d M Y') }}
+                                        </td>
+                                        <td class="px-4 py-2.5 font-bold text-gray-900 whitespace-nowrap">
+                                            {{ $rg->subject?->name ?? '-' }}
+                                        </td>
+                                        <td class="px-4 py-2.5 text-gray-600 uppercase text-xs font-bold whitespace-nowrap">
+                                            {{ $rg->type ?: 'PH' }}
+                                        </td>
+                                        <td class="px-4 py-2.5 text-center whitespace-nowrap">
+                                            <span class="inline-block px-2.5 py-0.5 rounded-full font-black text-xs {{ $rg->score >= 75 ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800' }}">
+                                                {{ $rg->score }}
+                                            </span>
+                                        </td>
+                                        <td class="px-4 py-2.5 text-gray-600 whitespace-nowrap">
+                                            {{ $rg->teacher?->name ?? '-' }}
+                                        </td>
+                                        <td class="px-4 py-2.5 text-gray-700">
+                                            {{ $rg->feedback ?: '-' }}
+                                        </td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            @else
+                <div class="bg-gray-50 border border-gray-200 rounded-xl p-6 text-center text-xs text-gray-500">
+                    Belum ada rekaman nilai harian untuk ananda pada sistem.
+                </div>
+            @endif
+        </div>
+        @endif
+
+        <!-- 7. CAPAIAN PENILAIAN AL-QUR'AN -->
+        @if($activeTab === 'semua' || $activeTab === 'quran')
+        <div class="bg-white rounded-2xl p-6 sm:p-7 shadow-sm border border-gray-100 space-y-6">
+            <div class="flex items-center justify-between border-b pb-4">
+                <div>
+                    <h3 class="text-base sm:text-lg font-bold text-gray-900 flex items-center gap-2">
+                        <span class="p-1.5 bg-amber-100 text-amber-700 rounded-lg">📖</span>
+                        7. Capaian Pembelajaran Al-Qur'an (Tahsin & Tahfidz)
+                    </h3>
+                    <p class="text-xs text-gray-500 mt-0.5">Pantauan hafalan baru (Ziyadah), pengulangan hafalan (Muraja'ah), dan mutu bacaan tajwid/makhraj.</p>
+                </div>
+            </div>
+
+            @php
+                $qTodayList = $this->quranAchievementsToday;
+                $qRecentList = $this->recentQuranAchievements;
+            @endphp
+
+            @if($qTodayList->isNotEmpty())
+                <div class="space-y-3">
+                    <h4 class="text-xs font-bold text-gray-700 uppercase tracking-wider">Setoran Al-Qur'an Hari Ini:</h4>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        @foreach($qTodayList as $qa)
+                            <div class="bg-gradient-to-br from-amber-50/70 to-yellow-50/50 rounded-xl p-5 border border-amber-200 space-y-3">
+                                <div class="flex items-center justify-between">
+                                    <span class="px-2.5 py-0.5 text-xs font-bold rounded-full bg-amber-200 text-amber-900 uppercase">
+                                        Program: {{ ucfirst($qa->program) }}
+                                    </span>
+                                    <span class="px-2.5 py-0.5 text-xs font-extrabold rounded-full bg-emerald-100 text-emerald-800">
+                                        {{ $qa->predikat ?: 'Mumtaz' }}
+                                    </span>
+                                </div>
+                                <div class="space-y-1.5">
+                                    <div class="text-sm">
+                                        <span class="text-gray-500 text-xs font-bold">Setoran Ziyadah:</span>
+                                        <span class="font-extrabold text-gray-900">{{ $qa->surah ?: '-' }} (Ayat: {{ $qa->ayah ?: '-' }})</span>
+                                        @if($qa->juz) <span class="text-xs text-amber-800 font-bold">• Juz {{ $qa->juz }}</span> @endif
+                                    </div>
+                                    <div class="text-sm">
+                                        <span class="text-gray-500 text-xs font-bold">Setoran Muraja'ah:</span>
+                                        <span class="font-bold text-gray-800">{{ $qa->surah_murajaah ?: '-' }} (Ayat: {{ $qa->ayah_murajaah ?: '-' }})</span>
+                                    </div>
+                                </div>
+                                @if($qa->notes)
+                                    <div class="bg-white/80 p-2.5 rounded-lg border border-amber-100 text-xs text-gray-700">
+                                        <span class="font-bold block text-amber-900">Catatan Tajwid / Guru:</span>
+                                        {{ $qa->notes }}
+                                    </div>
+                                @endif
+                                <div class="text-[11px] text-gray-500">
+                                    Guru Pengampu: <strong>{{ $qa->teacher?->name ?? 'Guru Al-Qur\'an' }}</strong>
+                                </div>
+                            </div>
+                        @endforeach
+                    </div>
+                </div>
+            @endif
+
+            @if($qRecentList->isNotEmpty())
+                <div class="pt-4 border-t border-gray-100">
+                    <h4 class="text-xs font-bold text-gray-700 uppercase tracking-wider mb-3">Riwayat Setoran Al-Qur'an Terakhir:</h4>
+                    <div class="space-y-3">
+                        @foreach($qRecentList as $rqa)
+                            <div class="bg-gray-50 rounded-xl p-4 border border-gray-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
+                                <div>
+                                    <div class="flex items-center gap-2">
+                                        <span class="font-black text-gray-900 text-sm">{{ $rqa->surah ?: 'Ziyadah' }} (Ayat {{ $rqa->ayah ?: '-' }})</span>
+                                        <span class="px-2 py-0.5 rounded bg-amber-100 text-amber-800 font-bold text-[10px] uppercase">{{ $rqa->program }}</span>
+                                    </div>
+                                    <div class="text-gray-500 mt-1">
+                                        Muraja'ah: <strong>{{ $rqa->surah_murajaah ?: '-' }}</strong> • Guru: {{ $rqa->teacher?->name ?? 'Guru Al-Qur\'an' }}
+                                    </div>
+                                    @if($rqa->notes)
+                                        <p class="text-gray-600 mt-1 italic">"{{ $rqa->notes }}"</p>
+                                    @endif
+                                </div>
+                                <div class="text-right flex-shrink-0">
+                                    <span class="font-black text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200 block">
+                                        {{ $rqa->predikat ?: 'Mumtaz' }}
+                                    </span>
+                                    <span class="text-[10px] text-gray-400 mt-1 block">
+                                        {{ \Carbon\Carbon::parse($rqa->tanggal)->translatedFormat('d M Y') }}
+                                    </span>
+                                </div>
+                            </div>
+                        @endforeach
+                    </div>
+                </div>
+            @else
+                <div class="bg-gray-50 border border-gray-200 rounded-xl p-6 text-center text-xs text-gray-500">
+                    Belum ada catatan setoran Al-Qur'an tersimpan untuk ananda.
+                </div>
+            @endif
+        </div>
+        @endif
+
+        <!-- CHECKLIST AMALIYAH RUMAH & E-RAPOR -->
+        @if($activeTab === 'semua' || $activeTab === 'amaliyah')
+        <div class="space-y-6">
+            <!-- E-Rapor Section -->
+            <div class="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-base font-bold text-gray-900 flex items-center gap-2">
+                        <span>📑</span> E-Rapor Akademik Ananda
+                    </h3>
+                </div>
+                @if($activeStudent->is_administrasi_lunas)
+                    <div class="bg-emerald-50 border border-emerald-200 rounded-xl p-5 flex flex-col sm:flex-row items-center justify-between gap-4">
+                        <div>
+                            <h4 class="text-sm font-bold text-emerald-900">Administrasi Sekolah Lunas</h4>
+                            <p class="text-xs text-emerald-700 mt-0.5">Anda dapat mengunduh dokumen E-Rapor hasil belajar ananda.</p>
+                        </div>
+                        <a href="/portal/rapor/{{ $activeStudent->id }}" target="_blank" class="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-xs font-bold rounded-lg text-white bg-emerald-600 hover:bg-emerald-700 transition">
+                            <svg class="-ml-1 mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                            Unduh E-Rapor PDF
+                        </a>
+                    </div>
+                @else
+                    <div class="bg-amber-50 border border-amber-200 rounded-xl p-5 flex items-start gap-3">
+                        <div class="text-xl">ℹ️</div>
+                        <div>
+                            <h4 class="text-sm font-bold text-amber-900">Akses E-Rapor Memerlukan Penyelesaian Administrasi</h4>
+                            <p class="text-xs text-amber-700 mt-0.5">Silakan menyelesaikan administrasi sekolah ananda atau menghubungi bagian Tata Usaha / Keuangan sekolah untuk mengaktifkan akses unduh E-Rapor.</p>
+                        </div>
+                    </div>
+                @endif
+            </div>
+
+            <!-- Checklists Grid -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <!-- Kegiatan Pagi -->
+                <div class="bg-white shadow-sm rounded-2xl p-6 sm:p-7 border border-gray-100">
+                    <h3 class="text-base font-bold text-gray-900 flex items-center gap-2 mb-4">
+                        <span class="p-1.5 bg-amber-100 text-amber-700 rounded-lg">☀️</span>
+                        Checklist Amaliyah Pagi (Di Rumah)
+                    </h3>
+                    @if (session()->has('message_morning'))
+                        <div class="px-3 py-2 mb-4 text-xs font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-lg">
+                            ✓ {{ session('message_morning') }}
+                        </div>
+                    @endif
+                    <div class="space-y-3">
+                        <label class="flex items-center justify-between p-3.5 rounded-xl border border-gray-100 hover:border-amber-200 bg-gray-50/50 cursor-pointer transition">
+                            <span class="text-xs sm:text-sm font-semibold text-gray-800">Sholat Subuh Tepat Waktu</span>
+                            <input type="checkbox" wire:model="morning_sholat_subuh" class="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500">
+                        </label>
+                        <label class="flex items-center justify-between p-3.5 rounded-xl border border-gray-100 hover:border-amber-200 bg-gray-50/50 cursor-pointer transition">
+                            <span class="text-xs sm:text-sm font-semibold text-gray-800">Merapikan Tempat Tidur Mandiri</span>
+                            <input type="checkbox" wire:model="morning_merapikan_tempat_tidur" class="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500">
+                        </label>
+                        <label class="flex items-center justify-between p-3.5 rounded-xl border border-gray-100 hover:border-amber-200 bg-gray-50/50 cursor-pointer transition">
+                            <span class="text-xs sm:text-sm font-semibold text-gray-800">Meminta Doa Restu Orang Tua Sebelum Berangkat</span>
+                            <input type="checkbox" wire:model="morning_meminta_doa" class="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500">
+                        </label>
+                        <div class="pt-2">
+                            <button wire:click="saveMorning" class="w-full bg-amber-500 hover:bg-amber-600 text-white py-2.5 rounded-xl text-xs sm:text-sm font-bold shadow-sm transition">
+                                Simpan Amaliyah Pagi (+Poin Karakter)
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Kegiatan Sore/Malam -->
+                <div class="bg-white shadow-sm rounded-2xl p-6 sm:p-7 border border-gray-100">
+                    <h3 class="text-base font-bold text-gray-900 flex items-center gap-2 mb-4">
+                        <span class="p-1.5 bg-indigo-100 text-indigo-700 rounded-lg">🌙</span>
+                        Checklist Amaliyah Sore & Malam (Di Rumah)
+                    </h3>
+                    @if (session()->has('message_evening'))
+                        <div class="px-3 py-2 mb-4 text-xs font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-lg">
+                            ✓ {{ session('message_evening') }}
+                        </div>
+                    @endif
+                    <div class="space-y-2.5">
+                        <label class="flex items-center justify-between p-3 rounded-xl border border-gray-100 hover:border-indigo-200 bg-gray-50/50 cursor-pointer transition">
+                            <span class="text-xs sm:text-sm font-semibold text-gray-800">Sholat Maghrib</span>
+                            <input type="checkbox" wire:model="evening_sholat_maghrib" class="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500">
+                        </label>
+                        <label class="flex items-center justify-between p-3 rounded-xl border border-gray-100 hover:border-indigo-200 bg-gray-50/50 cursor-pointer transition">
+                            <span class="text-xs sm:text-sm font-semibold text-gray-800">Sholat Isya'</span>
+                            <input type="checkbox" wire:model="evening_sholat_isya" class="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500">
+                        </label>
+                        <label class="flex items-center justify-between p-3 rounded-xl border border-gray-100 hover:border-indigo-200 bg-gray-50/50 cursor-pointer transition">
+                            <span class="text-xs sm:text-sm font-semibold text-gray-800">Muraja'ah Hafalan Al-Qur'an</span>
+                            <input type="checkbox" wire:model="evening_murajaah" class="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500">
+                        </label>
+                        <label class="flex items-center justify-between p-3 rounded-xl border border-gray-100 hover:border-indigo-200 bg-gray-50/50 cursor-pointer transition">
+                            <span class="text-xs sm:text-sm font-semibold text-gray-800">Mengaji / Membaca Al-Qur'an</span>
+                            <input type="checkbox" wire:model="evening_mengaji" class="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500">
+                        </label>
+                        <label class="flex items-center justify-between p-3 rounded-xl border border-gray-100 hover:border-indigo-200 bg-gray-50/50 cursor-pointer transition">
+                            <span class="text-xs sm:text-sm font-semibold text-gray-800">Membantu Orang Tua di Rumah</span>
+                            <input type="checkbox" wire:model="evening_membantu_ortu" class="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500">
+                        </label>
+                        <label class="flex items-center justify-between p-3 rounded-xl border border-gray-100 hover:border-indigo-200 bg-gray-50/50 cursor-pointer transition">
+                            <span class="text-xs sm:text-sm font-semibold text-gray-800">Persiapan Peralatan Sekolah Esok Hari</span>
+                            <input type="checkbox" wire:model="evening_persiapan_sekolah" class="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500">
+                        </label>
+                        <div class="pt-2">
+                            <button wire:click="saveEvening" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-2.5 rounded-xl text-xs sm:text-sm font-bold shadow-sm transition">
+                                Simpan Amaliyah Malam (+Poin Karakter)
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
+        @endif
+
     </div>
     @endif
-</div>
 
+</div>
